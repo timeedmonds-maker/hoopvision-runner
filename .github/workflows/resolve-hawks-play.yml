@@ -26,10 +26,14 @@ jobs:
           ]
           sched=None
           for u in urls:
-            r=requests.get(u,headers=H,timeout=30)
-            print("SCHEDULE",u,r.status_code,len(r.content))
-            if r.ok:
-              sched=r.json(); break
+            try:
+              req=urllib.request.Request(u,headers=H)
+              with urllib.request.urlopen(req,timeout=30) as resp:
+                body=resp.read()
+                print("SCHEDULE",u,resp.status,len(body))
+              sched=json.loads(body); break
+            except Exception as e:
+              print("SCHEDULE_FAIL",u,repr(e))
           if sched is None: raise SystemExit("schedule fetch failed")
           games=[]
           for d in sched.get("leagueSchedule",{}).get("gameDates",[]):
@@ -44,8 +48,11 @@ jobs:
           if len(games)!=1: raise SystemExit(f"expected one game, got {len(games)}")
           gid=str(games[0]["gameId"])
           purl=f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gid}.json"
-          p=requests.get(purl,headers=H,timeout=30); print("PBP",p.status_code,len(p.content)); p.raise_for_status()
-          actions=p.json()["game"]["actions"]
+          preq=urllib.request.Request(purl,headers=H)
+          with urllib.request.urlopen(preq,timeout=30) as resp:
+            pbody=resp.read()
+            print("PBP",resp.status,len(pbody))
+          actions=json.loads(pbody)["game"]["actions"]
           hits=[]
           for a in actions:
             desc=str(a.get("description") or "")
