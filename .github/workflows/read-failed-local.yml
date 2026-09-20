@@ -1,0 +1,45 @@
+name: Read Failed Toronto Local Evidence
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/read-failed-local.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  RUN_ID: public-35500155486-1-9091f1475b0c
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  read:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Read preserved identity evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="/srv/hoopvision/runs/$RUN_ID/artifacts"
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+            set -e
+            echo '=== visual identity oracle QA ==='
+            sudo cat '$ROOT/global_identity/visual_identity_oracle_qa.json'
+            echo
+            echo '=== resolved config ==='
+            sudo cat '$ROOT/global_identity/resolved_config.json'
+            echo
+            echo '=== global identity QA ==='
+            sudo cat '$ROOT/global_identity/global_identity_qa.json'
+            echo
+            echo '=== semantic anchors ==='
+            sudo cat '$ROOT/semantic_anchors.json'
+          "
