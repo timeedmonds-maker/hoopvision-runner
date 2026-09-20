@@ -1,0 +1,109 @@
+name: CAMELTrack Bounded Hawks Spike
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cameltrack-hawks-spike.yml'
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  CAMEL_SHA: 46a74bb22a28d2d699b4c5c5e317a26d3b87f1e2
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Fetch clip and CAMELTrack
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud storage cp "gs://$BUCKET/fixtures/fresh/atl-hou-0012500014-event301-pxp/source_native.mp4" "$GITHUB_WORKSPACE/hawks.mp4"
+          git clone --filter=blob:none https://github.com/TrackingLaboratory/CAMELTrack.git camel
+          cd camel
+          git checkout "$CAMEL_SHA"
+          python -m pip install -q uv
+
+      - name: Run bounded CAMELTrack SportsMOT spike
+        shell: bash
+        env:
+          HYDRA_FULL_ERROR: "1"
+        run: |
+          set -euo pipefail
+          cd camel
+          /usr/bin/time -f 'WALL_S=%e\nMAX_RSS_KB=%M' -o "$GITHUB_WORKSPACE/camel_time.txt" \
+            timeout 420s uv run tracklab -cn cameltrack \
+              dataset.video_path="$GITHUB_WORKSPACE/hawks.mp4" \
+              dataset.nframes=180 \
+              eval_tracking=false \
+              use_rich=false \
+              modules.track.checkpoint_path=camel_bbox_app_kps_sportsmot.ckpt
+          cat "$GITHUB_WORKSPACE/camel_time.txt"
+
+      - name: Summarize trajectories
+        if: always()
+        shell: bash
+        run: |
+          set -u
+          echo "=== TIME ==="
+          cat "$GITHUB_WORKSPACE/camel_time.txt" 2>/dev/null || true
+          echo "=== STATES ==="
+          find camel -path '*states*' -type f -maxdepth 5 -print 2>/dev/null || true
+          python - <<'PY'
+          import glob, zipfile, pickle, os, json
+          paths=glob.glob('camel/states/*.pklz')+glob.glob('camel/**/states/*.pklz',recursive=True)
+          if not paths:
+              print(json.dumps({"state_found":False}))
+              raise SystemExit(0)
+          p=paths[0]
+          out={"state_found":True,"state_path":p}
+          try:
+              with zipfile.ZipFile(p) as z:
+                  names=z.namelist()
+                  out["zip_entries"]=names[:20]
+                  frames=[]
+                  for n in names:
+                      if 'detection' in n.lower():
+                          with z.open(n) as fp:
+                              try:
+                                  df=pickle.load(fp)
+                              except Exception:
+                                  continue
+                          if hasattr(df,'columns') and 'track_id' in df.columns:
+                              frames.append(df)
+                  if frames:
+                      import pandas as pd
+                      df=pd.concat(frames,ignore_index=True)
+                      q=df.dropna(subset=['track_id']).copy()
+                      q['track_id']=q['track_id'].astype(int)
+                      counts=q.groupby('track_id').size().sort_values(ascending=False)
+                      out.update({
+                          "tracked_detections":int(len(q)),
+                          "unique_track_ids":int(q.track_id.nunique()),
+                          "top_track_lengths":[int(x) for x in counts.head(20).tolist()],
+                      })
+          except Exception as e:
+              out["inspect_error"]=repr(e)
+          print(json.dumps(out,indent=2))
+          PY
