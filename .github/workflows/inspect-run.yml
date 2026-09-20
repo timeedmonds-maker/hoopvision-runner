@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: corrected-visual-gate-progress
+# snapshot-trigger: corrected-run-progress-3
 
 on:
   push:
