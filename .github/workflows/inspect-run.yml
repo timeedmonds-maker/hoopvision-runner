@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: extract-role-section-text
+# snapshot-trigger: extract-role-qa-fields
 
 on:
   push:
@@ -76,20 +76,23 @@ jobs:
           echo "=== global identity role QA ==="
           python - "$TMP" <<'PY'
           import sys
-          text=open(sys.argv[1],errors="replace").read()
-          cmd=text.rfind("global_identity_solver.py")
-          if cmd < 0:
-              print("global_identity_solver invocation not found")
+          lines=open(sys.argv[1],errors="replace").read().splitlines()
+          needles=('"safe_samples"','"fully_abstained"','"player_id"','"assignment_samples"','"safe_coverage"')
+          idx=[i for i,l in enumerate(lines) if any(n in l for n in needles)]
+          if not idx:
+              print("role QA fields not found")
               raise SystemExit(0)
-          sub=text[cmd:]
-          role=sub.find('"roles": {')
-          if role < 0:
-              print("roles section not found after global solver invocation")
-              raise SystemExit(0)
-          end=sub.find('"identity_anchors":', role)
-          if end < 0:
-              end=min(len(sub),role+30000)
-          print(sub[role:end])
+          spans=[]
+          for i in idx:
+              a=max(0,i-10); b=min(len(lines),i+22)
+              if spans and a<=spans[-1][1]:
+                  spans[-1]=(spans[-1][0],max(spans[-1][1],b))
+              else:
+                  spans.append((a,b))
+          for a,b in spans[-20:]:
+              for line in lines[a:b]:
+                  print(line)
+              print("---")
           PY
           echo "=== render failure diagnostics ==="
           python - "$TMP" <<'PY'
