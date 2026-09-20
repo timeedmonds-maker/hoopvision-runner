@@ -1,4 +1,5 @@
 name: Probe HoopVision Durable State
+# probe-trigger: poll-2
 on:
   push:
     branches: [main]
