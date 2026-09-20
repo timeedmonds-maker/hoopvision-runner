@@ -1,0 +1,46 @@
+name: Inspect Fresh Hawks PBP Lineup
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-fresh-pbp-lineup.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install lightweight data readers
+        run: pip -q install pyreadr pandas nba_api
+      - name: Read exact event lineup
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import urllib.request, pathlib, pyreadr, pandas as pd, re, json
+          from nba_api.stats.static import players
+          p=pathlib.Path('pbp.rds')
+          url='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.rds'
+          urllib.request.urlretrieve(url,p)
+          df=next(iter(pyreadr.read_r(str(p)).values()))
+          gid=df['game_id'].astype(str).str.replace('.0','',regex=False).str.zfill(10)
+          ev=pd.to_numeric(df['event_num'],errors='coerce')
+          q=df[(gid=='0012500014')&(ev==301)]
+          print('ROWS',len(q))
+          if q.empty: raise SystemExit('event row missing')
+          row=q.iloc[0].to_dict()
+          print('COLUMNS',list(q.columns))
+          for k,v in row.items():
+            if k in ('lineup_home','lineup_away','team_home','team_away','description','event_num','period','remaining_time') or 'player' in k.lower():
+              print('FIELD',k,repr(v))
+          ids=[]
+          for k in ('lineup_home','lineup_away'):
+            ids += [int(x) for x in re.findall(r'(?<!\d)(\d{6,7})(?!\d)',str(row.get(k,'')))]
+          print('LINEUP_IDS',ids)
+          static={int(x['id']):x['full_name'] for x in players.get_players()}
+          print('LINEUP_NAMES',json.dumps([{'id':i,'name':static.get(i)} for i in ids],indent=2))
+          PY
