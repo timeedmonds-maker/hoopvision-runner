@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: post-watcher-worker-status
+# snapshot-trigger: sam-progress-after-timeout
 
 on:
   push:
