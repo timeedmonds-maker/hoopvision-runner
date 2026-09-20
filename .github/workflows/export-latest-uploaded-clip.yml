@@ -1,0 +1,29 @@
+name: Export Latest Uploaded Toronto Clip
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-latest-uploaded-clip.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  SOURCE: gs://project-d88c48c6-7f48-4c33-928-hoopvision-dev/runs/toronto-nextgen/manual-4c57db559cc0/final/TOR_Broadcast_ScreenTracker_Kickout3_LONG_UHD.mp4
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: gcloud storage cp "$SOURCE" HOOPVISION_TORONTO_LATEST.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-toronto-latest-uploaded
+          path: HOOPVISION_TORONTO_LATEST.mp4
+          compression-level: 0
+          retention-days: 7
