@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: extract-global-role-qa
+# snapshot-trigger: parse-global-role-qa-v2
 
 on:
   push:
@@ -76,31 +76,25 @@ jobs:
           echo "=== global identity role QA ==="
           python - "$TMP" <<'PY'
           import json,sys
-          lines=open(sys.argv[1],errors="replace").read().splitlines()
-          cmd_idx=[i for i,l in enumerate(lines) if "global_identity_solver.py" in l]
-          if not cmd_idx:
-              print("global_identity_solver invocation not found")
+          text=open(sys.argv[1],errors="replace").read()
+          needle='"solver_version"'
+          pos=text.find(needle)
+          if pos < 0:
+              print("solver_version not found")
               raise SystemExit(0)
-          start=cmd_idx[-1]+1
-          while start < len(lines) and lines[start].strip() != "{":
-              start += 1
-          if start >= len(lines):
-              print("global identity JSON start not found")
-              raise SystemExit(0)
-          depth=0; buf=[]; found=False
-          for l in lines[start:]:
-              s=l.strip()
-              if not found and s.startswith("{"):
-                  found=True
-              if found:
-                  buf.append(l)
-                  depth += l.count("{") - l.count("}")
-                  if depth == 0:
+          start=text.rfind("{",0,pos)
+          dec=json.JSONDecoder()
+          while start >= 0:
+              try:
+                  obj,end=dec.raw_decode(text[start:])
+                  if isinstance(obj,dict) and "solver_version" in obj and "roles" in obj:
+                      qa=obj
                       break
-          try:
-              qa=json.loads("\n".join(buf))
-          except Exception as e:
-              print("global identity JSON parse failed",repr(e))
+              except Exception:
+                  pass
+              start=text.rfind("{",0,start)
+          else:
+              print("global identity JSON object not found")
               raise SystemExit(0)
           print(json.dumps({
               "solver_version":qa.get("solver_version"),
