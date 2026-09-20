@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: recovered-run-progress
+# snapshot-trigger: terminal-result-after-recovery
 
 on:
   push:
