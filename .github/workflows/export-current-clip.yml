@@ -11,7 +11,7 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   ZONE: asia-southeast1-c
   INSTANCE: hv-dev-l4
-  RUN_ID: public-35500155486-1-9091f1475b0c
+  RUN_ID: public-35504687816-1-174f6f1df047
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 jobs:
@@ -46,7 +46,7 @@ jobs:
           ls -lh HOOPVISION_TORONTO_LATEST.mp4
       - uses: actions/upload-artifact@v4
         with:
-          name: hoopvision-toronto-latest
+          name: hawks-source-native
           path: HOOPVISION_TORONTO_LATEST.mp4
           compression-level: 0
           retention-days: 7
