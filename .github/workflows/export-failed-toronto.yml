@@ -1,0 +1,104 @@
+name: Export Failed Toronto Evidence
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-failed-toronto.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  RUN_ID: public-35491116228-1-850cd9f00486
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install one-time shutdown evidence exporter
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/hv-export.sh <<'SH'
+          #!/bin/bash
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, pathlib, urllib.parse, urllib.request
+
+          bucket="project-d88c48c6-7f48-4c33-928-hoopvision-dev"
+          rid="public-35491116228-1-850cd9f00486"
+          root=pathlib.Path("/srv/hoopvision/runs")/rid
+          files=[
+              (root/"artifacts/global_identity/resolved_config.json", f"debug/{rid}/resolved_config.json", "application/json"),
+              (root/"artifacts/global_identity/global_identity_qa.json", f"debug/{rid}/global_identity_qa.json", "application/json"),
+              (root/"artifacts/nextgen_mask/tracks.csv", f"debug/{rid}/tracks.csv", "text/csv"),
+              (root/"artifacts/semantic_anchors.json", f"debug/{rid}/semantic_anchors.json", "application/json"),
+          ]
+
+          meta=urllib.request.Request(
+              "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token",
+              headers={"Metadata-Flavor":"Google"},
+          )
+          token=json.load(urllib.request.urlopen(meta, timeout=10))["access_token"]
+          for local,obj,ctype in files:
+              if not local.exists():
+                  print("MISSING", local, flush=True)
+                  continue
+              url=(
+                  "https://storage.googleapis.com/upload/storage/v1/b/"
+                  + urllib.parse.quote(bucket, safe="")
+                  + "/o?uploadType=media&name="
+                  + urllib.parse.quote(obj, safe="")
+              )
+              req=urllib.request.Request(
+                  url,
+                  data=local.read_bytes(),
+                  method="POST",
+                  headers={"Authorization":f"Bearer {token}","Content-Type":ctype},
+              )
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  print("UPLOADED", local, obj, r.status, flush=True)
+          PY
+          SH
+          chmod +x /tmp/hv-export.sh
+          gcloud compute instances add-metadata "$INSTANCE"             --project="$PROJECT_ID" --zone="$ZONE"             --metadata-from-file shutdown-script=/tmp/hv-export.sh
+
+      - name: Stop L4 and export preserved evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute instances stop "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE"
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)')"
+          echo "L4 status after export: $STATUS"
+          test "$STATUS" = "TERMINATED"
+          gcloud compute instances remove-metadata "$INSTANCE"             --project="$PROJECT_ID" --zone="$ZONE" --keys=shutdown-script
+
+      - name: Print exported renderer evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX="gs://$BUCKET/debug/$RUN_ID"
+          echo "=== exported objects ==="
+          gcloud storage ls "$PREFIX/**"
+          echo "=== resolved config ==="
+          gcloud storage cat "$PREFIX/resolved_config.json"
+          echo "=== global identity QA ==="
+          gcloud storage cat "$PREFIX/global_identity_qa.json"
+          echo "=== semantic anchors ==="
+          gcloud storage cat "$PREFIX/semantic_anchors.json"
