@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: confirm-benchmarking-font-fallback
+# snapshot-trigger: terminal-font-fallback-failure
 
 on:
   push:
