@@ -1,0 +1,72 @@
+name: Compare Hawks Dunk Angles
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/compare-hawks-angles.yml'
+permissions:
+  contents: read
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Enumerate official angles and build contact sheet
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg python3-opencv >/dev/null
+          python3 - <<'PY'
+          import urllib.request,re,html,subprocess,os,cv2,numpy as np
+          from pathlib import Path
+          GAME='0012500014'; EVENT=301
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          H={'User-Agent':UA,'Referer':'https://clips.nba.com/','Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
+          url=f'https://clips.nba.com/?gameNo={GAME}&eventNum={EVENT}&source=grs'
+          req=urllib.request.Request(url,headers=H)
+          with urllib.request.urlopen(req,timeout=20) as r: txt=r.read().decode('utf-8','ignore')
+          opts=[]
+          for m in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',txt,re.I|re.S):
+            u=html.unescape(m.group(1).strip()); attrs=m.group(2); label=re.sub(r'<[^>]+>','',html.unescape(m.group(3))).strip()
+            if '.m3u8' not in u: continue
+            am=re.search(r'data-angle="([^"]+)"',attrs,re.I)
+            opts.append((label,am.group(1) if am else '',u))
+          print('ANGLE_COUNT',len(opts))
+          for i,(label,slug,u) in enumerate(opts): print('ANGLE',i,label,'|',slug,'|',u)
+          root=Path('angles'); root.mkdir()
+          thumbs=[]
+          headers=f'User-Agent: {UA}\r\nReferer: https://clips.nba.com/\r\n'
+          for i,(label,slug,u) in enumerate(opts):
+            out=root/f'{i:02d}.mp4'
+            try:
+              subprocess.run(['ffmpeg','-y','-v','error','-rw_timeout','20000000','-headers',headers,'-i',u,'-t','20','-vf','scale=640:-2','-an',str(out)],check=True,timeout=60)
+              cap=cv2.VideoCapture(str(out))
+              n=int(cap.get(cv2.CAP_PROP_FRAME_COUNT)); picks=[max(0,int(n*x)) for x in (.25,.45,.60)]
+              ims=[]
+              for fr in picks:
+                cap.set(cv2.CAP_PROP_POS_FRAMES,fr); ok,im=cap.read()
+                if ok: ims.append(im)
+              cap.release()
+              if not ims: continue
+              # Use middle of three as preview; label it.
+              im=ims[min(1,len(ims)-1)]
+              h,w=im.shape[:2]
+              cv2.rectangle(im,(0,0),(w,34),(0,0,0),-1)
+              cv2.putText(im,f'{i}: {label}',(8,24),cv2.FONT_HERSHEY_SIMPLEX,.65,(255,255,255),2,cv2.LINE_AA)
+              thumbs.append((i,label,im))
+            except Exception as e:
+              print('DOWNLOAD_FAIL',i,label,repr(e))
+          if thumbs:
+            tw=640; th=max(x[2].shape[0] for x in thumbs)
+            cols=2; rows=(len(thumbs)+cols-1)//cols
+            sheet=np.zeros((rows*th,cols*tw,3),np.uint8)
+            for k,(i,label,im) in enumerate(thumbs):
+              r,c=divmod(k,cols)
+              hh,ww=im.shape[:2]
+              sheet[r*th:r*th+hh,c*tw:c*tw+ww]=im
+            cv2.imwrite('hawks_event301_angles.jpg',sheet)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hawks-event301-angle-contact-sheet
+          path: hawks_event301_angles.jpg
