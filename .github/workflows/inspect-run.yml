@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: wake-and-acceptance
+# snapshot-trigger: recovered-run-progress
 
 on:
   push:
