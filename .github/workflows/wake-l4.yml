@@ -40,8 +40,19 @@ jobs:
           for i in $(seq 1 60); do
             STATUS="$(gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)')"
             echo "L4 status: $STATUS"
-            [ "$STATUS" = "RUNNING" ] && exit 0
+            [ "$STATUS" = "RUNNING" ] && break
             sleep 5
           done
-          echo "L4 did not reach RUNNING" >&2
+          [ "$STATUS" = "RUNNING" ] || { echo "L4 did not reach RUNNING" >&2; exit 1; }
+
+          echo "Waiting for prepared supervisor readiness..."
+          for i in $(seq 1 120); do
+            if gcloud compute ssh "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --quiet \
+              --command='sudo systemctl is-active --quiet hoopvision-dev-supervisor.service'; then
+              echo "HOOPVISION_L4_SUPERVISOR_READY"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Prepared supervisor did not become ready" >&2
           exit 1
