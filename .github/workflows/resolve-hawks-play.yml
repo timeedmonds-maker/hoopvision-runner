@@ -1,0 +1,60 @@
+name: Resolve Fresh Hawks Play
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/resolve-hawks-play.yml'
+permissions:
+  contents: read
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Resolve Oct 6 ATL-HOU game and Adams dunk event
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import requests, json
+          H={"User-Agent":"Mozilla/5.0","Referer":"https://www.nba.com/"}
+          urls=[
+            "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json",
+            "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json",
+          ]
+          sched=None
+          for u in urls:
+            r=requests.get(u,headers=H,timeout=30)
+            print("SCHEDULE",u,r.status_code,len(r.content))
+            if r.ok:
+              sched=r.json(); break
+          if sched is None: raise SystemExit("schedule fetch failed")
+          games=[]
+          for d in sched.get("leagueSchedule",{}).get("gameDates",[]):
+            if "10/06/2025" not in str(d.get("gameDate","")) and "2025-10-06" not in str(d.get("gameDate","")):
+              continue
+            for g in d.get("games",[]):
+              h=(g.get("homeTeam") or {}).get("teamTricode")
+              a=(g.get("awayTeam") or {}).get("teamTricode")
+              if {h,a}=={"HOU","ATL"}:
+                games.append(g)
+          print("MATCHES",json.dumps(games,indent=2))
+          if len(games)!=1: raise SystemExit(f"expected one game, got {len(games)}")
+          gid=str(games[0]["gameId"])
+          purl=f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gid}.json"
+          p=requests.get(purl,headers=H,timeout=30); print("PBP",p.status_code,len(p.content)); p.raise_for_status()
+          actions=p.json()["game"]["actions"]
+          hits=[]
+          for a in actions:
+            desc=str(a.get("description") or "")
+            clock=str(a.get("clock") or "")
+            period=a.get("period")
+            if "Steven Adams" in desc and "dunk" in desc.lower() and "Amen Thompson" in desc:
+              hits.append(a)
+            elif period==3 and ("PT11M04" in clock or "11:04" in clock) and "Adams" in desc:
+              hits.append(a)
+          print("GAME_ID",gid)
+          print("HITS",json.dumps(hits,indent=2))
+          PY
