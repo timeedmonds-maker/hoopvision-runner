@@ -1,4 +1,5 @@
 name: Read Failed Toronto Local Evidence
+# diagnostic-trigger: identity-neighborhoods
 on:
   push:
     branches: [main]
@@ -24,22 +25,9 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.DEV_PUBLISH_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: Read preserved identity evidence
+      - name: Read compact identity neighborhoods
         shell: bash
         run: |
           set -euo pipefail
           ROOT="/srv/hoopvision/runs/$RUN_ID/artifacts"
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
-            set -e
-            echo '=== visual identity oracle QA ==='
-            sudo cat '$ROOT/global_identity/visual_identity_oracle_qa.json'
-            echo
-            echo '=== resolved config ==='
-            sudo cat '$ROOT/global_identity/resolved_config.json'
-            echo
-            echo '=== global identity QA ==='
-            sudo cat '$ROOT/global_identity/global_identity_qa.json'
-            echo
-            echo '=== semantic anchors ==='
-            sudo cat '$ROOT/semantic_anchors.json'
-          "
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo ROOT='$ROOT' python3 -c \"import os,pandas as pd,json; R=os.environ['ROOT']; tr=pd.read_csv(R+'/nextgen_mask/tracks.csv'); ob=pd.read_csv(R+'/identity_segments/uniform_observations.csv'); sg=pd.read_csv(R+'/identity_segments/segments.csv'); ass=pd.read_csv(R+'/global_identity/identity_assignments.csv'); print('=== TRACKS 9.3038 ==='); print(tr[(tr.time_s-9.3038).abs()<0.02][['time_s','track_id','x1','y1','x2','y2','conf']].to_string(index=False)); print('=== OBS 9.3038 ==='); print(ob[(ob.time_s-9.3038).abs()<0.02][['time_s','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','conf','uniform_cluster','cluster_conf','ambiguous']].to_string(index=False)); print('=== ASSIGN 9.3038 ==='); print(ass[(ass.time_s-9.3038).abs()<0.02][['time_s','player_id','player_name','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous']].to_string(index=False)); print('=== SEGMENT 148 ==='); print(sg[sg.segment_id.astype(int)==148].to_string(index=False)); print('=== ASSIGN 11.9064 ==='); print(ass[(ass.time_s-11.9064).abs()<0.12][['time_s','player_id','player_name','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous']].to_string(index=False)); print('=== DICK WINDOW ==='); print(ass[(ass.player_id.astype(int)==1641711)&(ass.time_s.between(10.8,12.8))][['time_s','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous']].to_string(index=False));\""
