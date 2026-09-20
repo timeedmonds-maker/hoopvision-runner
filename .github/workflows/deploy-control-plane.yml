@@ -1,0 +1,119 @@
+name: Deploy HoopVision Control Plane
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'CONTROL_SHA'
+      - '.github/workflows/deploy-control-plane.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve private control revision
+        id: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="$(tr -d '[:space:]' < CONTROL_SHA)"
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Validate control source
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/release/dev_supervisor.py tools/release/durable_events.py
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Publish exact control files
+        id: publish
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="${{ steps.source.outputs.sha }}"
+          SUP_SHA="$(sha256sum tools/release/dev_supervisor.py | awk '{print $1}')"
+          echo "supervisor_sha=$SUP_SHA" >> "$GITHUB_OUTPUT"
+          gcloud storage cp tools/release/dev_supervisor.py "gs://$BUCKET/control/$SHA/dev_supervisor.py"
+          gcloud storage cp tools/release/durable_events.py "gs://$BUCKET/control/$SHA/durable_events.py"
+
+      - name: Install exact control revision on reboot
+        shell: bash
+        run: |
+          set -euo pipefail
+          SHA="${{ steps.source.outputs.sha }}"
+          cat > /tmp/hoopvision-control-startup.sh <<EOF
+          #!/usr/bin/env bash
+          set -euo pipefail
+          systemctl stop hoopvision-dev-supervisor.service || true
+          gcloud storage cp gs://$BUCKET/control/$SHA/dev_supervisor.py /opt/hoopvision-control/dev_supervisor.py
+          gcloud storage cp gs://$BUCKET/control/$SHA/durable_events.py /opt/hoopvision-control/durable_events.py
+          chmod 0755 /opt/hoopvision-control/dev_supervisor.py
+          chmod 0644 /opt/hoopvision-control/durable_events.py
+          printf '%s\n' '$SHA' > /opt/hoopvision-control/deployed_git_sha
+          systemctl daemon-reload
+          systemctl restart hoopvision-dev-supervisor.service
+          EOF
+          gcloud compute instances add-metadata "$INSTANCE"             --project="$PROJECT_ID" --zone="$ZONE"             --metadata-from-file startup-script=/tmp/hoopvision-control-startup.sh
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)')"
+          echo "Pre-reset status: $STATUS"
+          if [ "$STATUS" = "RUNNING" ]; then
+            gcloud compute instances reset "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --quiet
+          else
+            gcloud compute instances start "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --quiet
+          fi
+
+      - name: Wait for new supervisor marker
+        shell: bash
+        run: |
+          set -euo pipefail
+          SUP_SHA="${{ steps.publish.outputs.supervisor_sha }}"
+          OBJ="gs://$BUCKET/sessions/hv-dev-l4/control/$SUP_SHA.json"
+          for i in $(seq 1 120); do
+            if gcloud storage cat "$OBJ" >/tmp/control.json 2>/dev/null; then
+              cat /tmp/control.json
+              python3 - <<'PY'
+          import json
+          x=json.load(open('/tmp/control.json'))
+          assert 'fresh-hawks-all-player' in x['benchmarks']
+          PY
+              exit 0
+            fi
+            sleep 4
+          done
+          echo "New supervisor marker did not appear" >&2
+          exit 1
