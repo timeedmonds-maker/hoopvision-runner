@@ -29,10 +29,19 @@ jobs:
         run: |
           set -euo pipefail
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
-            sudo docker run --rm --pull=never --gpus all --entrypoint bash '$BASE_IMAGE' -lc \"
-              echo ===ENCODERS===
-              ffmpeg -hide_banner -encoders 2>/dev/null | grep -E 'nvenc|264' || true
-              echo ===FILTERS===
-              ffmpeg -hide_banner -filters 2>/dev/null | grep -E 'scale_cuda|scale_npp|hwupload_cuda' || true
-            \"
+            echo ===HOST_DRIVER===
+            nvidia-smi --query-gpu=name,driver_version --format=csv,noheader || true
+            echo ===HOST_NVENC_LIB===
+            sudo find /usr /lib -name 'libnvidia-encode.so*' -print 2>/dev/null | head -20 || true
+            echo ===CONTAINER_NVENC_RUNTIME===
+            sudo docker run --rm --pull=never --gpus all \
+              -e NVIDIA_DRIVER_CAPABILITIES=compute,utility,video \
+              --entrypoint bash '$BASE_IMAGE' -lc '
+                echo ---LIBS---
+                ldconfig -p 2>/dev/null | grep libnvidia-encode || true
+                echo ---ENCODERS---
+                ffmpeg -hide_banner -encoders 2>/dev/null | grep -E "nvenc|264" || true
+                echo ---ONE_SECOND_TEST---
+                ffmpeg -hide_banner -v error -f lavfi -i color=size=1280x720:rate=30 -t 1 -c:v h264_nvenc -f null - && echo NVENC_RUNTIME_OK
+              '
           "
