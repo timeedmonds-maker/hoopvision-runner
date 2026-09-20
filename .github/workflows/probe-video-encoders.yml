@@ -1,0 +1,38 @@
+name: Probe HoopVision Video Encoders
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-video-encoders.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  BASE_IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Probe container ffmpeg GPU capabilities
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+            sudo docker run --rm --pull=never --gpus all --entrypoint bash '$BASE_IMAGE' -lc \"
+              echo ===ENCODERS===
+              ffmpeg -hide_banner -encoders 2>/dev/null | grep -E 'nvenc|264' || true
+              echo ===FILTERS===
+              ffmpeg -hide_banner -filters 2>/dev/null | grep -E 'scale_cuda|scale_npp|hwupload_cuda' || true
+            \"
+          "
