@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: go-live-render-resolution
+# snapshot-trigger: corrective-run-wake-state
 
 on:
   push:
