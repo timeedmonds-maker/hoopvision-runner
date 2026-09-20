@@ -1,0 +1,157 @@
+name: HoopVision Public Runner
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact commit SHA from private timeedmonds-maker/104
+        required: false
+        type: string
+      session_id:
+        description: Prepared L4 session identifier
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - 'SOURCE_SHA'
+      - '.github/workflows/hoopvision.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: hoopvision-public-runner
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  RELEASE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  DEV_TOPIC: hv-dev-jobs
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  test-package-dispatch-watch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout public runner shell
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve exact private source revision
+        id: source
+        shell: bash
+        env:
+          REQUESTED_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${REQUESTED_SHA:-}"
+          if [ -z "$SHA" ]; then
+            SHA="$(tr -d '[:space:]' < SOURCE_SHA)"
+          fi
+          if ! [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid source SHA" >&2
+            exit 2
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "Using private source revision ${SHA:0:12}"
+
+      - name: Checkout private HoopVision source
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact private source revision
+        working-directory: src
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          test "$ACTUAL_SHA" = "$EXPECTED_SHA"
+          git remote set-url origin no-network-remote
+          echo "Verified private source ${ACTUAL_SHA:0:12}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run HoopVision core architecture tests
+        working-directory: src
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s hoopvision/tests -p 'test_*.py' -v
+          python -m py_compile tools/release/package_app.py tools/release/submit_dev.py tools/release/watch_run.py tools/release/durable_events.py tools/release/dev_supervisor.py hoopvision/worker/boot.py hoopvision/worker/interactive_service.py hoopvision/worker/run_toronto_nextgen.py
+
+      - name: Build deterministic application snapshot
+        working-directory: src
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist/app/hoopvision
+          cp -a screen_tracker_nextgen dist/app/
+          cp -a screen_tracker_kickout3 dist/app/
+          cp -a tools dist/app/
+          cp -a hoopvision/core dist/app/hoopvision/
+          printf '%s\n' '"""HoopVision application package."""' > dist/app/hoopvision/__init__.py
+          cp hoopvision/worker/boot.py dist/app/boot.py
+          cp hoopvision/worker/run_toronto_nextgen.py dist/app/run_toronto_nextgen.py
+          cp hoopvision/worker/interactive_service.py dist/app/interactive_service.py
+          find dist/app -type d -name __pycache__ -prune -exec rm -rf {} +
+          find dist/app -type f -name '*.pyc' -delete
+          python tools/release/package_app.py --git-sha "$SOURCE_SHA" --app-dir dist/app --out dist/release
+          python tools/release/package_app.py --git-sha "$SOURCE_SHA" --app-dir dist/app --out dist/release-repeat
+          cmp dist/release/app.tar.gz dist/release-repeat/app.tar.gz
+          cmp dist/release/inventory.json dist/release-repeat/inventory.json
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install control-plane clients
+        working-directory: src
+        run: python -m pip install --disable-pip-version-check --no-cache-dir google-cloud-storage==3.4.0 google-cloud-pubsub==2.31.1
+
+      - name: Publish immutable bundle and dispatch
+        working-directory: src
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ env.PROJECT_ID }}
+          HOOPVISION_RELEASE_BUCKET: ${{ env.RELEASE_BUCKET }}
+          HOOPVISION_EVIDENCE_BUCKET: ${{ env.EVIDENCE_BUCKET }}
+          HOOPVISION_DEV_TOPIC: ${{ env.DEV_TOPIC }}
+          REQUESTED_SESSION: ${{ inputs.session_id }}
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          SESSION="${REQUESTED_SESSION:-hv-dev-l4}"
+          RUN_ID="public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SOURCE_SHA:0:12}"
+          echo "HOOPVISION_DEV_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+          python tools/release/submit_dev.py --release-dir dist/release --session "$SESSION" --run-id "$RUN_ID"
+
+      - name: Observe durable GCP result
+        working-directory: src
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ env.PROJECT_ID }}
+          HOOPVISION_EVIDENCE_BUCKET: ${{ env.EVIDENCE_BUCKET }}
+        run: python tools/release/watch_run.py --run-id "$HOOPVISION_DEV_RUN_ID" --timeout 1200
