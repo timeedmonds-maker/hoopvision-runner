@@ -60,33 +60,33 @@ jobs:
                   print(line)
           PY
           echo "=== render failure diagnostics ==="
-python - "$TMP" <<'PY'
-import sys
-p=sys.argv[1]
-lines=open(p,errors="replace").read().splitlines()
-needles=(
-    "render_global_identity_safe.py",
-    "refusing render",
-    "refusing production render",
-    "RuntimeError:",
-    "ValueError:",
-    "KeyError:",
-    "AttributeError:",
-    "TypeError:",
-    "IndexError:",
-    "NameError:",
-)
-hits=[i for i,l in enumerate(lines) if any(n in l for n in needles)]
-seen=set()
-for i in hits:
-    a=max(0,i-8); b=min(len(lines),i+14)
-    key=(a,b)
-    if key in seen: continue
-    seen.add(key)
-    for line in lines[a:b]:
-        print(line)
-    print("---")
-PY
+          python - "$TMP" <<'PY'
+          import sys
+          p=sys.argv[1]
+          lines=open(p,errors="replace").read().splitlines()
+          needles=(
+              "render_global_identity_safe.py",
+              "refusing render",
+              "refusing production render",
+              "RuntimeError:",
+              "ValueError:",
+              "KeyError:",
+              "AttributeError:",
+              "TypeError:",
+              "IndexError:",
+              "NameError:",
+          )
+          hits=[i for i,l in enumerate(lines) if any(n in l for n in needles)]
+          seen=set()
+          for i in hits:
+              a=max(0,i-8); b=min(len(lines),i+14)
+              key=(a,b)
+              if key in seen: continue
+              seen.add(key)
+              for line in lines[a:b]:
+                  print(line)
+              print("---")
+          PY
 echo "=== worker failure traceback ==="
           python - "$TMP" <<'PY'
           import sys
