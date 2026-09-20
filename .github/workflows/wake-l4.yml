@@ -1,4 +1,5 @@
 name: Wake HoopVision L4
+# wake-trigger: recover-stuck-dispatch
 
 on:
   push:
