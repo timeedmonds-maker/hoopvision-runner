@@ -1,0 +1,30 @@
+name: Resolve Fresh Fixture Player IDs
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/resolve-fresh-player-ids.yml'
+permissions:
+  contents: read
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip -q install nba_api
+      - name: Resolve IDs from bundled static player index
+        shell: bash
+        run: |
+          python - <<'PY'
+          from nba_api.stats.static import players
+          names=[
+            'Tari Eason','Jabari Smith Jr.','Amen Thompson','Reed Sheppard','Steven Adams',
+            'Dyson Daniels','Nickeil Alexander-Walker','Zaccharie Risacher','Onyeka Okongwu',"N'Faly Dante",
+          ]
+          allp=players.get_players()
+          for n in names:
+            q=[x for x in allp if x['full_name']==n]
+            print(n,q)
+          PY
