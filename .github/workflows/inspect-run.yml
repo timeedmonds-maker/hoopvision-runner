@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: extract-role-qa-fields
+# snapshot-trigger: renderer-diagnostics-progress
 
 on:
   push:
