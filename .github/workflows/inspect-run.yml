@@ -65,7 +65,12 @@ jobs:
           p=sys.argv[1]
           lines=open(p,errors="replace").read().splitlines()
           idx=[i for i,l in enumerate(lines) if "Traceback (most recent call last):" in l]
-          start=idx[-1] if idx else max(0,len(lines)-260)
-          for line in lines[start:start+180]:
+          if idx:
+              start=max(0,idx[-1]-160)
+              end=min(len(lines),idx[-1]+100)
+          else:
+              start=max(0,len(lines)-320)
+              end=len(lines)
+          for line in lines[start:end]:
               print(line)
           PY
