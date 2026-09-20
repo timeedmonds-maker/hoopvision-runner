@@ -40,11 +40,11 @@ jobs:
           gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" > "$TMP" 2>/dev/null || true
           echo "=== worker failure traceback ==="
           python - "$TMP" <<'PY'
-import sys
-p=sys.argv[1]
-lines=open(p,errors="replace").read().splitlines()
-idx=[i for i,l in enumerate(lines) if "Traceback (most recent call last):" in l]
-start=idx[-1] if idx else max(0,len(lines)-260)
-for line in lines[start:start+180]:
-    print(line)
-PY
+          import sys
+          p=sys.argv[1]
+          lines=open(p,errors="replace").read().splitlines()
+          idx=[i for i,l in enumerate(lines) if "Traceback (most recent call last):" in l]
+          start=idx[-1] if idx else max(0,len(lines)-260)
+          for line in lines[start:start+180]:
+              print(line)
+          PY
