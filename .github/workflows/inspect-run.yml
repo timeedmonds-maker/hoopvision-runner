@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: benchmark-stage-check-2
+# snapshot-trigger: visual-oracle-failure-detail
 
 on:
   push:
