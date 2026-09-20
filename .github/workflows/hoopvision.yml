@@ -23,7 +23,7 @@ permissions:
 
 concurrency:
   group: hoopvision-public-runner
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
