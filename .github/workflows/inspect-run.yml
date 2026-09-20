@@ -38,8 +38,12 @@ jobs:
           RUN_ID="$(tr -d '[:space:]' < INSPECT_RUN_ID)"
           test -n "$RUN_ID"
           TMP="$(mktemp)"
-          echo "=== durable log objects ==="
-          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/**" || true
+          echo "=== durable run objects ==="
+          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/**" || true
+          echo "=== durable events ==="
+          gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/events/*.json" 2>/dev/null || true
+          echo "=== durable result ==="
+          gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/result.json" 2>/dev/null || true
           gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" > "$TMP" 2>/dev/null || true
           echo "=== SAM continuity diagnostics ==="
           python - "$TMP" <<'PY'
