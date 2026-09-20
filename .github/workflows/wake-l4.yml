@@ -1,5 +1,5 @@
 name: Wake HoopVision L4
-# wake-trigger: async-recovery-start
+# wake-trigger: corrected-visual-qa-run
 
 on:
   push:
