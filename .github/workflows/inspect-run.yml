@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: corrected-run-progress-3
+# snapshot-trigger: strong-evidence-claim-check-2
 
 on:
   push:
