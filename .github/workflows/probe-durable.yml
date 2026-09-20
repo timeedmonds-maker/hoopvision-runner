@@ -1,0 +1,38 @@
+name: Probe HoopVision Durable State
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-durable.yml'
+      - 'PROBE_RUN_ID'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Read durable state only
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_ID="$(tr -d '[:space:]' < PROBE_RUN_ID)"
+          echo "RUN_ID=$RUN_ID"
+          echo "=== EVENTS ==="
+          gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/events/*.json" 2>/dev/null || true
+          echo "=== RESULT ==="
+          gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/result.json" 2>/dev/null || true
