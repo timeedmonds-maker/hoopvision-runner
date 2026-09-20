@@ -1,5 +1,5 @@
 name: Wake HoopVision L4
-# wake-trigger: renderer-font-fallback
+# wake-trigger: async-recovery-start
 
 on:
   push:
@@ -33,27 +33,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # A one-time shutdown diagnostic previously installed shutdown-script
+          # metadata. Clear it defensively before every wake so the instance
+          # cannot immediately stop itself again.
+          gcloud compute instances remove-metadata "$INSTANCE" \
+            --project="$PROJECT_ID" --zone="$ZONE" --keys=shutdown-script >/dev/null 2>&1 || true
+
           STATUS="$(gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)')"
           echo "Current status: $STATUS"
           if [ "$STATUS" != "RUNNING" ]; then
-            gcloud compute instances start "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE"
+            gcloud compute instances start "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --async
           fi
-          for i in $(seq 1 60); do
+
+          for i in $(seq 1 90); do
             STATUS="$(gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)')"
             echo "L4 status: $STATUS"
-            [ "$STATUS" = "RUNNING" ] && break
-            sleep 5
-          done
-          [ "$STATUS" = "RUNNING" ] || { echo "L4 did not reach RUNNING" >&2; exit 1; }
-
-          echo "Waiting for prepared supervisor readiness..."
-          for i in $(seq 1 120); do
-            if gcloud compute ssh "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --quiet \
-              --command='sudo systemctl is-active --quiet hoopvision-dev-supervisor.service'; then
-              echo "HOOPVISION_L4_SUPERVISOR_READY"
+            if [ "$STATUS" = "RUNNING" ]; then
+              echo "HOOPVISION_L4_RUNNING"
               exit 0
             fi
-            sleep 5
+            sleep 4
           done
-          echo "Prepared supervisor did not become ready" >&2
+          echo "L4 did not reach RUNNING" >&2
           exit 1
