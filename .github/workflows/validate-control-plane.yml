@@ -1,4 +1,4 @@
-name: Validate Control Plane
+name: Validate HoopVision Regression Gates
 
 on:
   push:
@@ -17,13 +17,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: timeedmonds-maker/104
-          ref: 1f990dee47fa53cc2992a009a21da1c74476d0c4
+          ref: d3895efef68e46afd69c9a0e6fe54c7a4b16ae3b
           token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Validate control-plane regressions
+      - name: Validate identity and control-plane regressions
         run: |
           set -euo pipefail
           python -m unittest hoopvision.tests.test_semantic_anchor_source -v
