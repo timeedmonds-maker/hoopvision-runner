@@ -1,0 +1,39 @@
+name: Inspect Prepared L4 Runtime
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-l4-runtime.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect runtime
+        shell: bash
+        run: |
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+            set -e
+            echo '=== GPU ==='
+            nvidia-smi --query-gpu=name --format=csv,noheader
+            echo '=== CONTAINERS ==='
+            sudo docker ps --format '{{.ID}} {{.Image}} {{.Names}} {{.Status}}'
+            echo '=== IMAGES ==='
+            sudo docker images --format '{{.Repository}}:{{.Tag}} {{.ID}} {{.Size}}' | head -20
+            echo '=== MODEL CACHE ==='
+            sudo find /srv/hoopvision -maxdepth 3 -type f \( -name 'sam3.pt' -o -name 'rfdetr_m_640.onnx' -o -name 'court_yolo11m_pose.pt' \) -printf '%p %s\n' 2>/dev/null | head -20
+          "
