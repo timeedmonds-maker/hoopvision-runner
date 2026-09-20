@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: post-wrapper-timeout-live-worker
+# snapshot-trigger: post-semantic-render-check
 
 on:
   push:
