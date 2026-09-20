@@ -43,6 +43,7 @@ jobs:
             --format='value(resourcePolicies)'
           echo '=== SERIAL BEFORE ==='
           gcloud compute instances get-serial-port-output "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --port=1 2>&1 | tail -n 350
+          true
       - name: Reproduce one start and capture transition
         shell: bash
         run: |
@@ -76,3 +77,4 @@ jobs:
             'resource.type="gce_instance" AND resource.labels.instance_name="hv-dev-l4"' \
             --project="$PROJECT_ID" --freshness=30m --limit=100 --order=desc \
             --format='value(timestamp,logName,textPayload,jsonPayload.message)' 2>&1 | tail -n 300
+          true
