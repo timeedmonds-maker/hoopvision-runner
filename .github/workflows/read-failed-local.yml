@@ -1,5 +1,5 @@
 name: Read Failed Toronto Local Evidence
-# diagnostic-trigger: identity-neighborhoods-stdlib
+# diagnostic-trigger: identity-neighborhoods-grep
 on:
   push:
     branches: [main]
@@ -30,27 +30,26 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="/srv/hoopvision/runs/$RUN_ID/artifacts"
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo ROOT='$ROOT' python3 - <<'PY'
-import csv, os, json
-R=os.environ['ROOT']
-def rows(path):
-    with open(path,newline='') as f: return list(csv.DictReader(f))
-def ff(v):
-    try:return float(v)
-    except:return 0.0
-def show(title, data, fields=None):
-    print('=== '+title+' ===')
-    for r in data:
-        if fields: print({k:r.get(k) for k in fields})
-        else: print(r)
-tr=rows(R+'/nextgen_mask/tracks.csv')
-ob=rows(R+'/identity_segments/uniform_observations.csv')
-sg=rows(R+'/identity_segments/segments.csv')
-ass=rows(R+'/global_identity/identity_assignments.csv')
-show('TRACKS 9.3038',[r for r in tr if abs(ff(r['time_s'])-9.3038)<0.02],['time_s','track_id','x1','y1','x2','y2','conf'])
-show('OBS 9.3038',[r for r in ob if abs(ff(r['time_s'])-9.3038)<0.02],['time_s','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','conf','uniform_cluster','cluster_conf','ambiguous'])
-show('ASSIGN 9.3038',[r for r in ass if abs(ff(r['time_s'])-9.3038)<0.02],['time_s','player_id','player_name','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous'])
-show('SEGMENT 148',[r for r in sg if int(float(r['segment_id']))==148])
-show('ASSIGN 11.9064',[r for r in ass if abs(ff(r['time_s'])-11.9064)<0.12],['time_s','player_id','player_name','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous'])
-show('DICK WINDOW',[r for r in ass if int(float(r['player_id']))==1641711 and 10.8<=ff(r['time_s'])<=12.8],['time_s','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous'])
-PY"
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+            set -e
+            echo '=== TRACKS HEADER ==='
+            sudo head -1 '$ROOT/nextgen_mask/tracks.csv'
+            echo '=== TRACKS 9.3038 ==='
+            sudo grep '9.3038' '$ROOT/nextgen_mask/tracks.csv' || true
+            echo '=== OBS HEADER ==='
+            sudo head -1 '$ROOT/identity_segments/uniform_observations.csv'
+            echo '=== OBS 9.3038 ==='
+            sudo grep '9.3038' '$ROOT/identity_segments/uniform_observations.csv' || true
+            echo '=== ASSIGN HEADER ==='
+            sudo head -1 '$ROOT/global_identity/identity_assignments.csv'
+            echo '=== ASSIGN 9.3038 ==='
+            sudo grep '^9.3038,' '$ROOT/global_identity/identity_assignments.csv' || true
+            echo '=== SEGMENTS HEADER ==='
+            sudo head -1 '$ROOT/identity_segments/segments.csv'
+            echo '=== SEGMENT 148 ==='
+            sudo grep '^148,' '$ROOT/identity_segments/segments.csv' || true
+            echo '=== ASSIGN NEAR 11.9 ==='
+            sudo grep -E '^11\\.(80|83|87|90|93|97|99|10|13|17|20)[0-9]*,' '$ROOT/global_identity/identity_assignments.csv' || true
+            echo '=== DICK ASSIGNMENTS TAIL ==='
+            sudo grep ',1641711,' '$ROOT/global_identity/identity_assignments.csv' | tail -80 || true
+          "
