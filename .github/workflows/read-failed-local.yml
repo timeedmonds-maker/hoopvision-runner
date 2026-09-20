@@ -1,5 +1,5 @@
 name: Read Failed Toronto Local Evidence
-# diagnostic-trigger: continuity-and-action-evidence
+# diagnostic-trigger: passer-geometry
 on:
   push:
     branches: [main]
@@ -32,18 +32,10 @@ jobs:
           ROOT="/srv/hoopvision/runs/$RUN_ID/artifacts"
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
             set -e
-            echo '=== CONTINUITY HEADER ==='
-            sudo head -1 '$ROOT/sam31/continuity_groups.csv'
-            echo '=== CONTINUITY KEY SEGMENTS ==='
-            sudo awk -F, 'NR==1 || \$1==3 || \$1==4 || \$1==6 || \$1==7 || \$1==8 || \$1==121 || \$1==148' '$ROOT/sam31/continuity_groups.csv'
-            echo '=== SOURCE TRACK 0 SEGMENTS ==='
-            sudo awk -F, 'NR==1 || \$2==0' '$ROOT/identity_segments/segments.csv' | head -50
-            echo '=== SOURCE TRACK 8 SEGMENTS ==='
-            sudo awk -F, 'NR==1 || \$2==8' '$ROOT/identity_segments/segments.csv' | head -50
-            echo '=== ACTION ASSOCIATIONS HEADER ==='
-            sudo head -1 '$ROOT/semantic_anchors.associations.csv'
-            echo '=== ACTION SOURCE 8/16 ==='
-            sudo awk -F, 'NR==1 || \$3==8 || \$3==16' '$ROOT/semantic_anchors.associations.csv'
-            echo '=== ADAMS/REED 8-10 ==='
-            sudo awk -F, 'NR==1 || ((\$1>=8 && \$1<=10) && (\$3==203500 || \$3==1642263))' '$ROOT/global_identity/identity_assignments.csv'
+            echo '=== OBS 8.7032 ==='
+            sudo grep '8.7032' '$ROOT/identity_segments/uniform_observations.csv' || true
+            echo '=== OBS 9.3038 ==='
+            sudo grep '9.3038' '$ROOT/identity_segments/uniform_observations.csv' || true
+            echo '=== CONTINUITY GROUP 1/2 ==='
+            sudo awk -F, 'NR==1 || \$2==1 || \$2==2' '$ROOT/sam31/continuity_groups.csv'
           "
