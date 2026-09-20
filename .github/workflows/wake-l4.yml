@@ -1,5 +1,5 @@
 name: Wake HoopVision L4
-# wake-trigger: renderer-diagnostics-run
+# wake-trigger: renderer-font-fallback
 
 on:
   push:
