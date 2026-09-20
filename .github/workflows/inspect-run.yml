@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: restored-renderer-progress
+# snapshot-trigger: restored-renderer-progress-2
 
 on:
   push:
