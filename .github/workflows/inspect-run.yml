@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: sam-progress-after-timeout
+# snapshot-trigger: post-semantic-anchor-progress
 
 on:
   push:
