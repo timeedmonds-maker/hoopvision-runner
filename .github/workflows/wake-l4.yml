@@ -1,5 +1,5 @@
 name: Wake HoopVision L4
-# wake-trigger: corrected-visual-qa-run
+# wake-trigger: identity-evidence-debug
 
 on:
   push:
