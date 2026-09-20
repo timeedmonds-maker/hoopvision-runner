@@ -25,8 +25,8 @@ jobs:
     steps:
       - uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: \${{ env.WIF_PROVIDER }}
-          service_account: \${{ env.DEV_PUBLISH_SA }}
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
       - uses: google-github-actions/setup-gcloud@v2
       - name: Inspect instance and project control state
         shell: bash
