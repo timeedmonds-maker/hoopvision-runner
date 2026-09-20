@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: terminal-result-after-recovery
+# snapshot-trigger: post-watcher-worker-status
 
 on:
   push:
