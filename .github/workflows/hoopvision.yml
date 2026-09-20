@@ -32,11 +32,13 @@ env:
   DEV_TOPIC: hv-dev-jobs
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  L4_ZONE: asia-southeast1-c
+  L4_INSTANCE: hv-dev-l4
 
 jobs:
   test-package-dispatch-watch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 50
 
     steps:
       - name: Checkout public runner shell
@@ -133,6 +135,25 @@ jobs:
         working-directory: src
         run: python -m pip install --disable-pip-version-check --no-cache-dir google-cloud-storage==3.4.0 google-cloud-pubsub==2.31.1
 
+      - name: Ensure prepared L4 is running
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute instances remove-metadata "$L4_INSTANCE" \
+            --project="$PROJECT_ID" --zone="$L4_ZONE" --keys=shutdown-script >/dev/null 2>&1 || true
+          STATUS="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(status)')"
+          echo "Prepared L4 status: $STATUS"
+          if [ "$STATUS" != "RUNNING" ]; then
+            gcloud compute instances start "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --async
+          fi
+          for i in $(seq 1 90); do
+            STATUS="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(status)')"
+            echo "Prepared L4 status: $STATUS"
+            [ "$STATUS" = "RUNNING" ] && break
+            sleep 4
+          done
+          [ "$STATUS" = "RUNNING" ] || { echo "Prepared L4 did not reach RUNNING" >&2; exit 1; }
+
       - name: Publish immutable bundle and dispatch
         working-directory: src
         env:
@@ -154,4 +175,4 @@ jobs:
         env:
           GOOGLE_CLOUD_PROJECT: ${{ env.PROJECT_ID }}
           HOOPVISION_EVIDENCE_BUCKET: ${{ env.EVIDENCE_BUCKET }}
-        run: python tools/release/watch_run.py --run-id "$HOOPVISION_DEV_RUN_ID" --timeout 1200
+        run: python tools/release/watch_run.py --run-id "$HOOPVISION_DEV_RUN_ID" --pre-benchmark-timeout 1200 --timeout 1200
