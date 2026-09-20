@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: post-recovery-claim-check
+# snapshot-trigger: benchmark-stage-check-1
 
 on:
   push:
