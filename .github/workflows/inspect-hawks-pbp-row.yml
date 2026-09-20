@@ -1,0 +1,37 @@
+name: Inspect Fresh Hawks PBP Row
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-hawks-pbp-row.yml'
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install row reader
+        run: pip -q install pyreadr pandas requests
+      - name: Print event 301 lineup fields
+        shell: bash
+        run: |
+          python - <<'PY'
+          import requests, pyreadr, pandas as pd, json
+          url='https://raw.githubusercontent.com/ramirobentes/nba_pbp_data/main/pbp-final-2026/data.rds'
+          b=requests.get(url,timeout=120); b.raise_for_status()
+          open('/tmp/pbp.rds','wb').write(b.content)
+          pbp=next(iter(pyreadr.read_r('/tmp/pbp.rds').values()))
+          gid=pbp['game_id'].astype(str).str.replace('.0','',regex=False).str.zfill(10)
+          ev=pd.to_numeric(pbp['event_num'],errors='coerce')
+          q=pbp[(gid=='0012500014')&(ev==301)]
+          print('ROWS',len(q))
+          if len(q):
+            row=q.iloc[0]
+            for k in row.index:
+              v=row[k]
+              if pd.notna(v) and any(x in str(k).lower() for x in ('lineup','team','player','description','event','clock','period')):
+                print(k,'=',v)
+          PY
