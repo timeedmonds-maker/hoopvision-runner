@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: post-semantic-live-state
+# snapshot-trigger: post-async-wake-acceptance
 
 on:
   push:
