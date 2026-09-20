@@ -38,6 +38,12 @@ jobs:
           RUN_ID="$(tr -d '[:space:]' < INSPECT_RUN_ID)"
           test -n "$RUN_ID"
           TMP="$(mktemp)"
+          echo "=== L4 VM state ==="
+          gcloud compute instances describe hv-dev-l4 --zone asia-southeast1-c --format='yaml(status,lastStartTimestamp,lastStopTimestamp)' || true
+          echo "=== prepared session object ==="
+          gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" 2>/dev/null || true
+          echo "=== Pub/Sub subscription state ==="
+          gcloud pubsub subscriptions describe hv-dev-jobs-hv-dev-l4 --format='yaml(name,topic,ackDeadlineSeconds,expirationPolicy,deadLetterPolicy)' || true
           echo "=== durable run objects ==="
           gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/**" || true
           echo "=== durable events ==="
