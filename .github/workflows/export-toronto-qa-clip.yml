@@ -1,0 +1,39 @@
+name: Export Toronto QA Clip
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-toronto-qa-clip.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  SOURCE_OBJECT: gs://project-d88c48c6-7f48-4c33-928-hoopvision-dev/runs/toronto-nextgen/manual-b7e13fa6968c/final/TOR_Broadcast_ScreenTracker_Kickout3_LONG_UHD.mp4
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Download successful Toronto QA clip
+        run: |
+          set -euo pipefail
+          gcloud storage cp "$SOURCE_OBJECT" TORONTO_HOOPVISION_QA_UHD.mp4
+          ls -lh TORONTO_HOOPVISION_QA_UHD.mp4
+      - name: Upload QA clip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: toronto-hoopvision-qa-uhd
+          path: TORONTO_HOOPVISION_QA_UHD.mp4
+          compression-level: 0
+          retention-days: 7
