@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: corrected-run-worker-start
+# snapshot-trigger: corrected-run-progress-1
 
 on:
   push:
