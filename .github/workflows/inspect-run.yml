@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: renderer-diagnostics-progress
+# snapshot-trigger: latest-renderer-diagnostics-state
 
 on:
   push:
