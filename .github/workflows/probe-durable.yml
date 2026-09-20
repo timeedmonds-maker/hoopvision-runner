@@ -1,5 +1,5 @@
 name: Probe HoopVision Durable State
-# probe-trigger: fresh-log-tail
+# probe-trigger: sam31-fullpath-midrun
 on:
   push:
     branches: [main]
