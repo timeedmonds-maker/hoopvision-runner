@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: shutdown-export-diagnostics
+# snapshot-trigger: extract-global-role-qa
 
 on:
   push:
@@ -72,6 +72,44 @@ jobs:
           for line in lines:
               if any(n in line for n in needles):
                   print(line)
+          PY
+          echo "=== global identity role QA ==="
+          python - "$TMP" <<'PY'
+          import json,sys
+          lines=open(sys.argv[1],errors="replace").read().splitlines()
+          cmd_idx=[i for i,l in enumerate(lines) if "global_identity_solver.py" in l]
+          if not cmd_idx:
+              print("global_identity_solver invocation not found")
+              raise SystemExit(0)
+          start=cmd_idx[-1]+1
+          while start < len(lines) and lines[start].strip() != "{":
+              start += 1
+          if start >= len(lines):
+              print("global identity JSON start not found")
+              raise SystemExit(0)
+          depth=0; buf=[]; found=False
+          for l in lines[start:]:
+              s=l.strip()
+              if not found and s.startswith("{"):
+                  found=True
+              if found:
+                  buf.append(l)
+                  depth += l.count("{") - l.count("}")
+                  if depth == 0:
+                      break
+          try:
+              qa=json.loads("\n".join(buf))
+          except Exception as e:
+              print("global identity JSON parse failed",repr(e))
+              raise SystemExit(0)
+          print(json.dumps({
+              "solver_version":qa.get("solver_version"),
+              "roles":qa.get("roles"),
+              "wrong_team_safe_assignments":qa.get("wrong_team_safe_assignments"),
+              "duplicate_player_times":qa.get("duplicate_player_times"),
+              "duplicate_track_times":qa.get("duplicate_track_times"),
+              "invariants":qa.get("invariants"),
+          },indent=2,sort_keys=True))
           PY
           echo "=== render failure diagnostics ==="
           python - "$TMP" <<'PY'
