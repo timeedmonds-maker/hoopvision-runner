@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: benchmark-stage-check-1
+# snapshot-trigger: benchmark-stage-check-2
 
 on:
   push:
