@@ -11,10 +11,15 @@ on:
         description: Prepared L4 session identifier
         required: false
         type: string
+      benchmark:
+        description: Benchmark endpoint
+        required: false
+        type: string
   push:
     branches: [main]
     paths:
       - 'SOURCE_SHA'
+      - 'BENCHMARK'
 
 permissions:
   contents: read
@@ -64,6 +69,24 @@ jobs:
           echo "short_sha=${SHA:0:12}" >> "$GITHUB_OUTPUT"
           echo "Using private source revision ${SHA:0:12}"
 
+      - name: Resolve benchmark
+        id: benchmark
+        shell: bash
+        env:
+          REQUESTED_BENCHMARK: ${{ inputs.benchmark }}
+        run: |
+          set -euo pipefail
+          BENCHMARK="${REQUESTED_BENCHMARK:-}"
+          if [ -z "$BENCHMARK" ]; then
+            BENCHMARK="$(tr -d '[:space:]' < BENCHMARK)"
+          fi
+          case "$BENCHMARK" in
+            toronto-nextgen|fresh-hawks-all-player) ;;
+            *) echo "Invalid benchmark: $BENCHMARK" >&2; exit 2 ;;
+          esac
+          echo "name=$BENCHMARK" >> "$GITHUB_OUTPUT"
+          echo "Using benchmark $BENCHMARK"
+
       - name: Checkout private HoopVision source
         uses: actions/checkout@v4
         with:
@@ -96,7 +119,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m unittest discover -s hoopvision/tests -p 'test_*.py' -v
-          python -m py_compile tools/release/package_app.py tools/release/submit_dev.py tools/release/watch_run.py tools/release/durable_events.py tools/release/dev_supervisor.py hoopvision/worker/boot.py hoopvision/worker/interactive_service.py hoopvision/worker/run_toronto_nextgen.py screen_tracker_nextgen/sam31_ambiguity_continuity.py screen_tracker_nextgen/build_kickout_semantic_anchors.py screen_tracker_nextgen/render_global_identity_safe.py screen_tracker_kickout3/render_kickout3.py screen_tracker_kickout3/render_kickout3_v100.py tools/locked_broadcast_screen_v2.py tools/locked_broadcast_screen_v4.py
+          python -m py_compile tools/release/package_app.py tools/release/submit_dev.py tools/release/watch_run.py tools/release/durable_events.py tools/release/dev_supervisor.py hoopvision/worker/boot.py hoopvision/worker/interactive_service.py hoopvision/worker/run_toronto_nextgen.py hoopvision/worker/run_fresh_hawks_all_player.py screen_tracker_nextgen/sam31_ambiguity_continuity.py screen_tracker_nextgen/build_kickout_semantic_anchors.py screen_tracker_nextgen/global_identity_solver.py screen_tracker_nextgen/all_player_identity_solver.py screen_tracker_nextgen/render_global_identity_safe.py screen_tracker_nextgen/render_all_player_labels.py screen_tracker_kickout3/render_kickout3.py screen_tracker_kickout3/render_kickout3_v100.py tools/locked_broadcast_screen_v2.py tools/locked_broadcast_screen_v4.py
 
       - name: Build deterministic application snapshot
         working-directory: src
@@ -110,9 +133,11 @@ jobs:
           cp -a screen_tracker_kickout3 dist/app/
           cp -a tools dist/app/
           cp -a hoopvision/core dist/app/hoopvision/
+          cp -a hoopvision/config dist/app/hoopvision/
           printf '%s\n' '"""HoopVision application package."""' > dist/app/hoopvision/__init__.py
           cp hoopvision/worker/boot.py dist/app/boot.py
           cp hoopvision/worker/run_toronto_nextgen.py dist/app/run_toronto_nextgen.py
+          cp hoopvision/worker/run_fresh_hawks_all_player.py dist/app/run_fresh_hawks_all_player.py
           cp hoopvision/worker/interactive_service.py dist/app/interactive_service.py
           find dist/app -type d -name __pycache__ -prune -exec rm -rf {} +
           find dist/app -type f -name '*.pyc' -delete
@@ -167,7 +192,7 @@ jobs:
           SESSION="${REQUESTED_SESSION:-hv-dev-l4}"
           RUN_ID="public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SOURCE_SHA:0:12}"
           echo "HOOPVISION_DEV_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
-          python tools/release/submit_dev.py --release-dir dist/release --session "$SESSION" --run-id "$RUN_ID"
+          python tools/release/submit_dev.py --release-dir dist/release --session "$SESSION" --run-id "$RUN_ID" --benchmark "${{ steps.benchmark.outputs.name }}"
 
       - name: Observe durable GCP result
         working-directory: src
