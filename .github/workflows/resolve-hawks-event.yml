@@ -1,0 +1,63 @@
+name: Resolve Hawks Event Number
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/resolve-hawks-event.yml'
+permissions:
+  contents: read
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Resolve official NBA event
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, urllib.request
+          gid="0012500014"
+          urls=[
+            f"https://stats.nba.com/stats/playbyplayv3?GameID={gid}&StartPeriod=0&EndPeriod=14",
+            f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gid}.json",
+          ]
+          headers={
+            "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36",
+            "Referer":"https://www.nba.com/",
+            "Origin":"https://www.nba.com",
+            "Accept":"application/json, text/plain, */*",
+            "Accept-Language":"en-US,en;q=0.9",
+          }
+          data=None
+          for u in urls:
+            try:
+              req=urllib.request.Request(u,headers=headers)
+              with urllib.request.urlopen(req,timeout=30) as resp:
+                body=resp.read()
+                print("FETCH",u,resp.status,len(body))
+              data=json.loads(body)
+              if data: break
+            except Exception as e:
+              print("FAIL",u,repr(e))
+          if data is None:
+            raise SystemExit("no PBP endpoint succeeded")
+          actions=[]
+          if isinstance(data,dict) and "game" in data:
+            actions=data["game"].get("actions",[])
+          elif isinstance(data,dict) and "game" in data.get("boxScoreTraditional",{}):
+            actions=data["boxScoreTraditional"]["game"].get("actions",[])
+          elif isinstance(data,dict):
+            # playbyplayv3 shape
+            for rs in data.get("resultSets",[]) or data.get("resultSet",[]) or []:
+              print("RESULTSET",rs.get("name"),rs.get("headers"))
+            # dump compactly so we can inspect if needed
+            print("TOP_KEYS",list(data)[:30])
+          hits=[]
+          for a in actions:
+            desc=" ".join(str(a.get(k) or "") for k in ("description","actionType","subType"))
+            if ("Adams" in desc and "dunk" in desc.lower()) or (
+                int(a.get("period") or 0)==3 and "PT11M04" in str(a.get("clock") or "")
+            ):
+              hits.append(a)
+          print("HITS",json.dumps(hits,indent=2))
+          PY
