@@ -14,7 +14,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'RUN_BENCHMARK_TRIGGER'
+      - 'SOURCE_SHA'
 
 permissions:
   contents: read
