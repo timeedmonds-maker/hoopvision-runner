@@ -12,7 +12,7 @@ env:
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
-  RUN_ID: public-35533703964-1-aa447cb24b46
+  RUN_ID: public-35533959160-1-71d0c7ffa91f
 jobs:
   probe:
     runs-on: ubuntu-24.04
