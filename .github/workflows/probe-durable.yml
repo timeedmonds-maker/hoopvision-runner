@@ -1,5 +1,5 @@
 name: Probe HoopVision Durable State
-# probe-trigger: fresh-poll-2
+# probe-trigger: fresh-log-tail
 on:
   push:
     branches: [main]
@@ -35,5 +35,14 @@ jobs:
           echo "RUN_ID=$RUN_ID"
           echo "=== EVENTS ==="
           gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/events/*.json" 2>/dev/null || true
+          echo "=== LOG OBJECTS ==="
+          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" 2>/dev/null | tail -n 8 >/tmp/logs.txt || true
+          cat /tmp/logs.txt || true
+          echo "=== LOG TAIL ==="
+          while IFS= read -r obj; do
+            [ -n "$obj" ] || continue
+            echo "--- $obj ---"
+            gcloud storage cat "$obj" 2>/dev/null || true
+          done </tmp/logs.txt
           echo "=== RESULT ==="
           gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/result.json" 2>/dev/null || true
