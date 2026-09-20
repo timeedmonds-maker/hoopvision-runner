@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: parse-global-role-qa-v2
+# snapshot-trigger: extract-role-section-text
 
 on:
   push:
@@ -75,35 +75,21 @@ jobs:
           PY
           echo "=== global identity role QA ==="
           python - "$TMP" <<'PY'
-          import json,sys
+          import sys
           text=open(sys.argv[1],errors="replace").read()
-          needle='"solver_version"'
-          pos=text.find(needle)
-          if pos < 0:
-              print("solver_version not found")
+          cmd=text.rfind("global_identity_solver.py")
+          if cmd < 0:
+              print("global_identity_solver invocation not found")
               raise SystemExit(0)
-          start=text.rfind("{",0,pos)
-          dec=json.JSONDecoder()
-          while start >= 0:
-              try:
-                  obj,end=dec.raw_decode(text[start:])
-                  if isinstance(obj,dict) and "solver_version" in obj and "roles" in obj:
-                      qa=obj
-                      break
-              except Exception:
-                  pass
-              start=text.rfind("{",0,start)
-          else:
-              print("global identity JSON object not found")
+          sub=text[cmd:]
+          role=sub.find('"roles": {')
+          if role < 0:
+              print("roles section not found after global solver invocation")
               raise SystemExit(0)
-          print(json.dumps({
-              "solver_version":qa.get("solver_version"),
-              "roles":qa.get("roles"),
-              "wrong_team_safe_assignments":qa.get("wrong_team_safe_assignments"),
-              "duplicate_player_times":qa.get("duplicate_player_times"),
-              "duplicate_track_times":qa.get("duplicate_track_times"),
-              "invariants":qa.get("invariants"),
-          },indent=2,sort_keys=True))
+          end=sub.find('"identity_anchors":', role)
+          if end < 0:
+              end=min(len(sub),role+30000)
+          print(sub[role:end])
           PY
           echo "=== render failure diagnostics ==="
           python - "$TMP" <<'PY'
