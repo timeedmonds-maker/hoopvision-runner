@@ -44,6 +44,8 @@ jobs:
           gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" 2>/dev/null || true
           echo "=== Pub/Sub subscription state ==="
           gcloud pubsub subscriptions describe hv-dev-worker --format='yaml(name,topic,ackDeadlineSeconds,expirationPolicy,deadLetterPolicy)' || true
+          echo "=== direct native-only renderer replay ==="
+          gcloud compute ssh hv-dev-l4 --project="$PROJECT_ID" --zone="asia-southeast1-c" --quiet --command='sudo rm -rf /srv/hoopvision/runs/public-35491116228-1-850cd9f00486/render-debug && sudo docker run --rm --pull=never -v /srv/hoopvision/apps/7e8459953e8ead68c74cf299a8d482e0de510d1805c32c7944b2f18b34cf37d1:/opt/hoopvision:ro -v /srv/hoopvision/runs/public-35491116228-1-850cd9f00486:/run/hoopvision -w /opt/hoopvision --entrypoint python asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c /opt/hoopvision/screen_tracker_nextgen/render_global_identity_safe.py --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 --tracks /run/hoopvision/artifacts/nextgen_mask/tracks.csv --config /run/hoopvision/artifacts/global_identity/resolved_config.json --identity-qa /run/hoopvision/artifacts/global_identity/global_identity_qa.json --require-sam31 --native-only --out /run/hoopvision/render-debug' 2>&1 || true
           echo "=== durable run objects ==="
           gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/**" || true
           echo "=== durable events ==="
