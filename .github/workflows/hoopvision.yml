@@ -95,7 +95,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m unittest discover -s hoopvision/tests -p 'test_*.py' -v
-          python -m py_compile tools/release/package_app.py tools/release/submit_dev.py tools/release/watch_run.py tools/release/durable_events.py tools/release/dev_supervisor.py hoopvision/worker/boot.py hoopvision/worker/interactive_service.py hoopvision/worker/run_toronto_nextgen.py screen_tracker_nextgen/sam31_ambiguity_continuity.py
+          python -m py_compile tools/release/package_app.py tools/release/submit_dev.py tools/release/watch_run.py tools/release/durable_events.py tools/release/dev_supervisor.py hoopvision/worker/boot.py hoopvision/worker/interactive_service.py hoopvision/worker/run_toronto_nextgen.py screen_tracker_nextgen/sam31_ambiguity_continuity.py screen_tracker_nextgen/build_kickout_semantic_anchors.py
 
       - name: Build deterministic application snapshot
         working-directory: src
