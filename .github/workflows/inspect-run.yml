@@ -87,7 +87,7 @@ jobs:
                   print(line)
               print("---")
           PY
-echo "=== worker failure traceback ==="
+          echo "=== worker failure traceback ==="
           python - "$TMP" <<'PY'
           import sys
           p=sys.argv[1]
