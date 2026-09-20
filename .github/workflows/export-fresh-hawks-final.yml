@@ -10,7 +10,7 @@ permissions:
 env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
-  RUN_ID: public-35538238546-1-5d523e0d8266
+  RUN_ID: public-35544550694-1-703d31b49ed5
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 jobs:
@@ -34,7 +34,7 @@ jobs:
           ls -lh Hawks_Amen_to_Adams_All_Player_Labels_UHD.mp4 all_player_identity_qa.json all_player_identity_assignments.csv
       - uses: actions/upload-artifact@v4
         with:
-          name: fresh-hawks-final-uhd-10of10
+          name: fresh-hawks-final-uhd-continuity
           path: |
             Hawks_Amen_to_Adams_All_Player_Labels_UHD.mp4
             all_player_identity_qa.json
