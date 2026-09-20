@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: point-output-fix-terminal
+# snapshot-trigger: render-failure-terminal
 
 on:
   push:
