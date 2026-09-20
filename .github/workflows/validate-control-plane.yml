@@ -1,0 +1,30 @@
+name: Validate Control Plane
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-control-plane.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout private HoopVision source
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: 1f990dee47fa53cc2992a009a21da1c74476d0c4
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate control-plane regressions
+        run: |
+          set -euo pipefail
+          python -m unittest hoopvision.tests.test_semantic_anchor_source -v
+          python -m py_compile tools/release/dev_supervisor.py tools/release/watch_run.py tools/release/submit_dev.py
