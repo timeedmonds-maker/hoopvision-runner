@@ -1,5 +1,5 @@
 name: Read Failed Toronto Local Evidence
-# diagnostic-trigger: identity-neighborhoods
+# diagnostic-trigger: identity-neighborhoods-stdlib
 on:
   push:
     branches: [main]
@@ -30,4 +30,27 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="/srv/hoopvision/runs/$RUN_ID/artifacts"
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo ROOT='$ROOT' python3 -c \"import os,pandas as pd,json; R=os.environ['ROOT']; tr=pd.read_csv(R+'/nextgen_mask/tracks.csv'); ob=pd.read_csv(R+'/identity_segments/uniform_observations.csv'); sg=pd.read_csv(R+'/identity_segments/segments.csv'); ass=pd.read_csv(R+'/global_identity/identity_assignments.csv'); print('=== TRACKS 9.3038 ==='); print(tr[(tr.time_s-9.3038).abs()<0.02][['time_s','track_id','x1','y1','x2','y2','conf']].to_string(index=False)); print('=== OBS 9.3038 ==='); print(ob[(ob.time_s-9.3038).abs()<0.02][['time_s','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','conf','uniform_cluster','cluster_conf','ambiguous']].to_string(index=False)); print('=== ASSIGN 9.3038 ==='); print(ass[(ass.time_s-9.3038).abs()<0.02][['time_s','player_id','player_name','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous']].to_string(index=False)); print('=== SEGMENT 148 ==='); print(sg[sg.segment_id.astype(int)==148].to_string(index=False)); print('=== ASSIGN 11.9064 ==='); print(ass[(ass.time_s-11.9064).abs()<0.12][['time_s','player_id','player_name','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous']].to_string(index=False)); print('=== DICK WINDOW ==='); print(ass[(ass.player_id.astype(int)==1641711)&(ass.time_s.between(10.8,12.8))][['time_s','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous']].to_string(index=False));\""
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo ROOT='$ROOT' python3 - <<'PY'
+import csv, os, json
+R=os.environ['ROOT']
+def rows(path):
+    with open(path,newline='') as f: return list(csv.DictReader(f))
+def ff(v):
+    try:return float(v)
+    except:return 0.0
+def show(title, data, fields=None):
+    print('=== '+title+' ===')
+    for r in data:
+        if fields: print({k:r.get(k) for k in fields})
+        else: print(r)
+tr=rows(R+'/nextgen_mask/tracks.csv')
+ob=rows(R+'/identity_segments/uniform_observations.csv')
+sg=rows(R+'/identity_segments/segments.csv')
+ass=rows(R+'/global_identity/identity_assignments.csv')
+show('TRACKS 9.3038',[r for r in tr if abs(ff(r['time_s'])-9.3038)<0.02],['time_s','track_id','x1','y1','x2','y2','conf'])
+show('OBS 9.3038',[r for r in ob if abs(ff(r['time_s'])-9.3038)<0.02],['time_s','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','conf','uniform_cluster','cluster_conf','ambiguous'])
+show('ASSIGN 9.3038',[r for r in ass if abs(ff(r['time_s'])-9.3038)<0.02],['time_s','player_id','player_name','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous'])
+show('SEGMENT 148',[r for r in sg if int(float(r['segment_id']))==148])
+show('ASSIGN 11.9064',[r for r in ass if abs(ff(r['time_s'])-11.9064)<0.12],['time_s','player_id','player_name','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous'])
+show('DICK WINDOW',[r for r in ass if int(float(r['player_id']))==1641711 and 10.8<=ff(r['time_s'])<=12.8],['time_s','source_track_id','raw_source_track_id','identity_segment_id','x1','y1','x2','y2','global_margin','safe','direct_ocr','jersey_support','ambiguous'])
+PY"
