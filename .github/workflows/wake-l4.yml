@@ -1,0 +1,47 @@
+name: Wake HoopVision L4
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/wake-l4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  wake:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Start prepared L4 if stopped
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)')"
+          echo "Current status: $STATUS"
+          if [ "$STATUS" != "RUNNING" ]; then
+            gcloud compute instances start "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE"
+          fi
+          for i in $(seq 1 60); do
+            STATUS="$(gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)')"
+            echo "L4 status: $STATUS"
+            [ "$STATUS" = "RUNNING" ] && exit 0
+            sleep 5
+          done
+          echo "L4 did not reach RUNNING" >&2
+          exit 1
