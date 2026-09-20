@@ -1,0 +1,63 @@
+name: Ingest Fresh Hawks Wide Clip
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ingest-fresh-hawks.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  ingest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Download exact Play by Play angle
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY' > hls.txt
+          import urllib.request,re,html
+          url='https://clips.nba.com/?gameNo=0012500014&eventNum=301&source=grs'
+          H={'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://clips.nba.com/'}
+          with urllib.request.urlopen(urllib.request.Request(url,headers=H),timeout=20) as r:
+            txt=r.read().decode('utf-8','ignore')
+          matches=[]
+          for m in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',txt,re.I|re.S):
+            u=html.unescape(m.group(1).strip())
+            label=re.sub(r'<[^>]+>','',html.unescape(m.group(3))).strip()
+            if '.m3u8' in u and label=='Play by Play':
+              matches.append(u)
+          if len(matches)!=1: raise SystemExit(f'expected one Play by Play feed, got {len(matches)}')
+          print(matches[0])
+          PY
+          HLS="$(cat hls.txt)"
+          HDR=$'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36\r\nReferer: https://clips.nba.com/\r\n'
+          ffmpeg -y -v error -rw_timeout 30000000 -headers "$HDR" -i "$HLS" -map 0:v:0 -map 0:a:0? -c copy -movflags +faststart fresh_hawks_event301_pxp.mp4
+          ffprobe -v error -show_entries stream=width,height,avg_frame_rate:format=duration -of json fresh_hawks_event301_pxp.mp4 > fresh_hawks_event301_pxp.ffprobe.json
+          cat fresh_hawks_event301_pxp.ffprobe.json
+      - name: Publish immutable fresh fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX="fixtures/fresh/atl-hou-0012500014-event301-pxp"
+          gcloud storage cp fresh_hawks_event301_pxp.mp4 "gs://$BUCKET/$PREFIX/source_native.mp4"
+          gcloud storage cp fresh_hawks_event301_pxp.ffprobe.json "gs://$BUCKET/$PREFIX/ffprobe.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fresh-hawks-event301-pxp
+          path: |
+            fresh_hawks_event301_pxp.mp4
+            fresh_hawks_event301_pxp.ffprobe.json
+          compression-level: 0
+          retention-days: 7
