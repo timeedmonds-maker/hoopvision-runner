@@ -1,5 +1,5 @@
 name: Read Failed Toronto Local Evidence
-# diagnostic-trigger: identity-neighborhoods-grep
+# diagnostic-trigger: continuity-and-action-evidence
 on:
   push:
     branches: [main]
@@ -25,31 +25,25 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.DEV_PUBLISH_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: Read compact identity neighborhoods
+      - name: Read continuity and action evidence
         shell: bash
         run: |
           set -euo pipefail
           ROOT="/srv/hoopvision/runs/$RUN_ID/artifacts"
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
             set -e
-            echo '=== TRACKS HEADER ==='
-            sudo head -1 '$ROOT/nextgen_mask/tracks.csv'
-            echo '=== TRACKS 9.3038 ==='
-            sudo grep '9.3038' '$ROOT/nextgen_mask/tracks.csv' || true
-            echo '=== OBS HEADER ==='
-            sudo head -1 '$ROOT/identity_segments/uniform_observations.csv'
-            echo '=== OBS 9.3038 ==='
-            sudo grep '9.3038' '$ROOT/identity_segments/uniform_observations.csv' || true
-            echo '=== ASSIGN HEADER ==='
-            sudo head -1 '$ROOT/global_identity/identity_assignments.csv'
-            echo '=== ASSIGN 9.3038 ==='
-            sudo grep '^9.3038,' '$ROOT/global_identity/identity_assignments.csv' || true
-            echo '=== SEGMENTS HEADER ==='
-            sudo head -1 '$ROOT/identity_segments/segments.csv'
-            echo '=== SEGMENT 148 ==='
-            sudo grep '^148,' '$ROOT/identity_segments/segments.csv' || true
-            echo '=== ASSIGN NEAR 11.9 ==='
-            sudo grep -E '^11\\.(80|83|87|90|93|97|99|10|13|17|20)[0-9]*,' '$ROOT/global_identity/identity_assignments.csv' || true
-            echo '=== DICK ASSIGNMENTS TAIL ==='
-            sudo grep ',1641711,' '$ROOT/global_identity/identity_assignments.csv' | tail -80 || true
+            echo '=== CONTINUITY HEADER ==='
+            sudo head -1 '$ROOT/sam31/continuity_groups.csv'
+            echo '=== CONTINUITY KEY SEGMENTS ==='
+            sudo awk -F, 'NR==1 || \$1==3 || \$1==4 || \$1==6 || \$1==7 || \$1==8 || \$1==121 || \$1==148' '$ROOT/sam31/continuity_groups.csv'
+            echo '=== SOURCE TRACK 0 SEGMENTS ==='
+            sudo awk -F, 'NR==1 || \$2==0' '$ROOT/identity_segments/segments.csv' | head -50
+            echo '=== SOURCE TRACK 8 SEGMENTS ==='
+            sudo awk -F, 'NR==1 || \$2==8' '$ROOT/identity_segments/segments.csv' | head -50
+            echo '=== ACTION ASSOCIATIONS HEADER ==='
+            sudo head -1 '$ROOT/semantic_anchors.associations.csv'
+            echo '=== ACTION SOURCE 8/16 ==='
+            sudo awk -F, 'NR==1 || \$3==8 || \$3==16' '$ROOT/semantic_anchors.associations.csv'
+            echo '=== ADAMS/REED 8-10 ==='
+            sudo awk -F, 'NR==1 || ((\$1>=8 && \$1<=10) && (\$3==203500 || \$3==1642263))' '$ROOT/global_identity/identity_assignments.csv'
           "
