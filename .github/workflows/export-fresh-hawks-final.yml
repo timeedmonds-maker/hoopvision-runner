@@ -1,0 +1,43 @@
+name: Export Fresh Hawks Final
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-fresh-hawks-final.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  RUN_ID: public-35536776851-1-a16e8fe29408
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Download final benchmark outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          PREFIX="gs://$BUCKET/runs/all-player-replay/$RUN_ID"
+          gcloud storage cp "$PREFIX/final/Hawks_Amen_to_Adams_All_Player_Labels.mp4" ./Hawks_Amen_to_Adams_All_Player_Labels.mp4
+          gcloud storage cp "$PREFIX/all_player_identity/all_player_identity_qa.json" ./all_player_identity_qa.json
+          gcloud storage cp "$PREFIX/all_player_identity/all_player_identity_assignments.csv" ./all_player_identity_assignments.csv
+          ls -lh Hawks_Amen_to_Adams_All_Player_Labels.mp4 all_player_identity_qa.json all_player_identity_assignments.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fresh-hawks-final-10of10
+          path: |
+            Hawks_Amen_to_Adams_All_Player_Labels.mp4
+            all_player_identity_qa.json
+            all_player_identity_assignments.csv
+          compression-level: 0
+          retention-days: 7
