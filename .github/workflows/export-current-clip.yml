@@ -1,0 +1,52 @@
+name: Export Current Toronto Clip
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-current-clip.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  RUN_ID: public-35500155486-1-9091f1475b0c
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Stage rendered MP4 on VM
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="/srv/hoopvision/runs/$RUN_ID/artifacts"
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+            set -e
+            SRC=\$(sudo find '$ROOT' -type f -name '*.mp4' -printf '%s %p\n' | sort -nr | head -n1 | cut -d' ' -f2-)
+            test -n \"\$SRC\"
+            echo \"Exporting \$SRC\"
+            sudo cp \"\$SRC\" /tmp/HOOPVISION_TORONTO_LATEST.mp4
+            sudo chmod 644 /tmp/HOOPVISION_TORONTO_LATEST.mp4
+            ls -lh /tmp/HOOPVISION_TORONTO_LATEST.mp4
+          "
+      - name: Copy MP4 from VM
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute scp "$INSTANCE:/tmp/HOOPVISION_TORONTO_LATEST.mp4" ./HOOPVISION_TORONTO_LATEST.mp4 --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          ls -lh HOOPVISION_TORONTO_LATEST.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-toronto-latest
+          path: HOOPVISION_TORONTO_LATEST.mp4
+          compression-level: 0
+          retention-days: 7
