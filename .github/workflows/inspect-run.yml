@@ -1,5 +1,5 @@
 name: Inspect HoopVision Durable Run
-# snapshot-trigger: restored-renderer-progress-2
+# snapshot-trigger: wake-and-acceptance
 
 on:
   push:
@@ -43,7 +43,7 @@ jobs:
           echo "=== prepared session object ==="
           gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" 2>/dev/null || true
           echo "=== Pub/Sub subscription state ==="
-          gcloud pubsub subscriptions describe hv-dev-jobs-hv-dev-l4 --format='yaml(name,topic,ackDeadlineSeconds,expirationPolicy,deadLetterPolicy)' || true
+          gcloud pubsub subscriptions describe hv-dev-worker --format='yaml(name,topic,ackDeadlineSeconds,expirationPolicy,deadLetterPolicy)' || true
           echo "=== durable run objects ==="
           gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/**" || true
           echo "=== durable events ==="
