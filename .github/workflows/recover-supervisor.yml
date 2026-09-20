@@ -1,0 +1,43 @@
+name: Recover HoopVision Supervisor
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/recover-supervisor.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Reset prepared L4 in place
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)')"
+          echo "Pre-reset status: $STATUS"
+          test "$STATUS" = "RUNNING"
+          gcloud compute instances reset "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --quiet
+          for i in $(seq 1 90); do
+            STATUS="$(gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format='value(status)')"
+            echo "Post-reset status: $STATUS"
+            [ "$STATUS" = "RUNNING" ] && break
+            sleep 4
+          done
+          test "$STATUS" = "RUNNING"
+          sleep 25
+          echo "=== recent serial ==="
+          gcloud compute instances get-serial-port-output "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --port=1 2>/dev/null | tail -n 120 || true
