@@ -1,0 +1,28 @@
+name: Locate Latest Toronto Clip
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/locate-latest-clip.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  locate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: List latest MP4 objects
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud storage ls -l "gs://$BUCKET/**/*.mp4" 2>/dev/null | tail -n 40 || true
