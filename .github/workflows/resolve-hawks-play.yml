@@ -18,7 +18,7 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
-          import requests, json
+          import json, urllib.request
           H={"User-Agent":"Mozilla/5.0","Referer":"https://www.nba.com/"}
           urls=[
             "https://cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json",
