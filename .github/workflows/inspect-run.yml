@@ -38,5 +38,5 @@ jobs:
           test -n "$RUN_ID"
           TMP="$(mktemp)"
           gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" > "$TMP" 2>/dev/null || true
-          echo "=== sanitized worker diagnostics ==="
-          grep -E 'HOOPVISION_STAGE|HOOPVISION_INTERACTIVE|HOOPVISION_PRIMARY_MASK_MODE|HOOPVISION_TRACKING_POLICY|HOOPVISION_SAM31_ASSET|HOOPVISION_TORONTO_NEXTGEN_OK|Traceback|RuntimeError|BFloat16|bias type|CalledProcessError|subprocess.CalledProcessError|CUDA|ONNX|Error:' "$TMP" | tail -n 250 || true
+          echo "=== worker failure tail ==="
+          tail -n 220 "$TMP" || true
