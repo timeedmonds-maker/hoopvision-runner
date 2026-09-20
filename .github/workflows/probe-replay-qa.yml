@@ -1,0 +1,40 @@
+name: Probe Latest Replay Identity QA
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-replay-qa.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  RUN_ID: public-35528992847-1-c36b8e65fd5a
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Read last replay logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t OBJS < <(gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" | tail -n 3)
+          printf '%s\n' "${OBJS[@]}"
+          for obj in "${OBJS[@]}"; do
+            echo "=== $obj ==="
+            timeout 15s gcloud storage cat "$obj" || true
+          done
+          echo "=== RESULT ==="
+          gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/result.json" || true
