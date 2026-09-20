@@ -38,6 +38,26 @@ jobs:
           test -n "$RUN_ID"
           TMP="$(mktemp)"
           gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" > "$TMP" 2>/dev/null || true
+          echo "=== SAM continuity diagnostics ==="
+          python - "$TMP" <<'PY'
+          import sys
+          p=sys.argv[1]
+          lines=open(p,errors="replace").read().splitlines()
+          needles=(
+              "HOOPVISION_STAGE",
+              "HOOPVISION_SAM31",
+              "Adding new object with id",
+              "Refining existing object with id",
+              "Running SAM2 propagation",
+              "Fetching existing VG predictions",
+              "propagation ended in session",
+              "SAM3.1 continuity QA failed",
+              "OutOfMemoryError",
+          )
+          for line in lines:
+              if any(n in line for n in needles):
+                  print(line)
+          PY
           echo "=== worker failure traceback ==="
           python - "$TMP" <<'PY'
           import sys
