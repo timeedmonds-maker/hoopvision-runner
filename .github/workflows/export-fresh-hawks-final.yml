@@ -1,5 +1,5 @@
 name: Export Fresh Hawks Final
-# export-trigger: include-debug-inputs-35550603599
+# export-trigger: source-native-for-path-benchmark
 on:
   push:
     branches: [main]
@@ -37,6 +37,7 @@ jobs:
           gcloud storage cp "$PREFIX/sam31_replay/continuity_paths.csv" ./continuity_paths.csv
           gcloud storage cp "$PREFIX/render_paths/named_render_paths.csv" ./named_render_paths.csv
           gcloud storage cp "$PREFIX/render_paths/named_render_paths_qa.json" ./named_render_paths_qa.json
+          gcloud storage cp "gs://$BUCKET/runs/public-35504687816-1-174f6f1df047/artifacts/nextgen/source_native.mp4" ./source_native.mp4
           mkdir -p debug_input
           gcloud storage cp "$PREFIX/debug_input/segments.csv" ./debug_input/segments.csv
           gcloud storage cp "$PREFIX/debug_input/uniform_observations.csv" ./debug_input/uniform_observations.csv
@@ -56,6 +57,7 @@ jobs:
             continuity_paths.csv
             named_render_paths.csv
             named_render_paths_qa.json
+            source_native.mp4
             debug_input/segments.csv
             debug_input/uniform_observations.csv
             debug_input/ocr_evidence.json
