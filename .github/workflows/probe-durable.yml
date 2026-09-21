@@ -1,5 +1,5 @@
 name: Probe HoopVision Durable State
-# probe-trigger: local-sam-window-progress-4
+# probe-trigger: sam-summary-current
 on:
   push:
     branches: [main]
@@ -38,6 +38,8 @@ jobs:
           echo "=== LOG OBJECTS ==="
           gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" 2>/dev/null | tail -n 8 >/tmp/logs.txt || true
           cat /tmp/logs.txt || true
+          echo "=== SAM SUMMARY ==="
+          gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" 2>/dev/null | grep -E 'HOOPVISION_SAM31_BATCHING|HOOPVISION_SAM31_POINT_BATCH|HOOPVISION_NAMED_RENDER_PATHS|physically impossible short jumps|HOOPVISION_FRESH_REPLAY_OK' | tail -n 160 || true
           echo "=== LOG TAIL ==="
           while IFS= read -r obj; do
             [ -n "$obj" ] || continue
