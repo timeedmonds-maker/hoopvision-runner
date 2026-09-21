@@ -48,7 +48,7 @@ jobs:
       - name: Checkout public runner shell
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Resolve exact private source revision
         id: source
