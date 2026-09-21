@@ -81,7 +81,7 @@ jobs:
             BENCHMARK="$(tr -d '[:space:]' < BENCHMARK)"
           fi
           case "$BENCHMARK" in
-            toronto-nextgen|fresh-hawks-all-player|fresh-hawks-identity-replay) ;;
+            toronto-nextgen|fresh-hawks-all-player|fresh-hawks-identity-replay|fresh-hawks-fast-path) ;;
             *) echo "Invalid benchmark: $BENCHMARK" >&2; exit 2 ;;
           esac
           echo "name=$BENCHMARK" >> "$GITHUB_OUTPUT"
@@ -119,7 +119,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m unittest discover -s hoopvision/tests -p 'test_*.py' -v
-          python -m py_compile tools/release/package_app.py tools/release/submit_dev.py tools/release/watch_run.py tools/release/durable_events.py tools/release/dev_supervisor.py hoopvision/worker/boot.py hoopvision/worker/interactive_service.py hoopvision/worker/run_toronto_nextgen.py hoopvision/worker/run_fresh_hawks_all_player.py hoopvision/worker/run_fresh_hawks_identity_replay.py screen_tracker_nextgen/sam31_ambiguity_continuity.py screen_tracker_nextgen/materialize_sam31_player_paths.py screen_tracker_nextgen/build_named_render_paths.py screen_tracker_nextgen/build_kickout_semantic_anchors.py screen_tracker_nextgen/global_identity_solver.py screen_tracker_nextgen/all_player_identity_solver.py screen_tracker_nextgen/render_global_identity_safe.py screen_tracker_nextgen/render_all_player_labels.py screen_tracker_kickout3/render_kickout3.py screen_tracker_kickout3/render_kickout3_v100.py tools/locked_broadcast_screen_v2.py tools/locked_broadcast_screen_v4.py
+          python -m py_compile tools/release/package_app.py tools/release/submit_dev.py tools/release/watch_run.py tools/release/durable_events.py tools/release/dev_supervisor.py hoopvision/worker/boot.py hoopvision/worker/interactive_service.py hoopvision/worker/run_toronto_nextgen.py hoopvision/worker/run_fresh_hawks_all_player.py hoopvision/worker/run_fresh_hawks_identity_replay.py hoopvision/worker/run_fresh_hawks_fast_path.py screen_tracker_nextgen/build_fast_physical_paths.py screen_tracker_nextgen/sam31_ambiguity_continuity.py screen_tracker_nextgen/materialize_sam31_player_paths.py screen_tracker_nextgen/build_named_render_paths.py screen_tracker_nextgen/build_kickout_semantic_anchors.py screen_tracker_nextgen/global_identity_solver.py screen_tracker_nextgen/all_player_identity_solver.py screen_tracker_nextgen/render_global_identity_safe.py screen_tracker_nextgen/render_all_player_labels.py screen_tracker_kickout3/render_kickout3.py screen_tracker_kickout3/render_kickout3_v100.py tools/locked_broadcast_screen_v2.py tools/locked_broadcast_screen_v4.py
 
       - name: Build deterministic application snapshot
         working-directory: src
@@ -139,6 +139,7 @@ jobs:
           cp hoopvision/worker/run_toronto_nextgen.py dist/app/run_toronto_nextgen.py
           cp hoopvision/worker/run_fresh_hawks_all_player.py dist/app/run_fresh_hawks_all_player.py
           cp hoopvision/worker/run_fresh_hawks_identity_replay.py dist/app/run_fresh_hawks_identity_replay.py
+          cp hoopvision/worker/run_fresh_hawks_fast_path.py dist/app/run_fresh_hawks_fast_path.py
           cp hoopvision/worker/interactive_service.py dist/app/interactive_service.py
           find dist/app -type d -name __pycache__ -prune -exec rm -rf {} +
           find dist/app -type f -name '*.pyc' -delete
