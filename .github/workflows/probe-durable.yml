@@ -1,5 +1,5 @@
 name: Probe HoopVision Durable State
-# probe-trigger: postfail-path-gate
+# probe-trigger: efficient-new-run-probe
 on:
   push:
     branches: [main]
@@ -36,10 +36,18 @@ jobs:
           echo "=== EVENTS ==="
           gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/events/*.json" 2>/dev/null || true
           echo "=== LOG OBJECTS ==="
-          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" 2>/dev/null | tail -n 8 >/tmp/logs.txt || true
+          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" 2>/dev/null >/tmp/all_logs.txt || true
+          tail -n 8 /tmp/all_logs.txt >/tmp/logs.txt || true
           cat /tmp/logs.txt || true
           echo "=== SAM SUMMARY ==="
-          gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" 2>/dev/null | grep -E 'HOOPVISION_SAM31_BATCHING|HOOPVISION_SAM31_POINT_BATCH|HOOPVISION_NAMED_RENDER_PATHS|physically impossible short jumps|HOOPVISION_FRESH_REPLAY_OK' | tail -n 160 || true
+          {
+            head -n 18 /tmp/all_logs.txt
+            tail -n 18 /tmp/all_logs.txt
+          } | awk 'NF && !seen[$0]++' >/tmp/sample_logs.txt
+          while IFS= read -r obj; do
+            [ -n "$obj" ] || continue
+            gcloud storage cat "$obj" 2>/dev/null               | grep -E 'HOOPVISION_SAM31_BATCHING|HOOPVISION_SAM31_POINT_BATCH|HOOPVISION_NAMED_RENDER_PATHS|physically impossible short jumps|HOOPVISION_FRESH_REPLAY_OK|Traceback|RuntimeError'               || true
+          done </tmp/sample_logs.txt
           echo "=== LOG TAIL ==="
           while IFS= read -r obj; do
             [ -n "$obj" ] || continue
