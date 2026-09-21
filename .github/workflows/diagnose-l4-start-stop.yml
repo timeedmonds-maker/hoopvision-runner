@@ -1,4 +1,5 @@
 name: Diagnose HoopVision L4 Start-Stop
+# Triggered for current prepared-L4 start/terminate blocker: 2026-09-21
 
 on:
   push:
