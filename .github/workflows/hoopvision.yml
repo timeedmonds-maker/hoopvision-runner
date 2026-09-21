@@ -230,8 +230,8 @@ jobs:
 
           echo "=== BOUNDED DIAGNOSTIC SUMMARY ==="
           gcloud storage cat "gs://$EVIDENCE_BUCKET/runs/$RUN_ID/logs/*.bin" 2>/dev/null \
-            | grep -E 'HOOPVISION_STAGE|HOOPVISION_SAM31_BATCHING|HOOPVISION_SAM31_POINT_BATCH|SAM31_DECISION|sam31_decisions|accepted=|rejected=|inconclusive|Traceback|RuntimeError|TimeoutError|HOOPVISION_NAMED_RENDER_PATHS|HOOPVISION_FRESH_REPLAY_OK' \
-            | tail -n 400 || true
+            | grep -E 'HOOPVISION_STAGE|HOOPVISION_TRACK_STAGE|HOOPVISION_OCR_STAGE|HOOPVISION_SAM31_BATCHING|HOOPVISION_SAM31_POINT_BATCH|SAM31_DECISION|sam31_decisions|accepted=|rejected=|inconclusive|Traceback|RuntimeError|TimeoutError|HOOPVISION_NAMED_RENDER_PATHS|HOOPVISION_FRESH_REPLAY_OK' \
+            | tail -n 500 || true
 
           CLASS="UNKNOWN"
           if printf '%s' "$RESULT" | grep -q '"status"[[:space:]]*:[[:space:]]*"FAILED"'; then
@@ -247,10 +247,10 @@ jobs:
           fi
           echo "HOOPVISION_AUTOPILOT_CLASS=$CLASS"
           {
-            echo "### HoopVision bounded auto-resolve"
-            echo "- Durable run: `$RUN_ID`"
-            echo "- Classification: `$CLASS`"
-            echo "- Policy: terminal application failures and missing evidence are never auto-rerun; a new GPU comparison requires new causal evidence or a new executable candidate."
+            echo '### HoopVision bounded auto-resolve'
+            printf '%s\n' "- Durable run: $RUN_ID"
+            printf '%s\n' "- Classification: $CLASS"
+            echo '- Policy: terminal application failures and missing evidence are never auto-rerun; a new GPU comparison requires new causal evidence or a new executable candidate.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Stop prepared L4 after runner attempt
