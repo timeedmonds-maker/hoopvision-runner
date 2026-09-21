@@ -1,5 +1,5 @@
 name: Export Fresh Hawks Final
-# export-trigger: bounded-sam-35546585525
+# export-trigger: bounded-sam-debug-35546585525
 on:
   push:
     branches: [main]
@@ -32,7 +32,12 @@ jobs:
           gcloud storage cp "$PREFIX/final/Hawks_Amen_to_Adams_All_Player_Labels_UHD.mp4" ./Hawks_Amen_to_Adams_All_Player_Labels_UHD.mp4
           gcloud storage cp "$PREFIX/all_player_identity/all_player_identity_qa.json" ./all_player_identity_qa.json
           gcloud storage cp "$PREFIX/all_player_identity/all_player_identity_assignments.csv" ./all_player_identity_assignments.csv
-          ls -lh Hawks_Amen_to_Adams_All_Player_Labels_UHD.mp4 all_player_identity_qa.json all_player_identity_assignments.csv
+          gcloud storage cp "$PREFIX/sam31_replay/sam31_qa.json" ./sam31_replay_qa.json
+          gcloud storage cp "$PREFIX/sam31_replay/continuity_links.csv" ./continuity_links.csv
+          gcloud storage cp "$PREFIX/sam31_replay/continuity_paths.csv" ./continuity_paths.csv
+          gcloud storage cp "$PREFIX/render_paths/named_render_paths.csv" ./named_render_paths.csv
+          gcloud storage cp "$PREFIX/render_paths/named_render_paths_qa.json" ./named_render_paths_qa.json
+          ls -lh Hawks_Amen_to_Adams_All_Player_Labels_UHD.mp4 all_player_identity_qa.json all_player_identity_assignments.csv sam31_replay_qa.json continuity_links.csv continuity_paths.csv named_render_paths.csv named_render_paths_qa.json
       - uses: actions/upload-artifact@v4
         with:
           name: fresh-hawks-final-uhd-continuity
@@ -40,5 +45,10 @@ jobs:
             Hawks_Amen_to_Adams_All_Player_Labels_UHD.mp4
             all_player_identity_qa.json
             all_player_identity_assignments.csv
+            sam31_replay_qa.json
+            continuity_links.csv
+            continuity_paths.csv
+            named_render_paths.csv
+            named_render_paths_qa.json
           compression-level: 0
           retention-days: 7
