@@ -1,5 +1,5 @@
 name: Probe HoopVision Durable State
-# probe-trigger: dedup-handoff-progress-2
+# probe-trigger: serialized-dedup-postfail
 on:
   push:
     branches: [main]
