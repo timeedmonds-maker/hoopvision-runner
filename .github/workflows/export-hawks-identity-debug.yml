@@ -11,6 +11,8 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   SOURCE_RUN: public-35504687816-1-174f6f1df047
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 jobs:
@@ -23,17 +25,37 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.DEV_PUBLISH_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: Download source identity debug artifacts
+      - name: Copy source identity debug artifacts from prepared L4
         shell: bash
         run: |
           set -euo pipefail
-          P="gs://$BUCKET/runs/$SOURCE_RUN/artifacts"
-          mkdir -p debug/identity_segments debug/identity_ocr debug/sam31 debug/nextgen debug/all_player_identity
-          for X in             identity_segments/uniform_observations.csv             identity_segments/segments.csv             identity_segments/identity_tracks.csv             identity_ocr/ocr_evidence.json             identity_ocr/track_identity.csv             identity_ocr/qa.json             sam31/continuity_links.csv             sam31/continuity_groups.csv             sam31/sam31_qa.json             sam31/sam31_plan.json             nextgen/tracks.csv             nextgen/context.json             all_player_identity/all_player_identity_assignments.csv             all_player_identity/all_player_identity_qa.json
-          do
-            gcloud storage cp "$P/$X" "debug/$X" || true
-          done
-          find debug -type f -maxdepth 3 -printf '%p %s\n' | sort
+          REMOTE_ROOT="/runs/$SOURCE_RUN/artifacts"
+          gcloud compute ssh "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --quiet --command="
+            set -euo pipefail
+            cd '$REMOTE_ROOT'
+            sudo tar -czf /tmp/hawks_identity_debug.tgz \
+              identity_segments/uniform_observations.csv \
+              identity_segments/segments.csv \
+              identity_segments/identity_tracks.csv \
+              identity_ocr/ocr_evidence.json \
+              identity_ocr/track_identity.csv \
+              identity_ocr/qa.json \
+              sam31/continuity_links.csv \
+              sam31/continuity_groups.csv \
+              sam31/sam31_qa.json \
+              sam31/sam31_plan.json \
+              sam31/ambiguity_windows.json \
+              nextgen/tracks.csv \
+              nextgen/context.json \
+              all_player_identity/all_player_identity_assignments.csv \
+              all_player_identity/all_player_identity_qa.json
+            sudo chmod 0644 /tmp/hawks_identity_debug.tgz
+          "
+          gcloud compute scp "$INSTANCE:/tmp/hawks_identity_debug.tgz" ./hawks_identity_debug.tgz \
+            --project="$PROJECT_ID" --zone="$ZONE" --quiet
+          mkdir -p debug
+          tar -xzf hawks_identity_debug.tgz -C debug
+          find debug -type f -printf '%p %s\n' | sort
       - uses: actions/upload-artifact@v4
         with:
           name: hawks-identity-debug
