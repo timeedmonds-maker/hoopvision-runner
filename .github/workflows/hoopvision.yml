@@ -205,3 +205,78 @@ jobs:
           GOOGLE_CLOUD_PROJECT: ${{ env.PROJECT_ID }}
           HOOPVISION_EVIDENCE_BUCKET: ${{ env.EVIDENCE_BUCKET }}
         run: python tools/release/watch_run.py --run-id "$HOOPVISION_DEV_RUN_ID" --pre-benchmark-timeout 1200 --timeout 1200
+
+      - name: Capture terminal durable evidence
+        if: ${{ always() }}
+        working-directory: src
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ env.PROJECT_ID }}
+          HOOPVISION_EVIDENCE_BUCKET: ${{ env.EVIDENCE_BUCKET }}
+        shell: bash
+        run: |
+          set -u
+          RUN_ID="${HOOPVISION_DEV_RUN_ID:-}"
+          if [ -z "$RUN_ID" ]; then
+            echo "No durable run id was created; nothing to inspect."
+            exit 0
+          fi
+
+          echo "=== HOOPVISION_AUTOPILOT_RUN_ID ==="
+          echo "$RUN_ID"
+          echo "=== DURABLE EVENTS ==="
+          gcloud storage cat "gs://$EVIDENCE_BUCKET/runs/$RUN_ID/events/*.json" 2>/dev/null || true
+          echo "=== DURABLE RESULT ==="
+          RESULT="$(gcloud storage cat "gs://$EVIDENCE_BUCKET/runs/$RUN_ID/result.json" 2>/dev/null || true)"
+          printf '%s\n' "$RESULT"
+
+          echo "=== BOUNDED DIAGNOSTIC SUMMARY ==="
+          gcloud storage cat "gs://$EVIDENCE_BUCKET/runs/$RUN_ID/logs/*.bin" 2>/dev/null \
+            | grep -E 'HOOPVISION_STAGE|HOOPVISION_SAM31_BATCHING|HOOPVISION_SAM31_POINT_BATCH|SAM31_DECISION|sam31_decisions|accepted=|rejected=|inconclusive|Traceback|RuntimeError|TimeoutError|HOOPVISION_NAMED_RENDER_PATHS|HOOPVISION_FRESH_REPLAY_OK' \
+            | tail -n 400 || true
+
+          CLASS="UNKNOWN"
+          if printf '%s' "$RESULT" | grep -q '"status"[[:space:]]*:[[:space:]]*"FAILED"'; then
+            if printf '%s' "$RESULT" | grep -q 'TimeoutError'; then
+              CLASS="APPLICATION_TIMEOUT_NO_AUTORETRY"
+            else
+              CLASS="TERMINAL_FAILURE_DIAGNOSE_BEFORE_RETRY"
+            fi
+          elif printf '%s' "$RESULT" | grep -q '"status"[[:space:]]*:[[:space:]]*"SUCCESS"'; then
+            CLASS="SUCCESS_AWAIT_ACCEPTANCE_EVIDENCE"
+          elif [ -z "$RESULT" ]; then
+            CLASS="MISSING_TERMINAL_EVIDENCE_DIAGNOSE_BEFORE_RETRY"
+          fi
+          echo "HOOPVISION_AUTOPILOT_CLASS=$CLASS"
+          {
+            echo "### HoopVision bounded auto-resolve"
+            echo "- Durable run: `$RUN_ID`"
+            echo "- Classification: `$CLASS`"
+            echo "- Policy: terminal application failures and missing evidence are never auto-rerun; a new GPU comparison requires new causal evidence or a new executable candidate."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Stop prepared L4 after runner attempt
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -u
+          STATUS="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(status)' 2>/dev/null || true)"
+          echo "Prepared L4 post-run status: ${STATUS:-UNKNOWN}"
+          case "$STATUS" in
+            RUNNING|STAGING|PROVISIONING|REPAIRING|SUSPENDING|SUSPENDED)
+              gcloud compute instances stop "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --async || true
+              ;;
+            TERMINATED|"")
+              ;;
+            *)
+              echo "Unexpected L4 state $STATUS; no destructive fallback attempted."
+              ;;
+          esac
+          for i in $(seq 1 120); do
+            STATUS="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(status)' 2>/dev/null || true)"
+            echo "Prepared L4 status: ${STATUS:-UNKNOWN}"
+            [ "$STATUS" = "TERMINATED" ] && exit 0
+            [ -z "$STATUS" ] && exit 0
+            sleep 3
+          done
+          echo "Prepared L4 did not confirm TERMINATED within bounded cleanup window." >&2
+          exit 1
