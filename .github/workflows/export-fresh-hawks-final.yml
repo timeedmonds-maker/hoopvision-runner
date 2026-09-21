@@ -1,5 +1,5 @@
 name: Export Fresh Hawks Final
-# export-trigger: component-atomic-35545998241
+# export-trigger: bounded-sam-35546585525
 on:
   push:
     branches: [main]
@@ -11,7 +11,7 @@ permissions:
 env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
-  RUN_ID: public-35545998241-1-f98d2d3f7a87
+  RUN_ID: public-35546585525-1-8e0fbdf16b79
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 jobs:
