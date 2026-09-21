@@ -1,0 +1,80 @@
+name: Validate HoopVision Source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'VALIDATE_SHA'
+      - '.github/workflows/validate-source.yml'
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact commit SHA from private timeedmonds-maker/104
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout public runner shell
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Resolve exact private source revision
+        id: source
+        shell: bash
+        env:
+          REQUESTED_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${REQUESTED_SHA:-}"
+          if [ -z "$SHA" ]; then
+            SHA="$(tr -d '[:space:]' < VALIDATE_SHA)"
+          fi
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout private HoopVision source
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact source
+        working-directory: src
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run lightweight source tests
+        working-directory: src
+        run: |
+          set -euo pipefail
+          python -m unittest discover -s hoopvision/tests -p 'test_*.py' -v
+          python -m py_compile \
+            tools/adams_screen_prod_v3.py \
+            hoopvision/worker/run_fresh_hawks_all_player.py \
+            screen_tracker_nextgen/build_fast_physical_paths.py \
+            screen_tracker_nextgen/audit_physical_paths_with_identity.py \
+            screen_tracker_nextgen/sam31_ambiguity_continuity.py \
+            screen_tracker_nextgen/solve_fast_path_identities.py \
+            screen_tracker_nextgen/materialize_fast_path_render_assignments.py \
+            screen_tracker_nextgen/render_all_player_labels.py
