@@ -208,7 +208,6 @@ jobs:
 
       - name: Capture terminal durable evidence
         if: ${{ always() }}
-        working-directory: src
         env:
           GOOGLE_CLOUD_PROJECT: ${{ env.PROJECT_ID }}
           HOOPVISION_EVIDENCE_BUCKET: ${{ env.EVIDENCE_BUCKET }}
