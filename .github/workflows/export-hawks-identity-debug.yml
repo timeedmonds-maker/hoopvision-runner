@@ -1,0 +1,42 @@
+name: Export Hawks Identity Debug
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-hawks-identity-debug.yml'
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  SOURCE_RUN: public-35504687816-1-174f6f1df047
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Download source identity debug artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          P="gs://$BUCKET/runs/$SOURCE_RUN/artifacts"
+          mkdir -p debug/identity_segments debug/identity_ocr debug/sam31 debug/nextgen debug/all_player_identity
+          for X in             identity_segments/uniform_observations.csv             identity_segments/segments.csv             identity_segments/identity_tracks.csv             identity_ocr/ocr_evidence.json             identity_ocr/track_identity.csv             identity_ocr/qa.json             sam31/continuity_links.csv             sam31/continuity_groups.csv             sam31/sam31_qa.json             sam31/sam31_plan.json             nextgen/tracks.csv             nextgen/context.json             all_player_identity/all_player_identity_assignments.csv             all_player_identity/all_player_identity_qa.json
+          do
+            gcloud storage cp "$P/$X" "debug/$X" || true
+          done
+          find debug -type f -maxdepth 3 -printf '%p %s\n' | sort
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hawks-identity-debug
+          path: debug
+          compression-level: 6
+          retention-days: 7
