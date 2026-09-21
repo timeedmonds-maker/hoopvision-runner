@@ -1,4 +1,5 @@
 name: Stop HoopVision L4
+# autopilot-stop-trigger: 2026-09-22-current-failed-run
 
 on:
   push:
