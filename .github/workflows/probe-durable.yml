@@ -1,5 +1,5 @@
 name: Probe HoopVision Durable State
-# probe-trigger: local-sam-window-progress-2
+# probe-trigger: local-sam-window-progress-3
 on:
   push:
     branches: [main]
