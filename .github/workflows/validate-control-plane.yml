@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: timeedmonds-maker/104
-          ref: d138b159123f2170904a350d262b6b0df26f126f
+          ref: 972d461af06b2c9fbbb0a55e689ca94c74834003
           token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
           persist-credentials: false
       - uses: actions/setup-python@v5
@@ -27,4 +27,4 @@ jobs:
         run: |
           set -euo pipefail
           python -m unittest hoopvision.tests.test_semantic_anchor_source -v
-          python -m py_compile tools/release/dev_supervisor.py tools/release/watch_run.py tools/release/submit_dev.py hoopvision/worker/interactive_service.py hoopvision/worker/run_fresh_hawks_all_player.py hoopvision/worker/run_fresh_hawks_identity_replay.py screen_tracker_nextgen/global_identity_solver.py screen_tracker_nextgen/all_player_identity_solver.py screen_tracker_nextgen/reauthorize_all_player_assignments.py screen_tracker_nextgen/materialize_sam31_player_paths.py screen_tracker_nextgen/build_named_render_paths.py screen_tracker_nextgen/render_all_player_labels.py tools/adams_event_track_identity_ocr.py tools/adams_screen_prod_v3.py
+          python -m py_compile tools/release/dev_supervisor.py tools/release/watch_run.py tools/release/submit_dev.py hoopvision/worker/interactive_service.py hoopvision/worker/run_fresh_hawks_all_player.py hoopvision/worker/run_fresh_hawks_identity_replay.py screen_tracker_nextgen/global_identity_solver.py screen_tracker_nextgen/all_player_identity_solver.py screen_tracker_nextgen/reauthorize_all_player_assignments.py screen_tracker_nextgen/materialize_sam31_player_paths.py screen_tracker_nextgen/build_named_render_paths.py screen_tracker_nextgen/build_fast_physical_paths.py hoopvision/worker/run_fresh_hawks_fast_path.py screen_tracker_nextgen/render_all_player_labels.py tools/adams_event_track_identity_ocr.py tools/adams_screen_prod_v3.py
