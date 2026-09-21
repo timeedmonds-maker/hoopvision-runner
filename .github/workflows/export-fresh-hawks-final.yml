@@ -1,5 +1,5 @@
 name: Export Fresh Hawks Final
-# export-trigger: math-fixed-pass-35550603599
+# export-trigger: include-debug-inputs-35550603599
 on:
   push:
     branches: [main]
@@ -37,6 +37,12 @@ jobs:
           gcloud storage cp "$PREFIX/sam31_replay/continuity_paths.csv" ./continuity_paths.csv
           gcloud storage cp "$PREFIX/render_paths/named_render_paths.csv" ./named_render_paths.csv
           gcloud storage cp "$PREFIX/render_paths/named_render_paths_qa.json" ./named_render_paths_qa.json
+          mkdir -p debug_input
+          gcloud storage cp "$PREFIX/debug_input/segments.csv" ./debug_input/segments.csv
+          gcloud storage cp "$PREFIX/debug_input/uniform_observations.csv" ./debug_input/uniform_observations.csv
+          gcloud storage cp "$PREFIX/debug_input/ocr_evidence.json" ./debug_input/ocr_evidence.json
+          gcloud storage cp "$PREFIX/debug_input/track_identity.csv" ./debug_input/track_identity.csv
+          gcloud storage cp "$PREFIX/debug_input/ambiguity_windows.json" ./debug_input/ambiguity_windows.json
           ls -lh Hawks_Amen_to_Adams_All_Player_Labels_UHD.mp4 all_player_identity_qa.json all_player_identity_assignments.csv sam31_replay_qa.json continuity_links.csv continuity_paths.csv named_render_paths.csv named_render_paths_qa.json
       - uses: actions/upload-artifact@v4
         with:
@@ -50,5 +56,10 @@ jobs:
             continuity_paths.csv
             named_render_paths.csv
             named_render_paths_qa.json
+            debug_input/segments.csv
+            debug_input/uniform_observations.csv
+            debug_input/ocr_evidence.json
+            debug_input/track_identity.csv
+            debug_input/ambiguity_windows.json
           compression-level: 0
           retention-days: 7
