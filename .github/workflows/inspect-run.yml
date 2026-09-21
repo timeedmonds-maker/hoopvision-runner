@@ -53,6 +53,29 @@ jobs:
           echo "=== durable result ==="
           gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/result.json" 2>/dev/null || true
           gcloud storage cat "gs://$BUCKET/runs/$RUN_ID/logs/*.bin" > "$TMP" 2>/dev/null || true
+          echo "=== stage command timeline ==="
+          python - "$TMP" <<'PY'
+          import re, sys
+          lines=open(sys.argv[1],errors="replace").read().splitlines()
+          stage_commands=(
+              "run_angle_tracking_mcbyte.py",
+              "build_identity_segments.py",
+              "adams_event_track_identity_ocr.py",
+              "build_fast_physical_paths.py",
+              "sam31_ambiguity_continuity.py",
+              "audit_physical_paths_with_identity.py",
+              "solve_fast_path_identities.py",
+              "materialize_fast_path_render_assignments.py",
+              "render_all_player_labels.py",
+              "evaluate_native_overlay.py",
+          )
+          ts=re.compile(r"^(?:INFO )?(\d{4}-\d\d-\d\d[ T]\d\d:\d\d:\d\d(?:[,.]\d+)?)")
+          for line in lines:
+              if line.startswith("+") and any(x in line for x in stage_commands):
+                  print(line)
+              elif "HOOPVISION_STAGE" in line:
+                  print(line)
+          PY
           echo "=== SAM continuity diagnostics ==="
           python - "$TMP" <<'PY'
           import sys
