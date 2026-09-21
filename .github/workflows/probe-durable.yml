@@ -1,5 +1,5 @@
 name: Probe HoopVision Durable State
-# probe-trigger: sam31-fullpath-midrun
+# probe-trigger: bounded-sam-crossing-late
 on:
   push:
     branches: [main]
