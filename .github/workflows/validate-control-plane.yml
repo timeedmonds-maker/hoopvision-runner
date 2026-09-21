@@ -17,7 +17,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: timeedmonds-maker/104
-          ref: 972d461af06b2c9fbbb0a55e689ca94c74834003
+          ref: 71e87ca1d8dcc1164f08e6448ca96fa6471746b5
           token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
           persist-credentials: false
       - uses: actions/setup-python@v5
