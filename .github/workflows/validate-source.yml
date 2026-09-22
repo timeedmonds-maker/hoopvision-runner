@@ -14,7 +14,7 @@ on:
         type: string
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   validate:
@@ -24,7 +24,7 @@ jobs:
       - name: Checkout public runner shell
         uses: actions/checkout@v4
         with:
-          persist-credentials: false
+          persist-credentials: true
 
       - name: Resolve exact private source revision
         id: source
@@ -39,6 +39,28 @@ jobs:
           fi
           [[ "$SHA" =~ ^[0-9a-f]{40}$ ]]
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Publish observable validation start
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          state = {
+              "github_run_id": os.environ["GITHUB_RUN_ID"],
+              "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "source_sha": os.environ["SOURCE_SHA"],
+              "status": "STARTED",
+          }
+          open("VALIDATE_STATE.json", "w").write(json.dumps(state, indent=2, sort_keys=True) + "\n")
+          PY
+          git config user.name "hoopvision-runner"
+          git config user.email "hoopvision-runner@users.noreply.github.com"
+          git add VALIDATE_STATE.json
+          git commit -m "Record validation ${GITHUB_RUN_ID} start"
+          git push origin HEAD:main
 
       - name: Checkout private HoopVision source
         uses: actions/checkout@v4
@@ -80,3 +102,29 @@ jobs:
             screen_tracker_nextgen/solve_fast_path_identities.py \
             screen_tracker_nextgen/materialize_fast_path_render_assignments.py \
             screen_tracker_nextgen/render_all_player_labels.py
+
+      - name: Publish observable validation result
+        if: ${{ always() }}
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          VALIDATION_STATUS: ${{ job.status }}
+        run: |
+          set -u
+          git fetch origin main || exit 0
+          git checkout -B validation-state origin/main || exit 0
+          python - <<'PY'
+          import json, os
+          state = {
+              "github_run_id": os.environ["GITHUB_RUN_ID"],
+              "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
+              "source_sha": os.environ.get("SOURCE_SHA", ""),
+              "status": os.environ.get("VALIDATION_STATUS", "unknown").upper(),
+          }
+          open("VALIDATE_STATE.json", "w").write(json.dumps(state, indent=2, sort_keys=True) + "\n")
+          PY
+          git config user.name "hoopvision-runner"
+          git config user.email "hoopvision-runner@users.noreply.github.com"
+          git add VALIDATE_STATE.json
+          git commit -m "Record validation ${GITHUB_RUN_ID} result" || exit 0
+          git push origin HEAD:main || true
