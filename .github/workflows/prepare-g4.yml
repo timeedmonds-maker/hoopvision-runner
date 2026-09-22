@@ -1,0 +1,178 @@
+name: Prepare HoopVision G4 Test Worker
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'G4_PREPARE'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: hoopvision-g4-prepare
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  SOURCE_ZONE: asia-southeast1-c
+  SOURCE_INSTANCE: hv-dev-l4
+  G4_INSTANCE: hv-dev-g4
+  G4_DISK: hv-dev-g4-boot
+  G4_MACHINE_TYPE: g4-standard-48
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Inspect source worker and G4 quota
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='yaml(name,status,machineType,disks,serviceAccounts,networkInterfaces)'
+          gcloud compute regions describe asia-southeast1 --project="$PROJECT_ID" --format=json > /tmp/region.json
+          python - <<'PY'
+          import json
+          x=json.load(open('/tmp/region.json'))
+          print("=== GPU QUOTAS ===")
+          for q in x.get("quotas",[]):
+              metric=str(q.get("metric",""))
+              if "GPU" in metric or "NVIDIA" in metric or "G4" in metric:
+                  print(metric, "limit=", q.get("limit"), "usage=", q.get("usage"))
+          PY
+
+      - name: Clone prepared worker to G4-compatible boot disk
+        id: prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC_DISK="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(disks[0].source.basename())')"
+          SA="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(serviceAccounts[0].email)')"
+          SUBNET="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(networkInterfaces[0].subnetwork.basename())')"
+          SNAP="hv-dev-l4-g4-${GITHUB_RUN_ID}"
+          echo "source_disk=$SRC_DISK" >> "$GITHUB_OUTPUT"
+          echo "snapshot=$SNAP" >> "$GITHUB_OUTPUT"
+
+          for Z in asia-southeast1-a asia-southeast1-b; do
+            if gcloud compute instances describe "$G4_INSTANCE" --project="$PROJECT_ID" --zone="$Z" >/dev/null 2>&1; then
+              echo "Existing $G4_INSTANCE found in $Z; refusing to overwrite." >&2
+              exit 2
+            fi
+          done
+
+          gcloud compute snapshots create "$SNAP"             --project="$PROJECT_ID"             --source-disk="$SRC_DISK"             --source-disk-zone="$SOURCE_ZONE"             --storage-location=asia-southeast1
+
+          SELECTED=""
+          for Z in asia-southeast1-a asia-southeast1-b; do
+            echo "Trying G4 in $Z"
+            gcloud compute disks create "$G4_DISK"               --project="$PROJECT_ID"               --zone="$Z"               --type=hyperdisk-balanced               --source-snapshot="$SNAP"
+
+            cat >/tmp/g4-startup.sh <<'EOS'
+          #!/bin/bash
+          exec >/dev/ttyS0 2>&1
+          echo HOOPVISION_G4_BOOT_DIAGNOSTIC
+          uname -a
+          nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader || true
+          systemctl --no-pager --full status hoopvision-dev-supervisor || true
+          systemctl --failed --no-pager || true
+          EOS
+
+            set +e
+            gcloud compute instances create "$G4_INSTANCE"               --project="$PROJECT_ID"               --zone="$Z"               --machine-type="$G4_MACHINE_TYPE"               --disk="name=$G4_DISK,boot=yes,auto-delete=no"               --service-account="$SA"               --scopes=cloud-platform               --subnet="$SUBNET"               --maintenance-policy=TERMINATE               --metadata-from-file=startup-script=/tmp/g4-startup.sh
+            RC=$?
+            set -e
+            if [ "$RC" -eq 0 ]; then
+              SELECTED="$Z"
+              break
+            fi
+            echo "G4 create failed in $Z; cleaning only the failed test disk."
+            gcloud compute disks delete "$G4_DISK" --project="$PROJECT_ID" --zone="$Z" --quiet || true
+          done
+
+          if [ -z "$SELECTED" ]; then
+            gcloud compute snapshots delete "$SNAP" --project="$PROJECT_ID" --quiet || true
+            echo "No G4 capacity/quota available in tested Singapore zones." >&2
+            exit 1
+          fi
+
+          echo "zone=$SELECTED" >> "$GITHUB_OUTPUT"
+          echo "Prepared G4 in $SELECTED"
+          for i in $(seq 1 60); do
+            STATUS="$(gcloud compute instances describe "$G4_INSTANCE" --project="$PROJECT_ID" --zone="$SELECTED" --format='value(status)')"
+            echo "G4 status: $STATUS"
+            [ "$STATUS" = "RUNNING" ] && break
+            sleep 5
+          done
+          [ "$STATUS" = "RUNNING" ]
+
+          sleep 30
+          echo "=== G4 SERIAL DIAGNOSTIC ==="
+          gcloud compute instances get-serial-port-output "$G4_INSTANCE" --project="$PROJECT_ID" --zone="$SELECTED" --port=1 2>/dev/null | tail -n 300 || true
+
+          gcloud compute snapshots delete "$SNAP" --project="$PROJECT_ID" --quiet || true
+
+      - name: Stop prepared G4 after verification
+        if: ${{ steps.prepare.outputs.zone != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          Z="${{ steps.prepare.outputs.zone }}"
+          gcloud compute instances stop "$G4_INSTANCE" --project="$PROJECT_ID" --zone="$Z" --quiet
+          for i in $(seq 1 60); do
+            STATUS="$(gcloud compute instances describe "$G4_INSTANCE" --project="$PROJECT_ID" --zone="$Z" --format='value(status)')"
+            echo "G4 status: $STATUS"
+            [ "$STATUS" = "TERMINATED" ] && break
+            sleep 3
+          done
+          [ "$STATUS" = "TERMINATED" ]
+
+      - name: Publish G4 state
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -u
+          git fetch origin main || exit 0
+          git checkout -B g4-state origin/main || exit 0
+          Z="${{ steps.prepare.outputs.zone }}"
+          STATUS="FAILED"
+          GPU=""
+          DRIVER=""
+          if [ -n "$Z" ]; then
+            VM_STATUS="$(gcloud compute instances describe "$G4_INSTANCE" --project="$PROJECT_ID" --zone="$Z" --format='value(status)' 2>/dev/null || true)"
+            if [ "$VM_STATUS" = "TERMINATED" ]; then STATUS="PREPARED"; fi
+          fi
+          export Z STATUS
+          python - <<'PY'
+          import json, os
+          state={
+            "status": os.environ.get("STATUS","FAILED"),
+            "instance": "hv-dev-g4",
+            "zone": os.environ.get("Z",""),
+            "machine_type": "g4-standard-48",
+            "source_instance": "hv-dev-l4",
+            "source_zone": "asia-southeast1-c",
+            "workflow_run_id": os.environ.get("GITHUB_RUN_ID",""),
+          }
+          open("G4_STATE.json","w").write(json.dumps(state,indent=2,sort_keys=True)+"\n")
+          PY
+          git config user.name hoopvision-runner
+          git config user.email hoopvision-runner@users.noreply.github.com
+          git add G4_STATE.json
+          git commit -m "Record G4 preparation state ${GITHUB_RUN_ID}" || exit 0
+          git push origin HEAD:main || true
