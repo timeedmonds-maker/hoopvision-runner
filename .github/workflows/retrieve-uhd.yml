@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          RETRIEVE_RUN_ID="$(tr -d '[:space:]' < RETRIEVE_RUN_ID)"
+          RETRIEVE_RUN_ID="$(head -n 1 RETRIEVE_RUN_ID | tr -d '[:space:]')"
           RESULT="$(gcloud storage cat "gs://$EVIDENCE_BUCKET/runs/$RETRIEVE_RUN_ID/result.json")"
           FINAL_URI="$(printf '%s' "$RESULT" | python -c 'import json,sys; d=json.load(sys.stdin); r=d.get("benchmark",{}).get("result",{}); print(r.get("final_video") or d.get("final_video",""))')"
           [ -n "$FINAL_URI" ] || { echo "No final_video in durable result" >&2; exit 2; }
