@@ -1,0 +1,47 @@
+name: Retrieve HoopVision UHD
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'RETRIEVE_RUN_ID'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  retrieve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Retrieve completed UHD output
+        shell: bash
+        run: |
+          set -euo pipefail
+          RETRIEVE_RUN_ID="$(tr -d '[:space:]' < RETRIEVE_RUN_ID)"
+          RESULT="$(gcloud storage cat "gs://$EVIDENCE_BUCKET/runs/$RETRIEVE_RUN_ID/result.json")"
+          FINAL_URI="$(printf '%s' "$RESULT" | python -c 'import json,sys; d=json.load(sys.stdin); r=d.get("benchmark",{}).get("result",{}); print(r.get("final_video") or d.get("final_video",""))')"
+          [ -n "$FINAL_URI" ] || { echo "No final_video in durable result" >&2; exit 2; }
+          mkdir -p deliverable
+          gcloud storage cp "$FINAL_URI" deliverable/Hawks_Amen_to_Adams_All_Player_Labels.mp4
+          printf '%s\n' "$FINAL_URI" > deliverable/source_gcs_uri.txt
+      - name: Upload UHD deliverable
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-uhd-completed
+          path: deliverable/
+          retention-days: 7
