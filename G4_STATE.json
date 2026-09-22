@@ -1,0 +1,9 @@
+{
+  "instance": "hv-dev-g4",
+  "machine_type": "g4-standard-48",
+  "source_instance": "hv-dev-l4",
+  "source_zone": "asia-southeast1-c",
+  "status": "FAILED",
+  "workflow_run_id": "35681654645",
+  "zone": ""
+}
