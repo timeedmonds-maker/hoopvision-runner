@@ -34,12 +34,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if gcloud quotas preferences describe "$PREF_ID" --project="$PROJECT_ID" --billing-project="$PROJECT_ID" >/tmp/pref.yaml 2>/dev/null; then
+          if gcloud beta quotas preferences describe "$PREF_ID" --project="$PROJECT_ID" --billing-project="$PROJECT_ID" >/tmp/pref.yaml 2>/dev/null; then
             cat /tmp/pref.yaml
           else
-            gcloud quotas preferences create               --project="$PROJECT_ID"               --billing-project="$PROJECT_ID"               --service=compute.googleapis.com               --quota-id=GPUS-PER-GPU-FAMILY-per-project-region               --dimensions=region=asia-southeast1,gpu_family=NVIDIA_RTX_PRO_6000               --preferred-value=1               --justification="One controlled HoopVision development benchmark comparing G4 RTX PRO 6000 against the existing L4 baseline; no production migration requested."               --preference-id="$PREF_ID"
+            gcloud beta quotas preferences create               --project="$PROJECT_ID"               --billing-project="$PROJECT_ID"               --service=compute.googleapis.com               --quota-id=GPUS-PER-GPU-FAMILY-per-project-region               --dimensions=region=asia-southeast1,gpu_family=NVIDIA_RTX_PRO_6000               --preferred-value=1               --justification="One controlled HoopVision development benchmark comparing G4 RTX PRO 6000 against the existing L4 baseline; no production migration requested."               --preference-id="$PREF_ID"
           fi
-          gcloud quotas preferences describe "$PREF_ID" --project="$PROJECT_ID" --billing-project="$PROJECT_ID" --format=json > G4_QUOTA_STATE.json
+          gcloud beta quotas preferences describe "$PREF_ID" --project="$PROJECT_ID" --billing-project="$PROJECT_ID" --format=json > G4_QUOTA_STATE.json
           cat G4_QUOTA_STATE.json
       - name: Publish quota state
         if: ${{ always() }}
