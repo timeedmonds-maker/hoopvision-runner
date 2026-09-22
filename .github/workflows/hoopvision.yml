@@ -346,6 +346,16 @@ jobs:
           done
           [ "$STATUS" = "RUNNING" ] || { echo "Prepared L4 did not reach RUNNING" >&2; exit 1; }
 
+      - name: Enforce Hawks development observability timeout
+        if: ${{ steps.benchmark.outputs.name == 'fresh-hawks-all-player' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Setting live supervisor Hawks development timeout to 600s (acceptance SLO remains unchanged)."
+          gcloud compute ssh "$TARGET_INSTANCE" \
+            --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet \
+            --command='sudo touch /etc/hoopvision-dev.env; sudo sed -i "/^HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=/d" /etc/hoopvision-dev.env; echo "HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=600" | sudo tee -a /etc/hoopvision-dev.env >/dev/null; sudo systemctl restart hoopvision-dev-supervisor; sudo systemctl is-active --quiet hoopvision-dev-supervisor; sudo grep "^HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=" /etc/hoopvision-dev.env'
+
       - name: Publish immutable bundle and dispatch
         working-directory: src
         env:
