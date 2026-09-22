@@ -202,51 +202,65 @@ jobs:
           case "$PROFILE" in
             l4)
               echo "GPU_PROFILE=l4" >> "$GITHUB_ENV"
-              FAILOVER_INSTANCE="hv-dev-l4-failover"
               FOUND_ZONE=""
-              for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
-                if gcloud compute instances describe "$FAILOVER_INSTANCE" --project="$PROJECT_ID" --zone="$Z" >/dev/null 2>&1; then
-                  FOUND_ZONE="$Z"
-                  echo "Reusing prepared L4 failover target $FAILOVER_INSTANCE in $FOUND_ZONE"
-                  break
-                fi
-              done
+              FOUND_INSTANCE=""
+
+              echo "Checking existing prepared L4 immediately in $L4_ZONE"
+              set +e
+              gcloud compute instances start "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE"
+              RC=$?
+              set -e
+              if [ "$RC" -eq 0 ]; then
+                FOUND_ZONE="$L4_ZONE"
+                FOUND_INSTANCE="$L4_INSTANCE"
+                echo "Existing prepared L4 started in $FOUND_ZONE"
+              fi
+
               if [ -z "$FOUND_ZONE" ]; then
-                MACHINE_IMAGE="hv-dev-l4-failover-${GITHUB_RUN_ID}"
+                FAILOVER_INSTANCE="hv-dev-l4-failover"
+                for Z in asia-southeast1-a asia-southeast1-b; do
+                  if gcloud compute instances describe "$FAILOVER_INSTANCE" --project="$PROJECT_ID" --zone="$Z" >/dev/null 2>&1; then
+                    FOUND_ZONE="$Z"
+                    FOUND_INSTANCE="$FAILOVER_INSTANCE"
+                    echo "Reusing prepared L4 failover target $FAILOVER_INSTANCE in $FOUND_ZONE"
+                    break
+                  fi
+                done
+              fi
+
+              if [ -z "$FOUND_ZONE" ]; then
+                MACHINE_IMAGE="hv-dev-l4-probe-${GITHUB_RUN_ID}"
                 echo "Creating temporary machine image $MACHINE_IMAGE from $L4_INSTANCE in $L4_ZONE"
                 gcloud compute machine-images create "$MACHINE_IMAGE" \
                   --project="$PROJECT_ID" \
                   --source-instance="$L4_INSTANCE" \
                   --source-instance-zone="$L4_ZONE"
-                for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
-                  echo "Queueing prepared L4 Flex-start clone in $Z for up to 6m"
+                for Z in asia-southeast1-a asia-southeast1-b; do
+                  echo "Trying immediate prepared L4 clone in $Z"
                   set +e
                   gcloud compute instances create "$FAILOVER_INSTANCE" \
                     --project="$PROJECT_ID" \
                     --zone="$Z" \
-                    --source-machine-image="$MACHINE_IMAGE" \
-                    --provisioning-model=FLEX_START \
-                    --request-valid-for-duration=6m \
-                    --max-run-duration=30m \
-                    --instance-termination-action=STOP \
-                    --maintenance-policy=TERMINATE
+                    --source-machine-image="$MACHINE_IMAGE"
                   RC=$?
                   set -e
                   if [ "$RC" -eq 0 ]; then
                     FOUND_ZONE="$Z"
+                    FOUND_INSTANCE="$FAILOVER_INSTANCE"
                     break
                   fi
                 done
                 gcloud compute machine-images delete "$MACHINE_IMAGE" --project="$PROJECT_ID" --quiet || true
               fi
+
               if [ -z "$FOUND_ZONE" ]; then
-                echo "No L4 Flex-start capacity allocated in any asia-southeast1 zone within the bounded wait." >&2
+                echo "No immediate L4 capacity available in asia-southeast1-a, -b, or -c." >&2
                 exit 5
               fi
               echo "TARGET_ZONE=$FOUND_ZONE" >> "$GITHUB_ENV"
-              echo "TARGET_INSTANCE=$FAILOVER_INSTANCE" >> "$GITHUB_ENV"
+              echo "TARGET_INSTANCE=$FOUND_INSTANCE" >> "$GITHUB_ENV"
               echo "TARGET_SESSION=hv-dev-l4" >> "$GITHUB_ENV"
-              echo "Selected prepared L4 Flex-start target $FAILOVER_INSTANCE in $FOUND_ZONE"
+              echo "Selected immediate L4 target $FOUND_INSTANCE in $FOUND_ZONE"
               ;;
             g4)
               echo "GPU_PROFILE=g4" >> "$GITHUB_ENV"
