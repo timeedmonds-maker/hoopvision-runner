@@ -8,7 +8,7 @@ on:
         required: false
         type: string
       session_id:
-        description: Prepared L4 session identifier
+        description: Prepared GPU session identifier
         required: false
         type: string
       benchmark:
@@ -20,6 +20,7 @@ on:
     paths:
       - 'SOURCE_SHA'
       - 'BENCHMARK'
+      - 'GPU_PROFILE'
 
 permissions:
   contents: write
@@ -188,28 +189,91 @@ jobs:
         working-directory: src
         run: python -m pip install --disable-pip-version-check --no-cache-dir google-cloud-storage==3.4.0 google-cloud-pubsub==2.31.1
 
-      - name: Ensure prepared L4 is running
+      - name: Resolve and prepare GPU target
         shell: bash
         run: |
           set -euo pipefail
-          gcloud compute instances remove-metadata "$L4_INSTANCE" \
-            --project="$PROJECT_ID" --zone="$L4_ZONE" --keys=shutdown-script >/dev/null 2>&1 || true
-          STATUS="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(status)')"
+          PROFILE="l4"
+          if [ -f GPU_PROFILE ]; then
+            PROFILE="$(tr -d '[:space:]' < GPU_PROFILE)"
+          fi
+          case "$PROFILE" in
+            l4)
+              echo "GPU_PROFILE=l4" >> "$GITHUB_ENV"
+              echo "TARGET_ZONE=$L4_ZONE" >> "$GITHUB_ENV"
+              echo "TARGET_INSTANCE=$L4_INSTANCE" >> "$GITHUB_ENV"
+              echo "TARGET_SESSION=hv-dev-l4" >> "$GITHUB_ENV"
+              ;;
+            g4)
+              echo "GPU_PROFILE=g4" >> "$GITHUB_ENV"
+              G4_INSTANCE="hv-dev-g4"
+              FOUND_ZONE=""
+              for Z in asia-southeast1-a asia-southeast1-b; do
+                if gcloud compute instances describe "$G4_INSTANCE" --project="$PROJECT_ID" --zone="$Z" >/dev/null 2>&1; then
+                  FOUND_ZONE="$Z"
+                  break
+                fi
+              done
+              if [ -z "$FOUND_ZONE" ]; then
+                SRC_DISK="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(disks[0].source.basename())')"
+                SA="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(serviceAccounts[0].email)')"
+                SUBNET="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(networkInterfaces[0].subnetwork.basename())')"
+                SNAP="hv-dev-l4-g4-${GITHUB_RUN_ID}"
+                echo "Creating temporary snapshot $SNAP from prepared L4 boot disk $SRC_DISK"
+                gcloud compute snapshots create "$SNAP" --project="$PROJECT_ID" --source-disk="$SRC_DISK" --source-disk-zone="$L4_ZONE" --storage-location=asia-southeast1
+                for Z in asia-southeast1-a asia-southeast1-b; do
+                  DISK="hv-dev-g4-boot"
+                  echo "Trying G4 preparation in $Z"
+                  gcloud compute disks create "$DISK" --project="$PROJECT_ID" --zone="$Z" --type=hyperdisk-balanced --source-snapshot="$SNAP"
+                  set +e
+                  gcloud compute instances create "$G4_INSTANCE" --project="$PROJECT_ID" --zone="$Z" --machine-type=g4-standard-48 --disk="name=$DISK,boot=yes,auto-delete=no" --service-account="$SA" --scopes=cloud-platform --subnet="$SUBNET" --maintenance-policy=TERMINATE
+                  RC=$?
+                  set -e
+                  if [ "$RC" -eq 0 ]; then
+                    FOUND_ZONE="$Z"
+                    break
+                  fi
+                  gcloud compute disks delete "$DISK" --project="$PROJECT_ID" --zone="$Z" --quiet || true
+                done
+                gcloud compute snapshots delete "$SNAP" --project="$PROJECT_ID" --quiet || true
+              fi
+              if [ -z "$FOUND_ZONE" ]; then
+                echo "No G4 worker could be prepared in asia-southeast1-a or asia-southeast1-b." >&2
+                exit 1
+              fi
+              echo "TARGET_ZONE=$FOUND_ZONE" >> "$GITHUB_ENV"
+              echo "TARGET_INSTANCE=$G4_INSTANCE" >> "$GITHUB_ENV"
+              echo "TARGET_SESSION=hv-dev-l4" >> "$GITHUB_ENV"
+              echo "Selected G4 target $G4_INSTANCE in $FOUND_ZONE"
+              ;;
+            *)
+              echo "Unsupported GPU_PROFILE=$PROFILE" >&2
+              exit 2
+              ;;
+          esac
+
+      - name: Ensure prepared GPU target is running
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute instances remove-metadata "$TARGET_INSTANCE" \
+            --project="$PROJECT_ID" --zone="$TARGET_ZONE" --keys=shutdown-script >/dev/null 2>&1 || true
+          STATUS="$(gcloud compute instances describe "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --format='value(status)')"
           echo "Prepared L4 status: $STATUS"
           START_OP=""
           if [ "$STATUS" != "RUNNING" ]; then
-            START_OP="$(gcloud compute instances start "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(name)')"
+            START_OP="$(gcloud compute instances start "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --format='value(name)')"
             echo "Prepared L4 start operation: $START_OP"
           fi
           for i in $(seq 1 90); do
-            STATUS="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(status)')"
+            STATUS="$(gcloud compute instances describe "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --format='value(status)')"
             echo "Prepared L4 status: $STATUS"
             [ "$STATUS" = "RUNNING" ] && break
             if [ -n "$START_OP" ] && [ "$STATUS" = "TERMINATED" ] && [ "$i" -gt 1 ]; then
               echo "=== L4 START OPERATION ==="
-              gcloud compute operations describe "$START_OP" --project="$PROJECT_ID" --zone="$L4_ZONE" || true
+              gcloud compute operations describe "$START_OP" --project="$PROJECT_ID" --zone="$TARGET_ZONE" || true
               echo "=== L4 INSTANCE STATUS ==="
-              gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='yaml(status,statusMessage,lastStartTimestamp,lastStopTimestamp)' || true
+              gcloud compute instances describe "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --format='yaml(status,statusMessage,lastStartTimestamp,lastStopTimestamp)' || true
               break
             fi
             sleep 4
@@ -227,7 +291,7 @@ jobs:
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           set -euo pipefail
-          SESSION="${REQUESTED_SESSION:-hv-dev-l4}"
+          SESSION="${REQUESTED_SESSION:-$TARGET_SESSION}"
           RUN_ID="public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SOURCE_SHA:0:12}"
           echo "HOOPVISION_DEV_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
           python tools/release/submit_dev.py --release-dir dist/release --session "$SESSION" --run-id "$RUN_ID" --benchmark "${{ steps.benchmark.outputs.name }}"
@@ -321,16 +385,16 @@ jobs:
           git commit -m "Record HoopVision run ${GITHUB_RUN_ID} terminal state" || exit 0
           git push origin HEAD:main || true
 
-      - name: Stop prepared L4 after runner attempt
+      - name: Stop prepared GPU target after runner attempt
         if: ${{ always() }}
         shell: bash
         run: |
           set -u
-          STATUS="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(status)' 2>/dev/null || true)"
+          STATUS="$(gcloud compute instances describe "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --format='value(status)' 2>/dev/null || true)"
           echo "Prepared L4 post-run status: ${STATUS:-UNKNOWN}"
           case "$STATUS" in
             RUNNING|STAGING|PROVISIONING|REPAIRING|SUSPENDING|SUSPENDED)
-              gcloud compute instances stop "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --async || true
+              gcloud compute instances stop "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --async || true
               ;;
             TERMINATED|"")
               ;;
@@ -339,7 +403,7 @@ jobs:
               ;;
           esac
           for i in $(seq 1 120); do
-            STATUS="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(status)' 2>/dev/null || true)"
+            STATUS="$(gcloud compute instances describe "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --format='value(status)' 2>/dev/null || true)"
             echo "Prepared L4 status: ${STATUS:-UNKNOWN}"
             [ "$STATUS" = "TERMINATED" ] && exit 0
             [ -z "$STATUS" ] && exit 0
