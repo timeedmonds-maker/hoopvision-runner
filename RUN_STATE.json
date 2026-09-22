@@ -1,7 +1,7 @@
 {
-  "durable_run_id": "public-35684101474-1-4e71453fa900",
+  "durable_run_id": "public-35684276305-1-4e71453fa900",
   "github_run_attempt": "1",
-  "github_run_id": "35684101474",
+  "github_run_id": "35684276305",
   "source_sha": "4e71453fa900524b5129ddcb0ac6b7a3fa04a96a",
-  "status": "UNKNOWN"
+  "status": "STARTED"
 }\n
