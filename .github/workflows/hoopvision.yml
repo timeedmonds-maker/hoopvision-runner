@@ -442,12 +442,33 @@ jobs:
             CLASS="MISSING_TERMINAL_EVIDENCE_DIAGNOSE_BEFORE_RETRY"
           fi
           echo "HOOPVISION_AUTOPILOT_CLASS=$CLASS"
+
+          # Bridge completed UHD output from durable GCS storage into a GitHub
+          # Actions artifact. This is retrieval-only: it never reruns GPU work.
+          FINAL_URI="$(printf '%s' "$RESULT" | python -c 'import json,sys; d=json.load(sys.stdin); print(d.get("final_video",""))' 2>/dev/null || true)"
+          if [ -n "$FINAL_URI" ]; then
+            mkdir -p "$GITHUB_WORKSPACE/deliverable"
+            echo "Retrieving completed UHD output: $FINAL_URI"
+            gcloud storage cp "$FINAL_URI" "$GITHUB_WORKSPACE/deliverable/Hawks_Amen_to_Adams_All_Player_Labels.mp4"
+            printf '%s\n' "$FINAL_URI" > "$GITHUB_WORKSPACE/deliverable/source_gcs_uri.txt"
+          else
+            echo "No final_video URI present in durable result."
+          fi
           {
             echo '### HoopVision bounded auto-resolve'
             printf '%s\n' "- Durable run: $RUN_ID"
             printf '%s\n' "- Classification: $CLASS"
             echo '- Policy: terminal application failures and missing evidence are never auto-rerun; a new GPU comparison requires new causal evidence or a new executable candidate.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload completed UHD deliverable
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-uhd-${{ github.run_id }}
+          path: deliverable/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Publish observable terminal state
         if: ${{ always() }}
