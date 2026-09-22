@@ -223,24 +223,9 @@ jobs:
                   --format=json > /tmp/g4-quota.json
               fi
               cat /tmp/g4-quota.json
-              GRANTED="$(python - <<'PY'
-import json
-x=json.load(open('/tmp/g4-quota.json'))
-print(x.get('quotaConfig',{}).get('grantedValue','0'))
-PY
-)"
-              PREFERRED="$(python - <<'PY'
-import json
-x=json.load(open('/tmp/g4-quota.json'))
-print(x.get('quotaConfig',{}).get('preferredValue','0'))
-PY
-)"
-              RECONCILING="$(python - <<'PY'
-import json
-x=json.load(open('/tmp/g4-quota.json'))
-print(str(x.get('reconciling',False)).lower())
-PY
-)"
+              GRANTED="$(python -c "import json; x=json.load(open('/tmp/g4-quota.json')); print(x.get('quotaConfig',{}).get('grantedValue','0'))")"
+              PREFERRED="$(python -c "import json; x=json.load(open('/tmp/g4-quota.json')); print(x.get('quotaConfig',{}).get('preferredValue','0'))")"
+              RECONCILING="$(python -c "import json; x=json.load(open('/tmp/g4-quota.json')); print(str(x.get('reconciling',False)).lower())")"
               echo "G4 quota preferred=$PREFERRED granted=$GRANTED reconciling=$RECONCILING"
               if [ "$GRANTED" != "1" ]; then
                 echo "G4 quota is not yet granted; stopping before disk/VM creation." >&2
