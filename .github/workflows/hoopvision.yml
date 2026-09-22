@@ -204,7 +204,7 @@ jobs:
               echo "GPU_PROFILE=l4" >> "$GITHUB_ENV"
               FAILOVER_INSTANCE="hv-dev-l4-failover"
               FOUND_ZONE=""
-              for Z in asia-southeast1-a asia-southeast1-b; do
+              for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
                 if gcloud compute instances describe "$FAILOVER_INSTANCE" --project="$PROJECT_ID" --zone="$Z" >/dev/null 2>&1; then
                   FOUND_ZONE="$Z"
                   echo "Reusing prepared L4 failover target $FAILOVER_INSTANCE in $FOUND_ZONE"
@@ -218,13 +218,18 @@ jobs:
                   --project="$PROJECT_ID" \
                   --source-instance="$L4_INSTANCE" \
                   --source-instance-zone="$L4_ZONE"
-                for Z in asia-southeast1-a asia-southeast1-b; do
-                  echo "Trying prepared L4 clone in $Z"
+                for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
+                  echo "Queueing prepared L4 Flex-start clone in $Z for up to 6m"
                   set +e
                   gcloud compute instances create "$FAILOVER_INSTANCE" \
                     --project="$PROJECT_ID" \
                     --zone="$Z" \
-                    --source-machine-image="$MACHINE_IMAGE"
+                    --source-machine-image="$MACHINE_IMAGE" \
+                    --provisioning-model=FLEX_START \
+                    --request-valid-for-duration=6m \
+                    --max-run-duration=30m \
+                    --instance-termination-action=STOP \
+                    --maintenance-policy=TERMINATE
                   RC=$?
                   set -e
                   if [ "$RC" -eq 0 ]; then
@@ -235,13 +240,13 @@ jobs:
                 gcloud compute machine-images delete "$MACHINE_IMAGE" --project="$PROJECT_ID" --quiet || true
               fi
               if [ -z "$FOUND_ZONE" ]; then
-                echo "No L4 failover capacity available in asia-southeast1-a or asia-southeast1-b." >&2
+                echo "No L4 Flex-start capacity allocated in any asia-southeast1 zone within the bounded wait." >&2
                 exit 5
               fi
               echo "TARGET_ZONE=$FOUND_ZONE" >> "$GITHUB_ENV"
               echo "TARGET_INSTANCE=$FAILOVER_INSTANCE" >> "$GITHUB_ENV"
               echo "TARGET_SESSION=hv-dev-l4" >> "$GITHUB_ENV"
-              echo "Selected prepared L4 failover target $FAILOVER_INSTANCE in $FOUND_ZONE"
+              echo "Selected prepared L4 Flex-start target $FAILOVER_INSTANCE in $FOUND_ZONE"
               ;;
             g4)
               echo "GPU_PROFILE=g4" >> "$GITHUB_ENV"
