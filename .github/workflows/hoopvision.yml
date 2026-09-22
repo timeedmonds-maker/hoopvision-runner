@@ -94,7 +94,7 @@ jobs:
           PY
           git add RUN_STATE.json
           git commit -m "Record HoopVision run ${GITHUB_RUN_ID} start"
-          git push origin HEAD:main
+          git push origin HEAD:main || echo "RUN_STATE start push raced with another state commit; continuing benchmark."
 
       - name: Resolve benchmark
         id: benchmark
