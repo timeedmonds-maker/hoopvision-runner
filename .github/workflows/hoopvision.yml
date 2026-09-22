@@ -208,11 +208,10 @@ jobs:
               echo "GPU_PROFILE=g4" >> "$GITHUB_ENV"
               PREF_ID="hoopvision-g4-asia-southeast1"
               echo "Checking G4 quota preference $PREF_ID"
-              if ! gcloud beta quotas preferences describe "$PREF_ID" --quiet --project="$PROJECT_ID" --billing-project="$PROJECT_ID" --format=json > /tmp/g4-quota.json 2>/tmp/g4-quota.err; then
+              if ! CLOUDSDK_CORE_DISABLE_PROMPTS=1 gcloud --quiet beta quotas preferences describe "$PREF_ID" --project="$PROJECT_ID" --billing-project="$PROJECT_ID" --format=json > /tmp/g4-quota.json 2>/tmp/g4-quota.err; then
                 cat /tmp/g4-quota.err || true
                 echo "No existing G4 quota preference; requesting exactly one RTX PRO 6000 GPU."
-                gcloud beta quotas preferences create \
-                  --quiet \
+                CLOUDSDK_CORE_DISABLE_PROMPTS=1 gcloud --quiet beta quotas preferences create \
                   --project="$PROJECT_ID" \
                   --billing-project="$PROJECT_ID" \
                   --service=compute.googleapis.com \
