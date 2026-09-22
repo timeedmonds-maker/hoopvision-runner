@@ -15,6 +15,10 @@ on:
         description: Benchmark endpoint
         required: false
         type: string
+      retrieve_run_id:
+        description: Existing durable run ID to retrieve without GPU work
+        required: false
+        type: string
   push:
     branches: [main]
     paths:
@@ -41,7 +45,39 @@ env:
   L4_INSTANCE: hv-dev-l4
 
 jobs:
+  retrieve-existing-deliverable:
+    if: ${{ inputs.retrieve_run_id != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+      - name: Retrieve existing UHD output
+        shell: bash
+        env:
+          RETRIEVE_RUN_ID: ${{ inputs.retrieve_run_id }}
+        run: |
+          set -euo pipefail
+          RESULT="$(gcloud storage cat "gs://$EVIDENCE_BUCKET/runs/$RETRIEVE_RUN_ID/result.json")"
+          FINAL_URI="$(printf '%s' "$RESULT" | python -c 'import json,sys; d=json.load(sys.stdin); r=d.get("benchmark",{}).get("result",{}); print(r.get("final_video") or d.get("final_video",""))')"
+          [ -n "$FINAL_URI" ] || { echo "No final_video in durable result" >&2; exit 2; }
+          mkdir -p deliverable
+          gcloud storage cp "$FINAL_URI" deliverable/Hawks_Amen_to_Adams_All_Player_Labels.mp4
+          printf '%s\n' "$FINAL_URI" > deliverable/source_gcs_uri.txt
+      - name: Upload UHD deliverable
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-uhd-existing
+          path: deliverable/
+          retention-days: 7
+
   test-package-dispatch-watch:
+    if: ${{ inputs.retrieve_run_id == '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 50
 
