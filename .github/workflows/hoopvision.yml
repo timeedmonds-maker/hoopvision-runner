@@ -196,13 +196,22 @@ jobs:
             --project="$PROJECT_ID" --zone="$L4_ZONE" --keys=shutdown-script >/dev/null 2>&1 || true
           STATUS="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(status)')"
           echo "Prepared L4 status: $STATUS"
+          START_OP=""
           if [ "$STATUS" != "RUNNING" ]; then
-            gcloud compute instances start "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --async
+            START_OP="$(gcloud compute instances start "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(name)')"
+            echo "Prepared L4 start operation: $START_OP"
           fi
           for i in $(seq 1 90); do
             STATUS="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(status)')"
             echo "Prepared L4 status: $STATUS"
             [ "$STATUS" = "RUNNING" ] && break
+            if [ -n "$START_OP" ] && [ "$STATUS" = "TERMINATED" ] && [ "$i" -gt 1 ]; then
+              echo "=== L4 START OPERATION ==="
+              gcloud compute operations describe "$START_OP" --project="$PROJECT_ID" --zone="$L4_ZONE" || true
+              echo "=== L4 INSTANCE STATUS ==="
+              gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='yaml(status,statusMessage,lastStartTimestamp,lastStopTimestamp)' || true
+              break
+            fi
             sleep 4
           done
           [ "$STATUS" = "RUNNING" ] || { echo "Prepared L4 did not reach RUNNING" >&2; exit 1; }
