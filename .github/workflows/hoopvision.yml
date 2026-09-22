@@ -290,6 +290,10 @@ jobs:
                 for Z in asia-southeast1-a asia-southeast1-b; do
                   DISK="hv-dev-g4-boot"
                   echo "Trying G4 preparation in $Z"
+                  if gcloud compute disks describe "$DISK" --project="$PROJECT_ID" --zone="$Z" >/dev/null 2>&1; then
+                    echo "Deleting stale G4 boot disk $DISK in $Z"
+                    gcloud compute disks delete "$DISK" --project="$PROJECT_ID" --zone="$Z" --quiet
+                  fi
                   gcloud compute disks create "$DISK" --project="$PROJECT_ID" --zone="$Z" --type=hyperdisk-balanced --source-snapshot="$SNAP"
                   set +e
                   gcloud compute instances create "$G4_INSTANCE" --project="$PROJECT_ID" --zone="$Z" --machine-type=g4-standard-48 --disk="name=$DISK,boot=yes,auto-delete=no" --service-account="$SA" --scopes=cloud-platform --subnet="$SUBNET" --maintenance-policy=TERMINATE
