@@ -210,17 +210,12 @@ jobs:
               echo "Checking G4 quota preference $PREF_ID"
               if ! CLOUDSDK_CORE_DISABLE_PROMPTS=1 gcloud --quiet beta quotas preferences describe "$PREF_ID" --project="$PROJECT_ID" --billing-project="$PROJECT_ID" --format=json > /tmp/g4-quota.json 2>/tmp/g4-quota.err; then
                 cat /tmp/g4-quota.err || true
-                echo "No existing G4 quota preference; requesting exactly one RTX PRO 6000 GPU."
-                CLOUDSDK_CORE_DISABLE_PROMPTS=1 gcloud --quiet beta quotas preferences create \
-                  --project="$PROJECT_ID" \
-                  --billing-project="$PROJECT_ID" \
-                  --service=compute.googleapis.com \
-                  --quota-id=GPUS-PER-GPU-FAMILY-per-project-region \
-                  --dimensions=region=asia-southeast1,gpu_family=NVIDIA_RTX_PRO_6000 \
-                  --preferred-value=1 \
-                  --justification="One controlled HoopVision development benchmark comparing G4 RTX PRO 6000 against the existing L4 baseline; no production migration requested." \
-                  --preference-id="$PREF_ID" \
-                  --format=json > /tmp/g4-quota.json
+                if grep -q 'cloudquotas.quotas.get' /tmp/g4-quota.err; then
+                  echo "Runner lacks Cloud Quotas read permission; manual quota request or IAM change required. No automated quota mutation attempted." >&2
+                  exit 4
+                fi
+                echo "No existing G4 quota preference visible to runner; stopping before any quota mutation or GPU allocation." >&2
+                exit 4
               fi
               cat /tmp/g4-quota.json
               GRANTED="$(python -c "import json; x=json.load(open('/tmp/g4-quota.json')); print(x.get('quotaConfig',{}).get('grantedValue','0'))")"
