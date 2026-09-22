@@ -254,7 +254,26 @@ jobs:
               fi
 
               if [ -z "$FOUND_ZONE" ]; then
-                echo "No immediate L4 capacity available in asia-southeast1-a, -b, or -c." >&2
+                echo "No immediate L4 capacity available; falling back to Flex-start."
+                FLEX_INSTANCE="hv-dev-l4-flex-${GITHUB_RUN_ID}"
+                MACHINE_IMAGE="hv-dev-l4-flex-${GITHUB_RUN_ID}"
+                gcloud compute machine-images create "$MACHINE_IMAGE" --project="$PROJECT_ID" --source-instance="$L4_INSTANCE" --source-instance-zone="$L4_ZONE"
+                for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
+                  echo "Submitting Flex-start L4 in $Z"
+                  set +e
+                  gcloud compute instances create "$FLEX_INSTANCE" --project="$PROJECT_ID" --zone="$Z" --source-machine-image="$MACHINE_IMAGE" --provisioning-model=FLEX_START --max-run-duration=1800s
+                  RC=$?
+                  set -e
+                  if [ "$RC" -eq 0 ]; then
+                    FOUND_ZONE="$Z"
+                    FOUND_INSTANCE="$FLEX_INSTANCE"
+                    break
+                  fi
+                done
+                gcloud compute machine-images delete "$MACHINE_IMAGE" --project="$PROJECT_ID" --quiet || true
+              fi
+              if [ -z "$FOUND_ZONE" ]; then
+                echo "No immediate or Flex-start L4 request could be submitted in asia-southeast1-a, -b, or -c." >&2
                 exit 5
               fi
               echo "TARGET_ZONE=$FOUND_ZONE" >> "$GITHUB_ENV"
