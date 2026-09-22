@@ -294,6 +294,7 @@ jobs:
           fi
           if printf '%s' "$RESULT" | grep -q '"status"[[:space:]]*:[[:space:]]*"SUCCESS"'; then STATUS="SUCCESS"; fi
           if printf '%s' "$RESULT" | grep -q '"status"[[:space:]]*:[[:space:]]*"FAILED"'; then STATUS="FAILED"; fi
+          export STATUS
           python - <<'PY'
           import json, os
           state = {
