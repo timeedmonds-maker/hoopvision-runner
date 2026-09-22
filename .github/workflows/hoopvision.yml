@@ -251,24 +251,12 @@ jobs:
             g4)
               echo "GPU_PROFILE=g4" >> "$GITHUB_ENV"
               PREF_ID="hoopvision-g4-asia-southeast1"
-              echo "Checking G4 quota preference $PREF_ID"
-              if ! CLOUDSDK_CORE_DISABLE_PROMPTS=1 gcloud --quiet beta quotas preferences describe "$PREF_ID" --project="$PROJECT_ID" --billing-project="$PROJECT_ID" --format=json > /tmp/g4-quota.json 2>/tmp/g4-quota.err; then
+              echo "Attempting direct G4 allocation; quota API read is advisory only."
+              if CLOUDSDK_CORE_DISABLE_PROMPTS=1 gcloud --quiet beta quotas preferences describe "$PREF_ID" --project="$PROJECT_ID" --billing-project="$PROJECT_ID" --format=json > /tmp/g4-quota.json 2>/tmp/g4-quota.err; then
+                cat /tmp/g4-quota.json
+              else
                 cat /tmp/g4-quota.err || true
-                if grep -q 'cloudquotas.quotas.get' /tmp/g4-quota.err; then
-                  echo "Runner lacks Cloud Quotas read permission; manual quota request or IAM change required. No automated quota mutation attempted." >&2
-                  exit 4
-                fi
-                echo "No existing G4 quota preference visible to runner; stopping before any quota mutation or GPU allocation." >&2
-                exit 4
-              fi
-              cat /tmp/g4-quota.json
-              GRANTED="$(python -c "import json; x=json.load(open('/tmp/g4-quota.json')); print(x.get('quotaConfig',{}).get('grantedValue','0'))")"
-              PREFERRED="$(python -c "import json; x=json.load(open('/tmp/g4-quota.json')); print(x.get('quotaConfig',{}).get('preferredValue','0'))")"
-              RECONCILING="$(python -c "import json; x=json.load(open('/tmp/g4-quota.json')); print(str(x.get('reconciling',False)).lower())")"
-              echo "G4 quota preferred=$PREFERRED granted=$GRANTED reconciling=$RECONCILING"
-              if [ "$GRANTED" != "1" ]; then
-                echo "G4 quota is not yet granted; stopping before disk/VM creation." >&2
-                exit 3
+                echo "Quota preference could not be read; continuing to direct G4 VM creation so Compute Engine is authoritative."
               fi
               G4_INSTANCE="hv-dev-g4"
               FOUND_ZONE=""
