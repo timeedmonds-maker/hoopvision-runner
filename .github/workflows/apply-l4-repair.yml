@@ -1,0 +1,25 @@
+name: Apply L4 failover repair
+on:
+  push:
+    branches: [main]
+    paths: ['APPLY_L4_REPAIR']
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Apply bounded failover repair
+        run: |
+          set -euo pipefail
+          python tools/repair_l4_failover.py
+          git diff --check
+          git diff -- .github/workflows/hoopvision.yml
+          git config user.name hoopvision-runner
+          git config user.email hoopvision-runner@users.noreply.github.com
+          git add .github/workflows/hoopvision.yml
+          git commit -m 'Make L4 failover start capacity-aware'
+          git push origin HEAD:main
