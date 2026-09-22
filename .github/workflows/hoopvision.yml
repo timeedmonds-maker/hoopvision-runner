@@ -206,6 +206,46 @@ jobs:
               ;;
             g4)
               echo "GPU_PROFILE=g4" >> "$GITHUB_ENV"
+              PREF_ID="hoopvision-g4-asia-southeast1"
+              echo "Checking G4 quota preference $PREF_ID"
+              if ! gcloud beta quotas preferences describe "$PREF_ID" --project="$PROJECT_ID" --billing-project="$PROJECT_ID" --format=json > /tmp/g4-quota.json 2>/tmp/g4-quota.err; then
+                cat /tmp/g4-quota.err || true
+                echo "No existing G4 quota preference; requesting exactly one RTX PRO 6000 GPU."
+                gcloud beta quotas preferences create \
+                  --project="$PROJECT_ID" \
+                  --billing-project="$PROJECT_ID" \
+                  --service=compute.googleapis.com \
+                  --quota-id=GPUS-PER-GPU-FAMILY-per-project-region \
+                  --dimensions=region=asia-southeast1,gpu_family=NVIDIA_RTX_PRO_6000 \
+                  --preferred-value=1 \
+                  --justification="One controlled HoopVision development benchmark comparing G4 RTX PRO 6000 against the existing L4 baseline; no production migration requested." \
+                  --preference-id="$PREF_ID" \
+                  --format=json > /tmp/g4-quota.json
+              fi
+              cat /tmp/g4-quota.json
+              GRANTED="$(python - <<'PY'
+import json
+x=json.load(open('/tmp/g4-quota.json'))
+print(x.get('quotaConfig',{}).get('grantedValue','0'))
+PY
+)"
+              PREFERRED="$(python - <<'PY'
+import json
+x=json.load(open('/tmp/g4-quota.json'))
+print(x.get('quotaConfig',{}).get('preferredValue','0'))
+PY
+)"
+              RECONCILING="$(python - <<'PY'
+import json
+x=json.load(open('/tmp/g4-quota.json'))
+print(str(x.get('reconciling',False)).lower())
+PY
+)"
+              echo "G4 quota preferred=$PREFERRED granted=$GRANTED reconciling=$RECONCILING"
+              if [ "$GRANTED" != "1" ]; then
+                echo "G4 quota is not yet granted; stopping before disk/VM creation." >&2
+                exit 3
+              fi
               G4_INSTANCE="hv-dev-g4"
               FOUND_ZONE=""
               for Z in asia-southeast1-a asia-southeast1-b; do
