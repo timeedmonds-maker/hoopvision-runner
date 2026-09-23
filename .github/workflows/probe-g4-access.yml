@@ -57,7 +57,7 @@ jobs:
           PY
 
           echo "=== Cloud Quotas GPU-family entries ===" | tee g4-probe/gpu-family-quota.txt
-          if gcloud beta quotas info list               --service=compute.googleapis.com               --project="$PROJECT_ID"               --billing-project="$PROJECT_ID"               --format=json > g4-probe/cloud-quotas.json 2>g4-probe/cloud-quotas.err; then
+          if gcloud --quiet beta quotas info list               --service=compute.googleapis.com               --project="$PROJECT_ID"               --billing-project="$PROJECT_ID"               --format=json > g4-probe/cloud-quotas.json 2>g4-probe/cloud-quotas.err; then
             python3 - <<'PY' | tee -a g4-probe/gpu-family-quota.txt
           import json
           rows=json.load(open("g4-probe/cloud-quotas.json"))
