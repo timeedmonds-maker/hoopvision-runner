@@ -1,0 +1,130 @@
+name: Ablate Hawks Path OCR
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ablate-hawks-path-ocr.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  PREFIX: runs/hawks-fresh-physical-v2/public-35832763006-1-c7530ea6fc2e
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  ablate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout current isolated solver
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: hoopvision-proven-enhancements
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CPU solver deps
+        run: python -m pip install --quiet numpy pandas
+      - name: Fetch retained artifact evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/physical/path_ocr work/identity_ocr
+          gcloud storage cp "gs://$BUCKET/$PREFIX/physical_paths/physical_paths.csv" work/physical/physical_paths.csv
+          gcloud storage cp "gs://$BUCKET/$PREFIX/identity_segments/segments.csv" work/segments.csv
+          gcloud storage cp "gs://$BUCKET/$PREFIX/identity_ocr/ocr_evidence.json" work/identity_ocr/ocr_evidence.json
+          gcloud storage cp "gs://$BUCKET/$PREFIX/identity_ocr/track_identity.csv" work/identity_ocr/track_identity.csv
+          gcloud storage cp "gs://$BUCKET/$PREFIX/physical_paths/path_ocr/ocr_evidence.json" work/physical/path_ocr/ocr_evidence.json
+          gcloud storage cp "gs://$BUCKET/$PREFIX/physical_paths/path_ocr/track_identity.csv" work/physical/path_ocr/track_identity.csv
+          gcloud storage cp "gs://$BUCKET/$PREFIX/physical_paths/path_track_map.json" work/physical/path_track_map.json
+          gcloud storage cp "gs://$BUCKET/$PREFIX/exact_lineup_roster.json" work/roster.json
+      - name: Run exact solver with and without path OCR
+        working-directory: src
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../work/with ../work/without
+          python -m screen_tracker_nextgen.solve_fast_path_identities             --paths ../work/physical/physical_paths.csv             --segments ../work/segments.csv             --ocr-dir ../work/identity_ocr             --roster ../work/roster.json             --out-dir ../work/with             --path-ocr-dir ../work/physical/path_ocr             --path-track-map ../work/physical/path_track_map.json
+          python -m screen_tracker_nextgen.solve_fast_path_identities             --paths ../work/physical/physical_paths.csv             --segments ../work/segments.csv             --ocr-dir ../work/identity_ocr             --roster ../work/roster.json             --out-dir ../work/without
+      - name: Compare identity authorization contribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+
+          def load_map(p):
+              d=pd.read_csv(p)
+              if d.empty: return {}
+              return {str(r.physical_path_id):{
+                  "player_id":int(r.player_id),
+                  "player_name":str(r.player_name),
+                  "team":str(r.team),
+                  "provenance":str(r.provenance),
+              } for r in d.itertuples(index=False)}
+
+          wa=load_map("work/with/path_identity_map.csv")
+          wo=load_map("work/without/path_identity_map.csv")
+          allp=sorted(set(wa)|set(wo))
+          changes=[]
+          for p in allp:
+              if wa.get(p)!=wo.get(p):
+                  changes.append({"physical_path_id":p,"with_path_ocr":wa.get(p),"without_path_ocr":wo.get(p)})
+          wqa=json.load(open("work/with/path_identity_qa.json"))
+          nqa=json.load(open("work/without/path_identity_qa.json"))
+          path_ev=json.load(open("work/physical/path_ocr/ocr_evidence.json"))
+          useful_reads=0
+          canon_reads=0
+          for rec in path_ev:
+              for rr in rec.get("reads") or []:
+                  if rr.get("canon") is not None:
+                      canon_reads+=1
+                      if float(rr.get("parseq_conf") or 0)>=.42:
+                          useful_reads+=1
+          out={
+              "schema":"hoopvision.path-ocr-ablation.v1",
+              "source_run":"public-35832763006-1-c7530ea6fc2e",
+              "with_path_ocr":{
+                  "accepted_fragment_count":wqa.get("accepted_fragment_count"),
+                  "accepted_player_count":wqa.get("accepted_player_count"),
+                  "accepted_player_ids":wqa.get("accepted_player_ids"),
+              },
+              "without_path_ocr":{
+                  "accepted_fragment_count":nqa.get("accepted_fragment_count"),
+                  "accepted_player_count":nqa.get("accepted_player_count"),
+                  "accepted_player_ids":nqa.get("accepted_player_ids"),
+              },
+              "changed_authorizations":changes,
+              "changed_authorization_count":len(changes),
+              "path_ocr_canonical_read_count":canon_reads,
+              "path_ocr_solver_eligible_read_count":useful_reads,
+              "interpretation":"Artifact-only ablation. If outputs differ, late path OCR contributes independent identity evidence and cannot be globally removed without replacement evidence."
+          }
+          Path("work/path_ocr_ablation.json").write_text(json.dumps(out,indent=2)+"\n")
+          print(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-path-ocr-ablation
+          path: work/
+          retention-days: 14
