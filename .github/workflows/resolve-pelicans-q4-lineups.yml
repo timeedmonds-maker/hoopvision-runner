@@ -1,0 +1,95 @@
+name: Resolve Pelicans Q4 Lineups
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/resolve-pelicans-q4-lineups.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Pull official NBA liveData and resolve Q4 timeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python3 - <<'PY'
+          import json, urllib.request
+          GAME='0022500375'
+          urls={
+            'pbp':f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{GAME}.json',
+            'box':f'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{GAME}.json',
+          }
+          H={'User-Agent':'Mozilla/5.0'}
+          data={}
+          for k,u in urls.items():
+            req=urllib.request.Request(u,headers=H)
+            with urllib.request.urlopen(req,timeout=30) as r:
+              data[k]=json.load(r)
+            open(f'out/{k}.json','w').write(json.dumps(data[k],indent=2))
+
+          game=data['box']['game']
+          teams={
+            int(game['homeTeam']['teamId']):{'tricode':game['homeTeam']['teamTricode'],
+              'players':{int(p['personId']):p for p in game['homeTeam']['players']}},
+            int(game['awayTeam']['teamId']):{'tricode':game['awayTeam']['teamTricode'],
+              'players':{int(p['personId']):p for p in game['awayTeam']['players']}},
+          }
+          actions=data['pbp']['game']['actions']
+          q4=[a for a in actions if int(a.get('period') or 0)==4]
+
+          # Freeze all Q4 scoring/substitution events, preserving official action numbers.
+          rows=[]
+          for a in q4:
+            if a.get('actionType') not in {'2pt','3pt','freethrow','substitution'}:
+              continue
+            pid=a.get('personId')
+            teamId=a.get('teamId')
+            team=teams.get(int(teamId),{}).get('tricode') if teamId else None
+            rows.append({
+              'actionNumber':a.get('actionNumber'),
+              'clock':a.get('clock'),
+              'timeActual':a.get('timeActual'),
+              'actionType':a.get('actionType'),
+              'subType':a.get('subType'),
+              'descriptor':a.get('descriptor'),
+              'qualifiers':a.get('qualifiers'),
+              'result':a.get('shotResult'),
+              'isFieldGoal':a.get('isFieldGoal'),
+              'pointsTotal':a.get('pointsTotal'),
+              'scoreHome':a.get('scoreHome'),
+              'scoreAway':a.get('scoreAway'),
+              'teamId':teamId,
+              'team':team,
+              'personId':pid,
+              'playerName':a.get('playerName'),
+              'description':a.get('description'),
+            })
+
+          out={
+            'schema':'hoopvision.pelicans-q4-official-timeline.v1',
+            'game_id':GAME,
+            'home':game['homeTeam']['teamTricode'],
+            'away':game['awayTeam']['teamTricode'],
+            'game_time_local':game.get('gameTimeLocal'),
+            'game_status_text':game.get('gameStatusText'),
+            'timeline':rows,
+          }
+          open('out/q4_timeline.json','w').write(json.dumps(out,indent=2)+'\n')
+          for r in rows:
+            print(json.dumps(r,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pelicans-q4-official-timeline
+          path: out/
+          retention-days: 14
