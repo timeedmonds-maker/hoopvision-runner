@@ -1,5 +1,5 @@
 name: Recover Hawks Source from Stopped L4 Disk
-# read-only source-disk clone; CPU inspection; pd-standard quota-safe retry
+# Read-only source-disk clone; CPU inspection; no SSH/IAP dependency.
 
 on:
   push:
@@ -18,6 +18,7 @@ env:
   SOURCE_INSTANCE: hv-dev-l4
   REQUIRED_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
   RUN_ID_TARGET: public-35832763006-1-c7530ea6fc2e
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -33,7 +34,7 @@ jobs:
           service_account: ${{ env.DEV_PUBLISH_SA }}
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Clone stopped L4 disk and inspect read-only on CPU VM
+      - name: Clone stopped L4 disk and inspect from startup script
         shell: bash
         run: |
           set -euo pipefail
@@ -41,9 +42,11 @@ jobs:
           SNAP="hv-source-snap-${GITHUB_RUN_ID}"
           CLONE="hv-source-clone-${GITHUB_RUN_ID}"
           VM="hv-source-cpu-${GITHUB_RUN_ID}"
+          OBJECT="recovery/hawks/${GITHUB_RUN_ID}/exact_source_native.mp4"
           echo "SNAP=$SNAP" >> "$GITHUB_ENV"
           echo "CLONE=$CLONE" >> "$GITHUB_ENV"
           echo "VM=$VM" >> "$GITHUB_ENV"
+          echo "OBJECT=$OBJECT" >> "$GITHUB_ENV"
 
           cleanup() {
             set +e
@@ -61,83 +64,146 @@ jobs:
           SA="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(serviceAccounts[0].email)')"
           SUBNET="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(networkInterfaces[0].subnetwork.basename())')"
           echo "source_disk=$SOURCE_DISK" | tee -a recovery-evidence/summary.txt
-          echo "inspection_mode=READ_ONLY_CLONE_ON_CPU" | tee -a recovery-evidence/summary.txt
+          echo "inspection_mode=READ_ONLY_CLONE_STARTUP_SCRIPT" | tee -a recovery-evidence/summary.txt
 
-          gcloud compute snapshots create "$SNAP"             --project="$PROJECT_ID"             --source-disk="$SOURCE_DISK"             --source-disk-zone="$SOURCE_ZONE"             --storage-location=asia-southeast1
+          cat > /tmp/startup.sh <<'EOS'
+          #!/bin/bash
+          set -uo pipefail
+          exec > >(tee -a /var/log/hoopvision-source-recovery.log /dev/ttyS0) 2>&1
+          echo "HV_RECOVERY_START"
+          meta() {
+            curl -fsS -H 'Metadata-Flavor: Google' "http://metadata.google.internal/computeMetadata/v1/instance/attributes/$1"
+          }
+          REQUIRED="$(meta required-sha256)"
+          TARGET_ID="$(meta target-run-id)"
+          BUCKET="$(meta recovery-bucket)"
+          OBJECT="$(meta recovery-object)"
 
-          gcloud compute disks create "$CLONE"             --project="$PROJECT_ID"             --zone="$SOURCE_ZONE"             --source-snapshot="$SNAP"             --type=pd-standard
-
-          gcloud compute instances create "$VM"             --project="$PROJECT_ID"             --zone="$SOURCE_ZONE"             --machine-type=e2-standard-2             --image-family=ubuntu-2404-lts-amd64             --image-project=ubuntu-os-cloud             --boot-disk-size=20GB             --boot-disk-type=pd-standard             --disk="name=$CLONE,device-name=hv-source,mode=ro,boot=no,auto-delete=no"             --service-account="$SA"             --scopes=cloud-platform             --subnet="$SUBNET"
-
-          for i in $(seq 1 24); do
-            if gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --tunnel-through-iap --command='echo ssh-ready' --quiet                  > /tmp/ssh.out 2>/tmp/ssh.err; then
-              cat /tmp/ssh.out
-              break
-            fi
-            if [ "$i" -eq 24 ]; then
-              cat /tmp/ssh.err >&2
-              exit 3
-            fi
-            sleep 5
-          done
-
-          cat > /tmp/scan.sh <<'EOS'
-          set -euo pipefail
-          sudo mkdir -p /mnt/hvsource
-          DEV="$(readlink -f /dev/disk/by-id/google-hv-source)"
+          mkdir -p /mnt/hvsource
+          DEV="$(readlink -f /dev/disk/by-id/google-hv-source || true)"
           echo "device=$DEV"
           lsblk -f "$DEV" || true
           MOUNTED=""
           for C in "${DEV}1" "${DEV}p1" "$DEV"; do
             [ -b "$C" ] || continue
-            if sudo mount -o ro "$C" /mnt/hvsource 2>/tmp/mount.err; then
+            if mount -o ro "$C" /mnt/hvsource 2>/tmp/mount.err; then
               MOUNTED="$C"
               break
             fi
           done
           if [ -z "$MOUNTED" ]; then
-            cat /tmp/mount.err >&2 || true
-            exit 4
+            cat /tmp/mount.err || true
+            echo "HV_RECOVERY_ERROR=mount_failed"
+            echo "HV_RECOVERY_DONE"
+            exit 0
           fi
           echo "mounted=$MOUNTED"
-          TARGET="/mnt/hvsource/srv/hoopvision/runs/public-35832763006-1-c7530ea6fc2e"
-          echo "target_dir_exists=$([ -d "$TARGET" ] && echo true || echo false)"
+
+          TARGET="/mnt/hvsource/srv/hoopvision/runs/$TARGET_ID"
           if [ -d "$TARGET" ]; then
-            sudo find "$TARGET" -maxdepth 7 -type f -printf '%s\t%p\n' | sort
+            echo "target_dir_exists=true"
+          else
+            echo "target_dir_exists=false"
           fi
+
+          FOUND=""
           echo "=== source_native candidates ==="
-          find /mnt/hvsource/srv/hoopvision -type f \( -name 'source_native.mp4' -o -name 'source_native.*' \) -print0 2>/dev/null |
           while IFS= read -r -d '' P; do
-            H="$(sudo sha256sum "$P" | awk '{print $1}')"
-            S="$(sudo stat -c '%s' "$P")"
+            H="$(sha256sum "$P" | awk '{print $1}')"
+            S="$(stat -c '%s' "$P")"
             printf '%s\t%s\t%s\n' "$H" "$S" "$P"
-          done
+            [ "$H" = "$REQUIRED" ] && FOUND="$P"
+          done < <(find /mnt/hvsource/srv/hoopvision -type f \( -name 'source_native.mp4' -o -name 'source_native.*' \) -print0 2>/dev/null)
+
           echo "=== target run mp4 hashes ==="
           if [ -d "$TARGET" ]; then
-            sudo find "$TARGET" -type f -name '*.mp4' -print0 |
             while IFS= read -r -d '' P; do
-              H="$(sudo sha256sum "$P" | awk '{print $1}')"
-              S="$(sudo stat -c '%s' "$P")"
+              H="$(sha256sum "$P" | awk '{print $1}')"
+              S="$(stat -c '%s' "$P")"
               printf '%s\t%s\t%s\n' "$H" "$S" "$P"
-            done
+              [ "$H" = "$REQUIRED" ] && FOUND="$P"
+            done < <(find "$TARGET" -type f -name '*.mp4' -print0)
           fi
+
+          if [ -n "$FOUND" ]; then
+            echo "HV_EXACT_SOURCE_FOUND=true"
+            echo "HV_EXACT_SOURCE_PATH=$FOUND"
+            TOKEN="$(curl -fsS -H 'Metadata-Flavor: Google' http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token | python3 -c 'import json,sys; print(json.load(sys.stdin)["access_token"])')"
+            OBJECT_Q="$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$OBJECT")"
+            if curl --fail --silent --show-error --retry 3 -X POST \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Content-Type: video/mp4" \
+              --data-binary @"$FOUND" \
+              "https://storage.googleapis.com/upload/storage/v1/b/$BUCKET/o?uploadType=media&name=$OBJECT_Q" >/tmp/upload.json; then
+              echo "HV_EXACT_SOURCE_UPLOAD=true"
+            else
+              echo "HV_EXACT_SOURCE_UPLOAD=false"
+            fi
+          else
+            echo "HV_EXACT_SOURCE_FOUND=false"
+          fi
+          echo "HV_RECOVERY_DONE"
           EOS
+          chmod +x /tmp/startup.sh
 
-          gcloud compute scp /tmp/scan.sh "$VM":/tmp/scan.sh --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --tunnel-through-iap --quiet
-          gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --tunnel-through-iap --command='bash /tmp/scan.sh' --quiet             | tee recovery-evidence/disk-scan.txt
+          gcloud compute snapshots create "$SNAP" \
+            --project="$PROJECT_ID" \
+            --source-disk="$SOURCE_DISK" \
+            --source-disk-zone="$SOURCE_ZONE" \
+            --storage-location=asia-southeast1
 
-          if grep -q "$REQUIRED_SHA256" recovery-evidence/disk-scan.txt; then
+          gcloud compute disks create "$CLONE" \
+            --project="$PROJECT_ID" \
+            --zone="$SOURCE_ZONE" \
+            --source-snapshot="$SNAP" \
+            --type=pd-standard
+
+          gcloud compute instances create "$VM" \
+            --project="$PROJECT_ID" \
+            --zone="$SOURCE_ZONE" \
+            --machine-type=e2-standard-2 \
+            --image-family=ubuntu-2404-lts-amd64 \
+            --image-project=ubuntu-os-cloud \
+            --boot-disk-size=20GB \
+            --boot-disk-type=pd-standard \
+            --disk="name=$CLONE,device-name=hv-source,mode=ro,boot=no,auto-delete=no" \
+            --service-account="$SA" \
+            --scopes=cloud-platform \
+            --subnet="$SUBNET" \
+            --metadata-from-file=startup-script=/tmp/startup.sh \
+            --metadata="required-sha256=$REQUIRED_SHA256,target-run-id=$RUN_ID_TARGET,recovery-bucket=$BUCKET,recovery-object=$OBJECT"
+
+          : > recovery-evidence/serial.txt
+          DONE=0
+          for i in $(seq 1 48); do
+            gcloud compute instances get-serial-port-output "$VM" \
+              --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --port=1 \
+              2>/tmp/serial.err > recovery-evidence/serial.txt || true
+            if grep -q 'HV_RECOVERY_DONE' recovery-evidence/serial.txt; then
+              DONE=1
+              break
+            fi
+            sleep 5
+          done
+          cat recovery-evidence/serial.txt
+          if [ "$DONE" -ne 1 ]; then
+            cat /tmp/serial.err >&2 || true
+            echo "recovery_status=STARTUP_SCAN_TIMEOUT" | tee -a recovery-evidence/summary.txt
+            exit 5
+          fi
+
+          if grep -q 'HV_EXACT_SOURCE_FOUND=true' recovery-evidence/serial.txt; then
             echo "exact_source_found=true" | tee -a recovery-evidence/summary.txt
-            FOUND_PATH="$(grep "$REQUIRED_SHA256" recovery-evidence/disk-scan.txt | head -1 | cut -f3-)"
-            echo "exact_source_path=$FOUND_PATH" | tee -a recovery-evidence/summary.txt
-            printf '%s\n' "$FOUND_PATH" > recovery-evidence/exact_source_path.txt
-            gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" \
-              --command="sudo cp '$FOUND_PATH' /tmp/exact_source_native.mp4 && sudo chmod 0644 /tmp/exact_source_native.mp4" --quiet
-            gcloud compute scp "$VM":/tmp/exact_source_native.mp4 recovery-evidence/exact_source_native.mp4 \
-              --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --quiet
-            LOCAL_SHA="$(sha256sum recovery-evidence/exact_source_native.mp4 | awk '{print $1}')"
-            test "$LOCAL_SHA" = "$REQUIRED_SHA256"
-            echo "recovered_local_sha256=$LOCAL_SHA" | tee -a recovery-evidence/summary.txt
+            if grep -q 'HV_EXACT_SOURCE_UPLOAD=true' recovery-evidence/serial.txt; then
+              gcloud storage cp "gs://$BUCKET/$OBJECT" recovery-evidence/exact_source_native.mp4
+              LOCAL_SHA="$(sha256sum recovery-evidence/exact_source_native.mp4 | awk '{print $1}')"
+              test "$LOCAL_SHA" = "$REQUIRED_SHA256"
+              echo "recovered_local_sha256=$LOCAL_SHA" | tee -a recovery-evidence/summary.txt
+              echo "recovered_gcs_object=gs://$BUCKET/$OBJECT" | tee -a recovery-evidence/summary.txt
+            else
+              echo "recovery_status=EXACT_FOUND_BUT_UPLOAD_FAILED" | tee -a recovery-evidence/summary.txt
+              exit 6
+            fi
           else
             echo "exact_source_found=false" | tee -a recovery-evidence/summary.txt
           fi
