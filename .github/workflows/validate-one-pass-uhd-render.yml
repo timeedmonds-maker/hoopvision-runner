@@ -1,4 +1,5 @@
 name: Validate One Pass UHD Render
+# synthetic CPU old-vs-new presentation regression
 
 on:
   push:
