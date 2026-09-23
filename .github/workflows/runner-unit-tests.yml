@@ -1,0 +1,28 @@
+name: HoopVision runner unit tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/durable_result.py'
+      - 'tests/test_durable_result.py'
+      - '.github/workflows/hoopvision.yml'
+      - '.github/workflows/runner-unit-tests.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  durable-result:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Compile parser
+        run: python -m py_compile tools/durable_result.py tests/test_durable_result.py
+      - name: Run durable-result tests
+        run: python -m unittest -v tests.test_durable_result
