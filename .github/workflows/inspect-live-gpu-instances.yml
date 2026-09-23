@@ -1,0 +1,48 @@
+name: Inspect Live GPU Instances
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-live-gpu-instances.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect current GPU consumers
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p gpu-state
+          gcloud compute instances list --project="$PROJECT_ID"             --format="csv[no-heading](name,zone.basename(),status,machineType.basename())"             | tee gpu-state/instances.csv
+          gcloud compute project-info describe --project="$PROJECT_ID" --format=json > gpu-state/project-info.json
+          python3 - <<'PY' | tee gpu-state/gpu-quota.txt
+          import json
+          d=json.load(open("gpu-state/project-info.json"))
+          for q in d.get("quotas",[]):
+              if "GPU" in str(q.get("metric","")).upper():
+                  print(json.dumps(q,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-live-gpu-state
+          path: gpu-state/
+          retention-days: 7
