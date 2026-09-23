@@ -1,4 +1,5 @@
 name: Freeze Foundation Static Tuple
+# exact-candidate CPU evidence only
 
 on:
   push:
