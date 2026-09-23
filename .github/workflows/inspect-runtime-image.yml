@@ -1,4 +1,5 @@
 name: Inspect Runtime Image Identity
+# registry metadata only
 
 on:
   push:
