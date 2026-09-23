@@ -64,6 +64,15 @@ jobs:
           PY
 
           set +e
+          gcloud services enable containeranalysis.googleapis.com \
+            --project="$PROJECT_ID" --quiet \
+            > runtime-oci/containeranalysis-enable.out \
+            2> runtime-oci/containeranalysis-enable.err
+          ENABLE_RC=$?
+          echo "$ENABLE_RC" > runtime-oci/containeranalysis-enable.rc
+          set -e
+
+          set +e
           gcloud artifacts sbom export             --uri="$IMAGE"             --project="$PROJECT_ID"             > runtime-oci/sbom.spdx.json 2> runtime-oci/sbom.err
           RC=$?
           set -e
