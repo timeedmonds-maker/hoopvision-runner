@@ -1,0 +1,158 @@
+name: Prepare Hawks Event296 Multi-Angle Fixture
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/prepare-hawks-event296-multiangle.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+      - name: Build immutable one-play multi-angle fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/angles
+          python3 - <<'PY'
+          import html,json,re,subprocess,urllib.request
+          from pathlib import Path
+          from urllib.parse import urljoin,urlsplit,urlunsplit
+
+          GAME='0012500014'; EVENT=296
+          SELECT=['Play by Play','High Tight','Left Slash','Right Slash']
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          H={'User-Agent':UA,'Referer':'https://clips.nba.com/','Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
+
+          def get(url):
+            req=urllib.request.Request(url,headers=H)
+            with urllib.request.urlopen(req,timeout=30) as r:
+              return r.read().decode('utf-8','ignore')
+
+          def choose_variant(url,target_width=960):
+            txt=get(url)
+            if '#EXT-X-STREAM-INF' not in txt:
+              return url,None
+            lines=[x.strip() for x in txt.splitlines() if x.strip()]
+            variants=[]
+            for i,line in enumerate(lines):
+              if not line.startswith('#EXT-X-STREAM-INF'): continue
+              rs=re.search(r'RESOLUTION=(\d+)x(\d+)',line)
+              bw=re.search(r'BANDWIDTH=(\d+)',line)
+              child=next((q for q in lines[i+1:i+5] if not q.startswith('#')),None)
+              if not child: continue
+              full=urljoin(url,child)
+              if not urlsplit(full).query and urlsplit(url).query:
+                b=urlsplit(url); f=urlsplit(full)
+                full=urlunsplit((f.scheme,f.netloc,f.path,b.query,f.fragment))
+              variants.append((int(rs.group(1)) if rs else 10**9,
+                               int(rs.group(2)) if rs else None,
+                               int(bw.group(1)) if bw else None,full))
+            under=[v for v in variants if v[0]<=target_width]
+            ch=max(under,key=lambda x:x[0]) if under else min(variants,key=lambda x:x[0])
+            return ch[3],{'width':ch[0],'height':ch[1],'bandwidth':ch[2]}
+
+          page=f'https://clips.nba.com/?gameNo={GAME}&eventNum={EVENT}&source=grs'
+          txt=get(page)
+          tm=re.search(r'<title[^>]*>(.*?)</title>',txt,re.I|re.S)
+          title=re.sub(r'\s+',' ',html.unescape(tm.group(1))).strip() if tm else ''
+          options={}
+          for m in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',txt,re.I|re.S):
+            u=html.unescape(m.group(1).strip())
+            label=re.sub(r'<[^>]+>','',html.unescape(m.group(3))).strip()
+            if '.m3u8' in u: options[label]=u
+          missing=[x for x in SELECT if x not in options]
+          if missing: raise SystemExit(f'missing selected angles {missing}; got {sorted(options)}')
+
+          hdr=f'User-Agent: {UA}\r\nReferer: https://clips.nba.com/\r\n'
+          records=[]
+          for i,label in enumerate(SELECT):
+            hls,var=choose_variant(options[label],960)
+            out=Path('out/angles')/f'{i:02d}_{re.sub(r"[^A-Za-z0-9]+","_",label).strip("_")}.mp4'
+            subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-rw_timeout','30000000',
+                            '-headers',hdr,'-i',hls,'-map','0:v:0','-map','0:a:0?',
+                            '-c:v','libx264','-preset','veryfast','-crf','16','-pix_fmt','yuv420p',
+                            '-c:a','aac','-b:a','160k','-movflags','+faststart',str(out)],
+                           check=True,timeout=180)
+            probe=json.loads(subprocess.check_output(
+                ['ffprobe','-v','error','-show_entries','format=duration:stream=width,height,avg_frame_rate',
+                 '-of','json',str(out)],text=True))
+            records.append({'index':i,'label':label,'file':str(out),
+                            'duration_s':float(probe['format']['duration']),'variant':var})
+
+          # Concatenate the same play from multiple official views with hard edit
+          # boundaries. No black frames or synthetic transitions: this is meant
+          # to stress identity reacquisition across camera-angle changes.
+          with open('out/concat.txt','w') as fh:
+            for r in records:
+              fh.write("file '"+str(Path(r['file']).resolve()).replace("'","'\\''")+"'\n")
+          subprocess.run(['ffmpeg','-nostdin','-y','-v','error','-f','concat','-safe','0',
+                          '-i','out/concat.txt','-c','copy','-movflags','+faststart',
+                          'out/source_native.mp4'],check=True,timeout=180)
+
+          # Freeze exact angle boundaries in output time.
+          t=0.0
+          for r in records:
+            r['start_s']=round(t,6)
+            t+=float(r['duration_s'])
+            r['end_s']=round(t,6)
+          import hashlib
+          def sha(p):
+            h=hashlib.sha256()
+            with open(p,'rb') as f:
+              for b in iter(lambda:f.read(4*1024*1024),b''): h.update(b)
+            return h.hexdigest()
+          manifest={
+            'schema':'hoopvision.hawks-multiangle-fixture.v1',
+            'fixture_id':'hawks-0012500014-event296-four-angle',
+            'game_id':GAME,'event_num':EVENT,
+            'event_title':title,
+            'semantic_role':'single_play_multiple_official_camera_angles',
+            'previous_event_301_fixture':False,
+            'angles':records,
+            'duration_s':round(t,6),
+            'source_sha256':sha('out/source_native.mp4'),
+            'source_size_bytes':Path('out/source_native.mp4').stat().st_size,
+            'continuity_contract':{
+              'physical_continuity_across_angle_boundaries':False,
+              'roster_identity_prior_across_angle_boundaries':True,
+              'identity_must_be_reacquired_per_angle':True
+            }
+          }
+          Path('out/fixture_manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          subprocess.run(['ffprobe','-v','error','-show_format','-show_streams','-of','json',
+                          'out/source_native.mp4'],check=True,stdout=open('out/ffprobe.json','w'))
+          print(json.dumps(manifest,indent=2))
+          PY
+          PREFIX="fixtures/hawks-multiangle/0012500014-event296"
+          gcloud storage cp out/source_native.mp4 "gs://$BUCKET/$PREFIX/source_native.mp4"
+          gcloud storage cp out/fixture_manifest.json out/ffprobe.json "gs://$BUCKET/$PREFIX/"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hawks-event296-four-angle-fixture
+          path: |
+            out/source_native.mp4
+            out/fixture_manifest.json
+            out/ffprobe.json
+          compression-level: 0
+          retention-days: 14
