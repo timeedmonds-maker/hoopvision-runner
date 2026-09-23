@@ -1,3 +1,5 @@
+import subprocess
+import sys
 import unittest
 
 from tools.durable_result import (
@@ -51,6 +53,26 @@ class DurableResultTests(unittest.TestCase):
             validate_final_video("gs://other/runs/run-1/final/video.mp4", "bucket")
         with self.assertRaises(ValueError):
             validate_final_video("gs://bucket/../other/video.mp4", "bucket")
+
+    def test_cancelled_is_terminal_but_not_qualified(self):
+        p = {"status": "CANCELLED"}
+        self.assertEqual(execution_status(p), "CANCELLED")
+        self.assertEqual(classification(p), "CANCELLED_NO_AUTORETRY")
+        self.assertEqual(qualification_status(p), "UNKNOWN")
+
+    def test_missing_video_is_explicitly_empty(self):
+        p = {"benchmark": {"ok": True, "qualification": {"terminal_status": "COMPLETED"}}}
+        self.assertEqual(final_video(p), "")
+
+    def test_malformed_payload_cli_fails_closed(self):
+        proc = subprocess.run(
+            [sys.executable, "tools/durable_result.py", "--field", "execution_status"],
+            input="{not-json",
+            text=True,
+            capture_output=True,
+        )
+        self.assertEqual(proc.returncode, 2)
+        self.assertIn("durable-result parse error", proc.stderr)
 
 
 if __name__ == "__main__":
