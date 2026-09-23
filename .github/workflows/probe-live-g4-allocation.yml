@@ -1,4 +1,5 @@
 name: Probe Live G4 Allocation
+# authoritative create/delete access check
 
 on:
   push:
