@@ -21,7 +21,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: timeedmonds-maker/104
-          ref: d8321a25d374d1691f7f6552da0a4246b3997996
+          ref: 697284db6bcdde0f4e5c6a5a581ce67c0b5df349
           token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
           path: src
           fetch-depth: 1
@@ -29,11 +29,12 @@ jobs:
       - name: Verify exact SHA
         working-directory: src
         run: |
-          test "$(git rev-parse HEAD)" = "d8321a25d374d1691f7f6552da0a4246b3997996"
+          test "$(git rev-parse HEAD)" = "697284db6bcdde0f4e5c6a5a581ce67c0b5df349"
       - name: Run stdlib reference gate regressions
         working-directory: src
         run: |
           python3 -m screen_tracker_nextgen.test_reference_manifest
+          python3 -m screen_tracker_nextgen.test_native_reference_validation
       - name: Compile modified acceptance path
         working-directory: src
         run: |
