@@ -28,7 +28,7 @@ jobs:
           URL='https://statsdmz.nba.com/pdfs/20251218/20251218_HOUNOP_book.pdf'
           curl -fL --retry 3 --connect-timeout 20 -A 'Mozilla/5.0' "$URL" -o out/official_book.pdf
           sha256sum out/official_book.pdf | tee out/official_book.sha256
-          pdftotext -f 20 -l 21 -layout out/official_book.pdf out/q4_official.txt
+          pdftotext -layout out/official_book.pdf out/q4_official.txt
           python3 - <<'PY'
           import hashlib,json,re
           from pathlib import Path
