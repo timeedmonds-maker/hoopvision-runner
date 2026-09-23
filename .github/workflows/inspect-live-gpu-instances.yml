@@ -34,6 +34,9 @@ jobs:
           set -euo pipefail
           mkdir -p gpu-state
           gcloud compute instances list --project="$PROJECT_ID"             --format="csv[no-heading](name,zone.basename(),status,machineType.basename())"             | tee gpu-state/instances.csv
+          for R in asia-southeast1 us-central1 us-west4 asia-east1 europe-west4; do
+            gcloud compute regions describe "$R" --project="$PROJECT_ID" --format=json > "gpu-state/region-$R.json"
+          done
           gcloud compute project-info describe --project="$PROJECT_ID" --format=json > gpu-state/project-info.json
           python3 - <<'PY' | tee gpu-state/gpu-quota.txt
           import json
@@ -41,6 +44,17 @@ jobs:
           for q in d.get("quotas",[]):
               if "GPU" in str(q.get("metric","")).upper():
                   print(json.dumps(q,sort_keys=True))
+          PY
+          python3 - <<'PY' | tee gpu-state/regional-gpu-quotas.txt
+          import json,glob,os
+          for p in sorted(glob.glob("gpu-state/region-*.json")):
+              d=json.load(open(p))
+              region=d.get("name") or os.path.basename(p)[7:-5]
+              hits=[]
+              for q in d.get("quotas",[]):
+                  if "GPU" in str(q.get("metric","")).upper() or "RTX" in str(q.get("metric","")).upper():
+                      hits.append(q)
+              print(region, json.dumps(hits,sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:
