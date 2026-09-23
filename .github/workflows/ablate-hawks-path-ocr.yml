@@ -1,4 +1,5 @@
 name: Ablate Hawks Path OCR
+# retained-evidence CPU ablation
 
 on:
   push:
