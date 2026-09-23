@@ -1,0 +1,55 @@
+name: Retrieve Hawks Reference Source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/retrieve-hawks-reference-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  SOURCE_OBJECT: fixtures/fresh/atl-hou-0012500014-event301-pxp/source_native.mp4
+
+jobs:
+  retrieve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Retrieve immutable source and verify expected hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reference_source
+          gcloud storage cp "gs://$BUCKET/$SOURCE_OBJECT" reference_source/source_native.mp4
+          ACTUAL="$(sha256sum reference_source/source_native.mp4 | awk '{print $1}')"
+          EXPECTED="23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a"
+          echo "$ACTUAL  source_native.mp4" > reference_source/sha256.txt
+          [ "$ACTUAL" = "$EXPECTED" ] || { echo "Source hash mismatch: $ACTUAL" >&2; exit 2; }
+          python - <<'PY'
+          import json, subprocess
+          cmd=['ffprobe','-v','error','-show_entries','stream=codec_name,width,height,avg_frame_rate:format=duration','-of','json','reference_source/source_native.mp4']
+          p=subprocess.run(cmd,capture_output=True,text=True,check=True)
+          open('reference_source/ffprobe.json','w').write(p.stdout)
+          PY
+      - name: Upload reference source
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-hawks-reference-source
+          path: reference_source/
+          compression-level: 0
+          retention-days: 7
