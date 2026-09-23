@@ -1,5 +1,6 @@
 name: Inspect Live GPU Instances
 # read-only state check
+# event296 capacity probe
 
 on:
   push:
