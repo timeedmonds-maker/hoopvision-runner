@@ -1,0 +1,163 @@
+name: Freeze Foundation Static Tuple
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/freeze-foundation-static-tuple.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  freeze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: 37facb618844c84fc15cbeb9a3ebe1dd16639fa3
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Verify exact candidate
+        working-directory: src
+        run: test "$(git rev-parse HEAD)" = "37facb618844c84fc15cbeb9a3ebe1dd16639fa3"
+
+      - name: Build deterministic application snapshot
+        working-directory: src
+        env:
+          SOURCE_SHA: 37facb618844c84fc15cbeb9a3ebe1dd16639fa3
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist/app/hoopvision
+          cp -a screen_tracker_nextgen dist/app/
+          cp -a screen_tracker_kickout3 dist/app/
+          cp -a tools dist/app/
+          cp -a hoopvision/core dist/app/hoopvision/
+          cp -a hoopvision/config dist/app/hoopvision/
+          mkdir -p dist/app/release
+          cp release/pipeline.lock.json dist/app/release/pipeline.lock.json
+          cp release/runtime.lock.json dist/app/release/runtime.lock.json
+          printf '%s\n' '"""HoopVision application package."""' > dist/app/hoopvision/__init__.py
+          cp hoopvision/worker/boot.py dist/app/boot.py
+          cp hoopvision/worker/run_toronto_nextgen.py dist/app/run_toronto_nextgen.py
+          cp hoopvision/worker/run_fresh_hawks_all_player.py dist/app/run_fresh_hawks_all_player.py
+          cp hoopvision/worker/run_fresh_hawks_identity_replay.py dist/app/run_fresh_hawks_identity_replay.py
+          cp hoopvision/worker/run_fresh_hawks_fast_path.py dist/app/run_fresh_hawks_fast_path.py
+          cp hoopvision/worker/interactive_service.py dist/app/interactive_service.py
+          find dist/app -type d -name __pycache__ -prune -exec rm -rf {} +
+          find dist/app -type f -name '*.pyc' -delete
+          python3 tools/release/package_app.py --git-sha "$SOURCE_SHA" --app-dir dist/app --out dist/release
+          python3 tools/release/package_app.py --git-sha "$SOURCE_SHA" --app-dir dist/app --out dist/release-repeat
+          cmp dist/release/app.tar.gz dist/release-repeat/app.tar.gz
+          cmp dist/release/inventory.json dist/release-repeat/inventory.json
+
+      - name: Freeze static acceptance evidence
+        working-directory: src
+        env:
+          SOURCE_SHA: 37facb618844c84fc15cbeb9a3ebe1dd16639fa3
+        run: |
+          set -euo pipefail
+          mkdir -p dist/static-tuple
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+
+          def sha(p):
+              p=Path(p)
+              h=hashlib.sha256()
+              with p.open("rb") as f:
+                  for c in iter(lambda:f.read(1024*1024),b""):
+                      h.update(c)
+              return h.hexdigest()
+
+          def composite(paths):
+              h=hashlib.sha256()
+              for p in sorted(map(str,paths)):
+                  h.update(p.encode()+b"\0")
+                  h.update(Path(p).read_bytes())
+                  h.update(b"\0")
+              return h.hexdigest()
+
+          pipeline=json.loads(Path("release/pipeline.lock.json").read_text())
+          runtime=json.loads(Path("release/runtime.lock.json").read_text())
+          qual=json.loads(Path("hoopvision/config/foundation_qualification_profile.json").read_text())
+          ref=json.loads(Path("hoopvision/config/fresh_hawks_native_reference_manifest.json").read_text())
+
+          result={
+            "schema":"hoopvision.foundation-static-release-tuple.v1",
+            "evidence_type":"CPU_STATIC_NO_GPU",
+            "candidate_source_sha":os.environ["SOURCE_SHA"],
+            "resolved":{
+              "current_git_sha":os.environ["SOURCE_SHA"],
+              "app_artifact_hash":"sha256:"+sha("dist/release/app.tar.gz"),
+              "app_inventory_hash":"sha256:"+sha("dist/release/inventory.json"),
+              "runtime_image_digest":runtime.get("base_digest"),
+              "pipeline_config_hash":"sha256:"+sha("release/pipeline.lock.json"),
+              "qualification_suite_manifest":"sha256:"+sha("hoopvision/config/foundation_qualification_profile.json"),
+              "ground_truth_manifest_hash":"sha256:"+sha("hoopvision/config/fresh_hawks_native_reference_manifest.json"),
+              "reference_schema_hash":"sha256:"+sha("hoopvision/config/native_frame_reference_schema.json"),
+              "tracking_policy_version":"sha256:"+sha("hoopvision/core/tracking_policy.py"),
+              "identity_policy_version":pipeline.get("identity_solver_version"),
+              "render_policy_version":"sha256:"+composite([
+                "screen_tracker_nextgen/render_all_player_labels.py",
+                "tools/locked_broadcast_screen_v2.py",
+                "tools/locked_broadcast_screen_v4.py",
+              ]),
+              "supported_input_profile":{
+                "claim_scope":"FOUNDATION_READY_ONLY",
+                "fixture":qual.get("hawks_foundation"),
+                "broader_supported_footage_profile":"UNRESOLVED"
+              },
+              "output_codec_and_quality_profile":qual.get("output_policy"),
+              "source_and_output_timing_policy":(qual.get("output_policy") or {}).get("timing_policy"),
+              "audio_policy":(qual.get("output_policy") or {}).get("audio_policy"),
+              "required_semantic_modules_and_regression_gates":{
+                "hawks_required_stages":(qual.get("hawks_foundation") or {}).get("required_stages"),
+                "toronto_required_semantic_regressions":(qual.get("toronto_regression") or {}).get("required_semantic_regressions"),
+                "toronto_required_sam":(qual.get("toronto_regression") or {}).get("required_sam"),
+              },
+              "declared_arrival_rate_and_burst_profile":"NOT_APPLICABLE_TO_FOUNDATION_READY",
+              "cost_accounting_rates_and_assumptions":"OUTSTANDING_ALLOWED_AT_FOUNDATION_READY"
+            },
+            "unresolved":{
+              "platform_image_digest":"Prepared L4 host/platform image is not pinned by an immutable digest in the candidate repository.",
+              "dependency_lock_hash":"No complete dependency lock file is present; Dockerfile pins some dependencies but is not a full lock.",
+              "model_manifest_hash":"No single production model manifest with exact model/checkpoint hashes was found in the candidate repository.",
+              "annotation_visibility_rule":"Native-frame reference is not independently reviewed/frozen.",
+              "geometry_match_rule":"Reference manifest deliberately leaves qualification threshold unresolved.",
+              "floor_anchor_tolerance_and_evaluability_rule":"Reference manifest deliberately leaves qualification threshold/evaluability unresolved.",
+              "permitted_reference_unknown_fraction":"Reference manifest deliberately leaves this unresolved.",
+            },
+            "supporting_hashes":{
+              "runtime_lock_sha256":"sha256:"+sha("release/runtime.lock.json"),
+              "dependency_spec_dockerfile_sha256":"sha256:"+sha("hoopvision/Dockerfile.production"),
+              "tracking_backends_sha256":"sha256:"+sha("hoopvision/config/tracking_backends.json"),
+              "reference_manifest_status":ref.get("status"),
+              "qualification_source_recovered":bool((ref.get("qualification_source") or {}).get("recovered")),
+              "reference_denominator_frozen":bool((ref.get("annotation") or {}).get("denominator_frozen")),
+              "reference_independent_review_complete":bool((ref.get("annotation") or {}).get("independent_human_review_complete")),
+            },
+            "interpretation":"Resolved fields are immutable static evidence for this exact source SHA. Unresolved fields remain blockers where applicable; this artifact cannot create a qualification pass."
+          }
+          Path("dist/static-tuple/foundation_static_tuple.json").write_text(json.dumps(result,indent=2)+"\n")
+          print(json.dumps(result,indent=2))
+          PY
+
+      - name: Upload static tuple
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-foundation-static-tuple
+          path: |
+            src/dist/static-tuple/foundation_static_tuple.json
+            src/dist/release/inventory.json
+          retention-days: 14
