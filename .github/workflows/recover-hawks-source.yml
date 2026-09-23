@@ -24,6 +24,8 @@ jobs:
           token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
           path: src
           persist-credentials: false
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
       - name: Recover exact Play by Play 960 source and verify hash
         shell: bash
         run: |
