@@ -1,0 +1,82 @@
+name: Retrieve HoopVision Evidence
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'RETRIEVE_RUN_ID'
+      - '.github/workflows/retrieve-evidence.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  retrieve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Retrieve compact completed-run evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_ID="$(head -n 1 RETRIEVE_RUN_ID | tr -d '[:space:]')"
+          mkdir -p evidence
+          gcloud storage cp "gs://$EVIDENCE_BUCKET/runs/$RUN_ID/result.json" evidence/result.json
+          PREFIX="$(python - <<'PY'
+          import json
+          d=json.load(open("evidence/result.json"))
+          r=(d.get("benchmark") or {}).get("result") or {}
+          print(r.get("prefix") or "")
+          PY
+          )"
+          [ -n "$PREFIX" ] || { echo "Missing benchmark.result.prefix" >&2; exit 2; }
+          printf '%s\n' "$RUN_ID" > evidence/run_id.txt
+          printf '%s\n' "$PREFIX" > evidence/prefix.txt
+          files=(
+            "stage_attrition.json"
+            "release_evidence.json"
+            "ffprobe.json"
+            "render/render_assignments.csv"
+            "render/render_assignments_qa.json"
+            "physical_paths/physical_paths.csv"
+            "physical_paths/physical_paths_qa.json"
+            "physical_paths/identity_path_audit.json"
+            "physical_paths/path_identity/path_identity_map.csv"
+            "physical_paths/path_identity/path_identity_qa.json"
+            "identity_segments/segments.csv"
+            "identity_segments/segment_qa.json"
+            "identity_ocr/ocr_evidence.json"
+            "identity_ocr/qa.json"
+            "sam31/sam31_qa.json"
+            "sam31/sam31_plan.json"
+            "sam31/continuity_links.csv"
+            "nextgen/tracks.csv"
+            "nextgen/court_frames.json"
+            "nextgen/qa.json"
+            "exact_lineup_roster.json"
+          )
+          for rel in "${files[@]}"; do
+            mkdir -p "evidence/$(dirname "$rel")"
+            gcloud storage cp "gs://$EVIDENCE_BUCKET/$PREFIX/$rel" "evidence/$rel" || echo "MISSING $rel"
+          done
+      - name: Upload compact evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-evidence-completed
+          path: evidence/
+          retention-days: 7
