@@ -113,6 +113,12 @@ jobs:
           report["candidate_sam_decisions"]=int(cand.get("sam31_decision_count",0))
           report["baseline_precision_windows"]=int(base.get("precision_window_count",0))
           report["candidate_precision_windows"]=int(cand.get("precision_window_count",0))
+          focus=paths[
+              (paths.team.astype(str)=="HOU")
+              & paths.time_s.between(13.20,14.15)
+              & paths.raw_source_track_id.astype(int).isin([3,4,8,9,29,31,32])
+          ][["time_s","raw_source_track_id","source_track_id","identity_segment_id","physical_path_id","path_slot","forward_backward_agree","precision_required"]].sort_values(["time_s","raw_source_track_id"])
+          print("P1A_FIRST_LOSS_ROWS="+focus.to_json(orient="records"))
           report["identity_reachability"]={
               "executed_run_with_original_path_ocr":{
                   "accepted_fragments":int(executed_identity.get("accepted_fragment_count",0)),
