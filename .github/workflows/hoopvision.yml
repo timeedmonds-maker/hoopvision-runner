@@ -254,26 +254,48 @@ jobs:
               fi
 
               if [ -z "$FOUND_ZONE" ]; then
-                FAILOVER_INSTANCE="hv-dev-l4-failover"
+                # Existence is not readiness: a TERMINATED failover can itself be
+                # stranded in a zonal STOCKOUT. Only select one after a successful
+                # start (or when it is already RUNNING); otherwise keep searching.
+                EXISTING_FAILOVER="hv-dev-l4-failover"
                 for Z in asia-southeast1-a asia-southeast1-b; do
-                  if gcloud compute instances describe "$FAILOVER_INSTANCE" --project="$PROJECT_ID" --zone="$Z" >/dev/null 2>&1; then
+                  if ! gcloud compute instances describe "$EXISTING_FAILOVER" --project="$PROJECT_ID" --zone="$Z" >/dev/null 2>&1; then
+                    continue
+                  fi
+                  STATUS="$(gcloud compute instances describe "$EXISTING_FAILOVER" --project="$PROJECT_ID" --zone="$Z" --format='value(status)')"
+                  echo "Existing failover $EXISTING_FAILOVER in $Z status=$STATUS"
+                  if [ "$STATUS" = "RUNNING" ]; then
                     FOUND_ZONE="$Z"
-                    FOUND_INSTANCE="$FAILOVER_INSTANCE"
-                    echo "Reusing prepared L4 failover target $FAILOVER_INSTANCE in $FOUND_ZONE"
+                    FOUND_INSTANCE="$EXISTING_FAILOVER"
                     break
                   fi
+                  set +e
+                  gcloud compute instances start "$EXISTING_FAILOVER" --project="$PROJECT_ID" --zone="$Z"
+                  RC=$?
+                  set -e
+                  if [ "$RC" -eq 0 ]; then
+                    FOUND_ZONE="$Z"
+                    FOUND_INSTANCE="$EXISTING_FAILOVER"
+                    echo "Started prepared L4 failover target $EXISTING_FAILOVER in $FOUND_ZONE"
+                    break
+                  fi
+                  echo "Prepared failover in $Z could not start; continuing capacity search."
                 done
               fi
 
               if [ -z "$FOUND_ZONE" ]; then
                 MACHINE_IMAGE="hv-dev-l4-probe-${GITHUB_RUN_ID}"
+                FAILOVER_INSTANCE="hv-dev-l4-probe-${GITHUB_RUN_ID}"
                 echo "Creating temporary machine image $MACHINE_IMAGE from $L4_INSTANCE in $L4_ZONE"
                 gcloud compute machine-images create "$MACHINE_IMAGE" \
                   --project="$PROJECT_ID" \
                   --source-instance="$L4_INSTANCE" \
                   --source-instance-zone="$L4_ZONE"
-                for Z in asia-southeast1-a asia-southeast1-b; do
-                  echo "Trying immediate prepared L4 clone in $Z"
+                # Try the zone without the stale failover first, then the other
+                # Singapore zones. Unique instance naming avoids colliding with
+                # retained failover resources from earlier capacity probes.
+                for Z in asia-southeast1-b asia-southeast1-a asia-southeast1-c; do
+                  echo "Trying immediate prepared L4 clone $FAILOVER_INSTANCE in $Z"
                   set +e
                   gcloud compute instances create "$FAILOVER_INSTANCE" \
                     --project="$PROJECT_ID" \
