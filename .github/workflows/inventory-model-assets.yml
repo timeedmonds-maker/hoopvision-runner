@@ -1,4 +1,5 @@
 name: Inventory HoopVision Model Assets
+# metadata-only provenance probe
 
 on:
   push:
