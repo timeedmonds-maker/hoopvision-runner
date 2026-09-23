@@ -1,0 +1,85 @@
+name: Probe Live G4 Allocation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-live-g4-allocation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Attempt one minimal G4 allocation and delete immediately
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p g4-live
+          NAME="hv-g4-access-probe-${GITHUB_RUN_ID}"
+          FOUND=""
+          {
+            echo "probe_type=LIVE_CREATE_DELETE_NO_HOOPVISION_WORKLOAD"
+            echo "machine_type=g4-standard-48"
+            echo "gpu_family=NVIDIA_RTX_PRO_6000"
+          } > g4-live/summary.txt
+
+          # Reuse the known working VPC/service-account context from the prepared L4.
+          L4_ZONE="asia-southeast1-c"
+          L4_INSTANCE="hv-dev-l4"
+          SA="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(serviceAccounts[0].email)')"
+          SUBNET="$(gcloud compute instances describe "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE" --format='value(networkInterfaces[0].subnetwork.basename())')"
+          echo "service_account=$SA" >> g4-live/summary.txt
+          echo "subnet=$SUBNET" >> g4-live/summary.txt
+
+          for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
+            echo "=== $Z ===" | tee -a g4-live/attempts.log
+            set +e
+            gcloud compute instances create "$NAME"               --project="$PROJECT_ID"               --zone="$Z"               --machine-type=g4-standard-48               --image-family=ubuntu-2404-lts-amd64               --image-project=ubuntu-os-cloud               --boot-disk-type=hyperdisk-balanced               --boot-disk-size=50GB               --service-account="$SA"               --scopes=cloud-platform               --subnet="$SUBNET"               --maintenance-policy=TERMINATE               --no-restart-on-failure               --format=json >"g4-live/create-$Z.out" 2>"g4-live/create-$Z.err"
+            RC=$?
+            set -e
+            cat "g4-live/create-$Z.out" >> g4-live/attempts.log || true
+            cat "g4-live/create-$Z.err" >> g4-live/attempts.log || true
+            echo "zone=$Z rc=$RC" >> g4-live/summary.txt
+            if [ "$RC" -eq 0 ]; then
+              FOUND="$Z"
+              echo "allocation_succeeded=true" >> g4-live/summary.txt
+              echo "allocated_zone=$Z" >> g4-live/summary.txt
+              gcloud compute instances describe "$NAME" --project="$PROJECT_ID" --zone="$Z"                 --format='json(name,status,zone,machineType,guestAccelerators)' > g4-live/instance.json || true
+              # Delete immediately; no user workload is run.
+              gcloud compute instances delete "$NAME" --project="$PROJECT_ID" --zone="$Z" --quiet                 >>g4-live/delete.log 2>&1 || true
+              break
+            fi
+          done
+
+          if [ -z "$FOUND" ]; then
+            echo "allocation_succeeded=false" >> g4-live/summary.txt
+          fi
+          cat g4-live/summary.txt
+          # Always succeed as a diagnostic workflow; result lives in evidence.
+          exit 0
+
+      - name: Upload probe evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-live-g4-allocation-probe
+          path: g4-live/
+          retention-days: 7
