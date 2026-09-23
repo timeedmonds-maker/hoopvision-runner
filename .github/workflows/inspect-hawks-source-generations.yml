@@ -1,0 +1,69 @@
+name: Inspect Hawks Source Generations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-hawks-source-generations.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  OBJECT: fixtures/fresh/atl-hou-0012500014-event301-pxp/source_native.mp4
+  EXPECTED_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Inspect live, versioned and soft-deleted generations
+        shell: bash
+        run: |
+          set -euo pipefail
+          URI="gs://$BUCKET/$OBJECT"
+          echo "BUCKET_POLICY_BEGIN"
+          gcloud storage buckets describe "gs://$BUCKET" --format='json(versioning,softDeletePolicy)' || true
+          echo "BUCKET_POLICY_END"
+
+          echo "ALL_VERSIONS_BEGIN"
+          gcloud storage ls --all-versions --long "$URI" || true
+          echo "ALL_VERSIONS_END"
+
+          echo "VERSION_HASHES_BEGIN"
+          gcloud storage ls --all-versions "$URI" 2>/dev/null | while IFS= read -r VERSION_URI; do
+            [ -n "$VERSION_URI" ] || continue
+            TMP="$(mktemp)"
+            if gcloud storage cp "$VERSION_URI" "$TMP" >/dev/null 2>&1; then
+              SHA="$(sha256sum "$TMP" | awk '{print $1}')"
+              BYTES="$(stat -c%s "$TMP")"
+              printf '%s\t%s\t%s\n' "$SHA" "$BYTES" "$VERSION_URI"
+              if [ "$SHA" = "$EXPECTED_SHA256" ]; then
+                echo "EXACT_VERSION_FOUND=$VERSION_URI"
+              fi
+            else
+              echo "UNREADABLE_VERSION=$VERSION_URI"
+            fi
+            rm -f "$TMP"
+          done
+          echo "VERSION_HASHES_END"
+
+          echo "SOFT_DELETED_BEGIN"
+          gcloud storage ls --soft-deleted --long "$URI" || true
+          echo "SOFT_DELETED_END"
