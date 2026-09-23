@@ -22,20 +22,19 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36'
+          curl -fL --retry 3 --connect-timeout 20 -A "$UA" -e 'https://www.nba.com/' \
+            -H 'Accept: application/json,text/plain,*/*' \
+            'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_0022500375.json' \
+            -o out/pbp.json
+          curl -fL --retry 3 --connect-timeout 20 -A "$UA" -e 'https://www.nba.com/' \
+            -H 'Accept: application/json,text/plain,*/*' \
+            'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_0022500375.json' \
+            -o out/box.json
           python3 - <<'PY'
-          import json, urllib.request
+          import json
           GAME='0022500375'
-          urls={
-            'pbp':f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{GAME}.json',
-            'box':f'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{GAME}.json',
-          }
-          H={'User-Agent':'Mozilla/5.0'}
-          data={}
-          for k,u in urls.items():
-            req=urllib.request.Request(u,headers=H)
-            with urllib.request.urlopen(req,timeout=30) as r:
-              data[k]=json.load(r)
-            open(f'out/{k}.json','w').write(json.dumps(data[k],indent=2))
+          data={k:json.load(open(f'out/{k}.json')) for k in ('pbp','box')}
 
           game=data['box']['game']
           teams={
