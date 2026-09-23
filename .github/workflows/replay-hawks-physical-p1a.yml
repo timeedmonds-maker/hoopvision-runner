@@ -1,0 +1,96 @@
+name: Replay Frozen Hawks Physical P1A
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/replay-hawks-physical-p1a.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ceb67ee39da1c56729fc47e4b81e07cf08f1b304
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install CPU dependencies
+        run: python -m pip install -q numpy pandas scipy
+
+      - name: Download frozen completed-run evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p frozen
+          gh run download 35891572936 --repo timeedmonds-maker/hoopvision-runner --name hoopvision-evidence-completed --dir frozen
+          test -f frozen/identity_segments/uniform_observations.csv
+          test -f frozen/physical_paths/physical_paths_qa.json
+
+      - name: Replay and compare
+        run: |
+          set -euo pipefail
+          mkdir -p candidate
+          python screen_tracker_nextgen/build_fast_physical_paths.py \
+            --observations frozen/identity_segments/uniform_observations.csv \
+            --segments frozen/identity_segments/segments.csv \
+            --ocr-dir frozen/identity_ocr \
+            --roster frozen/exact_lineup_roster.json \
+            --out-dir candidate
+          python screen_tracker_nextgen/diagnose_physical_first_loss.py \
+            --observations frozen/identity_segments/uniform_observations.csv \
+            --physical-qa candidate/physical_paths_qa.json \
+            --out candidate/first_loss_diagnostic.json
+          python - <<'PY'
+          import json
+          import pandas as pd
+          base=json.load(open("frozen/physical_paths/physical_paths_qa.json"))
+          cand=json.load(open("candidate/physical_paths_qa.json"))
+          diag=json.load(open("candidate/first_loss_diagnostic.json"))
+          report={}
+          for team in ("ATL","HOU"):
+              b=base["teams"][team]; c=cand["teams"][team]
+              report[team]={
+                  "baseline_fragments":int(b["physical_fragment_count"]),
+                  "candidate_fragments":int(c["physical_fragment_count"]),
+                  "baseline_fb_agreement":float(b["forward_backward_agreement_fraction"]),
+                  "candidate_fb_agreement":float(c["forward_backward_agreement_fraction"]),
+                  "baseline_precision_required":int(b["precision_required_rows"]),
+                  "candidate_precision_required":int(c["precision_required_rows"]),
+                  "baseline_margin":int(b["forward_tracking"]["margin_rejections"]),
+                  "candidate_margin":int(c["forward_tracking"]["margin_rejections"]),
+                  "candidate_same_raw_margin":int(diag["teams"][team]["forward_rejections"]["same_raw_margin"]),
+              }
+          paths=pd.read_csv("candidate/physical_paths.csv")
+          for raw in (4,29):
+              q=paths[(paths.team.astype(str)=="HOU") & (paths.raw_source_track_id.astype(int)==raw)]
+              q=q[q.time_s.between(13.2758,13.4095)].sort_values("time_s")
+              wanted=q[q.time_s.round(6).isin([13.275933,13.342667,13.4094])]
+              assert len(wanted)>=3,(raw,q[["time_s","path_slot"]].to_dict("records"))
+              assert wanted.path_slot.nunique()==1,(raw,wanted[["time_s","path_slot"]].to_dict("records"))
+          report["baseline_sam_decisions"]=int(base.get("sam31_decision_count",0))
+          report["candidate_sam_decisions"]=int(cand.get("sam31_decision_count",0))
+          report["baseline_precision_windows"]=int(base.get("precision_window_count",0))
+          report["candidate_precision_windows"]=int(cand.get("precision_window_count",0))
+          print("P1A_REPLAY_REPORT="+json.dumps(report,sort_keys=True))
+          h=report["HOU"]
+          assert h["candidate_fragments"] < h["baseline_fragments"]
+          assert h["candidate_margin"] < h["baseline_margin"]
+          assert h["candidate_same_raw_margin"] == 0
+          PY
