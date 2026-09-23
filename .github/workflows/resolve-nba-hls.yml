@@ -1,4 +1,5 @@
 name: Resolve NBA HLS Candidate
+# trigger official-video resolution
 
 on:
   workflow_dispatch:
