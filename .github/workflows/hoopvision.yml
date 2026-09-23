@@ -468,12 +468,35 @@ jobs:
           done
           [ "$STATUS" = "RUNNING" ] || { echo "Prepared L4 did not reach RUNNING" >&2; exit 1; }
 
-      - name: Enforce Hawks development observability timeout
-        if: ${{ steps.benchmark.outputs.name == 'fresh-hawks-all-player' }}
+      - name: Refresh prepared supervisor from exact source
         shell: bash
         run: |
           set -euo pipefail
-          echo "Setting live supervisor Hawks development timeout to 600s (acceptance SLO remains unchanged)."
+          gcloud compute scp src/tools/release/dev_supervisor.py             "$TARGET_INSTANCE:/tmp/dev_supervisor.py"             --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet
+          gcloud compute ssh "$TARGET_INSTANCE"             --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet             --command='set -euo pipefail
+              SUP_PATH="$(sudo systemctl cat hoopvision-dev-supervisor --no-pager | grep -oE "/[^[:space:]]*dev_supervisor\.py" | head -n1)"
+              test -n "$SUP_PATH"
+              echo "Refreshing supervisor at $SUP_PATH"
+              sudo install -m 0755 /tmp/dev_supervisor.py "$SUP_PATH"
+              sudo systemctl restart hoopvision-dev-supervisor
+              sudo systemctl is-active --quiet hoopvision-dev-supervisor
+              for i in $(seq 1 30); do
+                if sudo journalctl -u hoopvision-dev-supervisor -n 80 --no-pager | grep -q "hawks-event296-playbyplay"; then
+                  echo "Updated supervisor advertises hawks-event296-playbyplay"
+                  exit 0
+                fi
+                sleep 2
+              done
+              echo "Updated supervisor did not advertise event296 route" >&2
+              sudo journalctl -u hoopvision-dev-supervisor -n 120 --no-pager
+              exit 1'
+
+      - name: Enforce Hawks development observability timeout
+        if: ${{ steps.benchmark.outputs.name == 'fresh-hawks-all-player' || steps.benchmark.outputs.name == 'hawks-event296-playbyplay' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Setting live supervisor Hawks/event296 development timeout to 600s (acceptance SLO remains unchanged)."
           gcloud compute ssh "$TARGET_INSTANCE" \
             --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet \
             --command='sudo touch /etc/hoopvision-dev.env; sudo sed -i "/^HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=/d" /etc/hoopvision-dev.env; echo "HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=600" | sudo tee -a /etc/hoopvision-dev.env >/dev/null; sudo systemctl restart hoopvision-dev-supervisor; sudo systemctl is-active --quiet hoopvision-dev-supervisor; sudo grep "^HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=" /etc/hoopvision-dev.env'
