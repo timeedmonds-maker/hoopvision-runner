@@ -242,6 +242,33 @@ jobs:
               FOUND_ZONE=""
               FOUND_INSTANCE=""
 
+              # Concurrency cancellation can interrupt a gcloud create before
+              # TARGET_INSTANCE is exported, leaving a temporary Flex/route VM
+              # or machine image behind. Remove only our explicitly ephemeral
+              # naming families from prior runner attempts.
+              while IFS=',' read -r OLD_NAME OLD_ZONE; do
+                [ -n "$OLD_NAME" ] || continue
+                case "$OLD_NAME" in
+                  hv-dev-l4-flex-*|hv-dev-l4-route-*|hv-dev-l4-probe-*|hv-dev-l4-cross-*)
+                    echo "Cleaning stale ephemeral L4 instance $OLD_NAME in $OLD_ZONE"
+                    gcloud compute instances delete "$OLD_NAME" \
+                      --project="$PROJECT_ID" --zone="$OLD_ZONE" --quiet || true
+                    ;;
+                esac
+              done < <(gcloud compute instances list --project="$PROJECT_ID" \
+                --format='csv[no-heading](name,zone.basename())')
+              while IFS= read -r OLD_IMAGE; do
+                [ -n "$OLD_IMAGE" ] || continue
+                case "$OLD_IMAGE" in
+                  hv-dev-l4-flex-*|hv-dev-l4-route-*|hv-dev-l4-probe-*|hv-dev-l4-cross-*)
+                    echo "Cleaning stale ephemeral machine image $OLD_IMAGE"
+                    gcloud compute machine-images delete "$OLD_IMAGE" \
+                      --project="$PROJECT_ID" --quiet || true
+                    ;;
+                esac
+              done < <(gcloud compute machine-images list --project="$PROJECT_ID" \
+                --format='value(name)')
+
               echo "Checking existing prepared L4 immediately in $L4_ZONE"
               set +e
               gcloud compute instances start "$L4_INSTANCE" --project="$PROJECT_ID" --zone="$L4_ZONE"
@@ -301,7 +328,16 @@ jobs:
                   "asia-southeast1:asia-southeast1-b" \
                   "us-west4:us-west4-a" \
                   "us-west4:us-west4-b" \
-                  "asia-east1:asia-east1-a"; do
+                  "us-west4:us-west4-c" \
+                  "us-central1:us-central1-a" \
+                  "us-central1:us-central1-b" \
+                  "us-central1:us-central1-c" \
+                  "europe-west4:europe-west4-a" \
+                  "europe-west4:europe-west4-b" \
+                  "europe-west4:europe-west4-c" \
+                  "asia-east1:asia-east1-a" \
+                  "asia-east1:asia-east1-b" \
+                  "asia-east1:asia-east1-c"; do
                   REGION="${SPEC%%:*}"
                   Z="${SPEC##*:}"
                   CANDIDATE="hv-dev-l4-route-${GITHUB_RUN_ID}"
@@ -323,19 +359,58 @@ jobs:
                   fi
                 done
 
-                # Flex-start is a last capacity fallback, not a prerequisite for
-                # testing a region with already demonstrated immediate capacity.
+                # A short diagnostic clip can safely use a Spot L4 if standard
+                # capacity is unavailable. This is diagnostic provisioning only;
+                # it does not change the one-L4 acceptance hardware class.
+                if [ -z "$FOUND_ZONE" ]; then
+                  for SPEC in \
+                    "us-west4:us-west4-a" \
+                    "us-central1:us-central1-a" \
+                    "europe-west4:europe-west4-a" \
+                    "asia-southeast1:asia-southeast1-b"; do
+                    REGION="${SPEC%%:*}"
+                    Z="${SPEC##*:}"
+                    SPOT_INSTANCE="hv-dev-l4-route-${GITHUB_RUN_ID}"
+                    echo "Trying Spot prepared L4 $SPOT_INSTANCE in $Z"
+                    set +e
+                    gcloud compute instances create "$SPOT_INSTANCE" \
+                      --project="$PROJECT_ID" \
+                      --zone="$Z" \
+                      --source-machine-image="$MACHINE_IMAGE" \
+                      --subnet=default \
+                      --provisioning-model=SPOT \
+                      --instance-termination-action=DELETE \
+                      --maintenance-policy=TERMINATE
+                    RC=$?
+                    set -e
+                    if [ "$RC" -eq 0 ]; then
+                      FOUND_ZONE="$Z"
+                      FOUND_INSTANCE="$SPOT_INSTANCE"
+                      echo "TARGET_EPHEMERAL=1" >> "$GITHUB_ENV"
+                      echo "Selected Spot diagnostic L4 target $FOUND_INSTANCE in $FOUND_ZONE"
+                      break
+                    fi
+                  done
+                fi
+
+                # Flex-start is the final fallback. Bound the provisioning wait
+                # explicitly so a no-capacity request cannot strand CI for an
+                # unbounded period. Google permits 90s as the minimum non-zero
+                # zonal wait for standalone Flex-start VMs.
                 if [ -z "$FOUND_ZONE" ]; then
                   FLEX_INSTANCE="hv-dev-l4-flex-${GITHUB_RUN_ID}"
                   for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
-                    echo "Submitting Flex-start L4 $FLEX_INSTANCE in $Z"
+                    echo "Submitting bounded Flex-start L4 $FLEX_INSTANCE in $Z"
                     set +e
                     gcloud compute instances create "$FLEX_INSTANCE" \
                       --project="$PROJECT_ID" \
                       --zone="$Z" \
                       --source-machine-image="$MACHINE_IMAGE" \
                       --provisioning-model=FLEX_START \
-                      --max-run-duration=1800s
+                      --request-valid-for-duration=90s \
+                      --instance-termination-action=DELETE \
+                      --max-run-duration=1800s \
+                      --maintenance-policy=TERMINATE
                     RC=$?
                     set -e
                     if [ "$RC" -eq 0 ]; then
@@ -344,6 +419,8 @@ jobs:
                       echo "TARGET_EPHEMERAL=1" >> "$GITHUB_ENV"
                       break
                     fi
+                    gcloud compute instances delete "$FLEX_INSTANCE" \
+                      --project="$PROJECT_ID" --zone="$Z" --quiet || true
                   done
                 fi
 
@@ -352,7 +429,7 @@ jobs:
               fi
 
               if [ -z "$FOUND_ZONE" ]; then
-                echo "No L4 capacity found in prepared Singapore/us-west4/asia-east1 routes." >&2
+                echo "No L4 capacity found across bounded standard, Spot, or Flex-start routes." >&2
                 exit 5
               fi
               echo "TARGET_ZONE=$FOUND_ZONE" >> "$GITHUB_ENV"
@@ -623,7 +700,7 @@ jobs:
           STATUS="$(gcloud compute instances describe "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --format='value(status)' 2>/dev/null || true)"
           echo "Prepared L4 post-run status: ${STATUS:-UNKNOWN}"
           if [ "${TARGET_EPHEMERAL:-0}" = "1" ]; then
-            echo "Deleting ephemeral cross-region L4 target $TARGET_INSTANCE in $TARGET_ZONE"
+            echo "Deleting ephemeral L4 target $TARGET_INSTANCE in $TARGET_ZONE"
             gcloud compute instances delete "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet || true
             exit 0
           fi
