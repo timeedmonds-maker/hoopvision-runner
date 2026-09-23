@@ -1,0 +1,94 @@
+name: Probe G4 Access
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-g4-access.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Probe G4 visibility and quota without creating a VM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p g4-probe
+
+          echo "project=$PROJECT_ID" > g4-probe/summary.txt
+          echo "probe_type=READ_ONLY_NO_VM_CREATED" >> g4-probe/summary.txt
+
+          echo "=== visible G4 machine types ===" | tee g4-probe/g4-machine-types.txt
+          gcloud compute machine-types list             --project="$PROJECT_ID"             --filter="name~'^g4-standard-'"             --format="csv[no-heading](zone.basename(),name,guestCpus,memoryMb)"             | tee -a g4-probe/g4-machine-types.txt || true
+
+          echo "=== visible RTX PRO 6000 accelerator locations ===" | tee g4-probe/g4-accelerator-zones.txt
+          gcloud compute accelerator-types list             --project="$PROJECT_ID"             --filter="name='nvidia-rtx-pro-6000'"             --format="csv[no-heading](zone.basename(),name)"             | tee -a g4-probe/g4-accelerator-zones.txt || true
+
+          echo "=== project global GPU quota ===" | tee g4-probe/global-gpu-quota.txt
+          gcloud compute project-info describe             --project="$PROJECT_ID"             --format=json > g4-probe/project-info.json
+          python3 - <<'PY' | tee -a g4-probe/global-gpu-quota.txt
+          import json
+          d=json.load(open("g4-probe/project-info.json"))
+          for q in d.get("quotas",[]):
+              metric=str(q.get("metric",""))
+              if "GPU" in metric.upper():
+                  print(json.dumps(q,sort_keys=True))
+          PY
+
+          echo "=== Cloud Quotas GPU-family entries ===" | tee g4-probe/gpu-family-quota.txt
+          if gcloud quotas info list               --service=compute.googleapis.com               --project="$PROJECT_ID"               --billing-project="$PROJECT_ID"               --format=json > g4-probe/cloud-quotas.json 2>g4-probe/cloud-quotas.err; then
+            python3 - <<'PY' | tee -a g4-probe/gpu-family-quota.txt
+          import json
+          rows=json.load(open("g4-probe/cloud-quotas.json"))
+          hits=[]
+          for q in rows:
+              s=json.dumps(q,sort_keys=True)
+              u=s.upper()
+              if any(k in u for k in (
+                  "NVIDIA_RTX_PRO_6000",
+                  "GPUS_PER_GPU_FAMILY",
+                  "GPUS-PER-GPU-FAMILY",
+                  "GPUS_ALL_REGIONS",
+                  "GPUS-ALL-REGIONS",
+              )):
+                  hits.append(q)
+          print(json.dumps(hits,indent=2,sort_keys=True))
+          PY
+            echo "cloud_quotas_read=true" >> g4-probe/summary.txt
+          else
+            cat g4-probe/cloud-quotas.err | tee -a g4-probe/gpu-family-quota.txt
+            echo "cloud_quotas_read=false" >> g4-probe/summary.txt
+          fi
+
+          MACHINE_COUNT="$(tail -n +2 g4-probe/g4-machine-types.txt | grep -c 'g4-standard-' || true)"
+          ZONE_COUNT="$(tail -n +2 g4-probe/g4-accelerator-zones.txt | grep -c 'nvidia-rtx-pro-6000' || true)"
+          echo "visible_g4_machine_rows=$MACHINE_COUNT" >> g4-probe/summary.txt
+          echo "visible_rtx_pro_6000_zone_rows=$ZONE_COUNT" >> g4-probe/summary.txt
+          cat g4-probe/summary.txt
+
+      - name: Upload G4 probe evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-g4-access-probe
+          path: g4-probe/
+          retention-days: 7
