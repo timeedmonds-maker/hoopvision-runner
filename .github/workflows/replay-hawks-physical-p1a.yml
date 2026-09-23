@@ -102,6 +102,28 @@ jobs:
                   "candidate_unmatched_observations":int(c["forward_tracking"].get("unmatched_observations",0)),
                   "candidate_raw_claim_revocations":int(c["forward_tracking"].get("raw_claim_revocations",0)),
               }
+          houqa=cand["teams"]["HOU"]
+          def compact_rejections(key):
+              out=[]
+              for r in houqa[key].get("rejection_records",[]):
+                  out.append({
+                      "direction":r.get("direction"),
+                      "time_s":r.get("time_s"),
+                      "from_time_s":r.get("from_time_s"),
+                      "from_raw":r.get("from_raw_source_track_id"),
+                      "to_raw":r.get("to_raw_source_track_id"),
+                      "from_segment":r.get("from_segment_id"),
+                      "to_segment":r.get("to_segment_id"),
+                      "cost":r.get("association_cost"),
+                      "margin":r.get("association_margin"),
+                      "reason":r.get("rejection_reason"),
+                      "same_raw":bool((r.get("detail") or {}).get("same_raw_track")),
+                      "same_track":bool((r.get("detail") or {}).get("same_source_track")),
+                      "candidates":r.get("competing_to_candidates",[]),
+                  })
+              return out
+          print("P1A_HOU_FORWARD_REJECTIONS="+json.dumps(compact_rejections("forward_tracking"),sort_keys=True))
+          print("P1A_HOU_BACKWARD_REJECTIONS="+json.dumps(compact_rejections("backward_tracking"),sort_keys=True))
           paths=pd.read_csv("candidate/physical_paths.csv")
           for raw in (4,29):
               q=paths[(paths.team.astype(str)=="HOU") & (paths.raw_source_track_id.astype(int)==raw)]
