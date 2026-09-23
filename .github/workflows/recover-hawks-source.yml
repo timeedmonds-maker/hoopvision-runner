@@ -79,13 +79,25 @@ jobs:
               "-i",url,"-c","copy",str(out)
           ],check=True,timeout=180)
           got=hashlib.sha256(out.read_bytes()).hexdigest()
+          import json
           Path("reference_source/source_sha256.txt").write_text(got+"\n")
           Path("reference_source/source_page.txt").write_text(page+"\n")
-          if got!=expected:
-              raise SystemExit(f"source hash mismatch: {got} != {expected}")
-          print(f"verified source sha256={got}")
+          verification={
+              "schema":"hoopvision.source-recovery.v1",
+              "expected_sha256":expected,
+              "recovered_sha256":got,
+              "byte_exact_match":got==expected,
+              "qualification_eligible":got==expected,
+              "diagnostic_only":got!=expected,
+              "game_id":game,
+              "event_num":event,
+              "angle":"Play by Play",
+              "target_width":960,
+          }
+          Path("reference_source/source_verification.json").write_text(json.dumps(verification,indent=2)+"\n")
+          print(json.dumps(verification,sort_keys=True))
           PY
-      - name: Upload verified reference source
+      - name: Upload recovered source
         uses: actions/upload-artifact@v4
         with:
           name: hoopvision-hawks-reference-source
