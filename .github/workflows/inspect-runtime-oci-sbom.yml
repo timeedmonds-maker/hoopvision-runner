@@ -64,7 +64,7 @@ jobs:
           PY
 
           set +e
-          gcloud artifacts sbom export             --uri="$IMAGE"             --project="$PROJECT_ID"             --destination=runtime-oci/sbom.spdx.json             > runtime-oci/sbom.out 2> runtime-oci/sbom.err
+          gcloud artifacts sbom export             --uri="$IMAGE"             --project="$PROJECT_ID"             > runtime-oci/sbom.spdx.json 2> runtime-oci/sbom.err
           RC=$?
           set -e
           echo "$RC" > runtime-oci/sbom.rc
