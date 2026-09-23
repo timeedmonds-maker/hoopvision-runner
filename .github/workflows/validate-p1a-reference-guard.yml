@@ -1,4 +1,5 @@
 name: Validate P1A Reference Guard
+# CPU-only acceptance-boundary regression
 
 on:
   push:
