@@ -1,0 +1,122 @@
+name: Validate One Pass UHD Render
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-one-pass-uhd-render.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout new renderer candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: f6299ab591ddc3699826cc7b8823c40954fc0b64
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Checkout pre-change renderer
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: 697284db6bcdde0f4e5c6a5a581ce67c0b5df349
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: old
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install lightweight render-test dependencies
+        run: python -m pip install --quiet numpy pandas opencv-python-headless
+      - name: Build synthetic source and assignments
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work
+          ffmpeg -nostdin -y -v error             -f lavfi -i 'testsrc2=size=640x360:rate=30:duration=0.4'             -f lavfi -i 'sine=frequency=440:sample_rate=48000:duration=0.4'             -c:v libx264 -preset ultrafast -crf 15 -pix_fmt yuv420p             -c:a aac -b:a 96k -shortest work/source.mp4
+          cat > work/assignments.csv <<'CSV'
+          time_s,team,player_id,player_name,x1,y1,x2,y2,source_track_id
+          0.000,HOU,203500,Steven Adams,220,80,320,310,1
+          0.167,HOU,203500,Steven Adams,225,80,325,310,1
+          0.367,HOU,203500,Steven Adams,230,80,330,310,1
+          CSV
+      - name: Run old and new UHD renderers
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/time -f '%e' -o work/old_wall.txt             env PYTHONPATH="$PWD/old" python old/screen_tracker_nextgen/render_all_player_labels.py               --source work/source.mp4 --assignments work/assignments.csv               --out work/old.mp4 --start-s 0 --end-s 0.4 --uhd
+          /usr/bin/time -f '%e' -o work/new_wall.txt             env PYTHONPATH="$PWD/src" python src/screen_tracker_nextgen/render_all_player_labels.py               --source work/source.mp4 --assignments work/assignments.csv               --out work/new.mp4 --start-s 0 --end-s 0.4 --uhd
+      - name: Verify timing/output/visual equivalence
+        shell: bash
+        run: |
+          set -euo pipefail
+          ffprobe -v error -show_streams -show_format -of json work/old.mp4 > work/old_probe.json
+          ffprobe -v error -show_streams -show_format -of json work/new.mp4 > work/new_probe.json
+          ffmpeg -nostdin -y -v error -i work/old.mp4 -vf 'fps=5,scale=960:540' work/old-%02d.png
+          ffmpeg -nostdin -y -v error -i work/new.mp4 -vf 'fps=5,scale=960:540' work/new-%02d.png
+          python - <<'PY'
+          import cv2,glob,json,math
+          from pathlib import Path
+          import numpy as np
+          old=json.load(open('work/old_probe.json'))
+          new=json.load(open('work/new_probe.json'))
+          def vstream(p):
+              return next(x for x in p['streams'] if x['codec_type']=='video')
+          def astream(p):
+              return next((x for x in p['streams'] if x['codec_type']=='audio'),None)
+          ov,nv=vstream(old),vstream(new)
+          assert (int(nv['width']),int(nv['height']))==(3840,2160)
+          assert nv.get('r_frame_rate')=='30/1'
+          assert astream(new) is not None
+          assert astream(new).get('codec_name')=='aac'
+          od=float(old['format']['duration']); nd=float(new['format']['duration'])
+          assert abs(nd-od)<=0.05,(od,nd)
+          op=sorted(glob.glob('work/old-*.png')); npth=sorted(glob.glob('work/new-*.png'))
+          assert len(op)==len(npth) and len(op)>0
+          scores=[]
+          maes=[]
+          for a,b in zip(op,npth):
+              x=cv2.imread(a).astype(np.float32)
+              y=cv2.imread(b).astype(np.float32)
+              xf=x.reshape(-1); yf=y.reshape(-1)
+              corr=float(np.corrcoef(xf,yf)[0,1])
+              mae=float(np.mean(np.abs(x-y)))
+              scores.append(corr); maes.append(mae)
+          result={
+              'schema':'hoopvision.render-regression.v1',
+              'old_wall_s':float(Path('work/old_wall.txt').read_text()),
+              'new_wall_s':float(Path('work/new_wall.txt').read_text()),
+              'old_duration_s':od,'new_duration_s':nd,
+              'video':{'width':int(nv['width']),'height':int(nv['height']),'fps':nv.get('r_frame_rate'),'codec':nv.get('codec_name'),'profile':nv.get('profile')},
+              'audio':{'codec':astream(new).get('codec_name')},
+              'sample_frame_count':len(scores),
+              'minimum_frame_correlation':min(scores),
+              'mean_frame_correlation':sum(scores)/len(scores),
+              'maximum_frame_mae':max(maes),
+              'interpretation':'Synthetic CPU old-vs-new regression; similarity is presentation evidence, not qualification evidence.'
+          }
+          assert min(scores)>0.99,result
+          Path('work/render_regression.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-one-pass-render-regression
+          path: |
+            work/render_regression.json
+            work/old_probe.json
+            work/new_probe.json
+            work/old_wall.txt
+            work/new_wall.txt
+          retention-days: 14
