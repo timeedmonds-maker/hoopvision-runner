@@ -1,0 +1,75 @@
+name: Locate Exact Hawks Source Hash
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/locate-exact-hawks-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  EXPECTED_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+
+jobs:
+  locate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Search existing source objects by content hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p locate
+          : > locate/candidates.tsv
+          gcloud storage ls -l "gs://$BUCKET/**/source_native.mp4" 2>/dev/null | awk '/gs:\/\// {print $NF}' > locate/uris.txt || true
+          COUNT=0
+          FOUND=""
+          while IFS= read -r URI; do
+            [ -n "$URI" ] || continue
+            COUNT=$((COUNT+1))
+            # Bound search to likely Hawks/event301/fresh/run source objects.
+            case "$URI" in
+              *hawks*|*atl-hou*|*0012500014*|*event301*|*35832763006*) ;;
+              *) continue ;;
+            esac
+            TMP="locate/candidate-$COUNT.mp4"
+            gcloud storage cp "$URI" "$TMP" >/dev/null
+            SHA="$(sha256sum "$TMP" | awk '{print $1}')"
+            BYTES="$(stat -c%s "$TMP")"
+            printf '%s\t%s\t%s\n' "$SHA" "$BYTES" "$URI" >> locate/candidates.tsv
+            if [ "$SHA" = "$EXPECTED_SHA256" ]; then
+              FOUND="$URI"
+              cp "$TMP" locate/source_native_exact.mp4
+              printf '%s\n' "$URI" > locate/exact_uri.txt
+              rm -f "$TMP"
+              break
+            fi
+            rm -f "$TMP"
+          done < locate/uris.txt
+          printf 'expected_sha256=%s\n' "$EXPECTED_SHA256" > locate/summary.txt
+          printf 'searched_candidates=%s\n' "$COUNT" >> locate/summary.txt
+          printf 'found_exact=%s\n' "$([ -n "$FOUND" ] && echo true || echo false)" >> locate/summary.txt
+          cat locate/candidates.tsv || true
+          cat locate/summary.txt
+      - name: Upload locator evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-hawks-source-locator
+          path: locate/
+          compression-level: 0
+          retention-days: 7
