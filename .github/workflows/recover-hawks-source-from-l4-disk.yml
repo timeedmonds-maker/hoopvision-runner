@@ -103,21 +103,21 @@ jobs:
           TARGET="/mnt/hvsource/srv/hoopvision/runs/public-35832763006-1-c7530ea6fc2e"
           echo "target_dir_exists=$([ -d "$TARGET" ] && echo true || echo false)"
           if [ -d "$TARGET" ]; then
-            find "$TARGET" -maxdepth 7 -type f -printf '%s\t%p\n' | sort
+            sudo find "$TARGET" -maxdepth 7 -type f -printf '%s\t%p\n' | sort
           fi
           echo "=== source_native candidates ==="
           find /mnt/hvsource/srv/hoopvision -type f \( -name 'source_native.mp4' -o -name 'source_native.*' \) -print0 2>/dev/null |
           while IFS= read -r -d '' P; do
-            H="$(sha256sum "$P" | awk '{print $1}')"
-            S="$(stat -c '%s' "$P")"
+            H="$(sudo sha256sum "$P" | awk '{print $1}')"
+            S="$(sudo stat -c '%s' "$P")"
             printf '%s\t%s\t%s\n' "$H" "$S" "$P"
           done
           echo "=== target run mp4 hashes ==="
           if [ -d "$TARGET" ]; then
-            find "$TARGET" -type f -name '*.mp4' -print0 |
+            sudo find "$TARGET" -type f -name '*.mp4' -print0 |
             while IFS= read -r -d '' P; do
-              H="$(sha256sum "$P" | awk '{print $1}')"
-              S="$(stat -c '%s' "$P")"
+              H="$(sudo sha256sum "$P" | awk '{print $1}')"
+              S="$(sudo stat -c '%s' "$P")"
               printf '%s\t%s\t%s\n' "$H" "$S" "$P"
             done
           fi
@@ -130,6 +130,14 @@ jobs:
             echo "exact_source_found=true" | tee -a recovery-evidence/summary.txt
             FOUND_PATH="$(grep "$REQUIRED_SHA256" recovery-evidence/disk-scan.txt | head -1 | cut -f3-)"
             echo "exact_source_path=$FOUND_PATH" | tee -a recovery-evidence/summary.txt
+            printf '%s\n' "$FOUND_PATH" > recovery-evidence/exact_source_path.txt
+            gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" \
+              --command="sudo cp '$FOUND_PATH' /tmp/exact_source_native.mp4 && sudo chmod 0644 /tmp/exact_source_native.mp4" --quiet
+            gcloud compute scp "$VM":/tmp/exact_source_native.mp4 recovery-evidence/exact_source_native.mp4 \
+              --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --quiet
+            LOCAL_SHA="$(sha256sum recovery-evidence/exact_source_native.mp4 | awk '{print $1}')"
+            test "$LOCAL_SHA" = "$REQUIRED_SHA256"
+            echo "recovered_local_sha256=$LOCAL_SHA" | tee -a recovery-evidence/summary.txt
           else
             echo "exact_source_found=false" | tee -a recovery-evidence/summary.txt
           fi
