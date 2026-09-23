@@ -465,23 +465,18 @@ jobs:
             | grep -E 'HOOPVISION_STAGE|HOOPVISION_TRACK_STAGE|HOOPVISION_OCR_STAGE|HOOPVISION_OCR_DURABLE_EVIDENCE|HOOPVISION_SAM31_BATCHING|HOOPVISION_SAM31_POINT_BATCH|SAM31_DECISION|sam31_decisions|accepted=|rejected=|inconclusive|Traceback|RuntimeError|TimeoutError|HOOPVISION_NAMED_RENDER_PATHS|HOOPVISION_FRESH_REPLAY_OK' \
             | tail -n 500 || true
 
-          CLASS="UNKNOWN"
-          if printf '%s' "$RESULT" | grep -q '"status"[[:space:]]*:[[:space:]]*"FAILED"'; then
-            if printf '%s' "$RESULT" | grep -q 'TimeoutError'; then
-              CLASS="APPLICATION_TIMEOUT_NO_AUTORETRY"
-            else
-              CLASS="TERMINAL_FAILURE_DIAGNOSE_BEFORE_RETRY"
-            fi
-          elif printf '%s' "$RESULT" | grep -q '"status"[[:space:]]*:[[:space:]]*"SUCCESS"'; then
-            CLASS="SUCCESS_AWAIT_ACCEPTANCE_EVIDENCE"
-          elif [ -z "$RESULT" ]; then
+          if [ -z "$RESULT" ]; then
             CLASS="MISSING_TERMINAL_EVIDENCE_DIAGNOSE_BEFORE_RETRY"
+          else
+            CLASS="$(printf '%s' "$RESULT" | python tools/durable_result.py --field classification 2>/dev/null || echo UNKNOWN_DIAGNOSE_BEFORE_RETRY)"
           fi
           echo "HOOPVISION_AUTOPILOT_CLASS=$CLASS"
 
           # Bridge completed UHD output from durable GCS storage into a GitHub
           # Actions artifact. This is retrieval-only: it never reruns GPU work.
-          FINAL_URI="$(printf '%s' "$RESULT" | python -c 'import json,sys; d=json.load(sys.stdin); print(d.get("final_video",""))' 2>/dev/null || true)"
+          # Resolve the current nested schema and recognised legacy field, and
+          # fence the object URI to the authorised evidence bucket.
+          FINAL_URI="$(printf '%s' "$RESULT" | python tools/durable_result.py --field final_video --allowed-bucket "$EVIDENCE_BUCKET" 2>/dev/null || true)"
           if [ -n "$FINAL_URI" ]; then
             mkdir -p "$GITHUB_WORKSPACE/deliverable"
             echo "Retrieving completed UHD output: $FINAL_URI"
@@ -516,14 +511,17 @@ jobs:
           git fetch origin main || exit 0
           git checkout -B runner-state origin/main || exit 0
           RUN_ID="public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${SOURCE_SHA:0:12}"
-          STATUS="UNKNOWN"
+          EXECUTION_STATUS="UNKNOWN"
+          QUALIFICATION_STATUS="UNKNOWN"
           RESULT=""
           if command -v gcloud >/dev/null 2>&1; then
             RESULT="$(gcloud storage cat "gs://$EVIDENCE_BUCKET/runs/$RUN_ID/result.json" 2>/dev/null || true)"
           fi
-          if printf '%s' "$RESULT" | grep -q '"status"[[:space:]]*:[[:space:]]*"SUCCESS"'; then STATUS="SUCCESS"; fi
-          if printf '%s' "$RESULT" | grep -q '"status"[[:space:]]*:[[:space:]]*"FAILED"'; then STATUS="FAILED"; fi
-          export STATUS
+          if [ -n "$RESULT" ]; then
+            EXECUTION_STATUS="$(printf '%s' "$RESULT" | python tools/durable_result.py --field execution_status 2>/dev/null || echo UNKNOWN)"
+            QUALIFICATION_STATUS="$(printf '%s' "$RESULT" | python tools/durable_result.py --field qualification_status 2>/dev/null || echo UNKNOWN)"
+          fi
+          export EXECUTION_STATUS QUALIFICATION_STATUS
           python - <<'PY'
           import json, os
           state = {
@@ -531,7 +529,9 @@ jobs:
               "github_run_attempt": os.environ["GITHUB_RUN_ATTEMPT"],
               "source_sha": os.environ["SOURCE_SHA"],
               "durable_run_id": f"public-{os.environ['GITHUB_RUN_ID']}-{os.environ['GITHUB_RUN_ATTEMPT']}-{os.environ['SOURCE_SHA'][:12]}",
-              "status": os.environ.get("STATUS","UNKNOWN"),
+              "status": os.environ.get("EXECUTION_STATUS","UNKNOWN"),
+              "execution_status": os.environ.get("EXECUTION_STATUS","UNKNOWN"),
+              "qualification_status": os.environ.get("QUALIFICATION_STATUS","UNKNOWN"),
           }
           open("RUN_STATE.json","w").write(json.dumps(state, indent=2, sort_keys=True) + "\\n")
           PY
