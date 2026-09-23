@@ -1,4 +1,5 @@
 name: Inspect Live GPU Instances
+# read-only state check
 
 on:
   push:
