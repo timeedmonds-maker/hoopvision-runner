@@ -1,5 +1,5 @@
 name: Recover Hawks Source from Stopped L4 Disk
-# read-only source-disk clone; CPU inspection
+# read-only source-disk clone; CPU inspection; pd-standard quota-safe retry
 
 on:
   push:
