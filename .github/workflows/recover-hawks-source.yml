@@ -1,0 +1,91 @@
+name: Recover Hawks Reference Source
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/recover-hawks-source.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact private source helper
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: c7530ea6fc2e79344806aeb0bedbb465835b5d16
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          persist-credentials: false
+      - name: Recover exact Play by Play 960 source and verify hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, re, subprocess, sys
+          from pathlib import Path
+          from urllib.parse import urljoin, urlsplit, urlunsplit
+          sys.path.insert(0, "src/tools")
+          from fetch_official_nba_event_clip import parse, UA
+          import requests
+
+          game="0012500014"
+          event=301
+          expected="23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a"
+          page, angles, _ = parse(game,event)
+          matches=[x for x in angles if str(x.get("label","")).strip()=="Play by Play"]
+          if len(matches)!=1:
+              raise SystemExit(f"expected one Play by Play angle, got {[x.get('label') for x in angles]}")
+          url=matches[0]["url"]
+          headers={"User-Agent":UA,"Referer":"https://clips.nba.com/"}
+          r=requests.get(url,headers=headers,timeout=30); r.raise_for_status()
+          txt=r.text
+          if "#EXT-X-STREAM-INF" in txt:
+              lines=[x.strip() for x in txt.splitlines() if x.strip()]
+              variants=[]
+              for i,line in enumerate(lines):
+                  if not line.startswith("#EXT-X-STREAM-INF"): continue
+                  rs=re.search(r"RESOLUTION=(\d+)x(\d+)",line)
+                  child=None
+                  for q in lines[i+1:i+5]:
+                      if not q.startswith("#"):
+                          child=q; break
+                  if not child: continue
+                  full=urljoin(url,child)
+                  if not urlsplit(full).query and urlsplit(url).query:
+                      b=urlsplit(url); f=urlsplit(full)
+                      full=urlunsplit((f.scheme,f.netloc,f.path,b.query,f.fragment))
+                  w=int(rs.group(1)) if rs else 10**9
+                  h=int(rs.group(2)) if rs else 0
+                  variants.append((w,h,full))
+              under=[v for v in variants if v[0]<=960]
+              if not under:
+                  raise SystemExit("no HLS variant at or below 960 pixels")
+              _,_,url=max(under,key=lambda x:x[0])
+          Path("reference_source").mkdir(exist_ok=True)
+          out=Path("reference_source/Hawks_0012500014_301_Play_by_Play_960.mp4")
+          hdr=f"User-Agent: {UA}\r\nReferer: https://clips.nba.com/\r\n"
+          subprocess.run([
+              "ffmpeg","-y","-v","error","-rw_timeout","30000000","-headers",hdr,
+              "-i",url,"-c","copy",str(out)
+          ],check=True,timeout=180)
+          got=hashlib.sha256(out.read_bytes()).hexdigest()
+          Path("reference_source/source_sha256.txt").write_text(got+"\n")
+          Path("reference_source/source_page.txt").write_text(page+"\n")
+          if got!=expected:
+              raise SystemExit(f"source hash mismatch: {got} != {expected}")
+          print(f"verified source sha256={got}")
+          PY
+      - name: Upload verified reference source
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-hawks-reference-source
+          path: reference_source/
+          retention-days: 7
