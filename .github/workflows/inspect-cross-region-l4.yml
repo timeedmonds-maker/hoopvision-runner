@@ -1,0 +1,59 @@
+name: Inspect Cross-Region L4 Targets
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-cross-region-l4.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  SOURCE_ZONE: asia-southeast1-c
+  SOURCE_INSTANCE: hv-dev-l4
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect network, subnets and candidate L4 quotas
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          echo '=== SOURCE INSTANCE ===' | tee out/state.txt
+          gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE"             --format='yaml(name,status,machineType,networkInterfaces,serviceAccounts,disks)' | tee -a out/state.txt
+          echo '=== NETWORKS ===' | tee -a out/state.txt
+          gcloud compute networks list --project="$PROJECT_ID"             --format='table(name,subnetMode,bgpRoutingMode)' | tee -a out/state.txt
+          echo '=== SUBNETS ===' | tee -a out/state.txt
+          gcloud compute networks subnets list --project="$PROJECT_ID"             --format='table(name,region.basename(),network.basename(),ipCidrRange,privateIpGoogleAccess)' | tee -a out/state.txt
+          echo '=== CANDIDATE REGION L4 QUOTAS ===' | tee -a out/state.txt
+          for R in asia-east1 us-west4 us-central1 europe-west4; do
+            echo "--- $R ---" | tee -a out/state.txt
+            gcloud compute regions describe "$R" --project="$PROJECT_ID"               --format='json(name,quotas)' > "out/$R.json"
+            python3 - "$R" "out/$R.json" <<'PY' | tee -a out/state.txt
+          import json,sys
+          r,p=sys.argv[1:]
+          d=json.load(open(p))
+          for q in d.get("quotas",[]):
+              m=str(q.get("metric",""))
+              if "L4" in m or "GPU" in m:
+                  print(r,m,"limit",q.get("limit"),"usage",q.get("usage"))
+          PY
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-cross-region-l4-state
+          path: out/
+          retention-days: 7
