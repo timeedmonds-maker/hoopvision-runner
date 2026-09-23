@@ -40,6 +40,16 @@ jobs:
             gcloud compute regions describe "$R" --project="$PROJECT_ID" --format=json > "gpu-state/region-$R.json"
           done
           gcloud compute project-info describe --project="$PROJECT_ID" --format=json > gpu-state/project-info.json
+          gcloud compute operations list --project="$PROJECT_ID" --filter='status!=DONE' \
+            --format='table(name,operationType,status,zone.basename(),region.basename(),targetLink.basename(),error.errors.code,error.errors.message)' \
+            > gpu-state/active-operations.txt || true
+          gcloud compute machine-images list --project="$PROJECT_ID" \
+            --format='table(name,status,creationTimestamp,sourceInstance.basename())' \
+            > gpu-state/machine-images.txt || true
+          gcloud compute instances list --project="$PROJECT_ID" \
+            --filter="name~'hv-dev-l4'" \
+            --format='yaml(name,zone,status,machineType,scheduling.provisioningModel,creationTimestamp,lastStartTimestamp,lastStopTimestamp)' \
+            > gpu-state/l4-instances.yaml || true
           python3 - <<'PY' | tee gpu-state/gpu-quota.txt
           import json
           d=json.load(open("gpu-state/project-info.json"))
