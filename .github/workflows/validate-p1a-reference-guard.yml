@@ -33,7 +33,7 @@ jobs:
       - name: Run stdlib reference gate regressions
         working-directory: src
         run: |
-          python3 screen_tracker_nextgen/test_reference_manifest.py
+          python3 -m screen_tracker_nextgen.test_reference_manifest
       - name: Compile modified acceptance path
         working-directory: src
         run: |
