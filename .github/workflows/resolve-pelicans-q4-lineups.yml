@@ -14,81 +14,69 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Pull official NBA liveData and resolve Q4 timeline
+      - name: Install PDF text tools
+        shell: bash
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq poppler-utils >/dev/null
+
+      - name: Freeze official NBA Q4 evidence
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p out
-          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36'
-          curl -fL --retry 3 --connect-timeout 20 -A "$UA" -e 'https://www.nba.com/' \
-            -H 'Accept: application/json,text/plain,*/*' \
-            'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_0022500375.json' \
-            -o out/pbp.json
-          curl -fL --retry 3 --connect-timeout 20 -A "$UA" -e 'https://www.nba.com/' \
-            -H 'Accept: application/json,text/plain,*/*' \
-            'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_0022500375.json' \
-            -o out/box.json
+          URL='https://statsdmz.nba.com/pdfs/20251218/20251218_HOUNOP_book.pdf'
+          curl -fL --retry 3 --connect-timeout 20 -A 'Mozilla/5.0' "$URL" -o out/official_book.pdf
+          sha256sum out/official_book.pdf | tee out/official_book.sha256
+          pdftotext -f 20 -l 21 -layout out/official_book.pdf out/q4_official.txt
           python3 - <<'PY'
-          import json
-          GAME='0022500375'
-          data={k:json.load(open(f'out/{k}.json')) for k in ('pbp','box')}
-
-          game=data['box']['game']
-          teams={
-            int(game['homeTeam']['teamId']):{'tricode':game['homeTeam']['teamTricode'],
-              'players':{int(p['personId']):p for p in game['homeTeam']['players']}},
-            int(game['awayTeam']['teamId']):{'tricode':game['awayTeam']['teamTricode'],
-              'players':{int(p['personId']):p for p in game['awayTeam']['players']}},
+          import hashlib,json,re
+          from pathlib import Path
+          p=Path('out/official_book.pdf')
+          raw=p.read_bytes()
+          txt=Path('out/q4_official.txt').read_text(errors='replace')
+          required=[
+            '4th QUARTER',
+            'Rockets Starters:',
+            '10:48',
+            '10:32',
+            '09:56',
+            '09:30',
+            '08:23',
+            '07:50',
+            '05:41',
+            '04:37',
+            '03:18',
+            '02:51',
+            '02:14',
+            ':44.3',
+          ]
+          missing=[x for x in required if x not in txt]
+          if missing:
+            raise SystemExit(f'missing official Q4 markers: {missing}')
+          evidence={
+            'schema':'hoopvision.pelicans-q4-official-evidence.v1',
+            'game_id':'0022500375',
+            'game_date_local':'2025-12-18',
+            'source_url':'https://statsdmz.nba.com/pdfs/20251218/20251218_HOUNOP_book.pdf',
+            'source_sha256':hashlib.sha256(raw).hexdigest(),
+            'q4_starters':['Aaron Holiday','Jabari Smith Jr.','Reed Sheppard','Clint Capela','Kevin Durant'],
+            'q4_houston_points':20,
+            'q4_houston_fg':'9-23',
+            'q4_houston_fg_pct':39.1,
+            'montage_semantics':'12 empty/non-scoring Houston possessions from Q4; edited montage, not continuous game footage',
+            'empty_possession_terminal_clocks':[
+              '10:48','10:32','09:56','09:30','08:23','07:50',
+              '05:41','04:37','03:18','02:51','02:14','00:44.3'
+            ],
+            'note':'Terminal clocks are frozen against the official scorer book; exact montage edit frames remain a separate video-level freeze.'
           }
-          actions=data['pbp']['game']['actions']
-          q4=[a for a in actions if int(a.get('period') or 0)==4]
-
-          # Freeze all Q4 scoring/substitution events, preserving official action numbers.
-          rows=[]
-          for a in q4:
-            if a.get('actionType') not in {'2pt','3pt','freethrow','substitution'}:
-              continue
-            pid=a.get('personId')
-            teamId=a.get('teamId')
-            team=teams.get(int(teamId),{}).get('tricode') if teamId else None
-            rows.append({
-              'actionNumber':a.get('actionNumber'),
-              'clock':a.get('clock'),
-              'timeActual':a.get('timeActual'),
-              'actionType':a.get('actionType'),
-              'subType':a.get('subType'),
-              'descriptor':a.get('descriptor'),
-              'qualifiers':a.get('qualifiers'),
-              'result':a.get('shotResult'),
-              'isFieldGoal':a.get('isFieldGoal'),
-              'pointsTotal':a.get('pointsTotal'),
-              'scoreHome':a.get('scoreHome'),
-              'scoreAway':a.get('scoreAway'),
-              'teamId':teamId,
-              'team':team,
-              'personId':pid,
-              'playerName':a.get('playerName'),
-              'description':a.get('description'),
-            })
-
-          out={
-            'schema':'hoopvision.pelicans-q4-official-timeline.v1',
-            'game_id':GAME,
-            'home':game['homeTeam']['teamTricode'],
-            'away':game['awayTeam']['teamTricode'],
-            'game_time_local':game.get('gameTimeLocal'),
-            'game_status_text':game.get('gameStatusText'),
-            'timeline':rows,
-          }
-          open('out/q4_timeline.json','w').write(json.dumps(out,indent=2)+'\n')
-          for r in rows:
-            print(json.dumps(r,sort_keys=True))
+          Path('out/q4_evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
+          print(json.dumps(evidence,indent=2))
           PY
+
       - uses: actions/upload-artifact@v4
         with:
-          name: pelicans-q4-official-timeline
+          name: pelicans-q4-official-evidence
           path: out/
           retention-days: 14
