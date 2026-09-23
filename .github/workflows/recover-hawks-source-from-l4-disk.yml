@@ -70,7 +70,7 @@ jobs:
           gcloud compute instances create "$VM"             --project="$PROJECT_ID"             --zone="$SOURCE_ZONE"             --machine-type=e2-standard-2             --image-family=ubuntu-2404-lts-amd64             --image-project=ubuntu-os-cloud             --boot-disk-size=20GB             --boot-disk-type=pd-standard             --disk="name=$CLONE,device-name=hv-source,mode=ro,boot=no,auto-delete=no"             --service-account="$SA"             --scopes=cloud-platform             --subnet="$SUBNET"
 
           for i in $(seq 1 24); do
-            if gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE"                  --command='echo ssh-ready' --quiet                  > /tmp/ssh.out 2>/tmp/ssh.err; then
+            if gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --tunnel-through-iap --command='echo ssh-ready' --quiet                  > /tmp/ssh.out 2>/tmp/ssh.err; then
               cat /tmp/ssh.out
               break
             fi
@@ -123,8 +123,8 @@ jobs:
           fi
           EOS
 
-          gcloud compute scp /tmp/scan.sh "$VM":/tmp/scan.sh             --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --quiet
-          gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE"             --command='bash /tmp/scan.sh' --quiet             | tee recovery-evidence/disk-scan.txt
+          gcloud compute scp /tmp/scan.sh "$VM":/tmp/scan.sh --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --tunnel-through-iap --quiet
+          gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --tunnel-through-iap --command='bash /tmp/scan.sh' --quiet             | tee recovery-evidence/disk-scan.txt
 
           if grep -q "$REQUIRED_SHA256" recovery-evidence/disk-scan.txt; then
             echo "exact_source_found=true" | tee -a recovery-evidence/summary.txt
