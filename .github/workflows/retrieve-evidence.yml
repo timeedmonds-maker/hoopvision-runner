@@ -47,6 +47,7 @@ jobs:
           [ -n "$PREFIX" ] || { echo "Missing benchmark.result.prefix" >&2; exit 2; }
           printf '%s\n' "$RUN_ID" > evidence/run_id.txt
           printf '%s\n' "$PREFIX" > evidence/prefix.txt
+          gcloud storage ls --recursive "gs://$EVIDENCE_BUCKET/$PREFIX/**" > evidence/object_listing.txt || true
           files=(
             "stage_attrition.json"
             "release_evidence.json"
