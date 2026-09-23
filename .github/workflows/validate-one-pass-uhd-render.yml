@@ -38,6 +38,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install ffmpeg
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Install lightweight render-test dependencies
         run: python -m pip install --quiet numpy pandas opencv-python-headless
       - name: Build synthetic source and assignments
