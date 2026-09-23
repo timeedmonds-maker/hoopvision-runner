@@ -326,11 +326,11 @@ jobs:
                 # image before exploring lower-confidence regions.
                 for SPEC in \
                   "asia-southeast1:asia-southeast1-b" \
+                  "us-central1:us-central1-b" \
                   "us-west4:us-west4-a" \
                   "us-west4:us-west4-b" \
                   "us-west4:us-west4-c" \
                   "us-central1:us-central1-a" \
-                  "us-central1:us-central1-b" \
                   "us-central1:us-central1-c" \
                   "europe-west4:europe-west4-a" \
                   "europe-west4:europe-west4-b" \
@@ -544,13 +544,13 @@ jobs:
               sudo systemctl restart hoopvision-dev-supervisor
               for i in $(seq 1 45); do
                 if sudo systemctl is-active --quiet hoopvision-dev-supervisor && \
-                   sudo journalctl -u hoopvision-dev-supervisor --since "2 minutes ago" --no-pager | grep -q "HOOPVISION_DEV_SESSION_READY.*hawks-event296-playbyplay"; then
-                  echo "Updated supervisor source verified and event296-ready"
+                   sudo journalctl -u hoopvision-dev-supervisor --since "2 minutes ago" --no-pager | grep -q "HOOPVISION_DEV_SUPERVISOR_LISTENING"; then
+                  echo "Updated supervisor source verified, route present, and service listening"
                   exit 0
                 fi
                 sleep 2
               done
-              echo "Updated supervisor did not become event296-ready" >&2
+              echo "Updated supervisor did not become listening-ready" >&2
               sudo systemctl status hoopvision-dev-supervisor --no-pager || true
               sudo journalctl -u hoopvision-dev-supervisor --since "3 minutes ago" --no-pager || true
               exit 1'
