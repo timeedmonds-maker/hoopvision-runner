@@ -68,7 +68,6 @@ jobs:
           RC=$?
           set -e
           echo "$RC" > runtime-oci/sbom.rc
-          cat runtime-oci/sbom.out || true
           cat runtime-oci/sbom.err || true
 
       - uses: actions/upload-artifact@v4
