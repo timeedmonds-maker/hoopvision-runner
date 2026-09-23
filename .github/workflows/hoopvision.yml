@@ -284,95 +284,75 @@ jobs:
               fi
 
               if [ -z "$FOUND_ZONE" ]; then
-                MACHINE_IMAGE="hv-dev-l4-probe-${GITHUB_RUN_ID}"
-                FAILOVER_INSTANCE="hv-dev-l4-probe-${GITHUB_RUN_ID}"
-                echo "Creating temporary machine image $MACHINE_IMAGE from $L4_INSTANCE in $L4_ZONE"
+                # Build the prepared clone image once. Earlier routing recreated
+                # essentially the same global machine image three times before
+                # reaching a proven us-west4 L4, adding minutes of pure setup.
+                MACHINE_IMAGE="hv-dev-l4-route-${GITHUB_RUN_ID}"
+                echo "Creating one reusable prepared L4 machine image $MACHINE_IMAGE"
                 gcloud compute machine-images create "$MACHINE_IMAGE" \
                   --project="$PROJECT_ID" \
                   --source-instance="$L4_INSTANCE" \
                   --source-instance-zone="$L4_ZONE"
-                # Try the zone without the stale failover first, then the other
-                # Singapore zones. Unique instance naming avoids colliding with
-                # retained failover resources from earlier capacity probes.
-                for Z in asia-southeast1-b asia-southeast1-a asia-southeast1-c; do
-                  echo "Trying immediate prepared L4 clone $FAILOVER_INSTANCE in $Z"
-                  set +e
-                  gcloud compute instances create "$FAILOVER_INSTANCE" \
-                    --project="$PROJECT_ID" \
-                    --zone="$Z" \
-                    --source-machine-image="$MACHINE_IMAGE"
-                  RC=$?
-                  set -e
-                  if [ "$RC" -eq 0 ]; then
-                    FOUND_ZONE="$Z"
-                    FOUND_INSTANCE="$FAILOVER_INSTANCE"
-                    break
-                  fi
-                done
-                gcloud compute machine-images delete "$MACHINE_IMAGE" --project="$PROJECT_ID" --quiet || true
-              fi
 
-              if [ -z "$FOUND_ZONE" ]; then
-                echo "No immediate L4 capacity available; falling back to Flex-start."
-                FLEX_INSTANCE="hv-dev-l4-flex-${GITHUB_RUN_ID}"
-                MACHINE_IMAGE="hv-dev-l4-flex-${GITHUB_RUN_ID}"
-                gcloud compute machine-images create "$MACHINE_IMAGE" --project="$PROJECT_ID" --source-instance="$L4_INSTANCE" --source-instance-zone="$L4_ZONE"
-                for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
-                  echo "Submitting Flex-start L4 in $Z"
-                  set +e
-                  gcloud compute instances create "$FLEX_INSTANCE" --project="$PROJECT_ID" --zone="$Z" --source-machine-image="$MACHINE_IMAGE" --provisioning-model=FLEX_START --max-run-duration=1800s
-                  RC=$?
-                  set -e
-                  if [ "$RC" -eq 0 ]; then
-                    FOUND_ZONE="$Z"
-                    FOUND_INSTANCE="$FLEX_INSTANCE"
-                    break
-                  fi
-                done
-                gcloud compute machine-images delete "$MACHINE_IMAGE" --project="$PROJECT_ID" --quiet || true
-              fi
-              if [ -z "$FOUND_ZONE" ]; then
-                # Singapore is occasionally fully stocked out. The prepared
-                # machine image is global and the project uses the default
-                # auto-mode VPC, so try the nearest region with independently
-                # confirmed L4 quota. Cross-region workers are ephemeral.
-                CROSS_IMAGE="hv-dev-l4-cross-${GITHUB_RUN_ID}"
-                CROSS_INSTANCE="hv-dev-l4-cross-${GITHUB_RUN_ID}"
-                echo "Singapore L4 capacity exhausted; preparing cross-region clone."
-                gcloud compute machine-images create "$CROSS_IMAGE" \
-                  --project="$PROJECT_ID" \
-                  --source-instance="$L4_INSTANCE" \
-                  --source-instance-zone="$L4_ZONE"
+                # Keep the first probe local. If Singapore is stocked out, use
+                # the cross-region zone already proven to admit this exact L4
+                # image before exploring lower-confidence regions.
                 for SPEC in \
-                  "asia-east1:asia-east1-a" \
-                  "asia-east1:asia-east1-b" \
-                  "asia-east1:asia-east1-c" \
+                  "asia-southeast1:asia-southeast1-b" \
                   "us-west4:us-west4-a" \
                   "us-west4:us-west4-b" \
-                  "us-west4:us-west4-c"; do
+                  "asia-east1:asia-east1-a"; do
                   REGION="${SPEC%%:*}"
                   Z="${SPEC##*:}"
-                  echo "Trying prepared L4 clone $CROSS_INSTANCE in $Z"
+                  CANDIDATE="hv-dev-l4-route-${GITHUB_RUN_ID}"
+                  echo "Trying prepared L4 clone $CANDIDATE in $Z"
                   set +e
-                  gcloud compute instances create "$CROSS_INSTANCE" \
+                  gcloud compute instances create "$CANDIDATE" \
                     --project="$PROJECT_ID" \
                     --zone="$Z" \
-                    --source-machine-image="$CROSS_IMAGE" \
+                    --source-machine-image="$MACHINE_IMAGE" \
                     --subnet=default
                   RC=$?
                   set -e
                   if [ "$RC" -eq 0 ]; then
                     FOUND_ZONE="$Z"
-                    FOUND_INSTANCE="$CROSS_INSTANCE"
+                    FOUND_INSTANCE="$CANDIDATE"
                     echo "TARGET_EPHEMERAL=1" >> "$GITHUB_ENV"
-                    echo "Selected cross-region prepared L4 target $FOUND_INSTANCE in $FOUND_ZONE"
+                    echo "Selected prepared ephemeral L4 target $FOUND_INSTANCE in $FOUND_ZONE"
                     break
                   fi
                 done
-                gcloud compute machine-images delete "$CROSS_IMAGE" --project="$PROJECT_ID" --quiet || true
+
+                # Flex-start is a last capacity fallback, not a prerequisite for
+                # testing a region with already demonstrated immediate capacity.
+                if [ -z "$FOUND_ZONE" ]; then
+                  FLEX_INSTANCE="hv-dev-l4-flex-${GITHUB_RUN_ID}"
+                  for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
+                    echo "Submitting Flex-start L4 $FLEX_INSTANCE in $Z"
+                    set +e
+                    gcloud compute instances create "$FLEX_INSTANCE" \
+                      --project="$PROJECT_ID" \
+                      --zone="$Z" \
+                      --source-machine-image="$MACHINE_IMAGE" \
+                      --provisioning-model=FLEX_START \
+                      --max-run-duration=1800s
+                    RC=$?
+                    set -e
+                    if [ "$RC" -eq 0 ]; then
+                      FOUND_ZONE="$Z"
+                      FOUND_INSTANCE="$FLEX_INSTANCE"
+                      echo "TARGET_EPHEMERAL=1" >> "$GITHUB_ENV"
+                      break
+                    fi
+                  done
+                fi
+
+                gcloud compute machine-images delete "$MACHINE_IMAGE" \
+                  --project="$PROJECT_ID" --quiet || true
               fi
+
               if [ -z "$FOUND_ZONE" ]; then
-                echo "No L4 capacity found in Singapore, asia-east1, or us-west4." >&2
+                echo "No L4 capacity found in prepared Singapore/us-west4/asia-east1 routes." >&2
                 exit 5
               fi
               echo "TARGET_ZONE=$FOUND_ZONE" >> "$GITHUB_ENV"
