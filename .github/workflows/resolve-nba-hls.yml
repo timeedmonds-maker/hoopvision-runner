@@ -1,0 +1,85 @@
+name: Resolve NBA HLS Candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/resolve-nba-hls.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Resolve official NBA/Rockets video sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python -m pip install --quiet requests beautifulsoup4
+          python - <<'PY'
+          import html, json, re, requests
+          from bs4 import BeautifulSoup
+          from urllib.parse import urljoin
+          pages = [
+            ("rockets_hawks_2026","https://www.nba.com/rockets/videos/houston-rockets-highlights-vs-atlanta-hawks-2"),
+            ("amen_25","https://www.nba.com/rockets/videos/highlights-amen-thompson-25-points"),
+            ("amen_spurs_2026","https://www.nba.com/rockets/videos/amen-thompson-25-points-highlights-vs-san-antonio-spurs-2"),
+          ]
+          h={"User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36"}
+          results=[]
+          session=requests.Session()
+          for name,url in pages:
+            r=session.get(url,headers=h,timeout=30)
+            rec={"name":name,"page":url,"status":r.status_code,"bytes":len(r.content),"urls":[],"iframes":[]}
+            text=html.unescape(r.text).replace("\\/","/")
+            soup=BeautifulSoup(r.text,"html.parser")
+            for tag in soup.find_all("iframe"):
+              src=tag.get("src")
+              if src: rec["iframes"].append(urljoin(url,src))
+            pats=[
+              r'https?://[^"\'<>\\ ]+?\.m3u8(?:\?[^"\'<>\\ ]*)?',
+              r'https?://[^"\'<>\\ ]+?\.mp4(?:\?[^"\'<>\\ ]*)?',
+              r'https?://[^"\'<>\\ ]+?(?:wsc|video|stream)[^"\'<>\\ ]+'
+            ]
+            found=[]
+            for p in pats:
+              found += re.findall(p,text,re.I)
+            # Also capture obvious JSON keys around media URLs.
+            for m in re.finditer(r'.{0,220}(?:m3u8|\.mp4|videoUrl|video_url|playback|stream).{0,420}',text,re.I|re.S):
+              found += re.findall(r'https?://[^"\'<>\\ ]+',m.group(0))
+            cleaned=[]
+            for u in found:
+              u=u.rstrip('),]}\\')
+              if u not in cleaned: cleaned.append(u)
+            rec["urls"]=cleaned[:200]
+            open(f"out/{name}.html","wb").write(r.content)
+            results.append(rec)
+
+            # Probe iframes as well.
+            for i,frame in enumerate(rec["iframes"][:10]):
+              try:
+                rr=session.get(frame,headers={**h,"Referer":url},timeout=30)
+                ft=html.unescape(rr.text).replace("\\/","/")
+                ff=re.findall(r'https?://[^"\'<>\\ ]+?\.m3u8(?:\?[^"\'<>\\ ]*)?',ft,re.I)
+                ff+=re.findall(r'https?://[^"\'<>\\ ]+?\.mp4(?:\?[^"\'<>\\ ]*)?',ft,re.I)
+                results.append({"name":f"{name}_iframe_{i}","page":frame,"status":rr.status_code,"bytes":len(rr.content),"urls":list(dict.fromkeys(ff))[:200]})
+                open(f"out/{name}-iframe-{i}.html","wb").write(rr.content)
+              except Exception as e:
+                results.append({"name":f"{name}_iframe_{i}","page":frame,"error":repr(e)})
+          open("out/results.json","w").write(json.dumps(results,indent=2))
+          print(json.dumps(results,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nba-hls-resolution
+          path: out/
+          retention-days: 7
