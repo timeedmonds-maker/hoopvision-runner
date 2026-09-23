@@ -57,12 +57,28 @@ jobs:
             --observations frozen/identity_segments/uniform_observations.csv \
             --physical-qa candidate/physical_paths_qa.json \
             --out candidate/first_loss_diagnostic.json
+          mkdir -p baseline_identity candidate_identity
+          python -m screen_tracker_nextgen.solve_fast_path_identities \
+            --paths frozen/physical_paths/physical_paths.csv \
+            --segments frozen/identity_segments/segments.csv \
+            --ocr-dir frozen/identity_ocr \
+            --roster frozen/exact_lineup_roster.json \
+            --out-dir baseline_identity
+          python -m screen_tracker_nextgen.solve_fast_path_identities \
+            --paths candidate/physical_paths.csv \
+            --segments frozen/identity_segments/segments.csv \
+            --ocr-dir frozen/identity_ocr \
+            --roster frozen/exact_lineup_roster.json \
+            --out-dir candidate_identity
           python - <<'PY'
           import json
           import pandas as pd
           base=json.load(open("frozen/physical_paths/physical_paths_qa.json"))
           cand=json.load(open("candidate/physical_paths_qa.json"))
           diag=json.load(open("candidate/first_loss_diagnostic.json"))
+          baseline_identity=json.load(open("baseline_identity/path_identity_qa.json"))
+          candidate_identity=json.load(open("candidate_identity/path_identity_qa.json"))
+          executed_identity=json.load(open("frozen/physical_paths/path_identity/path_identity_qa.json"))
           report={}
           for team in ("ATL","HOU"):
               b=base["teams"][team]; c=cand["teams"][team]
@@ -76,6 +92,15 @@ jobs:
                   "baseline_margin":int(b["forward_tracking"]["margin_rejections"]),
                   "candidate_margin":int(c["forward_tracking"]["margin_rejections"]),
                   "candidate_same_raw_margin":int(diag["teams"][team]["forward_rejections"]["same_raw_margin"]),
+                  "baseline_forward_hard":int(b["forward_tracking"]["hard_rejections"]),
+                  "candidate_forward_hard":int(c["forward_tracking"]["hard_rejections"]),
+                  "baseline_forward_cost":int(b["forward_tracking"]["cost_rejections"]),
+                  "candidate_forward_cost":int(c["forward_tracking"]["cost_rejections"]),
+                  "baseline_backward_margin":int(b["backward_tracking"]["margin_rejections"]),
+                  "candidate_backward_margin":int(c["backward_tracking"]["margin_rejections"]),
+                  "candidate_unmatched_active_states":int(c["forward_tracking"].get("unmatched_active_states",0)),
+                  "candidate_unmatched_observations":int(c["forward_tracking"].get("unmatched_observations",0)),
+                  "candidate_raw_claim_revocations":int(c["forward_tracking"].get("raw_claim_revocations",0)),
               }
           paths=pd.read_csv("candidate/physical_paths.csv")
           for raw in (4,29):
@@ -88,6 +113,25 @@ jobs:
           report["candidate_sam_decisions"]=int(cand.get("sam31_decision_count",0))
           report["baseline_precision_windows"]=int(base.get("precision_window_count",0))
           report["candidate_precision_windows"]=int(cand.get("precision_window_count",0))
+          report["identity_reachability"]={
+              "executed_run_with_original_path_ocr":{
+                  "accepted_fragments":int(executed_identity.get("accepted_fragment_count",0)),
+                  "accepted_players":int(executed_identity.get("accepted_player_count",0)),
+                  "missing_players":int(executed_identity.get("missing_player_count",10)),
+              },
+              "controlled_baseline_segment_ocr_only":{
+                  "accepted_fragments":int(baseline_identity.get("accepted_fragment_count",0)),
+                  "accepted_players":int(baseline_identity.get("accepted_player_count",0)),
+                  "missing_players":int(baseline_identity.get("missing_player_count",10)),
+                  "quarantined_shared_segments":int(baseline_identity.get("quarantined_shared_segment_count",0)),
+              },
+              "controlled_candidate_segment_ocr_only":{
+                  "accepted_fragments":int(candidate_identity.get("accepted_fragment_count",0)),
+                  "accepted_players":int(candidate_identity.get("accepted_player_count",0)),
+                  "missing_players":int(candidate_identity.get("missing_player_count",10)),
+                  "quarantined_shared_segments":int(candidate_identity.get("quarantined_shared_segment_count",0)),
+              },
+          }
           print("P1A_REPLAY_REPORT="+json.dumps(report,sort_keys=True))
           h=report["HOU"]
           assert h["candidate_fragments"] < h["baseline_fragments"]
