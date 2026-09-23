@@ -47,13 +47,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p candidate
-          python screen_tracker_nextgen/build_fast_physical_paths.py \
+          python -m screen_tracker_nextgen.build_fast_physical_paths \
             --observations frozen/identity_segments/uniform_observations.csv \
             --segments frozen/identity_segments/segments.csv \
             --ocr-dir frozen/identity_ocr \
             --roster frozen/exact_lineup_roster.json \
             --out-dir candidate
-          python screen_tracker_nextgen/diagnose_physical_first_loss.py \
+          python -m screen_tracker_nextgen.diagnose_physical_first_loss \
             --observations frozen/identity_segments/uniform_observations.csv \
             --physical-qa candidate/physical_paths_qa.json \
             --out candidate/first_loss_diagnostic.json
