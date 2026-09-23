@@ -1,4 +1,5 @@
 name: Recover Prepared Session Manifests
+# metadata/control-plane only
 
 on:
   push:
