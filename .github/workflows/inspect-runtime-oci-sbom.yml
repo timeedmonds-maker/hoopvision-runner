@@ -1,0 +1,77 @@
+name: Inspect Runtime OCI and SBOM
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-runtime-oci-sbom.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  REGISTRY: asia-southeast1-docker.pkg.dev
+  REPOSITORY_PATH: project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen
+  DIGEST: sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
+  IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect OCI manifest and optional SBOM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime-oci
+          TOKEN="$(gcloud auth print-access-token)"
+          URL="https://$REGISTRY/v2/$REPOSITORY_PATH/manifests/$DIGEST"
+          curl -fsS -D runtime-oci/headers.txt             -H "Authorization: Bearer $TOKEN"             -H 'Accept: application/vnd.oci.image.index.v1+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.docker.distribution.manifest.v2+json'             "$URL" > runtime-oci/manifest.json
+
+          python3 - <<'PY' | tee runtime-oci/manifest-summary.json
+          import json
+          d=json.load(open("runtime-oci/manifest.json"))
+          out={
+            "schemaVersion":d.get("schemaVersion"),
+            "mediaType":d.get("mediaType"),
+            "config":d.get("config"),
+            "layers_count":len(d.get("layers") or []),
+            "layers_compressed_bytes":sum(int(x.get("size") or 0) for x in d.get("layers") or []),
+            "manifests":[
+              {
+                "digest":x.get("digest"),
+                "mediaType":x.get("mediaType"),
+                "size":x.get("size"),
+                "platform":x.get("platform"),
+              }
+              for x in (d.get("manifests") or [])
+            ],
+          }
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
+
+          set +e
+          gcloud artifacts sbom export             --uri="$IMAGE"             --project="$PROJECT_ID"             --destination=runtime-oci/sbom.spdx.json             > runtime-oci/sbom.out 2> runtime-oci/sbom.err
+          RC=$?
+          set -e
+          echo "$RC" > runtime-oci/sbom.rc
+          cat runtime-oci/sbom.out || true
+          cat runtime-oci/sbom.err || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-runtime-oci-sbom
+          path: runtime-oci/
+          retention-days: 14
