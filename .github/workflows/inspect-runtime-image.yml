@@ -1,0 +1,56 @@
+name: Inspect Runtime Image Identity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-runtime-image.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect exact Artifact Registry image
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p runtime-image
+          gcloud artifacts docker images describe "$IMAGE"             --project="$PROJECT_ID" --format=json             > runtime-image/describe.json
+          python3 - <<'PY' | tee runtime-image/summary.json
+          import json
+          d=json.load(open("runtime-image/describe.json"))
+          keep={
+              "image":d.get("image"),
+              "package":d.get("package"),
+              "version":d.get("version"),
+              "metadata":d.get("metadata"),
+              "buildTime":d.get("buildTime"),
+              "createTime":d.get("createTime"),
+              "updateTime":d.get("updateTime"),
+              "mediaType":d.get("mediaType"),
+          }
+          print(json.dumps(keep,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-runtime-image-identity
+          path: runtime-image/
+          retention-days: 14
