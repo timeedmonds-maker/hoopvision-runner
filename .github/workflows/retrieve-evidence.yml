@@ -59,6 +59,7 @@ jobs:
             "physical_paths/path_identity/path_identity_map.csv"
             "physical_paths/path_identity/path_identity_qa.json"
             "identity_segments/segments.csv"
+            "identity_segments/uniform_observations.csv"
             "identity_segments/segment_qa.json"
             "identity_ocr/ocr_evidence.json"
             "identity_ocr/qa.json"
