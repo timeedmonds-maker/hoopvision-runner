@@ -67,3 +67,31 @@ jobs:
           echo "SOFT_DELETED_BEGIN"
           gcloud storage ls --soft-deleted --long "$URI" || true
           echo "SOFT_DELETED_END"
+
+          echo "ALL_SOURCE_VERSIONS_GLOB_BEGIN"
+          gcloud storage ls --all-versions --long "gs://$BUCKET/**/source_native.mp4" || true
+          echo "ALL_SOURCE_VERSIONS_GLOB_END"
+
+          echo "LIKELY_VERSION_HASHES_GLOB_BEGIN"
+          gcloud storage ls --all-versions "gs://$BUCKET/**/source_native.mp4" 2>/dev/null | while IFS= read -r VERSION_URI; do
+            [ -n "$VERSION_URI" ] || continue
+            case "$VERSION_URI" in
+              *hawks*|*atl-hou*|*0012500014*|*event301*|*35832763006*) ;;
+              *) continue ;;
+            esac
+            TMP="$(mktemp)"
+            if gcloud storage cp "$VERSION_URI" "$TMP" >/dev/null 2>&1; then
+              SHA="$(sha256sum "$TMP" | awk '{print $1}')"
+              BYTES="$(stat -c%s "$TMP")"
+              printf '%s\t%s\t%s\n' "$SHA" "$BYTES" "$VERSION_URI"
+              if [ "$SHA" = "$EXPECTED_SHA256" ]; then
+                echo "EXACT_GLOB_VERSION_FOUND=$VERSION_URI"
+              fi
+            fi
+            rm -f "$TMP"
+          done
+          echo "LIKELY_VERSION_HASHES_GLOB_END"
+
+          echo "ALL_SOFT_DELETED_SOURCE_GLOB_BEGIN"
+          gcloud storage ls --soft-deleted --long "gs://$BUCKET/**/source_native.mp4" || true
+          echo "ALL_SOFT_DELETED_SOURCE_GLOB_END"
