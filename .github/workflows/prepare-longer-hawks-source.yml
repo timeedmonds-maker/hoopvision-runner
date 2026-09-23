@@ -1,0 +1,96 @@
+name: Prepare Longer Hawks Benchmark Source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/prepare-longer-hawks-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  SOURCE_URL: https://cdn.nba.com/videos/teams/wsc-feed/media/team/rockets/2025/03/26/0022401049/EDEAA9CC81402219DF80791E9905B660727EE6BC_1280x720.mp4
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Fetch and inspect official NBA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          curl -fL --retry 3 -A 'Mozilla/5.0' "$SOURCE_URL" -o out/source_full.mp4
+          sha256sum out/source_full.mp4 | tee out/source_full.sha256
+          ffprobe -v error -show_format -show_streams -of json out/source_full.mp4 > out/probe.json
+
+          # Detect hard scene changes so we can choose a useful 30 s window instead
+          # of blindly taking the first 30 seconds.
+          ffmpeg -hide_banner -nostdin -i out/source_full.mp4 \
+            -vf "select='gt(scene,0.35)',showinfo" -an -f null - \
+            2> out/scene.log || true
+          python3 - <<'PY'
+          import json,re
+          from pathlib import Path
+          p=json.load(open("out/probe.json"))
+          fmt=p["format"]
+          dur=float(fmt["duration"])
+          scene=[]
+          for line in Path("out/scene.log").read_text(errors="ignore").splitlines():
+              m=re.search(r"pts_time:([0-9.]+)",line)
+              if m: scene.append(float(m.group(1)))
+          # Exclude first/last five seconds where title/end cards often live.
+          starts=[x/2 for x in range(10, max(11,int((dur-35)*2)+1))]
+          best=None
+          for s in starts:
+              e=s+30.0
+              cuts=[t for t in scene if s < t < e]
+              # Prefer fewer cuts, then a window closer to the middle.
+              score=(len(cuts),abs((s+15)-dur/2))
+              if best is None or score<best[0]:
+                  best=(score,s,e,cuts)
+          out={
+              "source_url":"""https://cdn.nba.com/videos/teams/wsc-feed/media/team/rockets/2025/03/26/0022401049/EDEAA9CC81402219DF80791E9905B660727EE6BC_1280x720.mp4""",
+              "duration_s":dur,
+              "scene_change_threshold":0.35,
+              "scene_changes":scene,
+              "recommended_30s_start":best[1] if best else 0.0,
+              "recommended_30s_end":best[2] if best else min(30.0,dur),
+              "scene_changes_in_recommended_window":best[3] if best else [],
+          }
+          Path("out/selection.json").write_text(json.dumps(out,indent=2)+"\n")
+          print(json.dumps(out,indent=2))
+          PY
+
+          START=$(python3 -c 'import json; print(json.load(open("out/selection.json"))["recommended_30s_start"])')
+          ffmpeg -nostdin -y -v error -ss "$START" -i out/source_full.mp4 -t 30 \
+            -c:v libx264 -preset veryfast -crf 16 -c:a aac -b:a 160k \
+            out/source_30s.mp4
+          sha256sum out/source_30s.mp4 | tee out/source_30s.sha256
+          ffprobe -v error -show_format -show_streams -of json out/source_30s.mp4 > out/probe_30s.json
+
+          gcloud storage cp out/source_full.mp4 "gs://$BUCKET/fixtures/hawks-longer/source_full.mp4"
+          gcloud storage cp out/source_30s.mp4 "gs://$BUCKET/fixtures/hawks-longer/source_30s.mp4"
+          gcloud storage cp out/source_full.sha256 out/source_30s.sha256 out/probe.json out/probe_30s.json out/selection.json \
+            "gs://$BUCKET/fixtures/hawks-longer/"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-hawks-longer-source
+          path: out/
+          retention-days: 14
