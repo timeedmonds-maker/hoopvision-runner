@@ -1,0 +1,106 @@
+name: Find Hawks Multi-Angle Single Play
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/find-hawks-multiangle-play.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  find:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Scan official NBA single-play angle inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import concurrent.futures, html, json, re, urllib.request
+          from urllib.parse import urljoin, urlsplit, urlunsplit
+          GAME='0012500014'
+          EXCLUDE={301}
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131 Safari/537.36'
+          H={'User-Agent':UA,'Referer':'https://clips.nba.com/','Accept':'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'}
+
+          def get(url, timeout=8):
+            req=urllib.request.Request(url,headers=H)
+            with urllib.request.urlopen(req,timeout=timeout) as r:
+              return r.read().decode('utf-8','ignore')
+
+          def media_duration(master):
+            try:
+              txt=get(master,6)
+              if '#EXT-X-STREAM-INF' in txt:
+                lines=[x.strip() for x in txt.splitlines() if x.strip()]
+                variants=[]
+                for i,line in enumerate(lines):
+                  if not line.startswith('#EXT-X-STREAM-INF'): continue
+                  rs=re.search(r'RESOLUTION=(\d+)x(\d+)',line)
+                  child=next((q for q in lines[i+1:i+5] if not q.startswith('#')),None)
+                  if child is None: continue
+                  full=urljoin(master,child)
+                  if not urlsplit(full).query and urlsplit(master).query:
+                    b=urlsplit(master); f=urlsplit(full)
+                    full=urlunsplit((f.scheme,f.netloc,f.path,b.query,f.fragment))
+                  w=int(rs.group(1)) if rs else 0
+                  variants.append((w,full))
+                if variants:
+                  under=[v for v in variants if v[0] <= 1280]
+                  master=max(under or variants,key=lambda x:x[0])[1]
+                  txt=get(master,6)
+              vals=[float(x) for x in re.findall(r'#EXTINF:([0-9.]+)',txt)]
+              return round(sum(vals),3) if vals else None
+            except Exception:
+              return None
+
+          def one(ev):
+            try:
+              url=f'https://clips.nba.com/?gameNo={GAME}&eventNum={ev}&source=grs'
+              txt=get(url,8)
+              tm=re.search(r'<title[^>]*>(.*?)</title>',txt,re.I|re.S)
+              title=re.sub(r'\s+',' ',html.unescape(tm.group(1))).strip() if tm else ''
+              if 'Period:' not in title:
+                return None
+              angles=[]
+              for m in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',txt,re.I|re.S):
+                u=html.unescape(m.group(1).strip())
+                if '.m3u8' not in u: continue
+                attrs=m.group(2)
+                label=re.sub(r'<[^>]+>','',html.unescape(m.group(3))).strip()
+                am=re.search(r'data-angle="([^"]+)"',attrs,re.I)
+                angles.append({'label':label,'slug':am.group(1) if am else '','url':u})
+              if len(angles)<2:
+                return None
+              pbp=next((a for a in angles if a['label']=='Play by Play'),angles[0])
+              dur=media_duration(pbp['url'])
+              return {'event':ev,'title':title,'angle_count':len(angles),
+                      'labels':[a['label'] for a in angles],'play_by_play_duration_s':dur}
+            except Exception:
+              return None
+
+          rows=[]
+          with concurrent.futures.ThreadPoolExecutor(max_workers=20) as ex:
+            for rec in ex.map(one,[x for x in range(250,551) if x not in EXCLUDE]):
+              if rec: rows.append(rec)
+
+          # Prefer actual made-field-goal events, more angles, and longer native play coverage.
+          def score(r):
+            t=r['title'].lower()
+            play=int(any(k in t for k in ['dunk','layup','jump shot','hook shot','alley oop','finger roll','fadeaway']))
+            miss=int('miss ' in t)
+            return (play-miss, r['angle_count'], r['play_by_play_duration_s'] or 0)
+          rows=sorted(rows,key=score,reverse=True)
+          print('CANDIDATE_COUNT',len(rows))
+          for r in rows[:40]:
+            print('CANDIDATE',json.dumps(r,sort_keys=True))
+          open('hawks_multiangle_candidates.json','w').write(json.dumps(rows,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hawks-multiangle-single-play-candidates
+          path: hawks_multiangle_candidates.json
+          retention-days: 7
