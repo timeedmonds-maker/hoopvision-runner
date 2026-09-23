@@ -472,24 +472,33 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gcloud compute scp src/tools/release/dev_supervisor.py             "$TARGET_INSTANCE:/tmp/dev_supervisor.py"             --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet
-          gcloud compute ssh "$TARGET_INSTANCE"             --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet             --command='set -euo pipefail
-              SUP_PATH="$(sudo systemctl cat hoopvision-dev-supervisor --no-pager | grep -oE "/[^[:space:]]*dev_supervisor\.py" | head -n1)"
-              test -n "$SUP_PATH"
-              echo "Refreshing supervisor at $SUP_PATH"
-              sudo install -m 0755 /tmp/dev_supervisor.py "$SUP_PATH"
+          EXPECTED_SUP_SHA="$(sha256sum src/tools/release/dev_supervisor.py | awk '{print $1}')"
+          gcloud compute scp src/tools/release/dev_supervisor.py \
+            "$TARGET_INSTANCE:/tmp/dev_supervisor.py" \
+            --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet
+          gcloud compute ssh "$TARGET_INSTANCE" \
+            --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet \
+            --command="set -euo pipefail
+              SUP_PATH=\"\$(sudo systemctl cat hoopvision-dev-supervisor --no-pager | grep -oE '/[^[:space:]]*dev_supervisor\\.py' | head -n1)\"
+              test -n \"\$SUP_PATH\"
+              echo \"Refreshing supervisor at \$SUP_PATH\"
+              sudo install -m 0755 /tmp/dev_supervisor.py \"\$SUP_PATH\"
+              ACTUAL=\"\$(sudo sha256sum \"\$SUP_PATH\" | awk '{print \\$1}')\"
+              test \"\$ACTUAL\" = '$EXPECTED_SUP_SHA'
+              sudo grep -q 'hawks-event296-playbyplay' \"\$SUP_PATH\"
               sudo systemctl restart hoopvision-dev-supervisor
-              sudo systemctl is-active --quiet hoopvision-dev-supervisor
-              for i in $(seq 1 30); do
-                if sudo journalctl -u hoopvision-dev-supervisor -n 80 --no-pager | grep -q "hawks-event296-playbyplay"; then
-                  echo "Updated supervisor advertises hawks-event296-playbyplay"
+              for i in \$(seq 1 45); do
+                if sudo systemctl is-active --quiet hoopvision-dev-supervisor && \
+                   sudo journalctl -u hoopvision-dev-supervisor --since '-2 minutes' --no-pager | grep -q 'HOOPVISION_DEV_SUPERVISOR_LISTENING'; then
+                  echo 'Updated supervisor exact hash verified and listening'
                   exit 0
                 fi
                 sleep 2
               done
-              echo "Updated supervisor did not advertise event296 route" >&2
-              sudo journalctl -u hoopvision-dev-supervisor -n 120 --no-pager
-              exit 1'
+              echo 'Updated supervisor did not become listening-ready' >&2
+              sudo systemctl status hoopvision-dev-supervisor --no-pager || true
+              sudo journalctl -u hoopvision-dev-supervisor --since '-3 minutes' --no-pager || true
+              exit 1"
 
       - name: Enforce Hawks development observability timeout
         if: ${{ steps.benchmark.outputs.name == 'fresh-hawks-all-player' || steps.benchmark.outputs.name == 'hawks-event296-playbyplay' }}
