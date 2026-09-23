@@ -1,4 +1,5 @@
 name: Inspect Runtime OCI and SBOM
+# registry/control-plane only
 
 on:
   push:
