@@ -1,0 +1,39 @@
+name: Validate P1A Reference Guard
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-p1a-reference-guard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: d8321a25d374d1691f7f6552da0a4246b3997996
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact SHA
+        working-directory: src
+        run: |
+          test "$(git rev-parse HEAD)" = "d8321a25d374d1691f7f6552da0a4246b3997996"
+      - name: Run stdlib reference gate regressions
+        working-directory: src
+        run: |
+          python3 screen_tracker_nextgen/test_reference_manifest.py
+      - name: Compile modified acceptance path
+        working-directory: src
+        run: |
+          python3 -m py_compile             screen_tracker_nextgen/reference_manifest.py             screen_tracker_nextgen/evaluate_native_overlay.py             screen_tracker_nextgen/test_reference_manifest.py
