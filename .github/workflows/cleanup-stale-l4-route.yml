@@ -1,0 +1,70 @@
+name: Cleanup Stale HoopVision L4 Route Resources
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cleanup-stale-l4-route.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Delete only runner-owned ephemeral L4 route resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p cleanup-evidence
+          : > cleanup-evidence/deleted.txt
+
+          while IFS=',' read -r NAME ZONE; do
+            [ -n "$NAME" ] || continue
+            case "$NAME" in
+              hv-dev-l4-flex-*|hv-dev-l4-route-*|hv-dev-l4-probe-*|hv-dev-l4-cross-*)
+                echo "delete instance $NAME $ZONE" | tee -a cleanup-evidence/deleted.txt
+                gcloud compute instances delete "$NAME" \
+                  --project="$PROJECT_ID" --zone="$ZONE" --quiet || true
+                ;;
+            esac
+          done < <(gcloud compute instances list --project="$PROJECT_ID" \
+            --format='csv[no-heading](name,zone.basename())')
+
+          while IFS= read -r NAME; do
+            [ -n "$NAME" ] || continue
+            case "$NAME" in
+              hv-dev-l4-flex-*|hv-dev-l4-route-*|hv-dev-l4-probe-*|hv-dev-l4-cross-*)
+                echo "delete machine-image $NAME" | tee -a cleanup-evidence/deleted.txt
+                gcloud compute machine-images delete "$NAME" \
+                  --project="$PROJECT_ID" --quiet || true
+                ;;
+            esac
+          done < <(gcloud compute machine-images list --project="$PROJECT_ID" \
+            --format='value(name)')
+
+          gcloud compute instances list --project="$PROJECT_ID" \
+            --format='csv[no-heading](name,zone.basename(),status,machineType.basename())' \
+            | tee cleanup-evidence/instances-after.csv
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stale-l4-route-cleanup
+          path: cleanup-evidence/
+          retention-days: 7
