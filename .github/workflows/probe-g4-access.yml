@@ -1,4 +1,5 @@
 name: Probe G4 Access
+# read-only probe; creates no Compute Engine VM
 
 on:
   push:
