@@ -332,13 +332,53 @@ jobs:
                 gcloud compute machine-images delete "$MACHINE_IMAGE" --project="$PROJECT_ID" --quiet || true
               fi
               if [ -z "$FOUND_ZONE" ]; then
-                echo "No immediate or Flex-start L4 request could be submitted in asia-southeast1-a, -b, or -c." >&2
+                # Singapore is occasionally fully stocked out. The prepared
+                # machine image is global and the project uses the default
+                # auto-mode VPC, so try the nearest region with independently
+                # confirmed L4 quota. Cross-region workers are ephemeral.
+                CROSS_IMAGE="hv-dev-l4-cross-${GITHUB_RUN_ID}"
+                CROSS_INSTANCE="hv-dev-l4-cross-${GITHUB_RUN_ID}"
+                echo "Singapore L4 capacity exhausted; preparing cross-region clone."
+                gcloud compute machine-images create "$CROSS_IMAGE" \
+                  --project="$PROJECT_ID" \
+                  --source-instance="$L4_INSTANCE" \
+                  --source-instance-zone="$L4_ZONE"
+                for SPEC in \
+                  "asia-east1:asia-east1-a" \
+                  "asia-east1:asia-east1-b" \
+                  "asia-east1:asia-east1-c" \
+                  "us-west4:us-west4-a" \
+                  "us-west4:us-west4-b" \
+                  "us-west4:us-west4-c"; do
+                  REGION="${SPEC%%:*}"
+                  Z="${SPEC##*:}"
+                  echo "Trying prepared L4 clone $CROSS_INSTANCE in $Z"
+                  set +e
+                  gcloud compute instances create "$CROSS_INSTANCE" \
+                    --project="$PROJECT_ID" \
+                    --zone="$Z" \
+                    --source-machine-image="$CROSS_IMAGE" \
+                    --subnet=default
+                  RC=$?
+                  set -e
+                  if [ "$RC" -eq 0 ]; then
+                    FOUND_ZONE="$Z"
+                    FOUND_INSTANCE="$CROSS_INSTANCE"
+                    echo "TARGET_EPHEMERAL=1" >> "$GITHUB_ENV"
+                    echo "Selected cross-region prepared L4 target $FOUND_INSTANCE in $FOUND_ZONE"
+                    break
+                  fi
+                done
+                gcloud compute machine-images delete "$CROSS_IMAGE" --project="$PROJECT_ID" --quiet || true
+              fi
+              if [ -z "$FOUND_ZONE" ]; then
+                echo "No L4 capacity found in Singapore, asia-east1, or us-west4." >&2
                 exit 5
               fi
               echo "TARGET_ZONE=$FOUND_ZONE" >> "$GITHUB_ENV"
               echo "TARGET_INSTANCE=$FOUND_INSTANCE" >> "$GITHUB_ENV"
               echo "TARGET_SESSION=hv-dev-l4" >> "$GITHUB_ENV"
-              echo "Selected immediate L4 target $FOUND_INSTANCE in $FOUND_ZONE"
+              echo "Selected L4 target $FOUND_INSTANCE in $FOUND_ZONE"
               ;;
             g4)
               echo "GPU_PROFILE=g4" >> "$GITHUB_ENV"
@@ -572,6 +612,11 @@ jobs:
           if [ -z "${TARGET_INSTANCE:-}" ] || [ -z "${TARGET_ZONE:-}" ]; then echo "No GPU target was allocated; cleanup skipped."; exit 0; fi
           STATUS="$(gcloud compute instances describe "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --format='value(status)' 2>/dev/null || true)"
           echo "Prepared L4 post-run status: ${STATUS:-UNKNOWN}"
+          if [ "${TARGET_EPHEMERAL:-0}" = "1" ]; then
+            echo "Deleting ephemeral cross-region L4 target $TARGET_INSTANCE in $TARGET_ZONE"
+            gcloud compute instances delete "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet || true
+            exit 0
+          fi
           case "$STATUS" in
             RUNNING|STAGING|PROVISIONING|REPAIRING|SUSPENDING|SUSPENDED)
               gcloud compute instances stop "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --async || true
