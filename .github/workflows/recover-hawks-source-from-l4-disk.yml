@@ -1,0 +1,153 @@
+name: Recover Hawks Source from Stopped L4 Disk
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/recover-hawks-source-from-l4-disk.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  SOURCE_ZONE: asia-southeast1-c
+  SOURCE_INSTANCE: hv-dev-l4
+  REQUIRED_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  RUN_ID_TARGET: public-35832763006-1-c7530ea6fc2e
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Clone stopped L4 disk and inspect read-only on CPU VM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p recovery-evidence
+          SNAP="hv-source-snap-${GITHUB_RUN_ID}"
+          CLONE="hv-source-clone-${GITHUB_RUN_ID}"
+          VM="hv-source-cpu-${GITHUB_RUN_ID}"
+          echo "SNAP=$SNAP" >> "$GITHUB_ENV"
+          echo "CLONE=$CLONE" >> "$GITHUB_ENV"
+          echo "VM=$VM" >> "$GITHUB_ENV"
+
+          cleanup() {
+            set +e
+            gcloud compute instances delete "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --quiet >/dev/null 2>&1
+            gcloud compute disks delete "$CLONE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --quiet >/dev/null 2>&1
+            gcloud compute snapshots delete "$SNAP" --project="$PROJECT_ID" --quiet >/dev/null 2>&1
+          }
+          trap cleanup EXIT
+
+          STATUS="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(status)')"
+          echo "source_instance_status=$STATUS" | tee recovery-evidence/summary.txt
+          test "$STATUS" = "TERMINATED"
+
+          SOURCE_DISK="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(disks[0].source.basename())')"
+          SA="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(serviceAccounts[0].email)')"
+          SUBNET="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(networkInterfaces[0].subnetwork.basename())')"
+          echo "source_disk=$SOURCE_DISK" | tee -a recovery-evidence/summary.txt
+          echo "inspection_mode=READ_ONLY_CLONE_ON_CPU" | tee -a recovery-evidence/summary.txt
+
+          gcloud compute snapshots create "$SNAP"             --project="$PROJECT_ID"             --source-disk="$SOURCE_DISK"             --source-disk-zone="$SOURCE_ZONE"             --storage-location=asia-southeast1
+
+          gcloud compute disks create "$CLONE"             --project="$PROJECT_ID"             --zone="$SOURCE_ZONE"             --source-snapshot="$SNAP"             --type=pd-balanced
+
+          gcloud compute instances create "$VM"             --project="$PROJECT_ID"             --zone="$SOURCE_ZONE"             --machine-type=e2-standard-2             --image-family=ubuntu-2404-lts-amd64             --image-project=ubuntu-os-cloud             --boot-disk-size=20GB             --boot-disk-type=pd-balanced             --disk="name=$CLONE,device-name=hv-source,mode=ro,boot=no,auto-delete=no"             --service-account="$SA"             --scopes=cloud-platform             --subnet="$SUBNET"
+
+          for i in $(seq 1 24); do
+            if gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE"                  --command='echo ssh-ready' --quiet                  > /tmp/ssh.out 2>/tmp/ssh.err; then
+              cat /tmp/ssh.out
+              break
+            fi
+            if [ "$i" -eq 24 ]; then
+              cat /tmp/ssh.err >&2
+              exit 3
+            fi
+            sleep 5
+          done
+
+          cat > /tmp/scan.sh <<'EOS'
+          set -euo pipefail
+          sudo mkdir -p /mnt/hvsource
+          DEV="$(readlink -f /dev/disk/by-id/google-hv-source)"
+          echo "device=$DEV"
+          lsblk -f "$DEV" || true
+          MOUNTED=""
+          for C in "${DEV}1" "${DEV}p1" "$DEV"; do
+            [ -b "$C" ] || continue
+            if sudo mount -o ro "$C" /mnt/hvsource 2>/tmp/mount.err; then
+              MOUNTED="$C"
+              break
+            fi
+          done
+          if [ -z "$MOUNTED" ]; then
+            cat /tmp/mount.err >&2 || true
+            exit 4
+          fi
+          echo "mounted=$MOUNTED"
+          TARGET="/mnt/hvsource/srv/hoopvision/runs/public-35832763006-1-c7530ea6fc2e"
+          echo "target_dir_exists=$([ -d "$TARGET" ] && echo true || echo false)"
+          if [ -d "$TARGET" ]; then
+            find "$TARGET" -maxdepth 7 -type f -printf '%s\t%p\n' | sort
+          fi
+          echo "=== source_native candidates ==="
+          find /mnt/hvsource/srv/hoopvision -type f \( -name 'source_native.mp4' -o -name 'source_native.*' \) -print0 2>/dev/null |
+          while IFS= read -r -d '' P; do
+            H="$(sha256sum "$P" | awk '{print $1}')"
+            S="$(stat -c '%s' "$P")"
+            printf '%s\t%s\t%s\n' "$H" "$S" "$P"
+          done
+          echo "=== target run mp4 hashes ==="
+          if [ -d "$TARGET" ]; then
+            find "$TARGET" -type f -name '*.mp4' -print0 |
+            while IFS= read -r -d '' P; do
+              H="$(sha256sum "$P" | awk '{print $1}')"
+              S="$(stat -c '%s' "$P")"
+              printf '%s\t%s\t%s\n' "$H" "$S" "$P"
+            done
+          fi
+          EOS
+
+          gcloud compute scp /tmp/scan.sh "$VM":/tmp/scan.sh             --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --quiet
+          gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE"             --command='bash /tmp/scan.sh' --quiet             | tee recovery-evidence/disk-scan.txt
+
+          if grep -q "$REQUIRED_SHA256" recovery-evidence/disk-scan.txt; then
+            echo "exact_source_found=true" | tee -a recovery-evidence/summary.txt
+            FOUND_PATH="$(grep "$REQUIRED_SHA256" recovery-evidence/disk-scan.txt | head -1 | cut -f3-)"
+            echo "exact_source_path=$FOUND_PATH" | tee -a recovery-evidence/summary.txt
+          else
+            echo "exact_source_found=false" | tee -a recovery-evidence/summary.txt
+          fi
+
+          trap - EXIT
+          cleanup
+
+      - name: Cleanup recovery resources again
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          [ -n "${VM:-}" ] && gcloud compute instances delete "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --quiet || true
+          [ -n "${CLONE:-}" ] && gcloud compute disks delete "$CLONE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --quiet || true
+          [ -n "${SNAP:-}" ] && gcloud compute snapshots delete "$SNAP" --project="$PROJECT_ID" --quiet || true
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hoopvision-hawks-source-l4-disk-recovery
+          path: recovery-evidence/
+          retention-days: 14
