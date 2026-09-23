@@ -65,9 +65,9 @@ jobs:
 
           gcloud compute snapshots create "$SNAP"             --project="$PROJECT_ID"             --source-disk="$SOURCE_DISK"             --source-disk-zone="$SOURCE_ZONE"             --storage-location=asia-southeast1
 
-          gcloud compute disks create "$CLONE"             --project="$PROJECT_ID"             --zone="$SOURCE_ZONE"             --source-snapshot="$SNAP"             --type=pd-balanced
+          gcloud compute disks create "$CLONE"             --project="$PROJECT_ID"             --zone="$SOURCE_ZONE"             --source-snapshot="$SNAP"             --type=pd-standard
 
-          gcloud compute instances create "$VM"             --project="$PROJECT_ID"             --zone="$SOURCE_ZONE"             --machine-type=e2-standard-2             --image-family=ubuntu-2404-lts-amd64             --image-project=ubuntu-os-cloud             --boot-disk-size=20GB             --boot-disk-type=pd-balanced             --disk="name=$CLONE,device-name=hv-source,mode=ro,boot=no,auto-delete=no"             --service-account="$SA"             --scopes=cloud-platform             --subnet="$SUBNET"
+          gcloud compute instances create "$VM"             --project="$PROJECT_ID"             --zone="$SOURCE_ZONE"             --machine-type=e2-standard-2             --image-family=ubuntu-2404-lts-amd64             --image-project=ubuntu-os-cloud             --boot-disk-size=20GB             --boot-disk-type=pd-standard             --disk="name=$CLONE,device-name=hv-source,mode=ro,boot=no,auto-delete=no"             --service-account="$SA"             --scopes=cloud-platform             --subnet="$SUBNET"
 
           for i in $(seq 1 24); do
             if gcloud compute ssh "$VM" --project="$PROJECT_ID" --zone="$SOURCE_ZONE"                  --command='echo ssh-ready' --quiet                  > /tmp/ssh.out 2>/tmp/ssh.err; then
