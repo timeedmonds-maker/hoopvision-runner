@@ -1,0 +1,103 @@
+name: Inventory HoopVision Model Assets
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inventory-model-assets.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Inventory model cache metadata only
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p model-inventory
+
+          echo "bucket=$BUCKET" > model-inventory/summary.txt
+          echo "inventory_type=METADATA_ONLY_NO_MODEL_DOWNLOAD" >> model-inventory/summary.txt
+
+          set +e
+          gcloud storage ls --recursive "gs://$BUCKET/models/**"             > model-inventory/model-uris.txt 2> model-inventory/list.err
+          RC=$?
+          set -e
+          echo "list_rc=$RC" >> model-inventory/summary.txt
+          cat model-inventory/list.err || true
+
+          python3 - <<'PY'
+          from pathlib import Path
+          uris=[]
+          p=Path("model-inventory/model-uris.txt")
+          if p.exists():
+              for line in p.read_text().splitlines():
+                  line=line.strip()
+                  if line.startswith("gs://") and not line.endswith("/"):
+                      uris.append(line)
+          Path("model-inventory/model-uris-clean.txt").write_text(
+              "".join(x+"\n" for x in sorted(set(uris)))
+          )
+          print("model_object_count="+str(len(set(uris))))
+          PY
+          COUNT="$(wc -l < model-inventory/model-uris-clean.txt | tr -d ' ')"
+          echo "model_object_count=$COUNT" >> model-inventory/summary.txt
+
+          : > model-inventory/objects.ndjson
+          while IFS= read -r URI; do
+            [ -n "$URI" ] || continue
+            echo "DESCRIBE $URI"
+            if gcloud storage objects describe "$URI" --format=json                  > /tmp/model-object.json 2>/tmp/model-object.err; then
+              python3 - "$URI" /tmp/model-object.json >> model-inventory/objects.ndjson <<'PY'
+          import json,sys
+          uri=sys.argv[1]
+          d=json.load(open(sys.argv[2]))
+          out={
+              "uri":uri,
+              "bucket":d.get("bucket"),
+              "name":d.get("name"),
+              "generation":d.get("generation"),
+              "metageneration":d.get("metageneration"),
+              "size":d.get("size"),
+              "md5Hash":d.get("md5Hash"),
+              "crc32c":d.get("crc32c"),
+              "contentType":d.get("contentType"),
+              "etag":d.get("etag"),
+              "timeCreated":d.get("timeCreated"),
+              "updated":d.get("updated"),
+              "metadata":d.get("metadata") or {},
+          }
+          print(json.dumps(out,sort_keys=True))
+          PY
+            else
+              printf '{"uri":%s,"describe_error":%s}\n'                 "$(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$URI")"                 "$(python3 -c 'import json,sys; print(json.dumps(open(sys.argv[1]).read()))' /tmp/model-object.err)"                 >> model-inventory/objects.ndjson
+            fi
+          done < model-inventory/model-uris-clean.txt
+
+          cat model-inventory/summary.txt
+          cat model-inventory/objects.ndjson
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-model-asset-inventory
+          path: model-inventory/
+          retention-days: 14
