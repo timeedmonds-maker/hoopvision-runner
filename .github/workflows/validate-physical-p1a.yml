@@ -1,0 +1,39 @@
+name: Validate HoopVision Physical P1A
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-physical-p1a.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  physical-p1a:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: 5ded60b1b2d4da9629f2c1c6c4d249cfe192d79e
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install CPU test dependencies
+        run: python -m pip install -q numpy pandas scipy pytest
+
+      - name: Run physical lifecycle regressions
+        run: |
+          set -euo pipefail
+          python -m pytest -q screen_tracker_nextgen/test_fast_physical_paths.py
+          python -m py_compile screen_tracker_nextgen/build_fast_physical_paths.py
