@@ -1,11 +1,10 @@
 name: Create Pelicans GCS Upload Session
-# trigger one-time upload session
 
 on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/create-pelicans-upload-session.yml'
+      - ".github/workflows/create-pelicans-upload-session.yml"
   workflow_dispatch:
 
 permissions:
@@ -16,7 +15,7 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   OBJECT: fixtures/pelicans/0022500375-q4-montage/source_native.mp4
-  SIZE_BYTES: '58122310'
+  SIZE_BYTES: "58122310"
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -36,16 +35,22 @@ jobs:
           set -euo pipefail
           mkdir -p out
           TOKEN="$(gcloud auth print-access-token)"
-          ENCODED_OBJECT="$(python3 -c 'import os,urllib.parse; print(urllib.parse.quote(os.environ["OBJECT"], safe=""))')"
-          curl -fsS -D out/headers.txt -o out/body.json -X POST             -H "Authorization: Bearer $TOKEN"             -H "Content-Type: application/json; charset=UTF-8"             -H "X-Upload-Content-Type: video/mp4"             -H "X-Upload-Content-Length: $SIZE_BYTES"             "https://storage.googleapis.com/upload/storage/v1/b/$BUCKET/o?uploadType=resumable&name=$ENCODED_OBJECT"
-          SESSION_URL="$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/$/,"",$0); sub(/^[^:]*:[[:space:]]*/,"",$0); print; exit}' out/headers.txt)"
+          ENCODED_OBJECT="$(python3 - <<'PY'
+          import os, urllib.parse
+          print(urllib.parse.quote(os.environ["OBJECT"], safe=""))
+          PY
+          )"
+          curl -fsS -D out/headers.txt -o out/body.json -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json; charset=UTF-8" \
+            -H "X-Upload-Content-Type: video/mp4" \
+            -H "X-Upload-Content-Length: $SIZE_BYTES" \
+            "https://storage.googleapis.com/upload/storage/v1/b/$BUCKET/o?uploadType=resumable&name=$ENCODED_OBJECT"
+          SESSION_URL="$(grep -i '^location:' out/headers.txt | head -n1 | cut -d' ' -f2- | tr -d '\r\n')"
           test -n "$SESSION_URL"
-          printf '%s
-' "$SESSION_URL" > out/session_url.txt
-          printf '%s
-' "$OBJECT" > out/object.txt
-          printf '%s
-' "$SIZE_BYTES" > out/size.txt
+          echo "$SESSION_URL" > out/session_url.txt
+          echo "$OBJECT" > out/object.txt
+          echo "$SIZE_BYTES" > out/size.txt
       - uses: actions/upload-artifact@v4
         with:
           name: pelicans-gcs-upload-session
