@@ -17,10 +17,10 @@ permissions:
   actions: read
 
 env:
-  CORRECTED_SEGMENTS_RUN_ID: '35969360881'
+  CORRECTED_SEGMENTS_RUN_ID: '35972342927'
   CLUSTER_TRANSFER_RUN_ID: '35969840332'
   FROZEN_EVIDENCE_RUN_ID: '35891572936'
-  DEFAULT_SOURCE_SHA: 0882f1d3b05c682eef2d47770b8d870da4a125d4
+  DEFAULT_SOURCE_SHA: 8e5e62b7e1415b0aa097bde2595c7091f581b349
 
 jobs:
   replay:
@@ -132,6 +132,7 @@ jobs:
                   prev=row
           assert unsupported==[],unsupported
           assert qa['team_mapping']['qualification_claim']=='NONE_DIAGNOSTIC_ONLY'
+          assert (paths.tracking_frame.astype(int) >= 0).all()
           sam=json.load(open('corrected_p1a/sam31_decisions.json'))
           reason_counts={}
           for rec in sam.get('decisions',[]):
