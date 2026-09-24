@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     env:
-      DEFAULT_SOURCE_SHA: f7a89314e6faae1b4201cfd05c1d1cbf03d1e96f
+      DEFAULT_SOURCE_SHA: aebc718d97ab830525e44217988416c30285813c
     steps:
       - name: Resolve exact candidate
         id: source
