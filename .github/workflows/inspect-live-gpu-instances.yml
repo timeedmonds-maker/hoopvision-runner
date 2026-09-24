@@ -1,7 +1,7 @@
 name: Inspect Live GPU Instances
 # read-only state check
 # event296 capacity probe
-# live check during quote-safe supervisor retry
+# live check during simplified event296 retry
 
 on:
   push:
