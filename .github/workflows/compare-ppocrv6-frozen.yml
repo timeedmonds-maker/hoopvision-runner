@@ -1,0 +1,214 @@
+name: Compare PP-OCRv6 on Frozen Hawks Crops
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/compare-ppocrv6-frozen.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  EVIDENCE_RUN_ID: '35891572936'
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  DEFAULT_SOURCE_SHA: 1da51fdc429b3dd34c82e22a653c8f268815b477
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install exact comparison runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q torch==2.10.0 torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -q transformers==5.17.0 huggingface_hub safetensors pillow numpy pandas opencv-python-headless
+
+      - name: Run adapter unit tests
+        run: |
+          set -euo pipefail
+          python -m unittest hoopvision.tests.test_ppocrv6_jersey_ocr -v
+
+      - name: Recover exact source and frozen evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p frozen recovered
+          gh run download "$EVIDENCE_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-evidence-completed --dir frozen
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir recovered
+          test -f recovered/exact_source_native.mp4
+          cp recovered/exact_source_native.mp4 frozen/source_native.mp4
+          echo "$SOURCE_SHA256  frozen/source_native.mp4" | sha256sum -c -
+          test -f frozen/identity_segments/uniform_observations.csv
+          test -f frozen/identity_ocr/ocr_evidence.json
+          test -f frozen/identity_ocr/qa.json
+          test -f frozen/exact_lineup_roster.json
+
+      - name: Reconstruct identical frozen OCR input
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import pandas as pd
+          d=pd.read_csv('frozen/identity_segments/uniform_observations.csv')
+          d['tracking_frame']=d['frame']
+          d['frame']=d['source_frame'].astype(int)
+          d['track_id']=d['identity_segment_id'].astype(int)
+          d.to_csv('frozen/identity_tracks.csv',index=False)
+          open('frozen/context.json','w').write('{}\n')
+          PY
+
+      - name: Stage exact official PP-OCRv6 snapshots
+        run: |
+          set -euo pipefail
+          mkdir -p models/ppocrv6
+          python tools/stage_ppocrv6_assets.py --backend ppocrv6-medium --destination models/ppocrv6/medium
+          python tools/stage_ppocrv6_assets.py --backend ppocrv6-small --destination models/ppocrv6/small
+
+      - name: Run Medium on identical frozen crops
+        run: |
+          set -euo pipefail
+          mkdir -p medium
+          /usr/bin/time -v -o medium/time.txt             python tools/adams_event_track_identity_ocr.py               --tracks frozen/identity_tracks.csv               --source frozen/source_native.mp4               --context frozen/context.json               --roster frozen/exact_lineup_roster.json               --ocr-backend ppocrv6-medium               --ppocrv6-root models/ppocrv6               --out medium               --max-frames-per-track 18               --min-track-rows 4               --min-median-height 32               --device cpu
+          test -f medium/ocr_evidence.json
+
+      - name: Run Small on identical frozen crops
+        run: |
+          set -euo pipefail
+          mkdir -p small
+          /usr/bin/time -v -o small/time.txt             python tools/adams_event_track_identity_ocr.py               --tracks frozen/identity_tracks.csv               --source frozen/source_native.mp4               --context frozen/context.json               --roster frozen/exact_lineup_roster.json               --ocr-backend ppocrv6-small               --ppocrv6-root models/ppocrv6               --out small               --max-frames-per-track 18               --min-track-rows 4               --min-median-height 32               --device cpu
+          test -f small/ocr_evidence.json
+
+      - name: Build frozen-crop comparison
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, re
+          from pathlib import Path
+
+          legacy=json.load(open('frozen/identity_ocr/ocr_evidence.json'))
+          roster=json.load(open('frozen/exact_lineup_roster.json'))
+          valid={str(p['jersey']) for t in roster['teams'].values() for p in t['players']}
+
+          def flatten(rows, conf_key):
+              out={}
+              for rec in rows:
+                  tid=int(rec['track_id'])
+                  for r in rec.get('reads',[]) or []:
+                      crop=str(r.get('crop'))
+                      canon=r.get('canon')
+                      canon=None if canon is None else str(canon)
+                      conf=float(r.get(conf_key,0) or 0)
+                      out[(tid,crop)]={'canon':canon,'score':conf,'raw':r.get('raw')}
+              return out
+
+          legacy_reads=flatten(legacy,'parseq_conf')
+          legacy_high={k:v for k,v in legacy_reads.items() if v['canon'] in valid and v['score']>=.75}
+
+          report={
+              'schema':'hoopvision.ppocrv6-frozen-crop-comparison.v1',
+              'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
+              'reference_status':'NO_INDEPENDENT_JERSEY_CROP_GROUND_TRUTH_AVAILABLE',
+              'warning':'Historical restricted reads are comparator evidence only, not ground truth. Accuracy/precision remain UNKNOWN until independent labels are supplied.',
+              'models':{}
+          }
+          for name in ('medium','small'):
+              rows=json.load(open(f'{name}/ocr_evidence.json'))
+              reads=flatten(rows,'ocr_conf')
+              exact={k:v for k,v in reads.items() if v['canon'] is not None}
+              roster_reads={k:v for k,v in exact.items() if v['canon'] in valid}
+              overlaps=set(reads)&set(legacy_high)
+              high_overlaps={k for k in overlaps if reads[k]['score']>=.75 and reads[k]['canon'] in valid}
+              agreements=[k for k in high_overlaps if reads[k]['canon']==legacy_high[k]['canon']]
+              disagreements=[k for k in high_overlaps if reads[k]['canon']!=legacy_high[k]['canon']]
+              thresholds={}
+              for floor in (.50,.60,.70,.75,.80,.90,.95):
+                  accepted={k:v for k,v in reads.items() if v['canon'] in valid and v['score']>=floor}
+                  ov=set(accepted)&set(legacy_high)
+                  thresholds[str(floor)]={
+                      'diagnostic_accepted_roster_reads':len(accepted),
+                      'legacy_high_overlap':len(ov),
+                      'legacy_high_agreements':sum(accepted[k]['canon']==legacy_high[k]['canon'] for k in ov),
+                      'legacy_high_disagreements':sum(accepted[k]['canon']!=legacy_high[k]['canon'] for k in ov),
+                  }
+              qa=json.load(open(f'{name}/qa.json'))
+              report['models'][name]={
+                  'backend':qa.get('ocr_backend'),
+                  'crop_read_count':len(reads),
+                  'exact_one_or_two_digit_read_count':len(exact),
+                  'roster_number_read_count':len(roster_reads),
+                  'named_tracklets':qa.get('named_tracklets'),
+                  'unique_named_players':qa.get('unique_named_players'),
+                  'ppocrv6_identity_votes_enabled':qa.get('ppocrv6_identity_votes_enabled'),
+                  'ocr_min_score':qa.get('ocr_min_score'),
+                  'threshold_diagnostics':thresholds,
+                  'high_score_legacy_comparator_overlap':len(high_overlaps),
+                  'high_score_legacy_agreements':len(agreements),
+                  'high_score_legacy_disagreements':len(disagreements),
+                  'disagreements':[{
+                      'track_id':k[0],'crop':k[1],
+                      'candidate':reads[k],
+                      'historical_restricted_comparator':legacy_high[k],
+                  } for k in sorted(disagreements)],
+                  'time_v_path':f'{name}/time.txt',
+              }
+          Path('ppocrv6_comparison.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_PPOCRV6_FROZEN_COMPARISON='+json.dumps(report,sort_keys=True))
+          assert report['models']['medium']['ppocrv6_identity_votes_enabled'] is False
+          assert report['models']['small']['ppocrv6_identity_votes_enabled'] is False
+          PY
+
+      - name: Upload PP-OCRv6 comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-ppocrv6-frozen-comparison
+          path: |
+            ppocrv6_comparison.json
+            medium/qa.json
+            medium/ocr_evidence.json
+            medium/ocr_decode_hashes.json
+            medium/time.txt
+            medium/*_contact.jpg
+            small/qa.json
+            small/ocr_evidence.json
+            small/ocr_decode_hashes.json
+            small/time.txt
+            small/*_contact.jpg
+            models/ppocrv6/medium/hoopvision_snapshot.json
+            models/ppocrv6/small/hoopvision_snapshot.json
+          if-no-files-found: warn
+          retention-days: 14
