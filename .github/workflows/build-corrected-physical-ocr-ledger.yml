@@ -1,0 +1,115 @@
+name: Build Corrected Physical OCR Coverage Ledger
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-corrected-physical-ocr-ledger.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CORRECTED_P1A_RUN_ID: '35970806726'
+  OCR_RUN_ID: '35968619404'
+  DEFAULT_SOURCE_SHA: a9452e2852471fd0265590c9173b934e6517c797
+
+jobs:
+  ledger:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install ledger runtime
+        run: python -m pip install -q 'numpy<2' pandas
+
+      - name: Recover corrected physical paths and OCR evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p p1a ocr
+          gh run download "$CORRECTED_P1A_RUN_ID" \
+            --repo timeedmonds-maker/hoopvision-runner \
+            --name hoopvision-corrected-p1a-replay \
+            --dir p1a
+          gh run download "$OCR_RUN_ID" \
+            --repo timeedmonds-maker/hoopvision-runner \
+            --name hoopvision-ppocrv6-localised-comparison \
+            --dir ocr
+          test -s p1a/physical_paths.csv
+          test -s ocr/localisation/number_localisation.csv
+          test -s ocr/localised_medium/evidence.csv
+          test -s ocr/localised_small/evidence.csv
+
+      - name: Build fail-closed physical-fragment OCR ledger
+        run: |
+          set -euo pipefail
+          python tools/build_identity_coverage_ledger.py \
+            --observations p1a/physical_paths.csv \
+            --localisation ocr/localisation/number_localisation.csv \
+            --medium-evidence ocr/localised_medium/evidence.csv \
+            --small-evidence ocr/localised_small/evidence.csv \
+            --root-column physical_path_id \
+            --frame-column tracking_frame \
+            --out ledger
+          python - <<'PY'
+          import json
+          import pandas as pd
+          q=json.load(open('ledger/identity_coverage_qa.json'))
+          d=pd.read_csv('ledger/identity_coverage_ledger.csv')
+          assert q['candidate_predictions_are_ground_truth'] is False
+          assert q['identity_accuracy']=='UNKNOWN'
+          summary={
+              'schema':'hoopvision.corrected-physical-ocr-ledger-summary.v1',
+              'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+              'physical_fragments':int(q['physical_roots']),
+              'fragments_with_localised_crops':int(q['roots_with_localised_crops']),
+              'associated_crop_references':int(q['associated_crop_references']),
+              'input_localised_crop_references':int(q['input_localised_crop_references']),
+              'fragments_with_medium_raw_digits':int((d.medium_raw_digit_reads.fillna(0)>0).sum()),
+              'fragments_with_small_raw_digits':int((d.small_raw_digit_reads.fillna(0)>0).sum()),
+              'medium_raw_digit_reads':int(d.medium_raw_digit_reads.fillna(0).sum()),
+              'small_raw_digit_reads':int(d.small_raw_digit_reads.fillna(0).sum()),
+              'identity_accuracy':'UNKNOWN',
+          }
+          open('ledger/summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_CORRECTED_PHYSICAL_OCR_LEDGER='+json.dumps(summary,sort_keys=True))
+          PY
+
+      - name: Upload corrected physical OCR ledger
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-corrected-physical-ocr-ledger
+          path: ledger/
+          if-no-files-found: error
+          retention-days: 14
