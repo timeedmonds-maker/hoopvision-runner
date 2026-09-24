@@ -26,7 +26,7 @@ env:
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
   EVIDENCE_RUN_ID: '35891572936'
   SOURCE_RECOVERY_RUN_ID: '35923251814'
-  DEFAULT_SOURCE_SHA: 0fad5d19f3d5a30ab9dee6de1b1bf2a3eb6acef1
+  DEFAULT_SOURCE_SHA: bf358095d905fa3a422c44afe862c33908e71bb8
 
 jobs:
   compare:
@@ -101,7 +101,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p commercial
-          python tools/adams_event_track_identity_ocr.py             --tracks frozen/identity_tracks.csv             --source frozen/source_native.mp4             --context frozen/context.json             --roster frozen/exact_lineup_roster.json             --ocr-backend commercial             --ocr-model commercial-assets/ppocrv5_latin_rec.onnx             --ocr-dict commercial-assets/ppocrv5_latin_dict.txt             --out commercial             --max-frames-per-track 18             --min-track-rows 4             --min-median-height 32             --device cpu
+          python tools/adams_event_track_identity_ocr.py             --tracks frozen/identity_tracks.csv             --source frozen/source_native.mp4             --context frozen/context.json             --roster frozen/exact_lineup_roster.json             --ocr-backend commercial             --ocr-model commercial-assets/ppocrv5_latin_rec.onnx             --ocr-dict commercial-assets/ppocrv5_latin_dict.txt             --out commercial             --max-frames-per-track 18             --min-track-rows 4             --min-median-height 32             --device cpu \
+            --diagnostic-variants baseline,pad10,gray,clahe,up2_lanczos,up3_lanczos
 
       - name: Compare commercial challenger with frozen legacy evidence
         run: |
@@ -171,6 +172,23 @@ jobs:
                       'legacy_high_disagreements':disagree,
                   })
 
+          variants=json.load(open('commercial/variant_diagnostics.json'))
+          by_variant={}
+          for row in variants:
+              name=str(row.get('variant'))
+              rec=by_variant.setdefault(name,{'rows':0,'greedy_roster_high':0,'greedy_roster_any':0,'mean_greedy_conf':0.0})
+              rec['rows']+=1
+              greedy=str(row.get('greedy_text') or '').strip()
+              conf=float(row.get('greedy_confidence',0) or 0)
+              rec['mean_greedy_conf']+=conf
+              if greedy in valid:
+                  rec['greedy_roster_any']+=1
+                  if conf>=0.75:
+                      rec['greedy_roster_high']+=1
+          for rec in by_variant.values():
+              if rec['rows']:
+                  rec['mean_greedy_conf']=round(rec['mean_greedy_conf']/rec['rows'],6)
+
           report={
               'schema':'hoopvision.commercial-ocr-comparison.v1',
               'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
@@ -192,6 +210,7 @@ jobs:
               'constrained_ctc_rows':len(constrained),
               'constrained_threshold_sweep':sweeps,
               'constrained_note':'Threshold sweep is diagnostic only. Legacy reads are a comparator, not ground truth; no constrained candidate is authorised for identity until independently adjudicated.',
+              'crop_variant_summary':by_variant,
               'note':'Legacy output is a comparator, not ground truth. Independent crop adjudication remains required for release-quality equivalence.'
           }
           open('commercial/comparison.json','w').write(json.dumps(report,indent=2,sort_keys=True)+'\n')
@@ -212,6 +231,7 @@ jobs:
             commercial/ocr_evidence.json
             commercial/track_identity.csv
             commercial/comparison.json
+            commercial/variant_diagnostics.json
             commercial/*_contact.jpg
           if-no-files-found: error
           retention-days: 7
