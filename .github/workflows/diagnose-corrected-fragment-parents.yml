@@ -1,0 +1,95 @@
+name: Diagnose Corrected Fragment Parents
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-corrected-fragment-parents.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  P1A_RUN_ID: '35972465174'
+  GAP_RUN_ID: '35975494468'
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'numpy<2' pandas
+      - name: Recover corrected evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p p1a gaps
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir p1a
+          gh run download "$GAP_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-fragment-gap-analysis --dir gaps
+      - name: Rank temporal same-team parent candidates without accepting joins
+        run: |
+          python - <<'PY'
+          import json, math, pandas as pd
+          p=pd.read_csv('p1a/physical_paths.csv')
+          u=pd.read_csv('gaps/uncovered_fragments.csv')
+          root='physical_path_id'
+          time='time_s'
+          team=next(c for c in ['team','team_id','team_code'] if c in p.columns)
+          bbox=['x1','y1','x2','y2']
+          def endpoint(g,first):
+              r=g.sort_values(time).iloc[0 if first else -1]
+              cx=(float(r.x1)+float(r.x2))/2; cy=(float(r.y1)+float(r.y2))/2
+              h=max(1.,float(r.y2)-float(r.y1)); w=max(1.,float(r.x2)-float(r.x1))
+              return float(r[time]),cx,cy,w,h
+          groups={str(k):g for k,g in p.groupby(root)}
+          meta={}
+          for rid,g in groups.items():
+              vals=g[team].dropna().astype(str); tm=vals.mode().iloc[0] if len(vals) else ''
+              meta[rid]=(tm,endpoint(g,True),endpoint(g,False))
+          out=[]
+          for _,row in u.iterrows():
+              rid=str(row[root]); tm,start,end=meta[rid]
+              for other,(otm,ostart,oend) in meta.items():
+                  if other==rid or otm!=tm: continue
+                  # predecessor ending before this fragment starts, or successor starting after it ends
+                  candidates=[]
+                  gap=start[0]-oend[0]
+                  if 0 <= gap <= 1.5:
+                      dist=math.hypot(start[1]-oend[1],start[2]-oend[2])/max(start[4],oend[4],1.)
+                      scale=max(start[4]/oend[4],oend[4]/start[4])
+                      candidates.append(('predecessor',gap,dist,scale))
+                  gap=ostart[0]-end[0]
+                  if 0 <= gap <= 1.5:
+                      dist=math.hypot(ostart[1]-end[1],ostart[2]-end[2])/max(ostart[4],end[4],1.)
+                      scale=max(ostart[4]/end[4],end[4]/ostart[4])
+                      candidates.append(('successor',gap,dist,scale))
+                  for direction,gap,dist,scale in candidates:
+                      # descriptive score only; never an acceptance gate
+                      score=gap + 0.25*dist + 0.25*max(0.,scale-1.)
+                      out.append({'fragment':rid,'team':tm,'direction':direction,'candidate_parent':other,'gap_s':gap,'center_distance_player_heights':dist,'height_scale_ratio':scale,'diagnostic_score':score,'join_authorized':False})
+          d=pd.DataFrame(out)
+          if len(d):
+              d=d.sort_values(['fragment','direction','diagnostic_score'])
+              d['rank']=d.groupby(['fragment','direction']).cumcount()+1
+          d.to_csv('parent_candidates.csv',index=False)
+          top=d[d['rank']<=2].copy() if len(d) else d
+          top.to_csv('top_parent_candidates.csv',index=False)
+          summary={'schema':'hoopvision.corrected-fragment-parent-diagnostic.v1','qualification_claim':'NONE_DIAGNOSTIC_ONLY','uncovered_fragments':int(len(u)),'long_uncovered_fragments':int((u.duration_s>1.0).sum()),'candidate_rows':int(len(d)),'fragments_with_temporal_same_team_candidate':int(d.fragment.nunique()) if len(d) else 0,'joins_applied':0,'motion_only_joins_applied':0,'identity_accuracy':'UNKNOWN','note':'Temporal/geometry ranking is diagnostic only. Existing P1A/SAM ambiguity and continuity gates remain authoritative.'}
+          open('summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_FRAGMENT_PARENT_DIAGNOSTIC='+json.dumps(summary,sort_keys=True))
+          print(top.to_string(index=False) if len(top) else 'NO_CANDIDATES')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-corrected-fragment-parent-diagnostic
+          path: |
+            parent_candidates.csv
+            top_parent_candidates.csv
+            summary.json
+          if-no-files-found: error
+          retention-days: 14
