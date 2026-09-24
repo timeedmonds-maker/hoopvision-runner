@@ -26,7 +26,7 @@ env:
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
   EVIDENCE_RUN_ID: '35891572936'
   SOURCE_RECOVERY_RUN_ID: '35923251814'
-  DEFAULT_SOURCE_SHA: b0c8ee16b1f338f018c62ef4e9c5ad1bf66f2273
+  DEFAULT_SOURCE_SHA: 0fad5d19f3d5a30ab9dee6de1b1bf2a3eb6acef1
 
 jobs:
   compare:
@@ -139,6 +139,38 @@ jobs:
               for k in sorted(set(old_high)&set(new_high))
               if old_high[k][0]!=new_high[k][0]
           ]
+          constrained={}
+          for rec in commercial:
+              tid=int(rec['track_id'])
+              for r in rec.get('reads',[]) or []:
+                  crop=str(r.get('crop'))
+                  candidate=r.get('roster_top_candidate')
+                  if candidate is None:
+                      continue
+                  constrained[(tid,crop)]={
+                      'candidate':str(candidate),
+                      'absolute_score':float(r.get('roster_absolute_score',0) or 0),
+                      'margin_logp':float(r.get('roster_margin_logp',0) or 0),
+                  }
+          sweeps=[]
+          for absolute_floor in (0.50,0.60,0.70,0.80,0.90):
+              for margin_floor in (0.5,1.0,2.0,3.0,5.0):
+                  accepted={
+                      k:v for k,v in constrained.items()
+                      if v['absolute_score']>=absolute_floor and v['margin_logp']>=margin_floor
+                  }
+                  overlap=set(accepted)&set(old_high)
+                  agree=sum(1 for k in overlap if accepted[k]['candidate']==old_high[k][0])
+                  disagree=sum(1 for k in overlap if accepted[k]['candidate']!=old_high[k][0])
+                  sweeps.append({
+                      'absolute_floor':absolute_floor,
+                      'margin_floor':margin_floor,
+                      'accepted_count':len(accepted),
+                      'legacy_high_overlap':len(overlap),
+                      'legacy_high_agreements':agree,
+                      'legacy_high_disagreements':disagree,
+                  })
+
           report={
               'schema':'hoopvision.commercial-ocr-comparison.v1',
               'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
@@ -157,6 +189,9 @@ jobs:
               'high_conf_overlap':len(set(old_high)&set(new_high)),
               'high_conf_agreements':agreed,
               'high_conf_disagreements':disagreed,
+              'constrained_ctc_rows':len(constrained),
+              'constrained_threshold_sweep':sweeps,
+              'constrained_note':'Threshold sweep is diagnostic only. Legacy reads are a comparator, not ground truth; no constrained candidate is authorised for identity until independently adjudicated.',
               'note':'Legacy output is a comparator, not ground truth. Independent crop adjudication remains required for release-quality equivalence.'
           }
           open('commercial/comparison.json','w').write(json.dumps(report,indent=2,sort_keys=True)+'\n')
