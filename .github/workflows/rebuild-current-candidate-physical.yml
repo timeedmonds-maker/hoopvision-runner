@@ -1,0 +1,151 @@
+name: Rebuild Current Candidate Physical Graph
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/rebuild-current-candidate-physical.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 4360c2c01bda12386bb75635da923b0049304347
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  BASELINE_P1A_RUN_ID: '35972465174'
+  CLUSTER_TRANSFER_RUN_ID: '35969840332'
+  FROZEN_EVIDENCE_RUN_ID: '35891572936'
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install exact CPU tracking/physical runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision scipy rich requests 'jsonargparse<5' pydeprecate onnxruntime pytest
+          git clone -q https://github.com/roboflow/trackers.git /tmp/trackers
+          git -C /tmp/trackers checkout -q 3fb83d1618f29b7fdd4617757b6894e4ec71146d
+          python -m pip install -q -e /tmp/trackers --no-deps
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+      - name: Recover exact source, detector, team map, roster and baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/models work/transfer work/frozen work/baseline work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o work/models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  work/models/rfdetr_m_640.onnx" | sha256sum -c -
+          gh run download "$CLUSTER_TRANSFER_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-cluster-transfer --dir work/transfer
+          gh run download "$FROZEN_EVIDENCE_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-evidence-completed --dir work/frozen
+          gh run download "$BASELINE_P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir work/baseline
+          test -s work/transfer/cluster_transfer.json
+          test -s work/frozen/exact_lineup_roster.json
+          test -s work/baseline/physical_paths.csv
+      - name: Replay actual current collapse and mask-free McByte at 15 Hz
+        run: |
+          PYTHONPATH="$PWD/src/tools:$PWD/src" python - <<'PY'
+          import sys,json,time
+          from pathlib import Path
+          import cv2,pandas as pd
+          sys.path.insert(0,'/tmp/object-detection-eval/src')
+          from object_detection_eval.inference.detectors.rfdetr import RFDETRDetector
+          import adams_screen_prod_poc as base
+          from screen_tracker_nextgen.run_angle_tracking_mcbyte import TimeConsistentMcByte
+
+          assert base.PLAYER_NMS_IOU==0.55,base.PLAYER_NMS_IOU
+          detector=RFDETRDetector('work/models/rfdetr_m_640.onnx',base.LABEL_MAP,confidence_threshold=.045,num_select=300,input_height=640,input_width=640,providers=['CPUExecutionProvider'])
+          tracker=TimeConsistentMcByte(analysis_fps=15.0,enable_cmc=True,cmc_method='sparseOptFlow',track_activation_threshold=.30,high_conf_det_threshold=.25)
+          cap=cv2.VideoCapture('work/source_native.mp4')
+          fps=float(cap.get(cv2.CAP_PROP_FPS) or 30000/1001); W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+          start=int(round(4*fps)); end=int(round(16*fps)); every=max(1,int(round(fps/15.0)))
+          rows=[]; counts=[]; t0=time.monotonic()
+          for rel,absf in enumerate(range(start,end)):
+              if rel%every:continue
+              cap.set(cv2.CAP_PROP_POS_FRAMES,absf); ok,frame=cap.read()
+              if not ok:continue
+              all_dets=detector.predict(frame)
+              dets=[d for d in all_dets if float(d.confidence)>=.20]
+              players=base.collapse_players(base.to_sv(dets,W,H,base.PLAYER_CLASSES))
+              tracked=tracker.update(players,frame=frame,timestamp=rel/fps)
+              valid=0
+              if len(tracked):
+                  for box,tid,cf in zip(tracked.xyxy,tracked.tracker_id,tracked.confidence):
+                      if int(tid)<0:continue
+                      valid+=1
+                      rows.append({'source_frame_rel':int(rel),'source_frame_abs':int(absf),'time_s':float(4+rel/fps),'track_id':int(tid),'x1':float(box[0]),'y1':float(box[1]),'x2':float(box[2]),'y2':float(box[3]),'conf':float(cf)})
+              counts.append({'tracking_frame':int(rel),'time_s':float(4+rel/fps),'post_nms_detections':int(len(players)),'mcbyte_tracks':int(valid)})
+          cap.release()
+          pd.DataFrame(rows).to_csv('work/out/current_tracks.csv',index=False)
+          c=pd.DataFrame(counts); c.to_csv('work/out/current_frame_counts.csv',index=False)
+          s={'candidate_sha':'4360c2c01bda12386bb75635da923b0049304347','player_nms_iou':base.PLAYER_NMS_IOU,'tracking_fps':15.0,'sampled_frames':len(c),'frames_mcbyte_ge10':int((c.mcbyte_tracks>=10).sum()),'frames_mcbyte_gt10':int((c.mcbyte_tracks>10).sum()),'unique_raw_track_ids':int(pd.DataFrame(rows).track_id.nunique()),'track_rows':len(rows),'elapsed_s':round(time.monotonic()-t0,3)}
+          Path('work/out/tracking_summary.json').write_text(json.dumps(s,indent=2)+'\n')
+          print('HOOPVISION_CURRENT_TRACKING='+json.dumps(s,sort_keys=True))
+          PY
+      - name: Build current soft-uniform identity segments
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$PWD/src" python src/screen_tracker_nextgen/build_identity_segments.py             --tracks work/out/current_tracks.csv             --source work/source_native.mp4             --out-dir work/out/segments
+      - name: Build current fail-closed physical graph
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$PWD/src" python -m screen_tracker_nextgen.build_fast_physical_paths             --observations work/out/segments/uniform_observations.csv             --segments work/out/segments/segments.csv             --team-map-json work/transfer/cluster_transfer.json             --roster work/frozen/exact_lineup_roster.json             --out-dir work/out/p1a
+          PYTHONPATH="$PWD/src" python -m screen_tracker_nextgen.diagnose_physical_first_loss             --observations work/out/segments/uniform_observations.csv             --physical-qa work/out/p1a/physical_paths_qa.json             --out work/out/p1a/first_loss_diagnostic.json
+      - name: Compare current graph with pre-NMS/resume baseline
+        run: |
+          python - <<'PY'
+          import json,pandas as pd
+          from pathlib import Path
+          b=pd.read_csv('work/baseline/physical_paths.csv')
+          c=pd.read_csv('work/out/p1a/physical_paths.csv')
+          qa=json.load(open('work/out/p1a/physical_paths_qa.json'))
+          def frame(df):
+              return df.groupby('tracking_frame').agg(time_s=('time_s','first'),roots=('physical_path_id','nunique')).reset_index()
+          def summ(df):
+              x=frame(df)
+              return {'fragments':int(df.physical_path_id.astype(str).nunique()),'sampled_frames':int(len(x)),'frames_10_roots':int((x.roots==10).sum()),'frames_gt10_roots':int((x.roots>10).sum()),'frames_lt10_roots':int((x.roots<10).sum()),'min_roots':int(x.roots.min()),'median_roots':float(x.roots.median()),'max_roots':int(x.roots.max())}
+          unsafe=[]
+          for (_,pid),g in c.sort_values(['team','physical_path_id','time_s']).groupby(['team','physical_path_id'],sort=False):
+              prev=None
+              for r in g.itertuples(index=False):
+                  if prev is not None:
+                      try:d=json.loads(str(r.association_detail or '{}'))
+                      except:d={}
+                      if int(r.raw_source_track_id)!=int(prev.raw_source_track_id) and int(r.source_track_id)!=int(prev.source_track_id) and not (d.get('same_raw_track') or d.get('same_source_track') or d.get('same_sam31_continuity_group')):
+                          unsafe.append({'team':str(r.team),'physical_path_id':str(pid),'t0':float(prev.time_s),'t1':float(r.time_s)})
+                  prev=r
+          assert not unsafe,unsafe
+          bs,cs=summ(b),summ(c)
+          f=frame(b).merge(frame(c),on=['tracking_frame','time_s'],how='outer',suffixes=('_baseline','_current')).sort_values('tracking_frame')
+          f.to_csv('work/out/root_coverage_comparison.csv',index=False)
+          rep={'schema':'hoopvision.current-candidate-physical-rebuild.v1','candidate_sha':'4360c2c01bda12386bb75635da923b0049304347','source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a','changes':['corrected_raw11','player_nms_iou_0.55','uniform_colour_soft_evidence','same_raw_resume_0.90s'],'baseline':bs,'current':cs,'fragment_delta':cs['fragments']-bs['fragments'],'frames_10_delta':cs['frames_10_roots']-bs['frames_10_roots'],'unsupported_cross_track_accepts':unsafe,'sam31_decision_count':int(qa.get('sam31_decision_count',0)),'identity_authorized':False,'qualification_claim':'NONE_DIAGNOSTIC_ONLY'}
+          Path('work/out/current_physical_summary.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_CURRENT_PHYSICAL='+json.dumps(rep,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-current-candidate-physical
+          path: work/out/
+          retention-days: 14
