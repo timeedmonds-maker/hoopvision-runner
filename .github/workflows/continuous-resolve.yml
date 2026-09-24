@@ -38,6 +38,7 @@ jobs:
             case "$cycle" in
               1) wf=extract-corrected-p1a-continuity.yml ;;
               2) wf=validate-control-plane.yml ;;
+              3) wf=build-corrected-identity-reachability.yml ;;
               *) echo "No further pre-authorized deterministic stage. Fail closed for expert reasoning."; break ;;
             esac
             gh workflow run "$wf" --repo "$repo" --ref main
