@@ -21,7 +21,7 @@ env:
   DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
   EVIDENCE_RUN_ID: '35891572936'
   SOURCE_RECOVERY_RUN_ID: '35923251814'
-  DEFAULT_SOURCE_SHA: ae31ad6d3d76346e1dbc299b516ea838427f4f6e
+  DEFAULT_SOURCE_SHA: 788789dd3cdf91ce265dd77fba4827127d6b33e1
 
 jobs:
   localise:
@@ -88,7 +88,7 @@ jobs:
           q=json.load(open('localisation/qa.json'))
           d=pd.read_csv('localisation/number_localisation.csv')
           assert q['rules']['reruns_tracking'] is False
-          assert q['rules']['production_number_class'] == 2
+          assert q['rules']['production_number_class'] == 3
           assert abs(float(q['rules']['production_detector_confidence_threshold']) - 0.045) < 1e-12
           assert q['rules']['production_ios_threshold_preserved'] is True
           assert q['rules']['production_crop_padding_px'] == 4
