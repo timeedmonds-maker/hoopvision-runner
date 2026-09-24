@@ -1,0 +1,75 @@
+name: Validate Independent OCR Labels
+
+on:
+  workflow_dispatch:
+    inputs:
+      review_run_id:
+        description: Run containing independently completed hoopvision-independent-ocr-review artifact
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q pandas
+      - name: Recover independently reviewed package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVIEW_RUN_ID: ${{ inputs.review_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir review
+          gh run download "$REVIEW_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-independent-ocr-review --dir review
+          test -s review/blind_reference_template.csv
+          test -s review/crop_manifest.json
+      - name: Validate references without generating labels
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          import pandas as pd
+          d=pd.read_csv('review/blind_reference_template.csv', dtype=str).fillna('')
+          required=['crop_reference','review_readability','review_exact_number','review_complete_number_visible','reviewer','review_status']
+          missing=[c for c in required if c not in d.columns]
+          assert not missing, f'missing columns: {missing}'
+          assert len(d)==554, f'expected 554 rows, got {len(d)}'
+          manifest=json.loads(Path('review/crop_manifest.json').read_text())
+          assert len(manifest)==554, f'expected 554 manifest rows, got {len(manifest)}'
+          refs=set(d.crop_reference)
+          assert len(refs)==554, 'crop references must be unique'
+          for m in manifest:
+              assert m['crop_reference'] in refs
+              p=Path('review')/m['crop_reference']
+              assert p.exists(), f'missing crop {p}'
+              assert hashlib.sha256(p.read_bytes()).hexdigest()==m['sha256'], f'hash mismatch {p}'
+          reviewed=d.review_status.str.upper().eq('REVIEWED')
+          assert reviewed.all(), f'independent review incomplete: {int(reviewed.sum())}/554 reviewed'
+          assert d.reviewer.str.strip().ne('').all(), 'reviewer provenance missing'
+          allowed_readability={'READABLE','UNREADABLE','PARTIAL','NEGATIVE'}
+          bad=~d.review_readability.str.upper().isin(allowed_readability)
+          assert not bad.any(), f'invalid readability values: {sorted(d.loc[bad,"review_readability"].unique())}'
+          readable=d.review_readability.str.upper().eq('READABLE')
+          exact=d.review_exact_number.str.strip()
+          assert exact[readable].str.fullmatch(r'\d{1,2}').all(), 'readable rows require exact 1-2 digit reference'
+          # This validator never infers, fills, or changes a reference label.
+          out=d.copy()
+          out.to_csv('validated_independent_reference.csv',index=False)
+          summary={'schema':'hoopvision.independent-ocr-reference-validation.v1','rows':len(d),'reviewed_rows':int(reviewed.sum()),'readable_rows':int(readable.sum()),'reference_source':'INDEPENDENT_REVIEW','candidate_predictions_used':False,'labels_generated_by_pipeline':False,'identity_authorized':False,'ocr_accuracy':'UNKNOWN_PENDING_CALIBRATION','qualification_claim':'NONE_REFERENCE_VALIDATION_ONLY'}
+          Path('validation_summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_INDEPENDENT_REFERENCE_VALIDATION='+json.dumps(summary,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-validated-independent-ocr-reference
+          path: |
+            validated_independent_reference.csv
+            validation_summary.json
+          if-no-files-found: error
+          retention-days: 30
