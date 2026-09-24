@@ -20,7 +20,7 @@ env:
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
   EVIDENCE_RUN_ID: '35891572936'
   SOURCE_RECOVERY_RUN_ID: '35923251814'
-  DEFAULT_SOURCE_SHA: 1da51fdc429b3dd34c82e22a653c8f268815b477
+  DEFAULT_SOURCE_SHA: f6bf7ac2b9797a487c3048637e145e3f5299e75a
 
 jobs:
   compare:
@@ -191,6 +191,17 @@ jobs:
           assert report['models']['small']['ppocrv6_identity_votes_enabled'] is False
           PY
 
+      - name: Build blind independent-review pack
+        run: |
+          set -euo pipefail
+          python tools/build_jersey_ocr_review_pack.py \
+            --medium-evidence medium/ocr_evidence.json \
+            --small-evidence small/ocr_evidence.json \
+            --legacy-evidence frozen/identity_ocr/ocr_evidence.json \
+            --fixture-id hawks-0012500014-301-play-by-play-4.0-16.0 \
+            --source-sha256 "$SOURCE_SHA256" \
+            --out review
+
       - name: Upload PP-OCRv6 comparison evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -210,5 +221,9 @@ jobs:
             small/*_contact.jpg
             models/ppocrv6/medium/hoopvision_snapshot.json
             models/ppocrv6/small/hoopvision_snapshot.json
+            review/blind_reference_template.csv
+            review/candidate_predictions.csv
+            review/review_pack.json
+            medium/crops/**/*.jpg
           if-no-files-found: warn
           retention-days: 14
