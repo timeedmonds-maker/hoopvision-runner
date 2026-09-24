@@ -23,9 +23,9 @@ env:
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
-  SOURCE_OBJECT: fixtures/fresh/atl-hou-0012500014-event301-pxp/source_native.mp4
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
   EVIDENCE_RUN_ID: '35891572936'
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
   DEFAULT_SOURCE_SHA: 4ecdfd75ed969bf2495d7eb81be8e3efbd904c97
 
 jobs:
@@ -59,22 +59,16 @@ jobs:
       - name: Install CPU OCR dependencies
         run: python -m pip install -q numpy pandas opencv-python-headless onnxruntime
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.DEV_PUBLISH_SA }}
-
-      - uses: google-github-actions/setup-gcloud@v2
-
       - name: Recover exact source and frozen evidence
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p frozen
+          mkdir -p frozen recovered
           gh run download "$EVIDENCE_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-evidence-completed --dir frozen
-          gcloud storage cp "gs://$BUCKET/$SOURCE_OBJECT" frozen/source_native.mp4
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir recovered
+          test -f recovered/exact_source_native.mp4
+          cp recovered/exact_source_native.mp4 frozen/source_native.mp4
           echo "$SOURCE_SHA256  frozen/source_native.mp4" | sha256sum -c -
           test -f frozen/identity_segments/uniform_observations.csv
           test -f frozen/identity_ocr/ocr_evidence.json
