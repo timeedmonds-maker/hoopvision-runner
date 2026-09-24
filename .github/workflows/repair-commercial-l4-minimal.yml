@@ -65,10 +65,11 @@ jobs:
           set -euo pipefail
           ok=0
           for i in $(seq 1 45); do
-            gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" > /tmp/session.json
-            if jq -e '.restricted_ocr_assets_present == false and .status == "READY"' /tmp/session.json >/dev/null; then
-              ok=1
-              break
+            if gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" > /tmp/session.json 2>/dev/null; then
+              if jq -e '.restricted_ocr_assets_present == false and .status == "READY"' /tmp/session.json >/dev/null; then
+                ok=1
+                break
+              fi
             fi
             sleep 2
           done
