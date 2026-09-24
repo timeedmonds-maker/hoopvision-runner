@@ -1,0 +1,76 @@
+name: Crosscheck Fragment Parents With P1A SAM
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/crosscheck-fragment-parents-p1a.yml']
+
+permissions: {contents: read, actions: read}
+
+env:
+  P1A_RUN_ID: '35972465174'
+  PARENT_RUN_ID: '35976079683'
+
+jobs:
+  crosscheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q pandas
+      - name: Recover evidence
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          mkdir -p p1a parent
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir p1a
+          gh run download "$PARENT_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-fragment-parent-diagnostic --dir parent
+          find p1a -maxdepth 2 -type f -printf '%f\n' | sort
+      - name: Crosscheck existing continuity/SAM evidence
+        run: |
+          python - <<'PY'
+          import json, os, glob, pandas as pd
+          cand=pd.read_csv('parent/parent_candidates.csv')
+          evidence=[]
+          for path in glob.glob('p1a/**/*',recursive=True):
+              if not os.path.isfile(path): continue
+              try:
+                  if path.endswith('.csv'): df=pd.read_csv(path)
+                  elif path.endswith('.json'):
+                      obj=json.load(open(path))
+                      if isinstance(obj,list): df=pd.DataFrame(obj)
+                      elif isinstance(obj,dict):
+                          arr=next((v for v in obj.values() if isinstance(v,list) and v and isinstance(v[0],dict)),None)
+                          if arr is None: continue
+                          df=pd.DataFrame(arr)
+                      else: continue
+                  else: continue
+              except Exception: continue
+              cols=set(df.columns)
+              left=next((c for c in ['left_path_id','source_path_id','path_a','left_track_id','source_track_id','track_a','from_id'] if c in cols),None)
+              right=next((c for c in ['right_path_id','target_path_id','path_b','right_track_id','target_track_id','track_b','to_id'] if c in cols),None)
+              if not left or not right: continue
+              for _,r in df.iterrows():
+                  evidence.append({'evidence_file':os.path.basename(path),'a':str(r[left]),'b':str(r[right]),'row':json.dumps({k:(None if pd.isna(v) else v) for k,v in r.items()},default=str)})
+          e=pd.DataFrame(evidence)
+          rows=[]
+          for _,r in cand.iterrows():
+              a=str(r.fragment); b=str(r.candidate_parent)
+              hits=e[((e.a==a)&(e.b==b))|((e.a==b)&(e.b==a))] if len(e) else e
+              rec=r.to_dict(); rec['existing_p1a_evidence_rows']=int(len(hits)); rec['existing_p1a_evidence_files']=';'.join(sorted(set(hits.evidence_file))) if len(hits) else ''; rec['join_authorized']=False
+              rows.append(rec)
+          out=pd.DataFrame(rows)
+          out.to_csv('parent_p1a_crosscheck.csv',index=False)
+          summary={'schema':'hoopvision.fragment-parent-p1a-crosscheck.v1','qualification_claim':'NONE_DIAGNOSTIC_ONLY','candidate_rows':int(len(out)),'candidates_with_existing_p1a_pair_evidence':int((out.existing_p1a_evidence_rows>0).sum()),'joins_applied':0,'motion_only_joins_applied':0,'identity_accuracy':'UNKNOWN','evidence_pair_rows_discovered':int(len(e)),'note':'Crosscheck only; no pair is authorized by this workflow.'}
+          open('summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_PARENT_P1A_CROSSCHECK='+json.dumps(summary,sort_keys=True))
+          print(out[out.existing_p1a_evidence_rows>0].sort_values(['fragment','diagnostic_score']).to_string(index=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-fragment-parent-p1a-crosscheck
+          path: |
+            parent_p1a_crosscheck.csv
+            summary.json
+          retention-days: 14
