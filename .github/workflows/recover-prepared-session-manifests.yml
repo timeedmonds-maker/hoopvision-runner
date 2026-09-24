@@ -1,5 +1,6 @@
 name: Recover Prepared Session Manifests
 # metadata/control-plane only
+# release-candidate-refresh-20260925
 
 on:
   push:
