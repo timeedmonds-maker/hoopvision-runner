@@ -1,0 +1,150 @@
+name: Build Current Blind Identity Review Pack V2
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/build-current-blind-identity-review-v2.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  OCR_REFRESH_RUN_ID: '36054306268'
+  OCR_REVIEW_RUN_ID: '35989027766'
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q pandas pillow
+      - name: Download current mapping and blind source crops
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/refresh work/blind work/out
+          gh run download "$OCR_REFRESH_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-current-physical-ocr-refresh --dir work/refresh
+          gh run download "$OCR_REVIEW_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-independent-ocr-review --dir work/blind
+          find work/refresh -maxdepth 3 -type f -printf '%p\n'
+          find work/blind -maxdepth 3 -type f -printf '%p\n' | head -40
+      - name: Build blind temporally independent review set
+        run: |
+          python - <<'PY'
+          import csv,html,json,math,shutil
+          from pathlib import Path
+          import pandas as pd
+          from PIL import Image,ImageOps,ImageDraw
+
+          refresh=Path('work/refresh')
+          blind=Path('work/blind')
+          out=Path('work/out'); imgs_out=out/'images'; imgs_out.mkdir(parents=True,exist_ok=True)
+          consensus=pd.read_csv(next(refresh.rglob('current_physical_ocr_consensus.csv')),dtype=str).fillna('')
+          mapping=pd.read_csv(next(refresh.rglob('current_crop_mapping.csv')),dtype=str).fillna('')
+          mapping['pts_s_num']=pd.to_numeric(mapping['pts_s'],errors='coerce')
+          mapping['best_ios_num']=pd.to_numeric(mapping['best_ios'],errors='coerce').fillna(0)
+
+          # Locate blind crop bytes without relying on a model-output manifest.
+          image_files=[p for p in blind.rglob('*') if p.is_file() and p.suffix.lower() in {'.png','.jpg','.jpeg','.webp'}]
+          by_name={p.name:p for p in image_files}
+          by_stem={p.stem:p for p in image_files}
+
+          # Decision-critical states: all conflicted paths plus clean candidate
+          # paths that need independent verification before authorization.
+          target=consensus[consensus['identity_state'].isin(['CONFLICTED','CANDIDATE'])].copy()
+          selected=[]
+          missing=[]
+          for row in target.itertuples(index=False):
+              pid=str(row.physical_path_id)
+              g=mapping[mapping.physical_path_id.astype(str).eq(pid)].copy()
+              if g.empty:
+                  continue
+              g=g.sort_values(['pts_s_num','best_ios_num'],ascending=[True,False])
+              # One crop per meaningfully separated temporal view; no adjacent-frame
+              # repetition is presented as independent evidence.
+              chosen=[]
+              for r in g.itertuples(index=False):
+                  t=float(r.pts_s_num) if pd.notna(r.pts_s_num) else None
+                  if t is None: continue
+                  if any(abs(t-x)<0.75 for x in [z[0] for z in chosen]):
+                      continue
+                  ref=str(r.crop_reference)
+                  cand=[]
+                  for key in [ref,Path(ref).name,Path(ref).stem]:
+                      if key in by_name: cand=[by_name[key]]; break
+                      if key in by_stem: cand=[by_stem[key]]; break
+                  if not cand:
+                      cand=[p for p in image_files if ref and (ref in p.name or Path(ref).stem in p.stem)]
+                  if not cand:
+                      missing.append({'physical_path_id':pid,'crop_reference':ref,'pts_s':t})
+                      continue
+                  chosen.append((t,r,cand[0]))
+                  if len(chosen)>=4: break
+              for idx,(t,r,p) in enumerate(chosen,1):
+                  dst=imgs_out/f"{pid.replace(':','_')}_view{idx:02d}{p.suffix.lower()}"
+                  shutil.copyfile(p,dst)
+                  selected.append({
+                      'physical_path_id':pid,
+                      'team':str(row.team),
+                      'review_state':str(row.identity_state),
+                      'view_index':idx,
+                      'pts_s':round(t,3),
+                      'image_file':dst.name,
+                      'human_number_label':'',
+                      'human_readability':'',
+                      'human_notes':'',
+                  })
+
+          sdf=pd.DataFrame(selected)
+          sdf.to_csv(out/'blind_identity_review_manifest.csv',index=False)
+          pd.DataFrame(missing).to_csv(out/'missing_crop_bytes.csv',index=False)
+
+          # Contact sheet: path/team/time only. Intentionally no OCR predictions,
+          # confidence scores, roster names or candidate numbers.
+          cards=[]
+          for r in sdf.itertuples(index=False):
+              p=imgs_out/r.image_file
+              im=Image.open(p).convert('RGB')
+              canvas=Image.new('RGB',(360,230),'white')
+              fitted=ImageOps.contain(im,(320,160))
+              canvas.paste(fitted,((360-fitted.width)//2,10))
+              d=ImageDraw.Draw(canvas)
+              d.text((10,180),f"{r.physical_path_id}  {r.team}",fill='black')
+              d.text((10,200),f"view {r.view_index}  t={r.pts_s:.3f}s",fill='black')
+              cards.append(canvas)
+          if cards:
+              cols=3; rows=math.ceil(len(cards)/cols)
+              sheet=Image.new('RGB',(cols*360,rows*230),'white')
+              for i,im in enumerate(cards): sheet.paste(im,((i%cols)*360,(i//cols)*230))
+              sheet.save(out/'blind_identity_review_contact_sheet.jpg',quality=92)
+
+          groups=[]
+          for r in target.itertuples(index=False):
+              pid=str(r.physical_path_id)
+              n=int((sdf.physical_path_id.astype(str)==pid).sum()) if len(sdf) else 0
+              groups.append({'physical_path_id':pid,'team':str(r.team),'review_state':str(r.identity_state),'independent_views_in_pack':n})
+          summary={
+              'schema':'hoopvision.blind-identity-review-pack.v1',
+              'source_ocr_refresh_run':36054306268,
+              'source_blind_crop_run':35989027766,
+              'target_paths':len(groups),
+              'conflicted_paths':sum(1 for x in groups if x['review_state']=='CONFLICTED'),
+              'candidate_paths':sum(1 for x in groups if x['review_state']=='CANDIDATE'),
+              'selected_independent_views':len(selected),
+              'missing_crop_bytes':len(missing),
+              'predictions_exposed_to_reviewer':False,
+              'roster_candidates_exposed_to_reviewer':False,
+              'temporal_separation_s':0.75,
+              'purpose':'Independent human labels for OCR calibration and downstream identity verification; not automatic qualification evidence.'
+          }
+          (out/'blind_identity_review_summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_BLIND_IDENTITY_REVIEW='+json.dumps(summary,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-current-blind-identity-review
+          path: work/out/
+          retention-days: 30
