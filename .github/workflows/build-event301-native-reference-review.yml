@@ -44,7 +44,7 @@ jobs:
       - name: Extract native frames and build blank independent-reference scaffold
         run: |
           set -euo pipefail
-          ffmpeg -hide_banner -loglevel error -i work/source_native.mp4 -vsync 0 -q:v 2 work/out/frames/frame_%04d.jpg
+          ffmpeg -hide_banner -loglevel error -i work/source_native.mp4 -vf "select='between(n,120,478)'" -vsync 0 -q:v 2 work/out/frames/frame_%04d.jpg
           python - <<'PY'
           import csv,json,subprocess,hashlib
           from pathlib import Path
