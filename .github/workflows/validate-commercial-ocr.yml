@@ -1,4 +1,5 @@
 name: Validate Commercial Jersey OCR
+# trigger commercial OCR comparison
 
 on:
   push:
