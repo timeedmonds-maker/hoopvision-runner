@@ -1,0 +1,83 @@
+name: Extract Corrected P1A Continuity Evidence
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/extract-corrected-p1a-continuity.yml']
+
+permissions: {contents: read, actions: read}
+env:
+  P1A_RUN_ID: '35972465174'
+  PARENT_RUN_ID: '35976079683'
+
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q pandas
+      - name: Recover evidence
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: |
+          mkdir -p p1a parent
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir p1a
+          gh run download "$PARENT_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-fragment-parent-diagnostic --dir parent
+      - name: Extract structured SAM and tracker rejection evidence
+        run: |
+          python - <<'PY'
+          import json, pandas as pd
+          cand=pd.read_csv('parent/parent_candidates.csv')
+          paths=pd.read_csv('p1a/physical_paths.csv')
+          sam=json.load(open('p1a/sam31_decisions.json'))
+          qa=json.load(open('p1a/physical_paths_qa.json'))
+          # Map source/raw track identifiers observed inside each corrected physical fragment.
+          ids={}
+          for pid,g in paths.groupby('physical_path_id'):
+              vals=set()
+              for c in ['source_track_id','raw_source_track_id']:
+                  if c in g:
+                      vals |= set(g[c].dropna().astype(int).astype(str))
+              ids[str(pid)]=vals
+          evidence=[]
+          # SAM decisions are the authoritative bounded exception records.
+          for rec in sam.get('decisions',[]):
+              txt=json.dumps(rec,sort_keys=True,default=str)
+              mentioned={pid for pid,vals in ids.items() if any(('"'+v+'"' in txt or ':'+v+',' in txt or ':'+v+'}' in txt or '['+v+',' in txt) for v in vals)}
+              evidence.append({'kind':'sam31_decision','reason':str(rec.get('resolver_reason') or ''),'record':txt,'mentioned_fragments':';'.join(sorted(mentioned))})
+          # Preserve tracker rejection records, including ambiguity margins/unsupported continuity.
+          for team,t in (qa.get('teams') or {}).items():
+              for direction in ['forward_tracking','backward_tracking']:
+                  for rec in (t.get(direction) or {}).get('rejection_records',[]):
+                      txt=json.dumps(rec,sort_keys=True,default=str)
+                      mentioned={pid for pid,vals in ids.items() if pid.startswith(team+':') and any(('"'+v+'"' in txt or ':'+v+',' in txt or ':'+v+'}' in txt or '['+v+',' in txt) for v in vals)}
+                      evidence.append({'kind':direction+'_rejection','reason':str(rec.get('rejection_reason') or ''),'record':txt,'mentioned_fragments':';'.join(sorted(mentioned))})
+          e=pd.DataFrame(evidence)
+          e.to_csv('continuity_evidence.csv',index=False)
+          rows=[]
+          for _,r in cand.iterrows():
+              a,b=str(r.fragment),str(r.candidate_parent)
+              hits=e[e.mentioned_fragments.fillna('').apply(lambda x:a in x.split(';') and b in x.split(';'))] if len(e) else e
+              rec=r.to_dict()
+              rec['structured_evidence_rows']=int(len(hits))
+              rec['sam31_rows']=int((hits.kind=='sam31_decision').sum()) if len(hits) else 0
+              rec['ambiguity_or_unsupported_rows']=int(hits.reason.astype(str).str.contains('ambiguous|unsupported',case=False,regex=True).sum()) if len(hits) else 0
+              rec['join_authorized']=False
+              rows.append(rec)
+          out=pd.DataFrame(rows)
+          out.to_csv('candidate_continuity_crosscheck.csv',index=False)
+          summary={'schema':'hoopvision.corrected-p1a-continuity-extract.v1','qualification_claim':'NONE_DIAGNOSTIC_ONLY','sam31_decisions':int(sum(e.kind.eq('sam31_decision'))) if len(e) else 0,'tracker_rejection_records':int(sum(e.kind.ne('sam31_decision'))) if len(e) else 0,'candidate_pairs_with_structured_evidence':int((out.structured_evidence_rows>0).sum()),'candidate_pairs_with_sam31_evidence':int((out.sam31_rows>0).sum()),'joins_applied':0,'motion_only_joins_applied':0,'identity_accuracy':'UNKNOWN','note':'Extraction/crosscheck only. No evidence is converted into an accepted join here.'}
+          open('summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_CORRECTED_CONTINUITY='+json.dumps(summary,sort_keys=True))
+          print(out[out.structured_evidence_rows>0].sort_values(['fragment','diagnostic_score']).to_string(index=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-corrected-p1a-continuity-extract
+          path: |
+            continuity_evidence.csv
+            candidate_continuity_crosscheck.csv
+            summary.json
+          retention-days: 14
