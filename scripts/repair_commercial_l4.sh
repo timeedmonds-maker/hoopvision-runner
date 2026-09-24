@@ -38,7 +38,7 @@ if ! echo "ccbcc45730b3fbbd9050c5bc74db6a99067141ef1035e3d14889a84a6b9b1aff  $V5
 fi
 echo "ccbcc45730b3fbbd9050c5bc74db6a99067141ef1035e3d14889a84a6b9b1aff  $V5D" | sha256sum -c -
 
-"$CONTROL/venv/bin/python" /tmp/install_ppocrv6.py
+"$CONTROL/venv/bin/python" /tmp/install_ppocrv6_exact.py
 
 test ! -e "$ROOT/models/nbacv/parseq_soccernet.ckpt"
 test ! -e "$ROOT/models/nbacv/legibility_soccernet.pth"
