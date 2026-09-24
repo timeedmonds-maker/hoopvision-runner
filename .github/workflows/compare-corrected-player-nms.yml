@@ -1,0 +1,138 @@
+name: Compare Corrected Player NMS Challenger
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/compare-corrected-player-nms.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 4206110d15e5204d1e2b06f0024f5aa9abc56bc6
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install exact CPU detector/tracker runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision scipy rich requests 'jsonargparse<5' pydeprecate onnxruntime
+          git clone -q https://github.com/roboflow/trackers.git /tmp/trackers
+          git -C /tmp/trackers checkout -q 3fb83d1618f29b7fdd4617757b6894e4ec71146d
+          python -m pip install -q -e /tmp/trackers --no-deps
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+      - name: Recover exact source and detector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/models work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o work/models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  work/models/rfdetr_m_640.onnx" | sha256sum -c -
+      - name: Compare baseline NMS 0.50 with one 0.70 challenger
+        run: |
+          PYTHONPATH="$PWD/src" python - <<'PY'
+          import sys,json,time
+          from pathlib import Path
+          import cv2,numpy as np,pandas as pd,supervision as sv
+          sys.path.insert(0,'/tmp/object-detection-eval/src')
+          from object_detection_eval.inference.detectors.rfdetr import RFDETRDetector
+          from tools.diagnose_rfdetr_tracking_taxonomy import CORRECTED_PLAYER_CLASSES,RAW_LABEL_MAP,make_tracker
+
+          def players(dets,w,h,nms_thr):
+              boxes=[]; conf=[]
+              for d in dets:
+                  if int(d.class_id) not in CORRECTED_PLAYER_CLASSES or float(d.confidence)<.20: continue
+                  b=d.bbox
+                  boxes.append([b.x*w,b.y*h,(b.x+b.w)*w,(b.y+b.h)*h]); conf.append(float(d.confidence))
+              if not boxes: return sv.Detections.empty()
+              x=sv.Detections(xyxy=np.asarray(boxes,np.float32),confidence=np.asarray(conf,np.float32),class_id=np.zeros(len(boxes),np.int32))
+              return x.with_nms(threshold=float(nms_thr),class_agnostic=True)
+
+          def pair_iou(boxes):
+              if len(boxes)<2:return []
+              out=[]
+              for i in range(len(boxes)):
+                  a=boxes[i]; aa=max(0,(a[2]-a[0])*(a[3]-a[1]))
+                  for j in range(i+1,len(boxes)):
+                      b=boxes[j]; bb=max(0,(b[2]-b[0])*(b[3]-b[1]))
+                      ix=max(0,min(a[2],b[2])-max(a[0],b[0])); iy=max(0,min(a[3],b[3])-max(a[1],b[1]))
+                      inter=ix*iy; uni=aa+bb-inter
+                      out.append(inter/uni if uni>0 else 0)
+              return out
+
+          det=RFDETRDetector('work/models/rfdetr_m_640.onnx',RAW_LABEL_MAP,confidence_threshold=.045,num_select=300,input_height=640,input_width=640,providers=['CPUExecutionProvider'])
+          trks={'baseline':make_tracker(15.0),'challenger':make_tracker(15.0)}
+          th={'baseline':.50,'challenger':.70}
+          rows=[]; track_rows={k:[] for k in trks}; t0=time.monotonic()
+          cap=cv2.VideoCapture('work/source_native.mp4'); fps=float(cap.get(cv2.CAP_PROP_FPS) or 30000/1001); W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+          start=int(round(4*fps)); end=int(round(16*fps)); every=max(1,int(round(fps/15)))
+          for rel,absf in enumerate(range(start,end)):
+              if rel%every: continue
+              cap.set(cv2.CAP_PROP_POS_FRAMES,absf); ok,frame=cap.read()
+              if not ok:continue
+              all_dets=det.predict(frame); rec={'tracking_frame':int(rel),'time_s':float(4+rel/fps)}
+              for name in ['baseline','challenger']:
+                  p=players(all_dets,W,H,th[name]); ious=pair_iou(p.xyxy)
+                  tracked=trks[name].update(p,frame=frame,timestamp=rel/fps)
+                  valid=[i for i,tid in enumerate(tracked.tracker_id)] if len(tracked) else []
+                  valid=[i for i in valid if int(tracked.tracker_id[i])>=0]
+                  rec[f'{name}_nms']=len(p); rec[f'{name}_tracks']=len(valid)
+                  rec[f'{name}_nms_pairs_iou80']=sum(x>=.80 for x in ious)
+                  tboxes=[tracked.xyxy[i] for i in valid] if len(tracked) else []
+                  rec[f'{name}_track_pairs_iou80']=sum(x>=.80 for x in pair_iou(tboxes))
+                  for i in valid:
+                      b=tracked.xyxy[i]
+                      track_rows[name].append({'source_frame_rel':int(rel),'source_frame_abs':int(absf),'time_s':float(4+rel/fps),'track_id':int(tracked.tracker_id[i]),'x1':float(b[0]),'y1':float(b[1]),'x2':float(b[2]),'y2':float(b[3]),'conf':float(tracked.confidence[i])})
+              rows.append(rec)
+          cap.release()
+          d=pd.DataFrame(rows); d.to_csv('work/out/nms_comparison_by_frame.csv',index=False)
+          for k,v in track_rows.items(): pd.DataFrame(v).to_csv(f'work/out/{k}_tracks.csv',index=False)
+          target=(d.time_s>=5.8)&(d.time_s<=6.8)
+          def arm(name):
+              return {
+                'frames_nms_ge10':int((d[f'{name}_nms']>=10).sum()),
+                'frames_tracks_ge10':int((d[f'{name}_tracks']>=10).sum()),
+                'frames_tracks_gt10':int((d[f'{name}_tracks']>10).sum()),
+                'sum_nms_pairs_iou80':int(d[f'{name}_nms_pairs_iou80'].sum()),
+                'sum_track_pairs_iou80':int(d[f'{name}_track_pairs_iou80'].sum()),
+                'target_frames_nms_ge10':int((target&(d[f'{name}_nms']>=10)).sum()),
+                'target_frames_tracks_ge10':int((target&(d[f'{name}_tracks']>=10)).sum()),
+                'target_frames_tracks_gt10':int((target&(d[f'{name}_tracks']>10)).sum()),
+              }
+          b=arm('baseline'); c=arm('challenger')
+          rep={'schema':'hoopvision.corrected-player-nms-challenger.v1','candidate_sha':'4206110d15e5204d1e2b06f0024f5aa9abc56bc6','source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a','baseline_nms_iou':.50,'challenger_nms_iou':.70,'baseline':b,'challenger':c,'delta_frames_tracks_ge10':c['frames_tracks_ge10']-b['frames_tracks_ge10'],'delta_target_tracks_ge10':c['target_frames_tracks_ge10']-b['target_frames_tracks_ge10'],'duplicate_risk_delta_track_iou80_pairs':c['sum_track_pairs_iou80']-b['sum_track_pairs_iou80'],'elapsed_s':round(time.monotonic()-t0,3),'qualification_claim':'NONE_DIAGNOSTIC_ONLY','promotion_allowed':False,'note':'One bounded NMS challenger; no production change. High-overlap pair counts are duplicate-risk diagnostics, not ground truth.'}
+          Path('work/out/nms_comparison_summary.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_NMS_CHALLENGER='+json.dumps(rep,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-corrected-player-nms-comparison
+          path: work/out/
+          retention-days: 14
