@@ -590,11 +590,11 @@ jobs:
               # Stop systemd and remove any orphan Python supervisor left from a
               # previous boot/manual launch so exactly one subscriber can exist.
               sudo systemctl stop hoopvision-dev-supervisor || true
-              while read -r PID; do
-                [ -n "$PID" ] || continue
-                echo "Killing orphan supervisor pid=$PID"
-                sudo kill "$PID" || true
-              done < <(ps -eo pid=,comm=,args= | awk '$2 ~ /^python/ && $0 ~ /\/opt\/hoopvision-control\/dev_supervisor\.py/ {print $1}')
+              # Avoid nested awk field references inside the SSH-quoted
+              # command: they can be expanded by the outer runner shell under
+              # set -u. The bracketed regex matches the target process without
+              # matching this shell command itself.
+              sudo pkill -f '/opt/hoopvision-control/[d]ev_supervisor\.py' || true
               sleep 1
 
               sudo install -m 0755 /tmp/dev_supervisor.py "$SUP_PATH"
@@ -608,7 +608,7 @@ jobs:
                 if sudo systemctl is-active --quiet hoopvision-dev-supervisor && \
                    printf "%s\n" "$LOG" | grep -q "HOOPVISION_DEV_SESSION_READY.*hawks-event296-playbyplay" && \
                    printf "%s\n" "$LOG" | grep -q "HOOPVISION_DEV_SUPERVISOR_LISTENING"; then
-                  COUNT="$(ps -eo comm=,args= | awk '$1 ~ /^python/ && $0 ~ /\/opt\/hoopvision-control\/dev_supervisor\.py/ {n++} END {print n+0}')"
+                  COUNT="$(pgrep -fc '/opt/hoopvision-control/[d]ev_supervisor\.py' || true)"
                   test "$COUNT" = "1"
                   echo "Exact supervisor source verified; fresh READY advertises event296; listener_count=$COUNT"
                   exit 0
