@@ -1,0 +1,65 @@
+name: Preflight Pelicans Fixture Source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/preflight-pelicans-source.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  OBJECT: fixtures/pelicans/0022500375-q4-montage/source_native.mp4
+  REQUIRED_SHA256: 560120833e9b768d73bb81c719e0ff6fce32dc7e4f67c7d55ae74212f7e4eb69
+  REQUIRED_BYTES: '58122310'
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Verify exact Pelicans source fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p preflight
+          URI="gs://$BUCKET/$OBJECT"
+          if ! gcloud storage objects describe "$URI" --format=json > preflight/object.json 2>preflight/error.txt; then
+            echo "PELICANS_SOURCE_PRESENT=false" | tee preflight/summary.txt
+            echo "PELICANS_SOURCE_STATUS=MISSING_EXPECTED_GCS_OBJECT" | tee -a preflight/summary.txt
+            cat preflight/error.txt
+            exit 2
+          fi
+          SIZE="$(python3 - <<'PY'
+          import json
+          d=json.load(open("preflight/object.json"))
+          print(d.get("size") or d.get("sizeBytes") or "")
+          PY
+          )"
+          echo "gcs_size_bytes=$SIZE" | tee preflight/summary.txt
+          test "$SIZE" = "$REQUIRED_BYTES"
+          gcloud storage cp "$URI" preflight/source_native.mp4
+          SHA="$(sha256sum preflight/source_native.mp4 | awk '{print $1}')"
+          echo "gcs_sha256=$SHA" | tee -a preflight/summary.txt
+          test "$SHA" = "$REQUIRED_SHA256"
+          echo "PELICANS_SOURCE_PRESENT=true" | tee -a preflight/summary.txt
+          rm -f preflight/source_native.mp4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pelicans-source-preflight
+          path: preflight/
+          retention-days: 7
