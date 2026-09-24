@@ -1,0 +1,115 @@
+name: Compare Bounded Same-Raw Resume P1A
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/compare-same-raw-resume-p1a.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 0a11572c868bd1b0741980e2588a7a8c7a928e59
+  SOFT_SEGMENT_RUN_ID: '36047768086'
+  BASELINE_P1A_RUN_ID: '36050584526'
+  CLUSTER_TRANSFER_RUN_ID: '35969840332'
+  FROZEN_EVIDENCE_RUN_ID: '35891572936'
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'numpy<2' pandas scipy pytest
+      - name: Run bounded physical lifecycle regressions
+        working-directory: src
+        run: python -m pytest -q screen_tracker_nextgen/test_fast_physical_paths.py
+      - name: Recover identical evidence inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/soft work/baseline work/transfer work/frozen
+          gh run download "$SOFT_SEGMENT_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-uniform-colour-segmentation-comparison --dir work/soft
+          gh run download "$BASELINE_P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-soft-uniform-p1a --dir work/baseline
+          gh run download "$CLUSTER_TRANSFER_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-cluster-transfer --dir work/transfer
+          gh run download "$FROZEN_EVIDENCE_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-evidence-completed --dir work/frozen
+          test -s work/soft/soft/uniform_observations.csv
+          test -s work/soft/soft/segments.csv
+          test -s work/baseline/physical_paths.csv
+      - name: Rebuild P1A with bounded same-raw resume only
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$PWD/src" python -m screen_tracker_nextgen.build_fast_physical_paths             --observations work/soft/soft/uniform_observations.csv             --segments work/soft/soft/segments.csv             --team-map-json work/transfer/cluster_transfer.json             --roster work/frozen/exact_lineup_roster.json             --out-dir work/candidate
+      - name: Compare coverage, fragmentation and safety
+        run: |
+          python - <<'PY'
+          import json,pandas as pd
+          from pathlib import Path
+          b=pd.read_csv('work/baseline/physical_paths.csv')
+          c=pd.read_csv('work/candidate/physical_paths.csv')
+          def frame_table(df):
+              return df.groupby('tracking_frame').agg(
+                  time_s=('time_s','first'),
+                  roots=('physical_path_id','nunique'),
+                  rows=('physical_path_id','size')
+              ).reset_index()
+          def summ(df):
+              x=frame_table(df)
+              return {
+                  'physical_fragments':int(df.physical_path_id.astype(str).nunique()),
+                  'sampled_frames':int(len(x)),
+                  'frames_10_roots':int((x.roots==10).sum()),
+                  'frames_lt10_roots':int((x.roots<10).sum()),
+                  'early_4_to_8_14_frames_10_roots':int(((x.time_s<8.14)&(x.roots==10)).sum()),
+                  'early_4_to_8_14_sampled_frames':int((x.time_s<8.14).sum()),
+                  'transition_8_14_to_14_41_frames_10_roots':int(((x.time_s>=8.14)&(x.time_s<=14.41)&(x.roots==10)).sum()),
+                  'transition_8_14_to_14_41_sampled_frames':int(((x.time_s>=8.14)&(x.time_s<=14.41)).sum()),
+                  'min_roots':int(x.roots.min()),'median_roots':float(x.roots.median()),'max_roots':int(x.roots.max())
+              }
+          resumed=[]
+          unsafe=[]
+          for r in c.itertuples(index=False):
+              try: d=json.loads(str(r.association_detail or '{}'))
+              except Exception: d={}
+              if d.get('same_raw_track') and float(d.get('dt_s') or 0)>0.55 and d.get('association_status')=='continued':
+                  resumed.append({'team':str(r.team),'physical_path_id':str(r.physical_path_id),'raw_source_track_id':int(r.raw_source_track_id),'time_s':float(r.time_s),'dt_s':float(d.get('dt_s')),'normalized_distance':float(d.get('normalized_distance') or 0)})
+              if d.get('association_status')=='continued' and int(r.raw_source_track_id)!=int(r.source_track_id) and not (d.get('same_raw_track') or d.get('same_source_track') or d.get('same_sam31_continuity_group')):
+                  unsafe.append({'team':str(r.team),'physical_path_id':str(r.physical_path_id),'time_s':float(r.time_s)})
+          assert not unsafe,unsafe
+          rep={
+            'schema':'hoopvision.same-raw-resume-p1a-comparison.v1',
+            'candidate_sha':'0a11572c868bd1b0741980e2588a7a8c7a928e59',
+            'baseline_run':36050584526,
+            'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+            'policy':{'ordinary_gap_s':0.55,'same_raw_resume_gap_s':0.90,'cross_track_motion_only_join_forbidden':True},
+            'baseline':summ(b),'candidate':summ(c),
+            'fragment_delta':summ(c)['physical_fragments']-summ(b)['physical_fragments'],
+            'frames_10_roots_delta':summ(c)['frames_10_roots']-summ(b)['frames_10_roots'],
+            'same_raw_resume_count':len(resumed),
+            'same_raw_resumes':resumed,
+            'unsupported_cross_track_accepts':unsafe,
+            'identity_authorized':False
+          }
+          Path('work/candidate/same_raw_resume_comparison.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          frame_table(b).merge(frame_table(c),on=['tracking_frame','time_s'],suffixes=('_baseline','_candidate')).to_csv('work/candidate/root_coverage_comparison.csv',index=False)
+          print('HOOPVISION_SAME_RAW_RESUME='+json.dumps(rep,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-same-raw-resume-p1a
+          path: work/candidate/
+          retention-days: 14
