@@ -19,8 +19,8 @@ permissions:
 env:
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
   LOCALISATION_RUN_ID: '35971769212'
-  CORRECTED_P1A_RUN_ID: '35971408182'
-  DEFAULT_SOURCE_SHA: b07f3d031ceb66b507868b54e40ea2bed92dc03c
+  CORRECTED_P1A_RUN_ID: '35972465174'
+  DEFAULT_SOURCE_SHA: 8e5e62b7e1415b0aa097bde2595c7091f581b349
 
 jobs:
   compare:
@@ -162,7 +162,7 @@ jobs:
               'schema':'hoopvision.ppocrv6-localised-comparison.v1',
               'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
               'localisation_run_id':35971769212,
-              'corrected_p1a_run_id':35971408182,
+              'corrected_p1a_run_id':35972465174,
               'crop_count':len(loc),
               'independent_reference_status':'PENDING_INDEPENDENT_REVIEW',
               'accuracy_status':'UNKNOWN',
