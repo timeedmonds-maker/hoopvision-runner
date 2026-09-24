@@ -1,11 +1,10 @@
 name: Inspect Current Event296 Supervisor
-# trigger live read-only inspection
 
 on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/inspect-event296-supervisor.yml'
+      - ".github/workflows/inspect-event296-supervisor.yml"
   workflow_dispatch:
 
 permissions:
@@ -14,8 +13,6 @@ permissions:
 
 env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
-  TARGET_ZONE: us-west4-a
-  TARGET_INSTANCE: hv-dev-l4-route-35944700020
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -29,12 +26,18 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.DEV_PUBLISH_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: Inspect supervisor read-only
+      - name: Discover and inspect active prepared supervisor
         shell: bash
         run: |
           set -euo pipefail
-          gcloud compute ssh "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet \
-            --command='set +e
+          ROW="$(gcloud compute instances list --project="$PROJECT_ID"             --filter="status=RUNNING AND name~^hv-dev-l4"             --format='csv[no-heading](name,zone.basename())' | head -n1)"
+          test -n "$ROW"
+          TARGET_INSTANCE="${ROW%%,*}"
+          TARGET_ZONE="${ROW##*,}"
+          echo "TARGET_INSTANCE=$TARGET_INSTANCE"
+          echo "TARGET_ZONE=$TARGET_ZONE"
+
+          gcloud compute ssh "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet             --command='set +e
               echo === STATUS ===
               sudo systemctl status hoopvision-dev-supervisor --no-pager
               echo === UNIT ===
