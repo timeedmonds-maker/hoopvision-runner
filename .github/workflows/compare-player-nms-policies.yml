@@ -1,0 +1,123 @@
+name: Compare Player NMS Policies
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/compare-player-nms-policies.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 0a11572c868bd1b0741980e2588a7a8c7a928e59
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install exact CPU detector/tracker runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision scipy rich requests 'jsonargparse<5' pydeprecate onnxruntime
+          git clone -q https://github.com/roboflow/trackers.git /tmp/trackers
+          git -C /tmp/trackers checkout -q 3fb83d1618f29b7fdd4617757b6894e4ec71146d
+          python -m pip install -q -e /tmp/trackers --no-deps
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+      - name: Recover exact source and detector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/models work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o work/models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  work/models/rfdetr_m_640.onnx" | sha256sum -c -
+      - name: Replay shared detector with NMS policy arms
+        run: |
+          PYTHONPATH="$PWD/src" python - <<'PY'
+          import sys,json,time,math
+          from pathlib import Path
+          import cv2,numpy as np,pandas as pd,supervision as sv
+          sys.path.insert(0,'/tmp/object-detection-eval/src')
+          from object_detection_eval.inference.detectors.rfdetr import RFDETRDetector
+          from tools.diagnose_rfdetr_tracking_taxonomy import CORRECTED_PLAYER_CLASSES,RAW_LABEL_MAP,make_tracker
+
+          src='work/source_native.mp4'
+          det=RFDETRDetector('work/models/rfdetr_m_640.onnx',RAW_LABEL_MAP,confidence_threshold=.045,num_select=300,input_height=640,input_width=640,providers=['CPUExecutionProvider'])
+          thresholds=[.50,.60,.65,.70]
+          trackers={x:make_tracker(15.0) for x in thresholds}
+          records=[]
+          cap=cv2.VideoCapture(src); fps=float(cap.get(cv2.CAP_PROP_FPS) or 30000/1001)
+          W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+          start=int(round(4*fps)); end=int(round(16*fps)); every=max(1,int(round(fps/15.0)))
+          t0=time.monotonic()
+          for rel,absf in enumerate(range(start,end)):
+              if rel%every: continue
+              cap.set(cv2.CAP_PROP_POS_FRAMES,absf); ok,frame=cap.read()
+              if not ok: continue
+              alld=det.predict(frame)
+              boxes=[]; conf=[]
+              for d in alld:
+                  if int(d.class_id) not in CORRECTED_PLAYER_CLASSES or float(d.confidence)<.20: continue
+                  b=d.bbox; boxes.append([b.x*W,b.y*H,(b.x+b.w)*W,(b.y+b.h)*H]); conf.append(float(d.confidence))
+              raw=sv.Detections.empty() if not boxes else sv.Detections(xyxy=np.asarray(boxes,np.float32),confidence=np.asarray(conf,np.float32),class_id=np.zeros(len(boxes),np.int32))
+              for thr,trk in trackers.items():
+                  nms=raw if not len(raw) else raw.with_nms(threshold=float(thr),class_agnostic=True)
+                  tracked=trk.update(nms,frame=frame,timestamp=rel/fps)
+                  valid=0
+                  if len(tracked):
+                      valid=sum(int(t)>=0 for t in tracked.tracker_id)
+                  records.append({'tracking_frame':int(rel),'time_s':float(4+rel/fps),'nms_threshold':thr,'raw_count':int(len(raw)),'nms_count':int(len(nms)),'track_count':int(valid)})
+          cap.release()
+          d=pd.DataFrame(records); d.to_csv('work/out/nms_policy_by_frame.csv',index=False)
+          arms={}
+          for thr,g in d.groupby('nms_threshold'):
+              early=(g.time_s>=5.8)&(g.time_s<=6.8)
+              late=(g.time_s>=14.8)&(g.time_s<=15.3)
+              arms[f'{thr:.2f}']={
+                'frames':int(len(g)),
+                'frames_nms_ge10':int((g.nms_count>=10).sum()),
+                'frames_track_ge10':int((g.track_count>=10).sum()),
+                'frames_nms_gt10':int((g.nms_count>10).sum()),
+                'frames_track_gt10':int((g.track_count>10).sum()),
+                'sum_nms_count':int(g.nms_count.sum()),
+                'sum_track_count':int(g.track_count.sum()),
+                'early_5p8_6p8':{
+                  'frames':int(early.sum()),'nms_ge10':int((early&(g.nms_count>=10)).sum()),'track_ge10':int((early&(g.track_count>=10)).sum()),'nms_gt10':int((early&(g.nms_count>10)).sum()),'track_gt10':int((early&(g.track_count>10)).sum())
+                },
+                'late_14p8_15p3':{
+                  'frames':int(late.sum()),'nms_ge10':int((late&(g.nms_count>=10)).sum()),'track_ge10':int((late&(g.track_count>=10)).sum()),'nms_gt10':int((late&(g.nms_count>10)).sum()),'track_gt10':int((late&(g.track_count>10)).sum())
+                }
+              }
+          rep={'schema':'hoopvision.player-nms-policy-comparison.v1','candidate_sha':'0a11572c868bd1b0741980e2588a7a8c7a928e59','source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a','arms':arms,'qualification_claim':'NONE_DIAGNOSTIC_ONLY','identity_authorized':False,'note':'Shared RF-DETR outputs; only class-agnostic player NMS threshold differs before identical mask-free McByte trackers. >10 counts are duplicate-risk diagnostics, not quality passes.'}
+          Path('work/out/nms_policy_summary.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_NMS_POLICY='+json.dumps(rep,sort_keys=True))
+          PY
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-player-nms-policy-comparison
+          path: work/out/
+          retention-days: 14
