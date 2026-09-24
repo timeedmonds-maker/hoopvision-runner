@@ -1,0 +1,132 @@
+name: Replay Corrected Hawks Jersey Number Localisation
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/replay-corrected-number-localisation.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  CORRECTED_TRACKING_RUN_ID: '35968920974'
+  DEFAULT_SOURCE_SHA: d940666887dcb3cd833c0e6e8f970b4dc5b7df20
+
+jobs:
+  localise:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install exact detector runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision onnxruntime
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+
+      - name: Recover exact source and corrected tracks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p recovered tracking models localisation
+          gh run download "$SOURCE_RECOVERY_RUN_ID" \
+            --repo timeedmonds-maker/hoopvision-runner \
+            --name hoopvision-hawks-source-l4-disk-recovery \
+            --dir recovered
+          gh run download "$CORRECTED_TRACKING_RUN_ID" \
+            --repo timeedmonds-maker/hoopvision-runner \
+            --name hoopvision-rfdetr-taxonomy-mcbyte \
+            --dir tracking
+          cp recovered/exact_source_native.mp4 source_native.mp4
+          echo "$SOURCE_SHA256  source_native.mp4" | sha256sum -c -
+          test -s tracking/evidence/corrected_raw11_tracks.csv
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  models/rfdetr_m_640.onnx" | sha256sum -c -
+
+      - name: Replay corrected 5 Hz number localisation
+        run: |
+          set -euo pipefail
+          /usr/bin/time -v -o localisation/time.txt \
+            python tools/replay_jersey_number_localisation.py \
+              --source source_native.mp4 \
+              --source-sha256 "$SOURCE_SHA256" \
+              --tracks tracking/evidence/corrected_raw11_tracks.csv \
+              --detector-onnx models/rfdetr_m_640.onnx \
+              --object-eval-src /tmp/object-detection-eval/src \
+              --out localisation \
+              --start-s 4 \
+              --end-s 16 \
+              --number-fps 5 \
+              --ios-threshold .55 \
+              --device cpu
+
+      - name: Summarize corrected-track localisation
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, pandas as pd
+          q=json.load(open('localisation/qa.json'))
+          d=pd.read_csv('localisation/number_localisation.csv')
+          a=d[d.status=='LOCALISED_NUMBER_CROP']
+          report={
+              'schema':'hoopvision.corrected-track-number-localisation.v1',
+              'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+              'localised_crop_count':int(len(a)),
+              'unique_track_ids':int(a.track_id.nunique()) if len(a) else 0,
+              'scheduled_frames':int(q['scheduled_frames']),
+              'decoded_frames':int(q['decoded_frames']),
+              'median_crop_width':float(a.crop_width.median()) if len(a) else None,
+              'median_crop_height':float(a.crop_height.median()) if len(a) else None,
+              'median_ios':float(a.best_ios.median()) if len(a) else None,
+          }
+          open('localisation/corrected_summary.json','w').write(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_CORRECTED_TRACK_NUMBER_LOCALISATION='+json.dumps(report,sort_keys=True))
+          assert q['rules']['production_number_class']==3
+          assert abs(float(q['rules']['production_detector_confidence_threshold'])-.045)<1e-12
+          assert q['rules']['production_ios_threshold_preserved'] is True
+          PY
+
+      - name: Upload corrected-track localisation
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-corrected-track-number-localisation
+          path: localisation/
+          if-no-files-found: error
+          retention-days: 14
