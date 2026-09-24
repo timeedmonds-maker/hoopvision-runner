@@ -1,0 +1,122 @@
+name: Replay Soft-Uniform Corrected P1A
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/replay-soft-uniform-p1a.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 4206110d15e5204d1e2b06f0024f5aa9abc56bc6
+  SOFT_SEGMENT_RUN_ID: '36047768086'
+  BASELINE_P1A_RUN_ID: '35972465174'
+  CLUSTER_TRANSFER_RUN_ID: '35969840332'
+  FROZEN_EVIDENCE_RUN_ID: '35891572936'
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'numpy<2' pandas scipy pytest
+      - name: Recover soft segments, baseline P1A, team map and roster
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/soft work/baseline work/transfer work/frozen
+          gh run download "$SOFT_SEGMENT_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-uniform-colour-segmentation-comparison --dir work/soft
+          gh run download "$BASELINE_P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir work/baseline
+          gh run download "$CLUSTER_TRANSFER_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-cluster-transfer --dir work/transfer
+          gh run download "$FROZEN_EVIDENCE_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-evidence-completed --dir work/frozen
+          test -s work/soft/soft/uniform_observations.csv
+          test -s work/soft/soft/segments.csv
+          test -s work/baseline/physical_paths.csv
+          test -s work/transfer/cluster_transfer.json
+          test -s work/frozen/exact_lineup_roster.json
+      - name: Rebuild P1A from soft uniform segmentation
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$PWD/src" python -m screen_tracker_nextgen.build_fast_physical_paths             --observations work/soft/soft/uniform_observations.csv             --segments work/soft/soft/segments.csv             --team-map-json work/transfer/cluster_transfer.json             --roster work/frozen/exact_lineup_roster.json             --out-dir work/candidate_p1a
+          PYTHONPATH="$PWD/src" python -m screen_tracker_nextgen.diagnose_physical_first_loss             --observations work/soft/soft/uniform_observations.csv             --physical-qa work/candidate_p1a/physical_paths_qa.json             --out work/candidate_p1a/first_loss_diagnostic.json
+      - name: Compare safety, fragmentation and sampled root coverage
+        run: |
+          python - <<'PY'
+          import json, pandas as pd
+          from pathlib import Path
+          b=pd.read_csv('work/baseline/physical_paths.csv')
+          c=pd.read_csv('work/candidate_p1a/physical_paths.csv')
+          qa=json.load(open('work/candidate_p1a/physical_paths_qa.json'))
+          def unsafe(df):
+              out=[]
+              for (_,pid),g in df.sort_values(['team','physical_path_id','time_s']).groupby(['team','physical_path_id'],sort=False):
+                  prev=None
+                  for r in g.itertuples(index=False):
+                      if prev is not None:
+                          try: detail=json.loads(str(r.association_detail or '{}'))
+                          except Exception: detail={}
+                          if int(r.raw_source_track_id)!=int(prev.raw_source_track_id) and int(r.source_track_id)!=int(prev.source_track_id) and not bool(detail.get('same_sam31_continuity_group')) and not bool(detail.get('same_source_track')):
+                              out.append({'team':str(r.team),'physical_path_id':str(pid),'t0':float(prev.time_s),'t1':float(r.time_s),'raw0':int(prev.raw_source_track_id),'raw1':int(r.raw_source_track_id)})
+                      prev=r
+              return out
+          u=unsafe(c)
+          assert not u,u
+          def summary(df):
+              per=[]
+              for fr,g in df.groupby('tracking_frame'):
+                  per.append({'tracking_frame':int(fr),'time_s':float(g.time_s.iloc[0]),'physical_roots':int(g.physical_path_id.astype(str).nunique()),'visible_rows':int(len(g))})
+              x=pd.DataFrame(per)
+              return x,{
+                  'physical_fragments':int(df.physical_path_id.astype(str).nunique()),
+                  'sampled_frames':int(len(x)),
+                  'frames_10_roots':int((x.physical_roots==10).sum()),
+                  'frames_lt10_roots':int((x.physical_roots<10).sum()),
+                  'max_roots':int(x.physical_roots.max()),
+                  'min_roots':int(x.physical_roots.min()),
+                  'median_roots':float(x.physical_roots.median()),
+              }
+          bc,bs=summary(b); cc,cs=summary(c)
+          merged=bc.merge(cc,on=['tracking_frame','time_s'],how='outer',suffixes=('_baseline','_soft')).sort_values('tracking_frame')
+          merged.to_csv('work/candidate_p1a/root_coverage_comparison.csv',index=False)
+          sam=json.load(open('work/candidate_p1a/sam31_decisions.json'))
+          rep={
+            'schema':'hoopvision.soft-uniform-p1a-comparison.v1',
+            'candidate_sha':'4206110d15e5204d1e2b06f0024f5aa9abc56bc6',
+            'source_segmentation_run':36047768086,
+            'baseline_p1a_run':35972465174,
+            'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+            'uniform_colour_policy':'SOFT_EVIDENCE_NOT_HARD_SPLIT',
+            'unsupported_cross_track_accepts':u,
+            'baseline':bs,
+            'candidate':cs,
+            'fragment_delta':cs['physical_fragments']-bs['physical_fragments'],
+            'frames_10_roots_delta':cs['frames_10_roots']-bs['frames_10_roots'],
+            'sam31_decision_count':len(sam.get('decisions',[])),
+            'team_mapping_qualification':qa.get('team_mapping',{}).get('qualification_claim'),
+            'identity_authorized':False,
+            'note':'CPU diagnostic only. No OCR identity authorisation, motion-only join, or acceptance claim.'
+          }
+          Path('work/candidate_p1a/soft_uniform_p1a_comparison.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_SOFT_UNIFORM_P1A='+json.dumps(rep,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-soft-uniform-p1a
+          path: work/candidate_p1a/
+          retention-days: 14
