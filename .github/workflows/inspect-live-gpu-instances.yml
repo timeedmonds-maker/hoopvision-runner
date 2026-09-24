@@ -1,5 +1,6 @@
 name: Inspect Live GPU Instances
 # read-only state check
+# release-candidate-state-check-20260925
 # event296 capacity probe
 # live check during run 35947794165 target resolution
 
