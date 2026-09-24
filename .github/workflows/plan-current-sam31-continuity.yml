@@ -54,7 +54,7 @@ jobs:
           import json
           q=json.load(open('work/out/sam31_qa.json'))
           p=json.load(open('work/out/sam31_plan.json'))
-          windows=p.get('windows',p.get('plan',p if isinstance(p,list) else []))
+          windows=p if isinstance(p,list) else p.get('windows',p.get('plan',[]))
           rep={
             'schema':'hoopvision.current-sam31-plan-summary.v1',
             'candidate_sha':'180abf74757434775c54d3a31ba276204c66518e',
