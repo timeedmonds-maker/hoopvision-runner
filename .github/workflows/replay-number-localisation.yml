@@ -77,6 +77,7 @@ jobs:
       - name: Replay only the 5 Hz number-localisation pass
         run: |
           set -euo pipefail
+          mkdir -p localisation
           /usr/bin/time -v -o localisation/time.txt             python tools/replay_jersey_number_localisation.py               --source frozen/source_native.mp4               --source-sha256 "$SOURCE_SHA256"               --tracks frozen/nextgen/tracks.csv               --detector-onnx models/rfdetr_m_640.onnx               --object-eval-src /tmp/object-detection-eval/src               --out localisation               --start-s 4               --end-s 16               --number-fps 5               --ios-threshold .55               --device cpu
 
       - name: Validate localisation contract
