@@ -1,0 +1,94 @@
+name: Compare RF-DETR Taxonomy Through McByte
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/compare-rfdetr-taxonomy-mcbyte.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+  DEFAULT_SOURCE_SHA: ead98c233265c2b791420fcf741933b8f33cbcb8
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install exact mask-free tracking runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision scipy rich requests 'jsonargparse<5' pydeprecate onnxruntime
+          git clone -q https://github.com/roboflow/trackers.git /tmp/trackers
+          git -C /tmp/trackers checkout -q 3fb83d1618f29b7fdd4617757b6894e4ec71146d
+          python -m pip install -q -e /tmp/trackers --no-deps
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval --no-deps
+
+      - name: Recover exact source and detector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p recovered models evidence
+          gh run download "$SOURCE_RECOVERY_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-hawks-source-l4-disk-recovery             --dir recovered
+          cp recovered/exact_source_native.mp4 source_native.mp4
+          echo "$SOURCE_SHA256  source_native.mp4" | sha256sum -c -
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  models/rfdetr_m_640.onnx" | sha256sum -c -
+
+      - name: Replay both taxonomies through mask-free McByte
+        run: |
+          set -euo pipefail
+          /usr/bin/time -v -o evidence/time.txt             python tools/diagnose_rfdetr_tracking_taxonomy.py               --source source_native.mp4               --source-sha256 "$SOURCE_SHA256"               --detector-onnx models/rfdetr_m_640.onnx               --object-eval-src /tmp/object-detection-eval/src               --start-s 4               --end-s 16               --analysis-fps 15               --out evidence
+          test -s evidence/qa.json
+
+      - name: Upload McByte taxonomy evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-rfdetr-taxonomy-mcbyte
+          path: |
+            evidence/qa.json
+            evidence/time.txt
+            evidence/old_shifted_tracks.csv
+            evidence/corrected_raw11_tracks.csv
+          if-no-files-found: warn
+          retention-days: 14
