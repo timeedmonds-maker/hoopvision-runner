@@ -1,0 +1,51 @@
+name: Inspect Current Commercial L4 Session
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-current-commercial-session.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect exact host and session state
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '=== SESSION ==='
+          gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" | tee /tmp/session.json || true
+          echo '=== HOST ==='
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='
+            set -u
+            echo status=$(systemctl is-active hoopvision-dev-supervisor.service || true)
+            echo pid=$(pgrep -f "/opt/hoopvision-control/dev_supervisor.py" | head -n1 || true)
+            echo candidate=$(cat /srv/hoopvision/commercial-prepared.candidate.sha 2>/dev/null || true)
+            echo control_bundle=$(cat /srv/hoopvision/commercial-prepared.control-bundle.sha256 2>/dev/null || true)
+            echo contract=$(sha256sum /opt/hoopvision-control/control_plane_contract.py 2>/dev/null || true)
+            echo restricted_files:
+            find /srv/hoopvision/models/nbacv -maxdepth 1 -type f -iname "*soccernet*" -print 2>/dev/null || true
+            echo ppocrv6:
+            sha256sum /srv/hoopvision/models/cache/ppocrv6/medium/model.safetensors /srv/hoopvision/models/cache/ppocrv6/small/model.safetensors 2>/dev/null || true
+            echo journal:
+            journalctl -u hoopvision-dev-supervisor.service -n 80 --no-pager || true
+          '
