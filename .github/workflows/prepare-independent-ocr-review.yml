@@ -1,6 +1,9 @@
 name: Prepare Independent OCR Review
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/prepare-independent-ocr-review.yml']
 permissions:
   contents: read
   actions: read
@@ -37,7 +40,7 @@ jobs:
           out.to_csv('independent_ocr_review.csv',index=False)
           s={'schema':'hoopvision.independent-ocr-review.v1','eligible_fragments':len(out),'reviewed':0,'identity_authorized':False,'candidate_predictions_included':False,'note':'Blind review preparation only. No identity assignment or threshold change.'}
           open('summary.json','w').write(json.dumps(s,indent=2)+'\n')
-          print(json.dumps(s))
+          print('HOOPVISION_INDEPENDENT_OCR_REVIEW='+json.dumps(s,sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:
