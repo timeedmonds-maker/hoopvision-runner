@@ -1,0 +1,187 @@
+name: Validate Commercial Jersey OCR
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-commercial-ocr.yml'
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  SOURCE_OBJECT: fixtures/fresh/atl-hou-0012500014-event301-pxp/source_native.mp4
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  EVIDENCE_RUN_ID: '35891572936'
+  DEFAULT_SOURCE_SHA: 4ecdfd75ed969bf2495d7eb81be8e3efbd904c97
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install CPU OCR dependencies
+        run: python -m pip install -q numpy pandas opencv-python-headless onnxruntime
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Recover exact source and frozen evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p frozen
+          gh run download "$EVIDENCE_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-evidence-completed --dir frozen
+          gcloud storage cp "gs://$BUCKET/$SOURCE_OBJECT" frozen/source_native.mp4
+          echo "$SOURCE_SHA256  frozen/source_native.mp4" | sha256sum -c -
+          test -f frozen/identity_segments/uniform_observations.csv
+          test -f frozen/identity_ocr/ocr_evidence.json
+          test -f frozen/exact_lineup_roster.json
+
+      - name: Reconstruct frozen identity-track OCR input
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import pandas as pd
+          d=pd.read_csv('frozen/identity_segments/uniform_observations.csv')
+          d['tracking_frame']=d['frame']
+          d['frame']=d['source_frame'].astype(int)
+          d['track_id']=d['identity_segment_id'].astype(int)
+          d.to_csv('frozen/identity_tracks.csv',index=False)
+          open('frozen/context.json','w').write('{}\n')
+          PY
+
+      - name: Download pinned Apache-2.0 OCR assets
+        run: |
+          set -euo pipefail
+          mkdir -p commercial-assets
+          curl -fsSL https://github.com/gitakoos/ocr-models/releases/download/v1/rec_latin.onnx -o commercial-assets/ppocrv5_latin_rec.onnx
+          curl -fsSL https://github.com/gitakoos/ocr-models/releases/download/v1/ppocrv5_latin_dict.txt -o commercial-assets/ppocrv5_latin_dict.txt
+          echo '995b0f5f28d2073896a78c03b5b863eae6af3744bafa0245b8522beea6994927  commercial-assets/ppocrv5_latin_rec.onnx' | sha256sum -c -
+          echo 'ccbcc45730b3fbbd9050c5bc74db6a99067141ef1035e3d14889a84a6b9b1aff  commercial-assets/ppocrv5_latin_dict.txt' | sha256sum -c -
+
+      - name: Run commercial OCR on exact frozen crops
+        run: |
+          set -euo pipefail
+          mkdir -p commercial
+          python tools/adams_event_track_identity_ocr.py             --tracks frozen/identity_tracks.csv             --source frozen/source_native.mp4             --context frozen/context.json             --roster frozen/exact_lineup_roster.json             --ocr-backend commercial             --ocr-model commercial-assets/ppocrv5_latin_rec.onnx             --ocr-dict commercial-assets/ppocrv5_latin_dict.txt             --out commercial             --max-frames-per-track 18             --min-track-rows 4             --min-median-height 32             --device cpu
+
+      - name: Compare commercial challenger with frozen legacy evidence
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from collections import Counter
+
+          legacy=json.load(open('frozen/identity_ocr/ocr_evidence.json'))
+          commercial=json.load(open('commercial/ocr_evidence.json'))
+          lqa=json.load(open('frozen/identity_ocr/qa.json'))
+          cqa=json.load(open('commercial/qa.json'))
+          roster=json.load(open('frozen/exact_lineup_roster.json'))
+          valid={str(p['jersey']) for team in roster['teams'].values() for p in team['players']}
+
+          def reads(rows,key):
+              out={}
+              for rec in rows:
+                  tid=int(rec['track_id'])
+                  for r in rec.get('reads',[]) or []:
+                      crop=str(r.get('crop'))
+                      canon=str(r.get('canon')) if r.get('canon') is not None else None
+                      conf=float(r.get(key,0) or 0)
+                      out[(tid,crop)]=(canon,conf)
+              return out
+
+          old=reads(legacy,'parseq_conf')
+          new=reads(commercial,'ocr_conf')
+          common=set(old)&set(new)
+          old_high={k:v for k,v in old.items() if v[1]>=0.75 and v[0] in valid}
+          new_high={k:v for k,v in new.items() if v[1]>=0.75 and v[0] in valid}
+          agreed=sum(1 for k in set(old_high)&set(new_high) if old_high[k][0]==new_high[k][0])
+          disagreed=[
+              {'track_id':k[0],'crop':k[1],'legacy':old_high[k],'commercial':new_high[k]}
+              for k in sorted(set(old_high)&set(new_high))
+              if old_high[k][0]!=new_high[k][0]
+          ]
+          report={
+              'schema':'hoopvision.commercial-ocr-comparison.v1',
+              'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
+              'commercial_backend':cqa.get('ocr_backend'),
+              'legacy_candidate_tracklets':lqa.get('candidate_tracklets'),
+              'commercial_candidate_tracklets':cqa.get('candidate_tracklets'),
+              'legacy_named_tracklets':lqa.get('named_tracklets'),
+              'commercial_named_tracklets':cqa.get('named_tracklets'),
+              'legacy_unique_named_players':lqa.get('unique_named_players'),
+              'commercial_unique_named_players':cqa.get('unique_named_players'),
+              'legacy_read_count':len(old),
+              'commercial_read_count':len(new),
+              'common_crop_reads':len(common),
+              'legacy_high_conf_roster_reads':len(old_high),
+              'commercial_high_conf_roster_reads':len(new_high),
+              'high_conf_overlap':len(set(old_high)&set(new_high)),
+              'high_conf_agreements':agreed,
+              'high_conf_disagreements':disagreed,
+              'note':'Legacy output is a comparator, not ground truth. Independent crop adjudication remains required for release-quality equivalence.'
+          }
+          open('commercial/comparison.json','w').write(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_COMMERCIAL_OCR_COMPARISON='+json.dumps(report,sort_keys=True))
+          # Mechanical safety: same frozen input set, no crash, and the new
+          # backend must remain abstaining rather than exploding root yield.
+          assert cqa.get('candidate_tracklets')==lqa.get('candidate_tracklets')
+          assert int(cqa.get('named_tracklets',0)) <= max(20, int(lqa.get('named_tracklets',0))*3)
+          PY
+
+      - name: Upload comparison evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-commercial-ocr-comparison
+          path: |
+            commercial/qa.json
+            commercial/ocr_evidence.json
+            commercial/track_identity.csv
+            commercial/comparison.json
+            commercial/*_contact.jpg
+          if-no-files-found: error
+          retention-days: 7
