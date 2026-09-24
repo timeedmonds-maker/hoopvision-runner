@@ -1,0 +1,64 @@
+name: Start Existing L4 For Toronto
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/start-existing-l4-for-toronto.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  RUN_ID: public-36062527172-1-95bd1d0abd99
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  start:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Start prepared VM and wait for fresh session
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          echo "BEFORE_STATUS=$STATUS"
+          if test "$STATUS" = "TERMINATED"; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          fi
+          for i in $(seq 1 60); do
+            STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)' 2>/dev/null || true)"
+            if test "$STATUS" = "RUNNING"; then break; fi
+            sleep 2
+          done
+          test "$STATUS" = "RUNNING"
+          echo "AFTER_STATUS=$STATUS"
+          # Wait for the restarted supervisor to republish the session and then
+          # for the already queued Toronto request to advance beyond DISPATCHING.
+          for i in $(seq 1 90); do
+            gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" > /tmp/session.json 2>/dev/null || true
+            EVENT_COUNT="$(gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/events/**" 2>/dev/null | wc -l | tr -d ' ')"
+            STATE="$(for x in $(gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/events/**" 2>/dev/null || true); do gcloud storage cat "$x" 2>/dev/null || true; done | python -c 'import sys,json; s=[]; [s.append(json.loads(x).get("state")) for x in sys.stdin if x.strip()]; print(s[-1] if s else "")' 2>/dev/null || true)"
+            echo "POLL $i event_count=$EVENT_COUNT latest_state=$STATE"
+            if test "$EVENT_COUNT" -ge 2; then
+              break
+            fi
+            sleep 2
+          done
+          echo "=== SESSION ==="
+          cat /tmp/session.json || true
+          echo "=== EVENTS ==="
+          for x in $(gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/events/**" 2>/dev/null || true); do
+            echo "--- $x"; gcloud storage cat "$x" || true
+          done
