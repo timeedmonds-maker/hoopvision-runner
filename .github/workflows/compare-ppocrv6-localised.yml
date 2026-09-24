@@ -18,9 +18,9 @@ permissions:
 
 env:
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
-  LOCALISATION_RUN_ID: '35967538305'
-  FROZEN_EVIDENCE_RUN_ID: '35891572936'
-  DEFAULT_SOURCE_SHA: d711021e6d7bbffa2f596ebf5f438477cbc72005
+  LOCALISATION_RUN_ID: '35971769212'
+  CORRECTED_P1A_RUN_ID: '35971408182'
+  DEFAULT_SOURCE_SHA: b07f3d031ceb66b507868b54e40ea2bed92dc03c
 
 jobs:
   compare:
@@ -62,14 +62,14 @@ jobs:
           set -euo pipefail
           python -m unittest             hoopvision.tests.test_ppocrv6_jersey_ocr             hoopvision.tests.test_commercial_ocr_boundary             hoopvision.tests.test_rfdetr_basketball_taxonomy -v
 
-      - name: Recover corrected localised number crops and frozen physical evidence
+      - name: Recover corrected-track localised crops and corrected physical evidence
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p localisation frozen
-          gh run download "$LOCALISATION_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-hawks-number-localisation             --dir localisation
-          gh run download "$FROZEN_EVIDENCE_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-evidence-completed             --dir frozen
+          mkdir -p localisation corrected_p1a
+          gh run download "$LOCALISATION_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-corrected-track-number-localisation             --dir localisation
+          gh run download "$CORRECTED_P1A_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-corrected-p1a-replay             --dir corrected_p1a
           test -f localisation/qa.json
           test -f localisation/number_localisation.csv
           test -d localisation/crops
@@ -103,8 +103,8 @@ jobs:
           set -euo pipefail
           mkdir -p localised_medium
           EXTRA=()
-          if test -f frozen/physical_paths/physical_paths.csv; then
-            EXTRA+=(--physical-paths frozen/physical_paths/physical_paths.csv --physical-reference frozen-event301-physical-paths)
+          if test -f corrected_p1a/physical_paths.csv; then
+            EXTRA+=(--physical-paths corrected_p1a/physical_paths.csv --physical-reference corrected-event301-p1a)
           fi
           /usr/bin/time -v -o localised_medium/time.txt             python tools/benchmark_ppocrv6_localised_crops.py               --localisation-csv localisation/number_localisation.csv               --crop-root localisation               "${EXTRA[@]}"               --backend ppocrv6-medium               --snapshot-dir models/ppocrv6/medium               --device cpu               --batch-size 32               --out localised_medium
 
@@ -113,8 +113,8 @@ jobs:
           set -euo pipefail
           mkdir -p localised_small
           EXTRA=()
-          if test -f frozen/physical_paths/physical_paths.csv; then
-            EXTRA+=(--physical-paths frozen/physical_paths/physical_paths.csv --physical-reference frozen-event301-physical-paths)
+          if test -f corrected_p1a/physical_paths.csv; then
+            EXTRA+=(--physical-paths corrected_p1a/physical_paths.csv --physical-reference corrected-event301-p1a)
           fi
           /usr/bin/time -v -o localised_small/time.txt             python tools/benchmark_ppocrv6_localised_crops.py               --localisation-csv localisation/number_localisation.csv               --crop-root localisation               "${EXTRA[@]}"               --backend ppocrv6-small               --snapshot-dir models/ppocrv6/small               --device cpu               --batch-size 32               --out localised_small
 
@@ -161,7 +161,8 @@ jobs:
           report={
               'schema':'hoopvision.ppocrv6-localised-comparison.v1',
               'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
-              'localisation_run_id':35967538305,
+              'localisation_run_id':35971769212,
+              'corrected_p1a_run_id':35971408182,
               'crop_count':len(loc),
               'independent_reference_status':'PENDING_INDEPENDENT_REVIEW',
               'accuracy_status':'UNKNOWN',
