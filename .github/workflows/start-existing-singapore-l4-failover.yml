@@ -1,0 +1,40 @@
+name: Start Existing Singapore L4 Failover
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/start-existing-singapore-l4-failover.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-a
+  INSTANCE: hv-dev-l4-failover
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  start:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Start failover host
+        shell: bash
+        run: |
+          set -euo pipefail
+          BEFORE="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          echo "BEFORE_STATUS=$BEFORE"
+          if test "$BEFORE" = "TERMINATED"; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          fi
+          AFTER="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          echo "AFTER_STATUS=$AFTER"
+          test "$AFTER" = "RUNNING"
