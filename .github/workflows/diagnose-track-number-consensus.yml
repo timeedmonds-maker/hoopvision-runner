@@ -1,0 +1,80 @@
+name: Diagnose Track-Level Jersey Consensus
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnose-track-number-consensus.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  OCR_RUN_ID: '35972536456'
+
+jobs:
+  consensus:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'numpy<2' pandas
+      - name: Recover corrected OCR evidence and roster vocabulary
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOOPVISION_104_READ_TOKEN: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p ocr
+          gh run download "$OCR_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-ppocrv6-localised-comparison --dir ocr
+          curl -fsSL -H "Authorization: Bearer ${HOOPVISION_104_READ_TOKEN}" -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/timeedmonds-maker/104/contents/config/season_roster_number_map.json?ref=hoopvision-proven-enhancements" > roster.json
+      - name: Diagnose repeated number evidence without authorizing identity
+        run: |
+          python - <<'PY'
+          import json, pandas as pd
+          loc=pd.read_csv('ocr/localisation/number_localisation.csv')
+          med=pd.read_csv('ocr/localised_medium/evidence.csv')
+          sml=pd.read_csv('ocr/localised_small/evidence.csv')
+          print('LOC',list(loc.columns)); print('MED',list(med.columns)); print('SML',list(sml.columns))
+          # Discover stable shared crop key and physical track key from artifacts rather than assuming schema.
+          keys=[c for c in loc.columns if c in med.columns and c in sml.columns]
+          track=next((c for c in ['physical_path_id','track_id','root_id'] if c in loc.columns),None)
+          digit=lambda d: next((c for c in ['canonical_digits','raw_digits','digits','prediction'] if c in d.columns),None)
+          mk,sk=digit(med),digit(sml)
+          assert track and mk and sk, (track,mk,sk)
+          join=next((c for c in ['crop_id','crop_path','localisation_id','localization_id','source_frame','tracking_frame'] if c in keys),None)
+          assert join, keys
+          x=loc.merge(med[[join,mk]],on=join,how='left').merge(sml[[join,sk]],on=join,how='left',suffixes=('_med','_sml'))
+          # suffix handling
+          mcol=mk if mk in x.columns else mk+'_med'; scol=sk if sk in x.columns and sk!=mk else (sk+'_sml' if sk+'_sml' in x.columns else sk)
+          def clean(v):
+            if pd.isna(v): return ''
+            s=''.join(ch for ch in str(v) if ch.isdigit())
+            return s if 1<=len(s)<=2 else ''
+          x['m']=x[mcol].map(clean); x['s']=x[scol].map(clean)
+          rows=[]
+          for tid,g in x.groupby(track):
+            vals=[]
+            for _,r in g.iterrows():
+              if r.m and r.s and r.m==r.s: vals.append(r.m)
+            counts=pd.Series(vals).value_counts() if vals else pd.Series(dtype=int)
+            top=str(counts.index[0]) if len(counts) else ''
+            n=int(counts.iloc[0]) if len(counts) else 0
+            second=int(counts.iloc[1]) if len(counts)>1 else 0
+            rows.append({track:str(tid),'crops':len(g),'cross_model_exact_agreements':len(vals),'top_number':top,'top_votes':n,'runner_up_votes':second,'repeat_consensus_ge2':bool(n>=2 and n>second),'repeat_consensus_ge3':bool(n>=3 and n>second)})
+          out=pd.DataFrame(rows)
+          out.to_csv('track_number_consensus.csv',index=False)
+          summary={'schema':'hoopvision.track-number-consensus-diagnostic.v1','qualification_claim':'NONE_DIAGNOSTIC_ONLY','identity_authorized':False,'tracks':len(out),'tracks_cross_model_agreement':int((out.cross_model_exact_agreements>0).sum()),'tracks_repeat_consensus_ge2':int(out.repeat_consensus_ge2.sum()),'tracks_repeat_consensus_ge3':int(out.repeat_consensus_ge3.sum()),'note':'Repeated cross-model agreement is diagnostic evidence only; no OCR calibration gate is weakened and no player identity is authorized.'}
+          open('summary.json','w').write(json.dumps(summary,indent=2)+'\n')
+          print('HOOPVISION_TRACK_NUMBER_CONSENSUS='+json.dumps(summary,sort_keys=True))
+          print(out.sort_values(['repeat_consensus_ge3','top_votes'],ascending=False).to_string(index=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-track-number-consensus-diagnostic
+          path: |
+            track_number_consensus.csv
+            summary.json
+          retention-days: 14
