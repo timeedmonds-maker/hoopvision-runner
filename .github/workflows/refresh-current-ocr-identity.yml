@@ -10,10 +10,10 @@ permissions:
   actions: read
 
 env:
-  CANDIDATE_SHA: 4360c2c01bda12386bb75635da923b0049304347
+  CANDIDATE_SHA: 81318831f06df69f964ea91408a753e4029a7767
   CURRENT_PHYSICAL_RUN_ID: '36053461888'
   OCR_RUN_ID: '35972536456'
-  SEASON: '2025-26'
+  GAME_ID: '0012500014'
 
 jobs:
   refresh:
@@ -43,7 +43,7 @@ jobs:
           gh run download "$OCR_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-ppocrv6-localised-comparison --dir work/ocr
           test -s work/current/p1a/physical_paths.csv
           test -s work/ocr/review/candidate_predictions.csv
-          test -s src/config/season_roster_number_map.json
+          test -s src/config/release_game_roster_map.json
       - name: Spatially remap crops and de-correlate jersey evidence
         run: |
           python - <<'PY'
@@ -52,8 +52,8 @@ jobs:
           import pandas as pd
           p=pd.read_csv('work/current/p1a/physical_paths.csv')
           o=pd.read_csv('work/ocr/review/candidate_predictions.csv',dtype=str).fillna('')
-          rosters=json.load(open('src/config/season_roster_number_map.json'))['rosters']
-          season='2025-26'
+          game_id='0012500014'
+          game_rosters=json.load(open('src/config/release_game_roster_map.json'))['games'][game_id]['teams']
           def box(s):
               try:
                   v=ast.literal_eval(str(s)); return tuple(map(float,v))
@@ -132,7 +132,7 @@ jobs:
                   state='CANDIDATE'
                   if conflict: state='CONFLICTED'
                   elif top<2: state='UNKNOWN_INSUFFICIENT_INDEPENDENT_GROUPS'
-              rk=f'{season}:{team}'; rv=rosters.get(rk,{})
+              rv=game_rosters.get(team,{})
               roster_val=rv.get(cand) if cand else None
               if roster_val is None: roster_state='NO_NUMBER_CANDIDATE' if not cand else 'NUMBER_NOT_ON_SEASON_TEAM_ROSTER'
               elif isinstance(roster_val,list): roster_state='AMBIGUOUS_ROSTER_CANDIDATE'
@@ -152,7 +152,7 @@ jobs:
           out.to_csv('work/out/current_physical_ocr_consensus.csv',index=False)
           Path('work/out/current_temporal_groups.json').write_text(json.dumps(groups_json,indent=2,sort_keys=True,default=lambda o:o.item() if hasattr(o,'item') else str(o))+'\n')
           summary={
-             'schema':'hoopvision.current-physical-ocr-refresh.v1','candidate_sha':'4360c2c01bda12386bb75635da923b0049304347',
+             'schema':'hoopvision.current-physical-ocr-refresh.v1','candidate_sha':'81318831f06df69f964ea91408a753e4029a7767',
              'physical_fragments':int(p.physical_path_id.astype(str).nunique()),'input_ocr_crops':int(len(o)),
              'spatially_mapped_crops':int(len(m)),'unmapped_or_ambiguous_crops':int(len(u)),
              'paths_with_any_mapped_crop':int(m.physical_path_id.nunique()) if len(m) else 0,
@@ -162,7 +162,7 @@ jobs:
              'conflicted_paths':int((out.get('identity_state','')=='CONFLICTED').sum()),
              'accepted_identity_paths':0,'identity_authorized':False,
              'ocr_calibration':'UNKNOWN_INDEPENDENT_LABELS_PENDING',
-             'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+             'game_id':game_id,'roster_scope':'OFFICIAL_GAME_SPECIFIC','qualification_claim':'NONE_DIAGNOSTIC_ONLY',
              'evidence_rule':'Medium+Small exact agreement on one crop is one observation; adjacent reads within 0.75s are one correlated temporal group; contradictions retained.'
           }
           Path('work/out/current_physical_ocr_summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
