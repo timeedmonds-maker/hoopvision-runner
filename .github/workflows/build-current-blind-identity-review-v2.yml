@@ -30,7 +30,7 @@ jobs:
           gh run download "$OCR_REFRESH_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-current-physical-ocr-refresh --dir work/refresh
           gh run download "$OCR_REVIEW_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-independent-ocr-review --dir work/blind
           find work/refresh -maxdepth 3 -type f -printf '%p\n'
-          find work/blind -maxdepth 3 -type f -printf '%p\n' | head -40
+          find work/blind -maxdepth 3 -type f -printf '%p\n' | head -40 || true
       - name: Build blind temporally independent review set
         run: |
           python - <<'PY'
