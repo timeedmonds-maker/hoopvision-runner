@@ -54,7 +54,7 @@ jobs:
           2,4.066667,2,4.066667,A,1,Alpha,ALPHA,14,10,34,50,true,24,48
           CSV
           cat > work/roster.json <<'JSON'
-          {"teams":{"A":{"players":[{"id":1,"name":"Alpha"}]},"B":{"players":[{"id":2,"name":"Beta"}]}}
+          {"teams":{"A":{"players":[{"id":1,"name":"Alpha"}]},"B":{"players":[{"id":2,"name":"Beta"}]}}}
           JSON
       - name: Run diagnostic evaluator against exact ledger
         run: |
