@@ -1,10 +1,16 @@
-name: Validate HoopVision Regression Gates
+name: Validate HoopVision Control Plane
 
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/validate-control-plane.yml'
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -12,19 +18,81 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      DEFAULT_SOURCE_SHA: f7a89314e6faae1b4201cfd05c1d1cbf03d1e96f
     steps:
-      - name: Checkout private HoopVision source
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+          echo "Validating private candidate $SHA"
+
+      - name: Checkout exact private HoopVision source
         uses: actions/checkout@v4
         with:
           repository: timeedmonds-maker/104
-          ref: 08236f58dbb34b1d9c8e45126618cd99a0fa66d4
+          ref: ${{ steps.source.outputs.sha }}
           token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
           persist-credentials: false
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Validate identity and control-plane regressions
+
+      - name: Compile actual control-plane consumers
         run: |
           set -euo pipefail
-          python -m unittest hoopvision.tests.test_semantic_anchor_source -v
-          python -m py_compile tools/release/dev_supervisor.py tools/release/watch_run.py tools/release/submit_dev.py hoopvision/worker/interactive_service.py hoopvision/worker/run_fresh_hawks_all_player.py hoopvision/worker/run_fresh_hawks_identity_replay.py screen_tracker_nextgen/global_identity_solver.py screen_tracker_nextgen/all_player_identity_solver.py screen_tracker_nextgen/reauthorize_all_player_assignments.py screen_tracker_nextgen/materialize_sam31_player_paths.py screen_tracker_nextgen/build_named_render_paths.py screen_tracker_nextgen/build_fast_physical_paths.py screen_tracker_nextgen/solve_fast_path_identities.py hoopvision/worker/run_fresh_hawks_fast_path.py screen_tracker_nextgen/render_all_player_labels.py tools/adams_event_track_identity_ocr.py tools/adams_screen_prod_v3.py
+          python -m py_compile             hoopvision/core/control_plane_contract.py             tools/release/dev_supervisor.py             tools/release/submit_dev.py             hoopvision/worker/interactive_service.py
+
+      - name: Prove exact event296 dispatch contract on CPU
+        run: |
+          set -euo pipefail
+          python -m unittest -v hoopvision.tests.test_control_plane_contract
+
+      - name: Exercise exact event296 request through production validation function
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from hoopvision.core.control_plane_contract import (
+              BENCHMARK_ENDPOINTS, FIXTURE_IDS, SupervisorRuntimeIdentity,
+              benchmark_registry_sha256, validate_dispatch_request,
+          )
+
+          identity = SupervisorRuntimeIdentity(
+              pid=4242,
+              started_at_unix_s=1790000000.0,
+              module_path="/srv/hoopvision/control/dev_supervisor.py",
+              startup_sha256="a"*64,
+              build_revision="cpu-proof",
+              session_id="hv-dev-l4",
+              app_root="/srv/hoopvision/apps",
+              worker_registry=tuple(sorted(BENCHMARK_ENDPOINTS)),
+              benchmark_map=tuple(sorted(BENCHMARK_ENDPOINTS.items())),
+          )
+          request = {
+              "schema":"hoopvision.dev-run.v1",
+              "run_id":"cpu-event296-proof",
+              "session_id":"hv-dev-l4",
+              "fixture_id":FIXTURE_IDS["hawks-event296-playbyplay"],
+              "benchmark":"hawks-event296-playbyplay",
+              "benchmark_registry_sha256":benchmark_registry_sha256(),
+          }
+          endpoint=validate_dispatch_request(request,identity)
+          assert endpoint=="/v1/benchmark/hawks-event296-playbyplay", endpoint
+          stale=dict(request)
+          stale["benchmark_registry_sha256"]="0"*64
+          try:
+              validate_dispatch_request(stale,identity)
+          except RuntimeError as exc:
+              assert "registry identity mismatch" in str(exc)
+          else:
+              raise AssertionError("stale registry was not rejected")
+          print("HOOPVISION_EVENT296_CPU_DISPATCH_PROOF_OK", endpoint)
+          PY
