@@ -1,4 +1,5 @@
 name: Create Pelicans GCS Upload Session
+# trigger one-time upload session
 
 on:
   push:
