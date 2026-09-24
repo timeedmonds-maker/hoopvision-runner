@@ -1,0 +1,38 @@
+name: Validate Season-Roster Identity Solver
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-season-roster-identity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  season-roster-identity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: 3183921643f0bf7ff892e3435a24345f6c0605eb
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install CPU dependencies
+        run: python -m pip install -q numpy pandas scipy pytest
+
+      - name: Run season-roster identity regressions
+        run: |
+          set -euo pipefail
+          python -m py_compile screen_tracker_nextgen/global_identity_solver.py screen_tracker_nextgen/solve_fast_path_identities.py
+          python -m pytest -q screen_tracker_nextgen/test_season_roster_identity.py
