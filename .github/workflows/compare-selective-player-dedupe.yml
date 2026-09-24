@@ -1,0 +1,143 @@
+name: Compare Selective Player Dedupe
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/compare-selective-player-dedupe.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 0a11572c868bd1b0741980e2588a7a8c7a928e59
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install exact CPU detector/tracker runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision scipy rich requests 'jsonargparse<5' pydeprecate onnxruntime
+          git clone -q https://github.com/roboflow/trackers.git /tmp/trackers
+          git -C /tmp/trackers checkout -q 3fb83d1618f29b7fdd4617757b6894e4ec71146d
+          python -m pip install -q -e /tmp/trackers --no-deps
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+      - name: Recover exact source and detector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/models work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o work/models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  work/models/rfdetr_m_640.onnx" | sha256sum -c -
+      - name: Compare current NMS with containment-centre selective dedupe
+        run: |
+          PYTHONPATH="$PWD/src" python - <<'PY'
+          import sys,json,time,itertools
+          from pathlib import Path
+          import cv2,numpy as np,pandas as pd,supervision as sv
+          sys.path.insert(0,'/tmp/object-detection-eval/src')
+          from object_detection_eval.inference.detectors.rfdetr import RFDETRDetector
+          from tools.diagnose_rfdetr_tracking_taxonomy import CORRECTED_PLAYER_CLASSES,RAW_LABEL_MAP,make_tracker
+
+          def raw_players(dets,w,h):
+              rows=[]
+              for d in dets:
+                  if int(d.class_id) not in CORRECTED_PLAYER_CLASSES or float(d.confidence)<.20: continue
+                  b=d.bbox
+                  rows.append(([b.x*w,b.y*h,(b.x+b.w)*w,(b.y+b.h)*h],float(d.confidence),int(d.class_id)))
+              return rows
+
+          def metrics(a,b):
+              aa=max(1e-9,(a[2]-a[0])*(a[3]-a[1])); bb=max(1e-9,(b[2]-b[0])*(b[3]-b[1]))
+              ix=max(0,min(a[2],b[2])-max(a[0],b[0])); iy=max(0,min(a[3],b[3])-max(a[1],b[1])); inter=ix*iy
+              iou=inter/(aa+bb-inter) if aa+bb-inter>0 else 0.; ios=inter/min(aa,bb)
+              ca=np.asarray(((a[0]+a[2])*.5,(a[1]+a[3])*.5)); cb=np.asarray(((b[0]+b[2])*.5,(b[1]+b[3])*.5))
+              ha=max(1.,a[3]-a[1]); hb=max(1.,b[3]-b[1]); nd=float(np.linalg.norm(ca-cb)/(.5*(ha+hb)))
+              return float(iou),float(ios),nd
+
+          def to_sv(rows,mode):
+              if not rows:return sv.Detections.empty()
+              boxes=np.asarray([r[0] for r in rows],np.float32); conf=np.asarray([r[1] for r in rows],np.float32)
+              if mode=='baseline':
+                  x=sv.Detections(xyxy=boxes,confidence=conf,class_id=np.zeros(len(boxes),np.int32))
+                  return x.with_nms(threshold=.50,class_agnostic=True)
+              order=np.argsort(-conf); kept=[]
+              for idx in order:
+                  b=boxes[idx]; suppress=False
+                  for j in kept:
+                      iou,ios,nd=metrics(b,boxes[j])
+                      if iou>=.72 or (ios>=.72 and nd<=.24):
+                          suppress=True; break
+                  if not suppress: kept.append(int(idx))
+              return sv.Detections(xyxy=boxes[kept],confidence=conf[kept],class_id=np.zeros(len(kept),np.int32))
+
+          def risk_pairs(boxes):
+              same=distinct_overlap=0
+              for i,j in itertools.combinations(range(len(boxes)),2):
+                  iou,ios,nd=metrics(boxes[i],boxes[j])
+                  if ios>=.72 and nd<=.24: same+=1
+                  if iou>=.50 and nd>.24: distinct_overlap+=1
+              return same,distinct_overlap
+
+          detector=RFDETRDetector('work/models/rfdetr_m_640.onnx',RAW_LABEL_MAP,confidence_threshold=.045,num_select=300,input_height=640,input_width=640,providers=['CPUExecutionProvider'])
+          trackers={'baseline':make_tracker(15.0),'selective':make_tracker(15.0)}
+          rows=[]; tracks={k:[] for k in trackers}; t0=time.monotonic()
+          cap=cv2.VideoCapture('work/source_native.mp4'); fps=float(cap.get(cv2.CAP_PROP_FPS) or 30000/1001); W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+          start=int(round(4*fps)); end=int(round(16*fps)); every=max(1,int(round(fps/15)))
+          for rel,absf in enumerate(range(start,end)):
+              if rel%every:continue
+              cap.set(cv2.CAP_PROP_POS_FRAMES,absf); ok,frame=cap.read()
+              if not ok:continue
+              raw=raw_players(detector.predict(frame),W,H); rec={'tracking_frame':int(rel),'time_s':float(4+rel/fps),'raw_count':len(raw)}
+              for name in ['baseline','selective']:
+                  p=to_sv(raw,name); same,distinct=risk_pairs(p.xyxy)
+                  tr=trackers[name].update(p,frame=frame,timestamp=rel/fps)
+                  valid=[i for i,tid in enumerate(tr.tracker_id)] if len(tr) else []
+                  valid=[i for i in valid if int(tr.tracker_id[i])>=0]
+                  tsame,tdistinct=risk_pairs([tr.xyxy[i] for i in valid] if len(tr) else [])
+                  rec[f'{name}_dets']=len(p); rec[f'{name}_tracks']=len(valid); rec[f'{name}_samebody_risk']=same; rec[f'{name}_distinct_overlap_pairs']=distinct; rec[f'{name}_track_samebody_risk']=tsame
+                  for i in valid:
+                      b=tr.xyxy[i]; tracks[name].append({'source_frame_rel':int(rel),'source_frame_abs':int(absf),'time_s':float(4+rel/fps),'track_id':int(tr.tracker_id[i]),'x1':float(b[0]),'y1':float(b[1]),'x2':float(b[2]),'y2':float(b[3]),'conf':float(tr.confidence[i])})
+              rows.append(rec)
+          cap.release()
+          d=pd.DataFrame(rows); d.to_csv('work/out/selective_dedupe_by_frame.csv',index=False)
+          for k,v in tracks.items():pd.DataFrame(v).to_csv(f'work/out/{k}_tracks.csv',index=False)
+          target=(d.time_s>=5.8)&(d.time_s<=6.8)
+          def arm(n):
+              return {'frames_dets_ge10':int((d[f'{n}_dets']>=10).sum()),'frames_tracks_ge10':int((d[f'{n}_tracks']>=10).sum()),'frames_tracks_gt10':int((d[f'{n}_tracks']>10).sum()),'sum_samebody_risk':int(d[f'{n}_samebody_risk'].sum()),'sum_track_samebody_risk':int(d[f'{n}_track_samebody_risk'].sum()),'sum_distinct_overlap_pairs':int(d[f'{n}_distinct_overlap_pairs'].sum()),'target_tracks_ge10':int((target&(d[f'{n}_tracks']>=10)).sum()),'target_tracks_gt10':int((target&(d[f'{n}_tracks']>10)).sum())}
+          b=arm('baseline'); s=arm('selective')
+          rep={'schema':'hoopvision.selective-player-dedupe-comparison.v1','candidate_sha':'0a11572c868bd1b0741980e2588a7a8c7a928e59','source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a','baseline':b,'selective':s,'delta_frames_tracks_ge10':s['frames_tracks_ge10']-b['frames_tracks_ge10'],'delta_target_tracks_ge10':s['target_tracks_ge10']-b['target_tracks_ge10'],'delta_gt10_frames':s['frames_tracks_gt10']-b['frames_tracks_gt10'],'elapsed_s':round(time.monotonic()-t0,3),'selective_rule':{'iou_suppress_ge':.72,'or_ios_ge':.72,'and_normalized_center_distance_le':.24},'qualification_claim':'NONE_DIAGNOSTIC_ONLY','promotion_allowed':False}
+          Path('work/out/selective_dedupe_summary.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_SELECTIVE_DEDUPE='+json.dumps(rep,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-selective-player-dedupe
+          path: work/out/
+          retention-days: 14
