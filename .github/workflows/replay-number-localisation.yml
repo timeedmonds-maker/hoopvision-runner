@@ -1,0 +1,117 @@
+name: Replay Frozen Hawks Jersey Number Localisation
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/replay-number-localisation.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+  EVIDENCE_RUN_ID: '35891572936'
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  DEFAULT_SOURCE_SHA: 6fc64fb19d17099309b52adb97a38150818c43c0
+
+jobs:
+  localise:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install exact detector runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision onnxruntime
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+
+      - name: Recover exact source and frozen tracks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p frozen recovered models
+          gh run download "$EVIDENCE_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-evidence-completed --dir frozen
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir recovered
+          cp recovered/exact_source_native.mp4 frozen/source_native.mp4
+          echo "$SOURCE_SHA256  frozen/source_native.mp4" | sha256sum -c -
+          test -f frozen/nextgen/tracks.csv
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  models/rfdetr_m_640.onnx" | sha256sum -c -
+
+      - name: Replay only the 5 Hz number-localisation pass
+        run: |
+          set -euo pipefail
+          /usr/bin/time -v -o localisation/time.txt             python tools/replay_jersey_number_localisation.py               --source frozen/source_native.mp4               --source-sha256 "$SOURCE_SHA256"               --tracks frozen/nextgen/tracks.csv               --detector-onnx models/rfdetr_m_640.onnx               --object-eval-src /tmp/object-detection-eval/src               --out localisation               --start-s 4               --end-s 16               --number-fps 5               --ios-threshold .55               --device cpu
+
+      - name: Validate localisation contract
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, pandas as pd
+          q=json.load(open('localisation/qa.json'))
+          d=pd.read_csv('localisation/number_localisation.csv')
+          assert q['rules']['reruns_tracking'] is False
+          assert q['rules']['production_number_class'] == 2
+          assert q['rules']['production_ios_threshold_preserved'] is True
+          assert q['rules']['production_crop_padding_px'] == 4
+          assert q['scheduled_frames'] >= 55
+          assert q['decoded_frames'] == q['scheduled_frames']
+          accepted=d[d.status=='LOCALISED_NUMBER_CROP']
+          print('HOOPVISION_NUMBER_LOCALISATION_SUMMARY='+json.dumps({
+              'localised_crop_count':len(accepted),
+              'unique_track_ids':int(accepted.track_id.nunique()) if len(accepted) else 0,
+              'median_crop_height':float(accepted.crop_height.median()) if len(accepted) else None,
+              'median_crop_width':float(accepted.crop_width.median()) if len(accepted) else None,
+              'median_detector_conf':float(accepted.number_conf.median()) if len(accepted) else None,
+              'median_ios':float(accepted.best_ios.median()) if len(accepted) else None,
+          },sort_keys=True))
+          PY
+
+      - name: Upload localised number crops
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-hawks-number-localisation
+          path: |
+            localisation/qa.json
+            localisation/time.txt
+            localisation/number_localisation.csv
+            localisation/crops/*.jpg
+          if-no-files-found: error
+          retention-days: 14
