@@ -1,0 +1,88 @@
+name: Compare Uniform Colour Segmentation Policy
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/compare-uniform-colour-segmentation.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 4206110d15e5204d1e2b06f0024f5aa9abc56bc6
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  TRACKING_RUN_ID: '35968920974'
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'numpy<2' pandas opencv-python-headless scipy
+      - name: Recover exact source and corrected tracking
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/tracking
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          gh run download "$TRACKING_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-rfdetr-taxonomy-mcbyte --dir work/tracking
+          test -s work/tracking/corrected_raw11_tracks.csv
+      - name: Build legacy and soft-colour segmentation arms
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$PWD/src" python src/screen_tracker_nextgen/build_identity_segments.py             --tracks work/tracking/corrected_raw11_tracks.csv --source work/source_native.mp4 --out-dir work/legacy             --split-on-uniform-cluster-change
+          PYTHONPATH="$PWD/src" python src/screen_tracker_nextgen/build_identity_segments.py             --tracks work/tracking/corrected_raw11_tracks.csv --source work/source_native.mp4 --out-dir work/soft
+      - name: Compare physical pre-solve fragmentation
+        run: |
+          python - <<'PY'
+          import json, pandas as pd
+          from pathlib import Path
+          lq=json.load(open('work/legacy/segment_qa.json')); sq=json.load(open('work/soft/segment_qa.json'))
+          ls=pd.read_csv('work/legacy/segments.csv'); ss=pd.read_csv('work/soft/segments.csv')
+          lo=pd.read_csv('work/legacy/uniform_observations.csv'); so=pd.read_csv('work/soft/uniform_observations.csv')
+          # Observation evidence must be unchanged; only hard split policy may differ.
+          shared=['tracking_frame','source_track_id','raw_source_track_id','time_s','x1','y1','x2','y2','uniform_cluster','cluster_conf','ambiguous']
+          pd.testing.assert_frame_equal(lo[shared].reset_index(drop=True),so[shared].reset_index(drop=True),check_dtype=False)
+          report={
+            'schema':'hoopvision.uniform-colour-segmentation-comparison.v1',
+            'candidate_sha':'4206110d15e5204d1e2b06f0024f5aa9abc56bc6',
+            'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
+            'corrected_tracking_run_id':35968920974,
+            'legacy_cluster_hard_split':{'identity_segments':int(len(ls)),'source_track_ids':int(lq['source_track_ids'])},
+            'soft_cluster_evidence':{'identity_segments':int(len(ss)),'source_track_ids':int(sq['source_track_ids'])},
+            'segment_reduction':int(len(ls)-len(ss)),
+            'observation_rows':int(len(so)),
+            'observation_evidence_identical':True,
+            'qualification_claim':'NONE_DIAGNOSTIC_ONLY'
+          }
+          Path('work/comparison.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_UNIFORM_SEGMENT_COMPARISON='+json.dumps(report,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-uniform-colour-segmentation-comparison
+          path: |
+            work/comparison.json
+            work/legacy/segment_qa.json
+            work/legacy/segments.csv
+            work/soft/segment_qa.json
+            work/soft/segments.csv
+            work/soft/uniform_observations.csv
+          retention-days: 30
