@@ -118,7 +118,7 @@ jobs:
                   top=str(counts.index[0]); topn=int(counts.iloc[0])
                   tied=(len(counts)>1 and int(counts.iloc[1])==topn)
                   if tied:
-                      gj.append({'start_s':float(grp[0].pts_s),'end_s':float(grp[-1].pts_s),'state':'CONFLICTED_WITHIN_GROUP','numbers':dict(counts)})
+                      gj.append({'start_s':float(grp[0].pts_s),'end_s':float(grp[-1].pts_s),'state':'CONFLICTED_WITHIN_GROUP','numbers':{str(k):int(v) for k,v in counts.items()}})
                       contradictions.append(dict(counts)); continue
                   votes.append(top)
                   gj.append({'start_s':float(grp[0].pts_s),'end_s':float(grp[-1].pts_s),'state':'VOTE','number':top,'crop_count':len(grp)})
