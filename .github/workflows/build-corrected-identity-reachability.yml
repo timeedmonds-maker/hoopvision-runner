@@ -1,0 +1,123 @@
+name: Build Corrected Identity Reachability Ledger
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-corrected-identity-reachability.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  P1A_RUN_ID: '35972465174'
+  LEDGER_RUN_ID: '35973189638'
+  CONTINUITY_RUN_ID: '35976962952'
+
+jobs:
+  reachability:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'numpy<2' pandas
+      - name: Recover corrected evidence only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p p1a ledger continuity
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir p1a
+          gh run download "$LEDGER_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-physical-ocr-ledger --dir ledger
+          gh run download "$CONTINUITY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-continuity-extract --dir continuity || true
+          test -s p1a/physical_paths.csv
+          test -s ledger/identity_coverage_ledger.csv
+      - name: Build fail-closed reachability ledger
+        run: |
+          python - <<'PY'
+          import json, os, pandas as pd
+          p=pd.read_csv('p1a/physical_paths.csv')
+          l=pd.read_csv('ledger/identity_coverage_ledger.csv')
+          root='physical_path_id'
+          assert root in p.columns
+          lr=root if root in l.columns else ('root_id' if 'root_id' in l.columns else None)
+          assert lr is not None
+          if lr != root: l=l.rename(columns={lr:root})
+          p[root]=p[root].astype(str); l[root]=l[root].astype(str)
+          teamcol=next((c for c in ['team','team_id','team_code'] if c in p.columns),None)
+          timecol='time_s' if 'time_s' in p.columns else None
+          framecol='tracking_frame' if 'tracking_frame' in p.columns else None
+          cropcol=next((c for c in ['localised_crop_count','localized_crop_count','localised_crop_references','localized_crop_references','crop_references'] if c in l.columns),None)
+          medcol=next((c for c in ['medium_raw_digit_reads','ppocrv6_medium_raw_digit_reads'] if c in l.columns),None)
+          smlcol=next((c for c in ['small_raw_digit_reads','ppocrv6_small_raw_digit_reads'] if c in l.columns),None)
+          rows=[]
+          for rid,g in p.groupby(root,dropna=False):
+              rec={root:str(rid),'observations':int(len(g))}
+              if teamcol:
+                  v=g[teamcol].dropna().astype(str); rec['team']=v.mode().iloc[0] if len(v) else ''
+              if timecol:
+                  rec['start_s']=float(g[timecol].min()); rec['end_s']=float(g[timecol].max()); rec['duration_s']=rec['end_s']-rec['start_s']
+              if framecol:
+                  rec['start_frame']=int(g[framecol].min()); rec['end_frame']=int(g[framecol].max())
+              rows.append(rec)
+          d=pd.DataFrame(rows)
+          keep=[root]+[c for c in [cropcol,medcol,smlcol] if c]
+          d=d.merge(l[keep].drop_duplicates(root),on=root,how='left')
+          for c in keep[1:]: d[c]=pd.to_numeric(d[c],errors='coerce').fillna(0)
+          d['crop_available']=(d[cropcol]>0) if cropcol else False
+          d['medium_digit_evidence']=(d[medcol]>0) if medcol else False
+          d['small_digit_evidence']=(d[smlcol]>0) if smlcol else False
+          # Commercial v6 thresholds are deliberately uncalibrated. Raw reads are evidence availability,
+          # never identity authorization. Team is diagnostic context, not a roster-name assignment.
+          d['ocr_calibrated']=False
+          d['identity_authorized']=False
+          d['canonical_player_id']=''
+          d['reachability_state']=d.apply(lambda r:
+              'RAW_DIGIT_EVIDENCE_UNCALIBRATED' if (r.medium_digit_evidence or r.small_digit_evidence)
+              else ('CROP_AVAILABLE_NO_DIGIT' if r.crop_available else 'NO_SAFE_CROP'),axis=1)
+          d['blocking_reason']=d['reachability_state'].map({
+              'RAW_DIGIT_EVIDENCE_UNCALIBRATED':'PP-OCRv6 precision/threshold not independently calibrated; cannot vote identity',
+              'CROP_AVAILABLE_NO_DIGIT':'safe crop exists but no raw digit evidence',
+              'NO_SAFE_CROP':'no safely attributable localized jersey crop'
+          })
+          sort=[c for c in ['team','start_s','start_frame',root] if c in d.columns]
+          d=d.sort_values(sort)
+          d.to_csv('identity_reachability_ledger.csv',index=False)
+          team_summary=[]
+          if 'team' in d.columns:
+              for team,g in d.groupby('team',dropna=False):
+                  team_summary.append({'team':str(team),'physical_fragments':int(len(g)),'crop_fragments':int(g.crop_available.sum()),'medium_digit_fragments':int(g.medium_digit_evidence.sum()),'small_digit_fragments':int(g.small_digit_evidence.sum()),'authorized_identity_fragments':0})
+          summary={
+              'schema':'hoopvision.corrected-identity-reachability.v1',
+              'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+              'physical_fragments':int(len(d)),
+              'crop_fragments':int(d.crop_available.sum()),
+              'medium_digit_fragments':int(d.medium_digit_evidence.sum()),
+              'small_digit_fragments':int(d.small_digit_evidence.sum()),
+              'authorized_identity_fragments':0,
+              'canonical_players_reached':0,
+              'ten_player_reachability':'UNKNOWN',
+              'identity_accuracy':'UNKNOWN',
+              'ocr_identity_votes_enabled':False,
+              'joins_applied':0,
+              'motion_only_joins_applied':0,
+              'self_generated_ground_truth':False,
+              'team_summary':team_summary,
+              'next_evidence_boundary':'independent OCR calibration/reference labels or independently established roster anchor evidence',
+              'note':'Evidence availability ledger only. Raw OCR predictions, team context, temporal proximity and SAM unsupported_continuity do not authorize a roster identity.'
+          }
+          open('identity_reachability_summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_IDENTITY_REACHABILITY='+json.dumps(summary,sort_keys=True))
+          print(d[[c for c in [root,'team','duration_s','crop_available','medium_digit_evidence','small_digit_evidence','reachability_state','blocking_reason'] if c in d.columns]].to_string(index=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-corrected-identity-reachability
+          path: |
+            identity_reachability_ledger.csv
+            identity_reachability_summary.json
+          if-no-files-found: error
+          retention-days: 14
