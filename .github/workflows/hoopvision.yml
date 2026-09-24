@@ -588,11 +588,10 @@ jobs:
               test \"\$ACTUAL\" = '$EXPECTED_SUP_SHA'
               sudo grep -q 'hawks-event296-playbyplay' \"\$SUP_PATH\"
 
-              READY_SINCE=\"\$(date --iso-8601=seconds)\"
               sudo systemctl start hoopvision-dev-supervisor
               for i in \$(seq 1 30); do
                 if sudo systemctl is-active --quiet hoopvision-dev-supervisor; then
-                  LOG=\"\$(sudo journalctl -u hoopvision-dev-supervisor --since \"\$READY_SINCE\" --no-pager -o cat || true)\"
+                  LOG=\"\$(sudo journalctl -u hoopvision-dev-supervisor -n 100 --no-pager -o cat || true)\"
                   if printf '%s\n' \"\$LOG\" | grep -q 'HOOPVISION_DEV_SUPERVISOR_LISTENING'; then
                     echo 'Exact supervisor hash verified and listener ready'
                     exit 0
@@ -602,7 +601,7 @@ jobs:
               done
               echo 'Supervisor failed bounded ready check' >&2
               sudo systemctl status hoopvision-dev-supervisor --no-pager || true
-              sudo journalctl -u hoopvision-dev-supervisor --since \"\$READY_SINCE\" --no-pager || true
+              sudo journalctl -u hoopvision-dev-supervisor -n 160 --no-pager -o cat || true
               exit 1"
 
       - name: Publish immutable bundle and dispatch
