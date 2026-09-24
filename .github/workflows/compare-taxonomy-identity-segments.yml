@@ -1,0 +1,121 @@
+name: Compare Corrected Taxonomy Identity Segments
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/compare-taxonomy-identity-segments.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  TRACKING_RUN_ID: '35968920974'
+  DEFAULT_SOURCE_SHA: bb05c831b40120536ca71fff99f96b48ea1078d4
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install segment runtime
+        run: |
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless scipy
+
+      - name: Recover exact source and paired tracking arms
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p recovered paired
+          gh run download "$SOURCE_RECOVERY_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-hawks-source-l4-disk-recovery             --dir recovered
+          cp recovered/exact_source_native.mp4 source_native.mp4
+          echo "$SOURCE_SHA256  source_native.mp4" | sha256sum -c -
+          gh run download "$TRACKING_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-rfdetr-taxonomy-mcbyte             --dir paired
+          test -s paired/old_shifted_tracks.csv
+          test -s paired/corrected_raw11_tracks.csv
+
+      - name: Build identity segments for both arms
+        run: |
+          set -euo pipefail
+          python screen_tracker_nextgen/build_identity_segments.py             --tracks paired/old_shifted_tracks.csv             --source source_native.mp4             --out-dir old_segments
+          python screen_tracker_nextgen/build_identity_segments.py             --tracks paired/corrected_raw11_tracks.csv             --source source_native.mp4             --out-dir corrected_segments
+
+      - name: Compare segment fragmentation
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          oq=json.load(open('old_segments/segment_qa.json'))
+          cq=json.load(open('corrected_segments/segment_qa.json'))
+          os=pd.read_csv('old_segments/segments.csv')
+          cs=pd.read_csv('corrected_segments/segments.csv')
+          report={
+              'schema':'hoopvision.corrected-taxonomy-identity-segments.v1',
+              'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
+              'tracking_run_id':35968920974,
+              'old_shifted':{
+                  'source_track_ids':int(oq['source_track_ids']),
+                  'identity_segments':int(oq['identity_segments']),
+                  'segment_rows':int(len(os)),
+              },
+              'corrected_raw11':{
+                  'source_track_ids':int(cq['source_track_ids']),
+                  'identity_segments':int(cq['identity_segments']),
+                  'segment_rows':int(len(cs)),
+              },
+              'causal_scope':'shared exact source and detector inference policy; tracking arms differ only by raw RF-DETR player-class mapping',
+              'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+          }
+          Path('comparison.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_TAXONOMY_SEGMENT_COMPARISON='+json.dumps(report,sort_keys=True))
+          PY
+
+      - name: Upload paired segment evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-taxonomy-identity-segments
+          path: |
+            comparison.json
+            old_segments/segment_qa.json
+            old_segments/segments.csv
+            old_segments/uniform_observations.csv
+            corrected_segments/segment_qa.json
+            corrected_segments/segments.csv
+            corrected_segments/uniform_observations.csv
+          if-no-files-found: error
+          retention-days: 14
