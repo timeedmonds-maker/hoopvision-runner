@@ -1,0 +1,116 @@
+name: Build Ten-Player Identity Root Diagnostic
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/build-ten-player-identity-root-diagnostic.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  P1A_RUN_ID: '35972465174'
+  CONSENSUS_RUN_ID: '36034411628'
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'numpy<2' pandas
+      - name: Recover corrected physical graph, repeated OCR diagnostic and roster
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HOOPVISION_104_READ_TOKEN: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p p1a consensus
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir p1a
+          gh run download "$CONSENSUS_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-track-number-consensus-diagnostic --dir consensus
+          curl -fsSL -H "Authorization: Bearer ${HOOPVISION_104_READ_TOKEN}" -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/timeedmonds-maker/104/contents/config/season_roster_number_map.json?ref=hoopvision-proven-enhancements" > roster.json
+          test -s p1a/physical_paths.csv
+          test -s consensus/track_number_consensus.csv
+          test -s roster.json
+      - name: Build fail-closed root coverage diagnostic
+        run: |
+          python - <<'PY'
+          import json, pandas as pd
+          p=pd.read_csv('p1a/physical_paths.csv')
+          c=pd.read_csv('consensus/track_number_consensus.csv')
+          roster=json.load(open('roster.json'))['rosters']
+          root='physical_path_id'
+          assert root in p.columns and 'track_id' in c.columns
+          teamcol=next((x for x in ['team','team_id','team_code'] if x in p.columns),None)
+          assert teamcol
+          framecol='tracking_frame' if 'tracking_frame' in p.columns else None
+          timecol='time_s' if 'time_s' in p.columns else None
+          rows=[]
+          for rid,g in p.groupby(root):
+            r={root:str(rid),'team':str(g[teamcol].mode().iloc[0]),'observations':len(g)}
+            if framecol: r.update(start_frame=int(g[framecol].min()),end_frame=int(g[framecol].max()))
+            if timecol: r.update(start_s=float(g[timecol].min()),end_s=float(g[timecol].max()))
+            # physical ids are TEAM:raw-id; consensus track ids are raw ids in corrected OCR artifact
+            r['raw_track_id']=str(rid).split(':')[-1].replace('.0','')
+            rows.append(r)
+          d=pd.DataFrame(rows)
+          c['raw_track_id']=c.track_id.astype(str).str.replace('.0','',regex=False)
+          keep=['raw_track_id','top_number','top_votes','runner_up_votes','cross_model_exact_agreements','repeat_consensus_ge2','repeat_consensus_ge3']
+          d=d.merge(c[keep],on='raw_track_id',how='left')
+          for x in ['top_votes','runner_up_votes','cross_model_exact_agreements']: d[x]=pd.to_numeric(d[x],errors='coerce').fillna(0).astype(int)
+          for x in ['repeat_consensus_ge2','repeat_consensus_ge3']: d[x]=d[x].fillna(False).astype(bool)
+          d['top_number']=d.top_number.fillna('').astype(str).str.replace('.0','',regex=False)
+          # Diagnostic candidate only. OCR is uncalibrated and therefore NEVER authorizes identity here.
+          def candidate(r):
+            if not r.repeat_consensus_ge2 or not r.top_number: return ''
+            m=roster.get('2025-26:'+r.team,{})
+            v=m.get(r.top_number)
+            return v if isinstance(v,str) else ''
+          d['roster_bounded_candidate']=d.apply(candidate,axis=1)
+          d['candidate_basis']=d.apply(lambda r:'repeated_cross_model_ocr+team_season_roster_DIAGNOSTIC_ONLY' if r.roster_bounded_candidate else '',axis=1)
+          d['identity_authorized']=False
+          d['canonical_player_id']=''
+          d['qualification_claim']='NONE_DIAGNOSTIC_ONLY'
+          # Coverage by sampled tracking frame: count distinct physical roots per team and total.
+          coverage=[]
+          if framecol:
+            q=p.copy(); q[root]=q[root].astype(str)
+            for fr,g in q.groupby(framecol):
+              coverage.append({'tracking_frame':int(fr),'physical_roots':int(g[root].nunique()),'hou_roots':int(g.loc[g[teamcol].astype(str)=='HOU',root].nunique()),'atl_roots':int(g.loc[g[teamcol].astype(str)=='ATL',root].nunique())})
+          cov=pd.DataFrame(coverage)
+          if len(cov): cov.to_csv('ten_player_frame_coverage.csv',index=False)
+          d.to_csv('ten_player_identity_root_diagnostic.csv',index=False)
+          cand=d[d.roster_bounded_candidate!='']
+          summary={
+            'schema':'hoopvision.ten-player-identity-root-diagnostic.v1',
+            'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+            'identity_authorized':False,
+            'physical_fragments':int(len(d)),
+            'diagnostic_roster_candidates':int(len(cand)),
+            'distinct_diagnostic_candidate_names':int(cand.roster_bounded_candidate.nunique()),
+            'repeat_consensus_ge2_fragments':int(d.repeat_consensus_ge2.sum()),
+            'repeat_consensus_ge3_fragments':int(d.repeat_consensus_ge3.sum()),
+            'sampled_frames':int(len(cov)),
+            'frames_with_10_physical_roots':int((cov.physical_roots>=10).sum()) if len(cov) else 0,
+            'max_physical_roots_in_sampled_frame':int(cov.physical_roots.max()) if len(cov) else 0,
+            'ten_player_identity_reachability':'DIAGNOSTIC_ONLY_NOT_AUTHORIZED',
+            'self_generated_ground_truth':False,
+            'next_boundary':'use independently adjudicated identity evidence to authorize roots; preserve UNKNOWN otherwise',
+            'note':'This joins corrected physical roots to repeated cross-model OCR and season/team roster only to measure reachability. Uncalibrated OCR does not authorize any player identity.'
+          }
+          open('ten_player_identity_root_summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_TEN_PLAYER_ROOT_DIAGNOSTIC='+json.dumps(summary,sort_keys=True))
+          print(d[[root,'team','raw_track_id','top_number','top_votes','repeat_consensus_ge2','roster_bounded_candidate','identity_authorized']].to_string(index=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-ten-player-identity-root-diagnostic
+          path: |
+            ten_player_identity_root_diagnostic.csv
+            ten_player_identity_root_summary.json
+            ten_player_frame_coverage.csv
+          if-no-files-found: error
+          retention-days: 14
