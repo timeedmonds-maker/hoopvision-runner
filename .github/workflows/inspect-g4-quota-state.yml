@@ -1,0 +1,41 @@
+name: Inspect G4 Quota State
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-g4-quota-state.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  READ_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.READ_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect quota preferences and effective accelerator quotas
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "=== CLOUD QUOTA PREFERENCES ==="
+          gcloud quotas preferences list --project="$PROJECT_ID" --format=json 2>/dev/null |             python -c 'import json,sys; d=json.load(sys.stdin); [print(json.dumps(x,sort_keys=True)) for x in d if any(k in json.dumps(x).upper() for k in ["G4","RTX","PRO_6000","NVIDIA","GPU"])]' || true
+
+          echo "=== COMPUTE PROJECT GPU QUOTAS ==="
+          gcloud compute project-info describe --project="$PROJECT_ID" --format=json 2>/dev/null |             python -c 'import json,sys; d=json.load(sys.stdin); [print(json.dumps(x,sort_keys=True)) for x in d.get("quotas",[]) if any(k in str(x.get("metric","")).upper() for k in ["GPU","NVIDIA","RTX","G4"])]' || true
+
+          echo "=== SINGAPORE REGIONAL GPU QUOTAS ==="
+          gcloud compute regions describe asia-southeast1 --project="$PROJECT_ID" --format=json 2>/dev/null |             python -c 'import json,sys; d=json.load(sys.stdin); [print(json.dumps(x,sort_keys=True)) for x in d.get("quotas",[]) if any(k in str(x.get("metric","")).upper() for k in ["GPU","NVIDIA","RTX","G4"])]' || true
+
+          echo "=== QUOTA INFO MATCHES ==="
+          gcloud quotas info list --service=compute.googleapis.com --project="$PROJECT_ID" --format=json 2>/dev/null |             python -c 'import json,sys; d=json.load(sys.stdin); [print(json.dumps(x,sort_keys=True)) for x in d if any(k in json.dumps(x).upper() for k in ["G4","RTX","PRO 6000","PRO_6000"])]' || true
