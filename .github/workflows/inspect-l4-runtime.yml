@@ -36,5 +36,12 @@ jobs:
             echo '=== IMAGES ==='
             sudo docker images --format '{{.Repository}}:{{.Tag}} {{.ID}} {{.Size}}' | head -20
             echo '=== MODEL CACHE ==='
-            sudo find /srv/hoopvision -maxdepth 3 -type f \( -name 'sam3.pt' -o -name 'rfdetr_m_640.onnx' -o -name 'court_yolo11m_pose.pt' \) -printf '%p %s\n' 2>/dev/null | head -20
+            sudo find /srv/hoopvision/models -maxdepth 5 -type f \( -name 'sam3.1_multiplex.pt' -o -name 'rfdetr_m_640.onnx' -o -name 'court_yolo11m_pose.pt' -o -name 'model.safetensors' -o -name '*soccernet*' \) -printf '%p %s\n' 2>/dev/null | head -30
+            echo '=== COMMERCIAL MARKERS ==='
+            sudo cat /srv/hoopvision/commercial-prepared.candidate.sha 2>/dev/null || true
+            sudo cat /srv/hoopvision/commercial-prepared.control-bundle.sha256 2>/dev/null || true
+            echo '=== SUPERVISOR STATUS ==='
+            sudo systemctl --no-pager --full status hoopvision-dev-supervisor.service || true
+            echo '=== SUPERVISOR JOURNAL ==='
+            sudo journalctl -u hoopvision-dev-supervisor.service -n 120 --no-pager || true
           "
