@@ -3,9 +3,13 @@ name: Validate Independent OCR Labels
 on:
   workflow_dispatch:
     inputs:
-      review_run_id:
-        description: Run containing independently completed hoopvision-independent-ocr-review artifact
+      review_csv_path:
+        description: Repository path to independently completed blind_reference_template.csv
         required: true
+      package_run_id:
+        description: Canonical blind crop package run
+        required: false
+        default: '35989027766'
 
 permissions:
   contents: read
@@ -16,36 +20,46 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: python -m pip install -q pandas
-      - name: Recover independently reviewed package
+      - name: Recover canonical blind crop package and independent CSV
         env:
           GH_TOKEN: ${{ github.token }}
-          REVIEW_RUN_ID: ${{ inputs.review_run_id }}
+          PACKAGE_RUN_ID: ${{ inputs.package_run_id }}
+          REVIEW_CSV_PATH: ${{ inputs.review_csv_path }}
         run: |
           set -euo pipefail
           mkdir review
-          gh run download "$REVIEW_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-independent-ocr-review --dir review
-          test -s review/blind_reference_template.csv
+          gh run download "$PACKAGE_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-independent-ocr-review --dir review
           test -s review/crop_manifest.json
+          test -s review/blind_reference_template.csv
+          test -s "$REVIEW_CSV_PATH"
+          cp "$REVIEW_CSV_PATH" review/independent_completed_reference.csv
+          # Candidate predictions must never enter the validation workspace.
+          test ! -e review/candidate_predictions.csv
       - name: Validate references without generating labels
         run: |
           python - <<'PY'
           import hashlib, json
           from pathlib import Path
           import pandas as pd
-          d=pd.read_csv('review/blind_reference_template.csv', dtype=str).fillna('')
+          canonical=pd.read_csv('review/blind_reference_template.csv', dtype=str).fillna('')
+          d=pd.read_csv('review/independent_completed_reference.csv', dtype=str).fillna('')
           required=['crop_reference','review_readability','review_exact_number','review_complete_number_visible','reviewer','review_status']
           missing=[c for c in required if c not in d.columns]
           assert not missing, f'missing columns: {missing}'
-          assert len(d)==554, f'expected 554 rows, got {len(d)}'
+          assert len(canonical)==554 and len(d)==554, f'expected 554 rows, got canonical={len(canonical)} reviewed={len(d)}'
           manifest=json.loads(Path('review/crop_manifest.json').read_text())
           assert len(manifest)==554, f'expected 554 manifest rows, got {len(manifest)}'
-          refs=set(d.crop_reference)
-          assert len(refs)==554, 'crop references must be unique'
+          canonical_refs=list(canonical.crop_reference.astype(str))
+          reviewed_refs=list(d.crop_reference.astype(str))
+          assert len(set(canonical_refs))==554, 'canonical crop references must be unique'
+          assert len(set(reviewed_refs))==554, 'reviewed crop references must be unique'
+          assert set(reviewed_refs)==set(canonical_refs), 'reviewed crop-reference set differs from canonical blind package'
           for m in manifest:
-              assert m['crop_reference'] in refs
+              assert m['crop_reference'] in set(canonical_refs)
               p=Path('review')/m['crop_reference']
               assert p.exists(), f'missing crop {p}'
               assert hashlib.sha256(p.read_bytes()).hexdigest()==m['sha256'], f'hash mismatch {p}'
@@ -58,10 +72,14 @@ jobs:
           readable=d.review_readability.str.upper().eq('READABLE')
           exact=d.review_exact_number.str.strip()
           assert exact[readable].str.fullmatch(r'\d{1,2}').all(), 'readable rows require exact 1-2 digit reference'
-          # This validator never infers, fills, or changes a reference label.
-          out=d.copy()
-          out.to_csv('validated_independent_reference.csv',index=False)
-          summary={'schema':'hoopvision.independent-ocr-reference-validation.v1','rows':len(d),'reviewed_rows':int(reviewed.sum()),'readable_rows':int(readable.sum()),'reference_source':'INDEPENDENT_REVIEW','candidate_predictions_used':False,'labels_generated_by_pipeline':False,'identity_authorized':False,'ocr_accuracy':'UNKNOWN_PENDING_CALIBRATION','qualification_claim':'NONE_REFERENCE_VALIDATION_ONLY'}
+          # Fail closed: the independent file may only add review fields; canonical crop identity/order is immutable.
+          immutable=[c for c in canonical.columns if c in d.columns and c not in required[1:]]
+          cidx=canonical.set_index('crop_reference'); didx=d.set_index('crop_reference')
+          for col in immutable:
+              if col=='crop_reference': continue
+              assert cidx[col].astype(str).equals(didx.loc[cidx.index,col].astype(str)), f'independent review changed immutable canonical column {col}'
+          d.to_csv('validated_independent_reference.csv',index=False)
+          summary={'schema':'hoopvision.independent-ocr-reference-validation.v2','rows':len(d),'reviewed_rows':int(reviewed.sum()),'readable_rows':int(readable.sum()),'reference_source':'INDEPENDENT_REVIEW','canonical_package_run_id':'35989027766','candidate_predictions_used':False,'labels_generated_by_pipeline':False,'identity_authorized':False,'ocr_accuracy':'UNKNOWN_PENDING_CALIBRATION','qualification_claim':'NONE_REFERENCE_VALIDATION_ONLY'}
           Path('validation_summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
           print('HOOPVISION_INDEPENDENT_REFERENCE_VALIDATION='+json.dumps(summary,sort_keys=True))
           PY
