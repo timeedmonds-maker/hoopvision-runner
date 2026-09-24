@@ -1,0 +1,58 @@
+name: Build Physical-Path OCR Consensus
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/build-physical-path-ocr-consensus.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 95f0144732b53eb53fb3e928e7e146a3d1ba56dc
+  OCR_RUN_ID: '35972536456'
+
+jobs:
+  consensus:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q pandas pytest
+      - name: Run physical-span consensus regressions
+        working-directory: src
+        run: python -m pytest -q tests/test_physical_path_ocr_consensus.py
+      - name: Recover frozen corrected-track predictions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p work/ocr
+          gh run download "$OCR_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-ppocrv6-localised-comparison --dir work/ocr
+          test -s work/ocr/review/candidate_predictions.csv
+      - name: Build de-correlated physical-path jersey evidence
+        run: |
+          mkdir -p work/out
+          PYTHONPATH="$PWD/src" python src/tools/build_physical_path_ocr_consensus.py             --predictions work/ocr/review/candidate_predictions.csv             --roster-map src/config/season_roster_number_map.json             --season 2025-26             --independence-gap-s 0.75             --out work/out/physical_path_ocr_consensus.csv             --summary work/out/physical_path_ocr_consensus_summary.json             --groups-json work/out/physical_path_temporal_groups.json
+          cat work/out/physical_path_ocr_consensus_summary.json
+          python - <<'PY'
+          import pandas as pd
+          d=pd.read_csv('work/out/physical_path_ocr_consensus.csv',dtype=str).fillna('')
+          print(d[['physical_span_revision','team','crop_count','temporal_group_count','candidate_number','candidate_independent_groups','runner_up_independent_groups','jersey_evidence_state','roster_state','roster_candidate','identity_authorization_state']].to_string(index=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-physical-path-ocr-consensus
+          path: work/out/
+          retention-days: 30
