@@ -1,0 +1,150 @@
+name: Compare Player NMS Thresholds
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/compare-player-nms-thresholds.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 0a11572c868bd1b0741980e2588a7a8c7a928e59
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install exact CPU detector/tracker runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision scipy rich requests 'jsonargparse<5' pydeprecate onnxruntime
+          git clone -q https://github.com/roboflow/trackers.git /tmp/trackers
+          git -C /tmp/trackers checkout -q 3fb83d1618f29b7fdd4617757b6894e4ec71146d
+          python -m pip install -q -e /tmp/trackers --no-deps
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+      - name: Recover exact source and detector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/models work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o work/models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  work/models/rfdetr_m_640.onnx" | sha256sum -c -
+      - name: Compare NMS thresholds with shared detector inference
+        run: |
+          PYTHONPATH="$PWD/src" python - <<'PY'
+          import sys,json,time,math
+          from pathlib import Path
+          import cv2,numpy as np,pandas as pd,supervision as sv
+          sys.path.insert(0,'/tmp/object-detection-eval/src')
+          from object_detection_eval.inference.detectors.rfdetr import RFDETRDetector
+          from tools.diagnose_rfdetr_tracking_taxonomy import CORRECTED_PLAYER_CLASSES,RAW_LABEL_MAP,make_tracker
+          src='work/source_native.mp4'
+          det=RFDETRDetector('work/models/rfdetr_m_640.onnx',RAW_LABEL_MAP,confidence_threshold=.045,num_select=300,input_height=640,input_width=640,providers=['CPUExecutionProvider'])
+          thresholds=[.50,.55,.60,.65,.70]
+          trackers={t:make_tracker(15.0) for t in thresholds}
+          rows=[]
+          review=[]
+          def iou(a,b):
+              x1=max(a[0],b[0]); y1=max(a[1],b[1]); x2=min(a[2],b[2]); y2=min(a[3],b[3])
+              inter=max(0,x2-x1)*max(0,y2-y1)
+              aa=max(0,a[2]-a[0])*max(0,a[3]-a[1]); bb=max(0,b[2]-b[0])*max(0,b[3]-b[1])
+              return inter/max(aa+bb-inter,1e-9)
+          def close_pair_risk(boxes):
+              pairs=0
+              for i in range(len(boxes)):
+                  for j in range(i+1,len(boxes)):
+                      ov=iou(boxes[i],boxes[j])
+                      if ov<.50: continue
+                      ai=boxes[i]; bj=boxes[j]
+                      hi=max(10.,ai[3]-ai[1]); hj=max(10.,bj[3]-bj[1])
+                      ci=np.array(((ai[0]+ai[2])*.5,(ai[1]+ai[3])*.5)); cj=np.array(((bj[0]+bj[2])*.5,(bj[1]+bj[3])*.5))
+                      nd=float(np.linalg.norm(ci-cj)/max(10.,.5*(hi+hj)))
+                      ratio=hi/hj
+                      if nd<.35 and .55<ratio<1.8: pairs+=1
+              return pairs
+          cap=cv2.VideoCapture(src); fps=float(cap.get(cv2.CAP_PROP_FPS) or 30000/1001); W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+          start=int(round(4*fps)); end=int(round(16*fps)); every=max(1,int(round(fps/15.0))); t0=time.monotonic()
+          for rel,absf in enumerate(range(start,end)):
+              if rel%every: continue
+              cap.set(cv2.CAP_PROP_POS_FRAMES,absf); ok,frame=cap.read()
+              if not ok: continue
+              all_d=det.predict(frame)
+              boxes=[]; conf=[]
+              for d in all_d:
+                  if int(d.class_id) not in CORRECTED_PLAYER_CLASSES or float(d.confidence)<.20: continue
+                  b=d.bbox; boxes.append([b.x*W,b.y*H,(b.x+b.w)*W,(b.y+b.h)*H]); conf.append(float(d.confidence))
+              base=sv.Detections(xyxy=np.asarray(boxes,np.float32),confidence=np.asarray(conf,np.float32),class_id=np.zeros(len(boxes),np.int32)) if boxes else sv.Detections.empty()
+              frame_rec={'tracking_frame':rel,'time_s':4+rel/fps,'raw':len(boxes)}
+              arm_boxes={}
+              for th in thresholds:
+                  q=base.with_nms(threshold=th,class_agnostic=True) if len(base) else base
+                  arm_boxes[th]=q.xyxy.copy() if len(q) else np.empty((0,4))
+                  tr=trackers[th].update(q,frame=frame,timestamp=rel/fps)
+                  valid=sum(1 for tid in tr.tracker_id if int(tid)>=0) if len(tr) else 0
+                  frame_rec[f'nms_{th:.2f}']=len(q); frame_rec[f'trk_{th:.2f}']=valid
+                  frame_rec[f'risk_{th:.2f}']=close_pair_risk(q.xyxy if len(q) else [])
+              rows.append(frame_rec)
+              if frame_rec['nms_0.50']<10 and any(frame_rec[f'nms_{th:.2f}']>=10 for th in thresholds[1:]):
+                  vis=frame.copy()
+                  for bi,b in enumerate(arm_boxes[.50]):
+                      x1,y1,x2,y2=map(int,b); cv2.rectangle(vis,(x1,y1),(x2,y2),(255,0,255),2)
+                  for th in thresholds[1:]:
+                      if frame_rec[f'nms_{th:.2f}']<=frame_rec['nms_0.50']: continue
+                      for b in arm_boxes[th]:
+                          if not any(iou(b,a)>.88 for a in arm_boxes[.50]):
+                              x1,y1,x2,y2=map(int,b); cv2.rectangle(vis,(x1,y1),(x2,y2),(0,255,255),2)
+                  cv2.putText(vis,f"{frame_rec['time_s']:.3f}s raw={len(boxes)} nms50={frame_rec['nms_0.50']} nms60={frame_rec['nms_0.60']} nms70={frame_rec['nms_0.70']}",(10,24),cv2.FONT_HERSHEY_SIMPLEX,.55,(255,255,255),2,cv2.LINE_AA)
+                  p=Path('work/out')/f"recover_{rel:04d}_{frame_rec['time_s']:.3f}.jpg"; cv2.imwrite(str(p),vis); review.append(str(p))
+          cap.release()
+          d=pd.DataFrame(rows); d.to_csv('work/out/nms_threshold_by_frame.csv',index=False)
+          arms={}
+          for th in thresholds:
+              n=d[f'nms_{th:.2f}']; tr=d[f'trk_{th:.2f}']; risk=d[f'risk_{th:.2f}']
+              arms[f'{th:.2f}']={'frames_nms_ge10':int((n>=10).sum()),'frames_tracker_ge10':int((tr>=10).sum()),'total_nms_boxes':int(n.sum()),'total_tracker_rows':int(tr.sum()),'frames_nms_gt10':int((n>10).sum()),'max_nms_boxes':int(n.max()),'duplicate_risk_pairs':int(risk.sum()),'frames_duplicate_risk':int((risk>0).sum())}
+          rep={'schema':'hoopvision.player-nms-threshold-comparison.v1','candidate_sha':'0a11572c868bd1b0741980e2588a7a8c7a928e59','source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a','sampled_frames':len(d),'arms':arms,'review_frames':len(review),'qualification_claim':'NONE_DIAGNOSTIC_ONLY','identity_authorized':False,'note':'Shared detector inference; only class-agnostic player NMS threshold differs. Duplicate-risk metric is diagnostic and requires visual inspection.'}
+          Path('work/out/nms_threshold_summary.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_NMS_THRESHOLD='+json.dumps(rep,sort_keys=True))
+          PY
+      - name: Build recovered-player review sheet
+        run: |
+          python - <<'PY'
+          import cv2,glob,math,numpy as np
+          files=sorted(glob.glob('work/out/recover_*.jpg'))[:32]
+          imgs=[]
+          for p in files:
+              im=cv2.imread(p)
+              if im is not None: imgs.append(cv2.resize(im,(480,270)))
+          if imgs:
+              cols=4; rows=math.ceil(len(imgs)/cols); blank=np.zeros_like(imgs[0]); imgs += [blank]*(rows*cols-len(imgs))
+              cv2.imwrite('work/out/recovered_player_contact_sheet.jpg',np.vstack([np.hstack(imgs[r*cols:(r+1)*cols]) for r in range(rows)]))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-player-nms-threshold-comparison
+          path: work/out/
+          retention-days: 14
