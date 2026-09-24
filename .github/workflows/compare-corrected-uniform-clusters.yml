@@ -1,0 +1,138 @@
+name: Compare Corrected Uniform Clusters
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/compare-corrected-uniform-clusters.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  FROZEN_EVIDENCE_RUN_ID: '35891572936'
+  CORRECTED_SEGMENTS_RUN_ID: '35969360881'
+  DEFAULT_SOURCE_SHA: de49d9a758eb38ea5a430879ad506b784721bee3
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install comparison runtime
+        run: python -m pip install -q 'numpy<2' pandas
+
+      - name: Recover historical mapping and corrected observations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p frozen corrected
+          gh run download "$FROZEN_EVIDENCE_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-evidence-completed             --dir frozen
+          gh run download "$CORRECTED_SEGMENTS_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-taxonomy-identity-segments             --dir corrected
+          test -s frozen/physical_paths/physical_paths_qa.json
+          test -s frozen/identity_segments/uniform_observations.csv
+          test -s corrected/corrected_segments/uniform_observations.csv
+
+      - name: Compare raw uniform-colour cluster means
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import numpy as np, pandas as pd
+
+          features=['feat_L','feat_a','feat_b','feat_S','feat_V']
+          old=pd.read_csv('frozen/identity_segments/uniform_observations.csv')
+          new=pd.read_csv('corrected/corrected_segments/uniform_observations.csv')
+          oldqa=json.load(open('frozen/physical_paths/physical_paths_qa.json'))
+          tm=oldqa['team_mapping']
+          teams=list(tm['teams'])
+          score01=float(tm['score_0A_1B'])
+          score10=float(tm['score_0B_1A'])
+          old_team_map={0:teams[1],1:teams[0]} if score10>score01 else {0:teams[0],1:teams[1]}
+
+          def means(df):
+              out={}
+              q=df.copy()
+              q=q[pd.to_numeric(q['cluster_conf'],errors='coerce').fillna(0)>=.5]
+              for cid,g in q.groupby('uniform_cluster'):
+                  if pd.isna(cid): continue
+                  vals=g[features].apply(pd.to_numeric,errors='coerce').dropna().to_numpy(float)
+                  if len(vals):
+                      out[int(cid)]={'mean':vals.mean(0),'n':len(vals)}
+              return out
+          om=means(old); nm=means(new)
+          if set(om)!={0,1} or set(nm)!={0,1}:
+              raise RuntimeError(f'expected two clusters in each arm old={sorted(om)} new={sorted(nm)}')
+
+          pooled=pd.concat([old[features],new[features]],ignore_index=True).apply(pd.to_numeric,errors='coerce').dropna().to_numpy(float)
+          scale=pooled.std(0)
+          scale[scale<1e-6]=1.0
+          def dist(a,b):
+              return float(np.linalg.norm((a-b)/scale))
+          d00=dist(nm[0]['mean'],om[0]['mean']); d11=dist(nm[1]['mean'],om[1]['mean'])
+          d01=dist(nm[0]['mean'],om[1]['mean']); d10=dist(nm[1]['mean'],om[0]['mean'])
+          direct=d00+d11; swapped=d01+d10
+          if direct<swapped:
+              match={0:0,1:1}; best=direct; second=swapped
+          else:
+              match={0:1,1:0}; best=swapped; second=direct
+          ratio=best/max(second,1e-12)
+          corrected_team_map={c:old_team_map[o] for c,o in match.items()}
+          report={
+              'schema':'hoopvision.corrected-uniform-cluster-transfer.v1',
+              'old_team_map':{str(k):v for k,v in old_team_map.items()},
+              'old_mapping_support':tm,
+              'old_cluster_counts':{str(k):v['n'] for k,v in om.items()},
+              'corrected_cluster_counts':{str(k):v['n'] for k,v in nm.items()},
+              'distances':{'new0_old0':d00,'new1_old1':d11,'new0_old1':d01,'new1_old0':d10},
+              'direct_cost':direct,'swapped_cost':swapped,'best_to_second_ratio':ratio,
+              'corrected_to_old_cluster':{str(k):v for k,v in match.items()},
+              'corrected_team_map':{str(k):v for k,v in corrected_team_map.items()},
+              'qualification_claim':'NONE_DIAGNOSTIC_TRANSFER_ONLY',
+              'warning':'Historical OCR-derived team mapping is transferred only through independent uniform-colour similarity. This is not commercial OCR qualification or fresh identity ground truth.'
+          }
+          Path('cluster_transfer.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_CORRECTED_CLUSTER_TRANSFER='+json.dumps(report,sort_keys=True))
+          # Fail closed if the colour match does not strongly prefer one permutation.
+          assert ratio < .70, f'ambiguous colour transfer ratio={ratio}'
+          PY
+
+      - name: Upload cluster-transfer diagnostic
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-corrected-cluster-transfer
+          path: cluster_transfer.json
+          if-no-files-found: error
+          retention-days: 14
