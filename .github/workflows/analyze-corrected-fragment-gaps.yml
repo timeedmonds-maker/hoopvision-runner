@@ -63,7 +63,7 @@ jobs:
                   rec['team']=vals.mode().iloc[0] if len(vals) else ''
               rows.append(rec)
           d=pd.DataFrame(rows)
-          cropcol=next((c for c in ['localised_crop_references','localized_crop_references','crop_references','localised_crops'] if c in l),None)
+          cropcol=next((c for c in ['localised_crop_count','localised_crop_references','localized_crop_references','crop_references','localised_crops'] if c in l),None)
           medcol=next((c for c in ['medium_raw_digit_reads','ppocrv6_medium_raw_digit_reads'] if c in l),None)
           smlcol=next((c for c in ['small_raw_digit_reads','ppocrv6_small_raw_digit_reads'] if c in l),None)
           keep=[root]+[c for c in [cropcol,medcol,smlcol] if c]
