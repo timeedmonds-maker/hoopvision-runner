@@ -1,0 +1,53 @@
+name: Inspect Current Event296 Supervisor
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-event296-supervisor.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  TARGET_ZONE: us-west4-a
+  TARGET_INSTANCE: hv-dev-l4-route-35944700020
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect supervisor read-only
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet \
+            --command='set +e
+              echo === STATUS ===
+              sudo systemctl status hoopvision-dev-supervisor --no-pager
+              echo === UNIT ===
+              sudo systemctl cat hoopvision-dev-supervisor --no-pager
+              echo === PROCESS ===
+              ps -ef | grep "[d]ev_supervisor.py"
+              echo === ROUTE_IN_SOURCE ===
+              SUP_PATH="$(sudo systemctl cat hoopvision-dev-supervisor --no-pager | grep -oE "/[^[:space:]]*dev_supervisor\.py" | head -n1)"
+              echo "$SUP_PATH"
+              sudo grep -n "hawks-event296-playbyplay" "$SUP_PATH"
+              sudo sha256sum "$SUP_PATH"
+              echo === ENV ===
+              sudo grep -E "^HOOPVISION_(DEV_SESSION|HAWKS_BENCHMARK_TIMEOUT_S|CONTROL_DIR|SUBSCRIPTION|PROJECT)" /etc/hoopvision-dev.env || true
+              echo === JOURNAL ===
+              sudo journalctl -u hoopvision-dev-supervisor -n 160 --no-pager -o cat
+              echo === PORTS ===
+              sudo ss -ltnp | grep -E "(:8765|python)" || true'
