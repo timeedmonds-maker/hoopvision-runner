@@ -1,0 +1,112 @@
+name: Probe PP-OCRv6 Transformers Compatibility
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-ppocrv6-transformers.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact runtime-compatible dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -q transformers==5.17.0 huggingface_hub safetensors pillow
+      - name: Probe exact official snapshots
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, time
+          from pathlib import Path
+          from PIL import Image, ImageDraw
+          import torch, transformers
+          from huggingface_hub import snapshot_download
+          from transformers import AutoImageProcessor, AutoModelForTextRecognition
+
+          specs = [
+              {
+                  "key":"medium",
+                  "repo_id":"PaddlePaddle/PP-OCRv6_medium_rec_safetensors",
+                  "revision":"024cad6a831de75c2c3c26e711ba8c4a82ccd24b",
+                  "expected_model_sha256":"5f43c16f2a684b1d2284662178bdb604febd3d6bfdb5ca73828d08d0f7c0c3e9",
+              },
+              {
+                  "key":"small",
+                  "repo_id":"PaddlePaddle/PP-OCRv6_small_rec_safetensors",
+                  "revision":"fe049fb103f57443fe8840c54ed06b702f3c1de5",
+                  "expected_model_sha256":"f65a332afe5aa663f0b9d5706f4ae8457b5b4058a842d5c1eb22df505c27d642",
+              },
+          ]
+          def sha(path):
+              h=hashlib.sha256()
+              with open(path,'rb') as f:
+                  for chunk in iter(lambda:f.read(1<<20),b''): h.update(chunk)
+              return h.hexdigest()
+
+          Path("probe").mkdir(exist_ok=True)
+          img = Image.new("RGB",(160,64),"white")
+          d=ImageDraw.Draw(img)
+          d.text((12,12),"11 00",fill="black")
+          rows=[]
+          for spec in specs:
+              root=Path(snapshot_download(
+                  repo_id=spec["repo_id"], revision=spec["revision"],
+                  local_dir=Path("probe")/spec["key"],
+                  allow_patterns=["config.json","preprocessor_config.json","model.safetensors","README.md"],
+              ))
+              files={}
+              for name in ["config.json","preprocessor_config.json","model.safetensors","README.md"]:
+                  p=root/name
+                  if p.is_file():
+                      files[name]={"bytes":p.stat().st_size,"sha256":sha(p)}
+              assert files["model.safetensors"]["sha256"] == spec["expected_model_sha256"], files["model.safetensors"]
+              t=time.monotonic()
+              proc=AutoImageProcessor.from_pretrained(root,local_files_only=True)
+              model=AutoModelForTextRecognition.from_pretrained(root,local_files_only=True)
+              model.eval().to("cpu")
+              load_s=time.monotonic()-t
+              t=time.monotonic()
+              inputs=proc(images=[img,img],return_tensors="pt")
+              with torch.inference_mode():
+                  outputs=model(**inputs)
+              results=proc.post_process_text_recognition(outputs)
+              infer_s=time.monotonic()-t
+              rows.append({
+                  **spec,
+                  "transformers_version":transformers.__version__,
+                  "torch_version":torch.__version__,
+                  "processor_class":type(proc).__name__,
+                  "model_class":type(model).__name__,
+                  "config_model_type":getattr(model.config,"model_type",None),
+                  "parameter_count":sum(p.numel() for p in model.parameters()),
+                  "trainable_parameter_count":sum(p.numel() for p in model.parameters() if p.requires_grad),
+                  "load_s":round(load_s,4),
+                  "batch2_cpu_infer_s":round(infer_s,4),
+                  "result_example":results,
+                  "files":files,
+              })
+              del model, proc, outputs, inputs
+          payload={"schema":"hoopvision.ppocrv6-transformers-probe.v1","rows":rows}
+          Path("probe/probe.json").write_text(json.dumps(payload,indent=2,sort_keys=True,default=str)+"\n")
+          print("HOOPVISION_PPOCRV6_PROBE="+json.dumps(payload,sort_keys=True,default=str))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hoopvision-ppocrv6-transformers-probe
+          path: probe/probe.json
+          if-no-files-found: error
+          retention-days: 14
