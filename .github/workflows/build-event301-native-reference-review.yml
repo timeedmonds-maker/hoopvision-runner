@@ -65,8 +65,8 @@ jobs:
           fps=30.0
           frames=sorted((out/'frames').glob('frame_*.jpg'))
           n=len(frames)
-          if n != 359:
-              raise SystemExit(f'expected 359 native frames, got {n}')
+          if n != 360:
+              raise SystemExit(f'expected 360 final presentation frames, got {n}')
 
           players=[]
           for team,t in lineup['teams'].items():
