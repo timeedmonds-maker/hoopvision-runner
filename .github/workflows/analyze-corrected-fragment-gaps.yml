@@ -1,0 +1,99 @@
+name: Analyze Corrected Physical Fragment Gaps
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/analyze-corrected-fragment-gaps.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  P1A_RUN_ID: '35972465174'
+  LEDGER_RUN_ID: '35973189638'
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -q 'numpy<2' pandas
+      - name: Recover corrected physical graph and OCR ledger
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p p1a ledger
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir p1a
+          gh run download "$LEDGER_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-physical-ocr-ledger --dir ledger
+          test -s p1a/physical_paths.csv
+          test -s ledger/identity_coverage_ledger.csv
+      - name: Analyze fragment/root gaps without joining
+        run: |
+          python - <<'PY'
+          import json, pandas as pd
+          p=pd.read_csv('p1a/physical_paths.csv')
+          l=pd.read_csv('ledger/identity_coverage_ledger.csv')
+          root='physical_path_id'
+          assert root in p and root in l
+          timecol='time_s' if 'time_s' in p else None
+          framecol='tracking_frame' if 'tracking_frame' in p else None
+          teamcol=next((c for c in ['team','team_id','team_code'] if c in p),None)
+          rows=[]
+          for rid,g in p.groupby(root,dropna=False):
+              rec={root:str(rid),'observations':int(len(g))}
+              if timecol:
+                  rec.update(start_s=float(g[timecol].min()),end_s=float(g[timecol].max()),duration_s=float(g[timecol].max()-g[timecol].min()))
+              if framecol:
+                  rec.update(start_frame=int(g[framecol].min()),end_frame=int(g[framecol].max()))
+              if teamcol:
+                  vals=g[teamcol].dropna().astype(str)
+                  rec['team']=vals.mode().iloc[0] if len(vals) else ''
+              rows.append(rec)
+          d=pd.DataFrame(rows)
+          keep=[c for c in [root,'localised_crop_references','medium_raw_digit_reads','small_raw_digit_reads'] if c in l]
+          d=d.merge(l[keep],on=root,how='left')
+          for c in keep[1:]: d[c]=pd.to_numeric(d[c],errors='coerce').fillna(0)
+          d['has_crop']=d.get('localised_crop_references',0)>0
+          d['has_medium_digits']=d.get('medium_raw_digit_reads',0)>0
+          d['has_small_digits']=d.get('small_raw_digit_reads',0)>0
+          sortcols=[c for c in ['team','start_s','start_frame'] if c in d]
+          d=d.sort_values(sortcols or [root])
+          d.to_csv('fragment_gap_ledger.csv',index=False)
+          uncovered=d[~d.has_crop].copy()
+          uncovered.to_csv('uncovered_fragments.csv',index=False)
+          short_threshold_s=1.0
+          short_uncovered=int(((uncovered.duration_s<=short_threshold_s) if 'duration_s' in uncovered else (uncovered.observations<=5)).sum())
+          summary={
+            'schema':'hoopvision.corrected-fragment-gap-analysis.v1',
+            'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+            'physical_fragments':int(len(d)),
+            'crop_covered_fragments':int(d.has_crop.sum()),
+            'crop_uncovered_fragments':int((~d.has_crop).sum()),
+            'medium_digit_fragments':int(d.has_medium_digits.sum()),
+            'small_digit_fragments':int(d.has_small_digits.sum()),
+            'short_uncovered_fragments':short_uncovered,
+            'short_definition':'duration_s<=1.0 when time_s exists, else observations<=5',
+            'identity_accuracy':'UNKNOWN',
+            'joins_applied':0,
+            'motion_only_joins_applied':0,
+            'note':'Descriptive gap ledger only. No identity assignment, continuity acceptance, threshold change, or ground-truth generation.'
+          }
+          open('fragment_gap_summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_FRAGMENT_GAP_SUMMARY='+json.dumps(summary,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-corrected-fragment-gap-analysis
+          path: |
+            fragment_gap_ledger.csv
+            uncovered_fragments.csv
+            fragment_gap_summary.json
+          if-no-files-found: error
+          retention-days: 14
