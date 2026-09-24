@@ -1,0 +1,41 @@
+name: Inspect PubSub Runtime Access
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-pubsub-runtime-access.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  SUBSCRIPTION: hv-dev-worker
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  READ_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.READ_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect subscription and runtime IAM
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "=== SUBSCRIPTION ==="
+          gcloud pubsub subscriptions describe "$SUBSCRIPTION" --project "$PROJECT_ID" --format=json || true
+          echo "=== SUBSCRIPTION IAM ==="
+          gcloud pubsub subscriptions get-iam-policy "$SUBSCRIPTION" --project "$PROJECT_ID" --format=json || true
+          echo "=== INSTANCE RUNTIME SERVICE ACCOUNT ==="
+          gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='json(status,serviceAccounts,networkInterfaces)' || true
+          echo "=== PROJECT IAM MATCHES ==="
+          gcloud projects get-iam-policy "$PROJECT_ID" --format=json 2>/dev/null | python -c 'import json,sys; d=json.load(sys.stdin); [print(json.dumps(x,sort_keys=True)) for x in d.get("bindings",[]) if "pubsub" in x.get("role","").lower() or any("hoopvision-worker@" in m for m in x.get("members",[]))]' || true
