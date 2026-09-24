@@ -1,0 +1,129 @@
+name: Compare Audited UHD Render
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/compare-audited-uhd-render.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 2b1a40673571a1633f4d0dd2706785021fed6194
+  P1A_RUN_ID: '36053461888'
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless pillow
+      - name: Recover exact source and current physical graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/p1a work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-current-candidate-physical --dir work/p1a
+          cp work/p1a/p1a/physical_paths.csv work/physical_paths.csv
+      - name: Build clip-local diagnostic assignments
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          p=pd.read_csv('work/physical_paths.csv')
+          ids=sorted(p.physical_path_id.astype(str).unique())
+          imap={x:i+1 for i,x in enumerate(ids)}
+          q=p.copy()
+          q['player_id']=q.physical_path_id.astype(str).map(imap)
+          q['player_name']=q.physical_path_id.astype(str).map(lambda s:s.replace(':','-P'))
+          q['source_track_id']=q.player_id
+          q['ring_authorized']=q.get('render_safe_fast',False).astype(bool)
+          q['floor_anchor_x']=(q.x1.astype(float)+q.x2.astype(float))*0.5
+          q['floor_anchor_y']=q.y2.astype(float)-4.0
+          q.to_csv('work/assignments.csv',index=False)
+          PY
+      - name: Render baseline and audited UHD
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/time -f '%e' -o work/out/baseline_wall_s.txt env PYTHONPATH="$PWD/src"             python src/screen_tracker_nextgen/render_all_player_labels.py               --source work/source_native.mp4 --assignments work/assignments.csv               --out work/out/baseline_uhd.mp4 --start-s 4 --end-s 16 --uhd
+          /usr/bin/time -f '%e' -o work/out/audited_wall_s.txt env PYTHONPATH="$PWD/src"             python src/screen_tracker_nextgen/render_all_player_labels.py               --source work/source_native.mp4 --assignments work/assignments.csv               --out work/out/audited_uhd.mp4 --start-s 4 --end-s 16 --uhd               --frame-ledger work/out/audited_uhd_ledger.csv
+          ffmpeg -nostdin -v error -i work/out/baseline_uhd.mp4 -f null -
+          ffmpeg -nostdin -v error -i work/out/audited_uhd.mp4 -f null -
+      - name: Validate exact output binding and visual similarity
+        shell: bash
+        run: |
+          set -euo pipefail
+          ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=width,height,r_frame_rate,nb_read_frames -show_entries format=duration -of json work/out/baseline_uhd.mp4 > work/out/baseline_probe.json
+          ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=width,height,r_frame_rate,nb_read_frames -show_entries format=duration -of json work/out/audited_uhd.mp4 > work/out/audited_probe.json
+          set +e
+          ffmpeg -nostdin -i work/out/baseline_uhd.mp4 -i work/out/audited_uhd.mp4             -lavfi "[0:v][1:v]psnr=stats_file=work/out/psnr.log" -f null - 2>work/out/psnr_summary.txt
+          ffmpeg -nostdin -i work/out/baseline_uhd.mp4 -i work/out/audited_uhd.mp4             -lavfi "[0:v][1:v]ssim=stats_file=work/out/ssim.log" -f null - 2>work/out/ssim_summary.txt
+          set -e
+          python - <<'PY'
+          import csv,json,re
+          from pathlib import Path
+          def probe(path):
+              p=json.load(open(path));v=p['streams'][0]
+              return {'width':int(v['width']),'height':int(v['height']),'fps':v['r_frame_rate'],'frames':int(v['nb_read_frames']),'duration_s':float(p['format']['duration'])}
+          b=probe('work/out/baseline_probe.json');a=probe('work/out/audited_probe.json')
+          assert b==a, (b,a)
+          assert a['width']==3840 and a['height']==2160 and a['fps']=='30/1' and a['frames']==360 and abs(a['duration_s']-12.0)<1e-6
+          rows=list(csv.DictReader(open('work/out/audited_uhd_ledger.csv')))
+          frames=sorted(set(int(r['output_frame']) for r in rows))
+          assert frames[0]==0 and frames[-1]==359 and len(frames)==360
+          keys=set()
+          for r in rows:
+              k=(int(r['output_frame']),int(r['player_id']))
+              assert k not in keys, k
+              keys.add(k)
+          def metric(path,pat):
+              s=Path(path).read_text(errors='ignore')
+              m=re.findall(pat,s)
+              return None if not m else float(m[-1])
+          rep={
+            'schema':'hoopvision.audited-uhd-render-comparison.v1',
+            'candidate_sha':'2b1a40673571a1633f4d0dd2706785021fed6194',
+            'baseline':b,'audited':a,
+            'baseline_wall_s':float(Path('work/out/baseline_wall_s.txt').read_text()),
+            'audited_wall_s':float(Path('work/out/audited_wall_s.txt').read_text()),
+            'ledger_rows':len(rows),'ledger_frames':len(frames),
+            'psnr_average_db':metric('work/out/psnr_summary.txt',r'average:([0-9.]+)'),
+            'ssim_all':metric('work/out/ssim_summary.txt',r'All:([0-9.]+)'),
+            'qualification_claim':'NONE_DIAGNOSTIC_RENDER_VALIDATION'
+          }
+          Path('work/out/comparison.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_AUDITED_UHD='+json.dumps(rep,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-audited-uhd-render-comparison
+          path: |
+            work/out/comparison.json
+            work/out/*_probe.json
+            work/out/*_wall_s.txt
+            work/out/audited_uhd_ledger.csv
+            work/out/psnr_summary.txt
+            work/out/ssim_summary.txt
+          retention-days: 14
