@@ -21,7 +21,7 @@ env:
   DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
   SOURCE_RECOVERY_RUN_ID: '35923251814'
   CORRECTED_TRACKING_RUN_ID: '35968920974'
-  DEFAULT_SOURCE_SHA: d940666887dcb3cd833c0e6e8f970b4dc5b7df20
+  DEFAULT_SOURCE_SHA: b07f3d031ceb66b507868b54e40ea2bed92dc03c
 
 jobs:
   localise:
@@ -121,6 +121,7 @@ jobs:
           assert q['rules']['production_number_class']==3
           assert abs(float(q['rules']['production_detector_confidence_threshold'])-.045)<1e-12
           assert q['rules']['production_ios_threshold_preserved'] is True
+          assert q['rules']['track_frame_column']=='source_frame_rel'
           PY
 
       - name: Upload corrected-track localisation
