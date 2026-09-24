@@ -150,7 +150,7 @@ jobs:
                   'forward_margin_rejections':int(t['forward_tracking']['margin_rejections']),
                   'backward_margin_rejections':int(t['backward_tracking']['margin_rejections']),
                   'same_raw_forward_margin':int(d['forward_rejections']['same_raw_margin']),
-                  'same_raw_backward_margin':int(d['backward_rejections']['same_raw_margin']),
+                  'same_raw_backward_margin':sum(1 for r in t['backward_tracking'].get('rejection_records',[]) if r.get('rejection_reason')=='ambiguous_margin' and bool((r.get('detail') or {}).get('same_raw_track'))),
                   'unmatched_active_states':int(t['forward_tracking'].get('unmatched_active_states',0)),
                   'unmatched_observations':int(t['forward_tracking'].get('unmatched_observations',0)),
                   'raw_claim_revocations':int(t['forward_tracking'].get('raw_claim_revocations',0)),
@@ -162,6 +162,7 @@ jobs:
           PY
 
       - name: Upload corrected P1A evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hoopvision-corrected-p1a-replay
