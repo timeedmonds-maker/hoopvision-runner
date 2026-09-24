@@ -76,7 +76,7 @@ jobs:
             --dir tracking
           cp recovered/exact_source_native.mp4 source_native.mp4
           echo "$SOURCE_SHA256  source_native.mp4" | sha256sum -c -
-          test -s tracking/evidence/corrected_raw11_tracks.csv
+          test -s tracking/corrected_raw11_tracks.csv
           curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o models/rfdetr_m_640.onnx
           echo "$DETECTOR_SHA256  models/rfdetr_m_640.onnx" | sha256sum -c -
 
@@ -87,7 +87,7 @@ jobs:
             python tools/replay_jersey_number_localisation.py \
               --source source_native.mp4 \
               --source-sha256 "$SOURCE_SHA256" \
-              --tracks tracking/evidence/corrected_raw11_tracks.csv \
+              --tracks tracking/corrected_raw11_tracks.csv \
               --detector-onnx models/rfdetr_m_640.onnx \
               --object-eval-src /tmp/object-detection-eval/src \
               --out localisation \
