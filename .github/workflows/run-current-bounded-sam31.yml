@@ -1,0 +1,139 @@
+name: Run Current Bounded SAM31 Continuity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/run-current-bounded-sam31.yml'
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  CANDIDATE_SHA: e0cfae5063beca5e58905cec432cfa758bf30062
+  CURRENT_PHYSICAL_RUN_ID: '36053461888'
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  sam31:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Recover exact current graph and locked source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/current work/source work/stage
+          gh run download "$CURRENT_PHYSICAL_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-current-candidate-physical --dir work/current
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/stage/source_native.mp4
+          echo "$SOURCE_SHA256  work/stage/source_native.mp4" | sha256sum -c -
+          cp work/current/segments/uniform_observations.csv work/stage/uniform_observations.csv
+          cp work/current/p1a/sam31_decisions.json work/stage/sam31_decisions.json
+          tar -C src -czf work/stage/candidate.tgz screen_tracker_nextgen
+          echo "$CANDIDATE_SHA" > work/stage/candidate.sha
+          sha256sum work/stage/candidate.tgz > work/stage/candidate_bundle.sha256
+      - name: Verify exact commercial prepared host
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" > /tmp/session.json
+          jq -e '.status == "READY" and .restricted_ocr_assets_present == false' /tmp/session.json >/dev/null
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+            set -e
+            test \"$(cat /srv/hoopvision/commercial-prepared.candidate.sha)\" = '$CANDIDATE_SHA'
+            systemctl is-active --quiet hoopvision-dev-supervisor.service
+            pgrep -f '/opt/hoopvision-control/dev_supervisor.py' >/dev/null
+            test ! -e /srv/hoopvision/models/nbacv/parseq_soccernet.ckpt
+            test ! -e /srv/hoopvision/models/nbacv/legibility_soccernet.pth
+            echo '5f43c16f2a684b1d2284662178bdb604febd3d6bfdb5ca73828d08d0f7c0c3e9  /srv/hoopvision/models/cache/ppocrv6/medium/model.safetensors' | sha256sum -c -
+            echo 'f65a332afe5aa663f0b9d5706f4ae8457b5b4058a842d5c1eb22df505c27d642  /srv/hoopvision/models/cache/ppocrv6/small/model.safetensors' | sha256sum -c -
+            test \"$(stat -c %s /srv/hoopvision/models/cache/sam3.1_multiplex.pt)\" = 3502755717
+            test -z \"$(sudo docker ps -q --filter label=hoopvision.dev.worker=true)\"
+            nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+            echo HOOPVISION_CURRENT_SAM31_HOST_ATTESTED
+          "
+      - name: Copy bounded SAM job to L4
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='rm -rf /tmp/hv-current-sam31 && mkdir -p /tmp/hv-current-sam31'
+          gcloud compute scp --recurse work/stage/* "$INSTANCE:/tmp/hv-current-sam31/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+      - name: Execute four-window SAM3.1 job on L4
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+            set -euo pipefail
+            cd /tmp/hv-current-sam31
+            mkdir -p src sam31
+            tar -C src -xzf candidate.tgz
+            test \"$(cat candidate.sha)\" = '$CANDIDATE_SHA'
+            /usr/bin/time -f '%e' -o sam31_wall_s.txt sudo docker run --rm --pull=never --gpus all               --name hv-current-sam31               -e PYTHONPATH=/opt/hoopvision               -v /tmp/hv-current-sam31/src:/opt/hoopvision:ro               -v /tmp/hv-current-sam31:/work               -v /srv/hoopvision/models/cache:/models:ro               --workdir /opt/hoopvision               --entrypoint python               '$IMAGE'               -m screen_tracker_nextgen.sam31_ambiguity_continuity               --source /work/source_native.mp4               --observations /work/uniform_observations.csv               --windows /work/sam31_decisions.json               --out-dir /work/sam31               --checkpoint /models/sam3.1_multiplex.pt
+            python3 - <<'PY'
+          import json
+          from pathlib import Path
+          qa=json.load(open('/tmp/hv-current-sam31/sam31/sam31_qa.json'))
+          links=[]
+          import csv
+          with open('/tmp/hv-current-sam31/sam31/continuity_links.csv',newline='') as f:
+              links=list(csv.DictReader(f))
+          rep={
+            'schema':'hoopvision.current-bounded-sam31-result.v1',
+            'candidate_sha':'e0cfae5063beca5e58905cec432cfa758bf30062',
+            'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
+            'sam_version':qa.get('sam_version'),'object_multiplex':qa.get('object_multiplex'),
+            'executed':qa.get('executed'),'dry_run':qa.get('dry_run'),
+            'window_count':qa.get('window_count'),'seed_count':qa.get('seed_count'),
+            'link_count':qa.get('link_count'),'accepted_link_count':qa.get('accepted_link_count'),
+            'capacity_conflict_link_count':qa.get('capacity_conflict_link_count'),
+            'multiplex_batch_count':qa.get('multiplex_batch_count'),
+            'estimated_object_frames':qa.get('estimated_object_frames'),
+            'wall_s':float(Path('/tmp/hv-current-sam31/sam31_wall_s.txt').read_text()),
+            'identity_authorized':False,
+            'qualification_claim':'CONTINUITY_DIAGNOSTIC_ONLY',
+          }
+          Path('/tmp/hv-current-sam31/current_sam31_result.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_CURRENT_SAM31_RESULT='+json.dumps(rep,sort_keys=True))
+          PY
+          "
+      - name: Retrieve SAM3.1 evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p result
+          gcloud compute scp --recurse "$INSTANCE:/tmp/hv-current-sam31/sam31" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute scp "$INSTANCE:/tmp/hv-current-sam31/current_sam31_result.json" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute scp "$INSTANCE:/tmp/hv-current-sam31/sam31_wall_s.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          cat result/current_sam31_result.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-current-bounded-sam31
+          path: result/
+          retention-days: 30
