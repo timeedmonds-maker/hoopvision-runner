@@ -46,6 +46,7 @@ jobs:
           mkdir -p bundle/tools/release bundle/infra/hoopvision-dev
           cp src/tools/release/dev_supervisor.py bundle/tools/release/
           cp src/tools/release/durable_events.py bundle/tools/release/
+          cp src/hoopvision/core/control_plane_contract.py bundle/tools/release/
           cp src/infra/hoopvision-dev/hoopvision-dev-supervisor.service bundle/infra/hoopvision-dev/
           tar -C bundle -czf /tmp/control-current.tgz .
           CONTROL_BUNDLE_SHA="$(sha256sum /tmp/control-current.tgz | awk '{print $1}')"
