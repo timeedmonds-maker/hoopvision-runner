@@ -1,7 +1,7 @@
 name: Inspect Live GPU Instances
 # read-only state check
 # event296 capacity probe
-# live check after optimized routing
+# live check during fenced event296 routing
 
 on:
   push:
