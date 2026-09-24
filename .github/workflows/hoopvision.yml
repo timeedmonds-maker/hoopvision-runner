@@ -567,25 +567,36 @@ jobs:
             --filter='name~^hv-dev-l4' \
             --format='table(name,zone.basename(),status)' || true
 
-      - name: Refresh exact supervisor and prove ready listener
+      - name: Refresh exact supervisor and prove loaded runtime identity
         shell: bash
+        env:
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
         run: |
           set -euo pipefail
           EXPECTED_SUP_SHA="$(sha256sum src/tools/release/dev_supervisor.py | awk '{print $1}')"
+          EXPECTED_CONTRACT_SHA="$(sha256sum src/hoopvision/core/control_plane_contract.py | awk '{print $1}')"
+          EXPECTED_REGISTRY_SHA="$(cd src && python -c 'from hoopvision.core.control_plane_contract import benchmark_registry_sha256; print(benchmark_registry_sha256())')"
+
           SCP_OK=0
           for i in $(seq 1 12); do
-            if gcloud compute scp src/tools/release/dev_supervisor.py               "$TARGET_INSTANCE:/tmp/dev_supervisor.py"               --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet; then
+            if gcloud compute scp \
+              src/tools/release/dev_supervisor.py \
+              src/hoopvision/core/control_plane_contract.py \
+              "$TARGET_INSTANCE:/tmp/" \
+              --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet; then
               SCP_OK=1
               break
             fi
-            echo "Supervisor SCP not ready yet (attempt $i/12); retrying after SSH-key propagation."
+            echo "Supervisor control files SCP not ready yet (attempt $i/12); retrying after SSH-key propagation."
             sleep 5
           done
           test "$SCP_OK" = "1"
 
           SSH_OK=0
           for i in $(seq 1 8); do
-            if gcloud compute ssh "$TARGET_INSTANCE"               --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet               --command="true"; then
+            if gcloud compute ssh "$TARGET_INSTANCE" \
+              --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet \
+              --command="true"; then
               SSH_OK=1
               break
             fi
@@ -594,35 +605,48 @@ jobs:
           done
           test "$SSH_OK" = "1"
 
-          gcloud compute ssh "$TARGET_INSTANCE"             --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet             --command="set -euo pipefail
+          gcloud compute ssh "$TARGET_INSTANCE" \
+            --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet \
+            --command="set -euo pipefail
               SUP_PATH=\"\$(sudo systemctl cat hoopvision-dev-supervisor --no-pager | grep -oE '/[^[:space:]]*dev_supervisor\\.py' | head -n1)\"
               test -n \"\$SUP_PATH\"
-              echo \"Refreshing supervisor at \$SUP_PATH\"
+              SUP_DIR=\"\$(dirname \"\$SUP_PATH\")\"
+              echo \"Refreshing supervisor at \$SUP_PATH with exact control contract\"
 
               sudo touch /etc/hoopvision-dev.env
               sudo sed -i '/^HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=/d' /etc/hoopvision-dev.env
+              sudo sed -i '/^HOOPVISION_SUPERVISOR_BUILD_REVISION=/d' /etc/hoopvision-dev.env
               echo 'HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=600' | sudo tee -a /etc/hoopvision-dev.env >/dev/null
+              echo 'HOOPVISION_SUPERVISOR_BUILD_REVISION=$SOURCE_SHA' | sudo tee -a /etc/hoopvision-dev.env >/dev/null
 
               sudo systemctl stop hoopvision-dev-supervisor || true
+              sudo install -m 0644 /tmp/control_plane_contract.py \"\$SUP_DIR/control_plane_contract.py\"
               sudo install -m 0755 /tmp/dev_supervisor.py \"\$SUP_PATH\"
-              ACTUAL=\"\$(sudo sha256sum \"\$SUP_PATH\" | cut -d' ' -f1)\"
-              test \"\$ACTUAL\" = '$EXPECTED_SUP_SHA'
-              sudo grep -q 'hawks-event296-playbyplay' \"\$SUP_PATH\"
+
+              ACTUAL_SUP=\"\$(sudo sha256sum \"\$SUP_PATH\" | cut -d' ' -f1)\"
+              ACTUAL_CONTRACT=\"\$(sudo sha256sum \"\$SUP_DIR/control_plane_contract.py\" | cut -d' ' -f1)\"
+              test \"\$ACTUAL_SUP\" = '$EXPECTED_SUP_SHA'
+              test \"\$ACTUAL_CONTRACT\" = '$EXPECTED_CONTRACT_SHA'
 
               sudo systemctl start hoopvision-dev-supervisor
               for i in \$(seq 1 30); do
                 if sudo systemctl is-active --quiet hoopvision-dev-supervisor; then
-                  LOG=\"\$(sudo journalctl -u hoopvision-dev-supervisor -n 100 --no-pager -o cat || true)\"
-                  if printf '%s\n' \"\$LOG\" | grep -q 'HOOPVISION_DEV_SUPERVISOR_LISTENING'; then
-                    echo 'Exact supervisor hash verified and listener ready'
+                  LOG=\"\$(sudo journalctl -u hoopvision-dev-supervisor -n 120 --no-pager -o cat || true)\"
+                  if printf '%s\n' \"\$LOG\" | grep -Fq 'HOOPVISION_DEV_SUPERVISOR_LISTENING' \
+                    && printf '%s\n' \"\$LOG\" | grep -Fq '\"startup_module_sha256\": \"$EXPECTED_SUP_SHA\"' \
+                    && printf '%s\n' \"\$LOG\" | grep -Fq '\"benchmark_registry_sha256\": \"$EXPECTED_REGISTRY_SHA\"' \
+                    && printf '%s\n' \"\$LOG\" | grep -Fq '\"build_revision\": \"$SOURCE_SHA\"' \
+                    && printf '%s\n' \"\$LOG\" | grep -Fq '\"hawks-event296-playbyplay\": \"/v1/benchmark/hawks-event296-playbyplay\"'; then
+                    echo 'HOOPVISION_SUPERVISOR_RUNTIME_ATTESTATION_OK'
+                    printf '%s\n' \"\$LOG\" | grep 'HOOPVISION_DEV_SUPERVISOR_LISTENING' | tail -n1
                     exit 0
                   fi
                 fi
                 sleep 2
               done
-              echo 'Supervisor failed bounded ready check' >&2
+              echo 'Supervisor failed loaded-runtime attestation; aborting before bundle dispatch.' >&2
               sudo systemctl status hoopvision-dev-supervisor --no-pager || true
-              sudo journalctl -u hoopvision-dev-supervisor -n 160 --no-pager -o cat || true
+              sudo journalctl -u hoopvision-dev-supervisor -n 180 --no-pager -o cat || true
               exit 1"
 
       - name: Publish immutable bundle and dispatch
