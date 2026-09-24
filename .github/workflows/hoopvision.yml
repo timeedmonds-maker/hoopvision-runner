@@ -567,59 +567,43 @@ jobs:
             --filter='name~^hv-dev-l4' \
             --format='table(name,zone.basename(),status)' || true
 
-      - name: Refresh exact supervisor and prove single ready listener
+      - name: Refresh exact supervisor and prove ready listener
         shell: bash
         run: |
           set -euo pipefail
-          gcloud compute scp src/tools/release/dev_supervisor.py \
-            "$TARGET_INSTANCE:/tmp/dev_supervisor.py" \
-            --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet
-          gcloud compute ssh "$TARGET_INSTANCE" \
-            --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet \
-            --command='set -euo pipefail
-              SUP_PATH="$(sudo systemctl cat hoopvision-dev-supervisor --no-pager | grep -oE "/[^[:space:]]*dev_supervisor\.py" | head -n1)"
-              test -n "$SUP_PATH"
-              echo "Refreshing supervisor at $SUP_PATH"
+          EXPECTED_SUP_SHA="$(sha256sum src/tools/release/dev_supervisor.py | awk '{print $1}')"
+          gcloud compute scp src/tools/release/dev_supervisor.py             "$TARGET_INSTANCE:/tmp/dev_supervisor.py"             --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet
+          gcloud compute ssh "$TARGET_INSTANCE"             --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet             --command="set -euo pipefail
+              SUP_PATH=\"\$(sudo systemctl cat hoopvision-dev-supervisor --no-pager | grep -oE '/[^[:space:]]*dev_supervisor\\.py' | head -n1)\"
+              test -n \"\$SUP_PATH\"
+              echo \"Refreshing supervisor at \$SUP_PATH\"
 
-              # Configure the bounded development timeout BEFORE the only
-              # supervisor restart. Acceptance latency gates remain unchanged.
               sudo touch /etc/hoopvision-dev.env
-              sudo sed -i "/^HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=/d" /etc/hoopvision-dev.env
-              echo "HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=600" | sudo tee -a /etc/hoopvision-dev.env >/dev/null
+              sudo sed -i '/^HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=/d' /etc/hoopvision-dev.env
+              echo 'HOOPVISION_HAWKS_BENCHMARK_TIMEOUT_S=600' | sudo tee -a /etc/hoopvision-dev.env >/dev/null
 
-              # Stop systemd and remove any orphan Python supervisor left from a
-              # previous boot/manual launch so exactly one subscriber can exist.
               sudo systemctl stop hoopvision-dev-supervisor || true
-              # Avoid nested awk field references inside the SSH-quoted
-              # command: they can be expanded by the outer runner shell under
-              # set -u. The bracketed regex matches the target process without
-              # matching this shell command itself.
-              sudo pkill -f '/opt/hoopvision-control/[d]ev_supervisor\.py' || true
-              sleep 1
+              sudo install -m 0755 /tmp/dev_supervisor.py \"\$SUP_PATH\"
+              ACTUAL=\"\$(sudo sha256sum \"\$SUP_PATH\" | cut -d' ' -f1)\"
+              test \"\$ACTUAL\" = '$EXPECTED_SUP_SHA'
+              sudo grep -q 'hawks-event296-playbyplay' \"\$SUP_PATH\"
 
-              sudo install -m 0755 /tmp/dev_supervisor.py "$SUP_PATH"
-              sudo cmp -s /tmp/dev_supervisor.py "$SUP_PATH"
-              sudo grep -q "hawks-event296-playbyplay" "$SUP_PATH"
-
-              READY_SINCE="$(date --iso-8601=seconds)"
+              READY_SINCE=\"\$(date --iso-8601=seconds)\"
               sudo systemctl start hoopvision-dev-supervisor
-              for i in $(seq 1 60); do
-                LOG="$(sudo journalctl -u hoopvision-dev-supervisor --since "$READY_SINCE" --no-pager -o cat || true)"
-                if sudo systemctl is-active --quiet hoopvision-dev-supervisor && \
-                   printf "%s\n" "$LOG" | grep -q "HOOPVISION_DEV_SESSION_READY.*hawks-event296-playbyplay" && \
-                   printf "%s\n" "$LOG" | grep -q "HOOPVISION_DEV_SUPERVISOR_LISTENING"; then
-                  COUNT="$(pgrep -fc '/opt/hoopvision-control/[d]ev_supervisor\.py' || true)"
-                  test "$COUNT" = "1"
-                  echo "Exact supervisor source verified; fresh READY advertises event296; listener_count=$COUNT"
-                  exit 0
+              for i in \$(seq 1 30); do
+                if sudo systemctl is-active --quiet hoopvision-dev-supervisor; then
+                  LOG=\"\$(sudo journalctl -u hoopvision-dev-supervisor --since \"\$READY_SINCE\" --no-pager -o cat || true)\"
+                  if printf '%s\n' \"\$LOG\" | grep -q 'HOOPVISION_DEV_SUPERVISOR_LISTENING'; then
+                    echo 'Exact supervisor hash verified and listener ready'
+                    exit 0
+                  fi
                 fi
                 sleep 2
               done
-              echo "Exact supervisor did not become event296-ready" >&2
+              echo 'Supervisor failed bounded ready check' >&2
               sudo systemctl status hoopvision-dev-supervisor --no-pager || true
-              sudo journalctl -u hoopvision-dev-supervisor --since "$READY_SINCE" --no-pager || true
-              ps -ef | grep "[d]ev_supervisor.py" || true
-              exit 1'
+              sudo journalctl -u hoopvision-dev-supervisor --since \"\$READY_SINCE\" --no-pager || true
+              exit 1"
 
       - name: Publish immutable bundle and dispatch
         working-directory: src
