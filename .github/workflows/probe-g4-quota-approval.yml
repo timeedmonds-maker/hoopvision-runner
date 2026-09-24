@@ -1,0 +1,59 @@
+name: Probe G4 Quota Approval
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/probe-g4-quota-approval.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  INSTANCE: hv-g4-quota-probe
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Probe G4 in Singapore and clean up immediately
+        shell: bash
+        run: |
+          set -uo pipefail
+          RESULT=""
+          for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
+            echo "=== PROBE $Z ==="
+            set +e
+            gcloud compute instances create "$INSTANCE"               --project "$PROJECT_ID"               --zone "$Z"               --machine-type g4-standard-48               --image-family ubuntu-2204-lts-amd64               --image-project ubuntu-os-cloud               --boot-disk-type pd-balanced               --boot-disk-size 50GB               --maintenance-policy TERMINATE               --no-restart-on-failure               --max-run-duration 10m               --instance-termination-action DELETE               --quiet > /tmp/g4.out 2>&1
+            RC=$?
+            set -e
+            cat /tmp/g4.out
+            if test "$RC" -eq 0; then
+              echo "G4_PROBE_CREATED zone=$Z"
+              gcloud compute instances delete "$INSTANCE" --zone "$Z" --project "$PROJECT_ID" --delete-disks=all --quiet || true
+              echo "G4_QUOTA_EFFECTIVE=APPROVED"
+              RESULT="APPROVED"
+              break
+            fi
+            if grep -Eq 'GPUS_PER_GPU_FAMILY|NVIDIA_RTX_PRO_6000|quota.*0|Quota.*exceeded' /tmp/g4.out; then
+              echo "G4_QUOTA_EFFECTIVE=NOT_APPROVED zone=$Z"
+              RESULT="NOT_APPROVED"
+              break
+            fi
+            if grep -Eq 'ZONE_RESOURCE_POOL_EXHAUSTED|resource_availability|STOCKOUT|currently unavailable|does not have enough resources' /tmp/g4.out; then
+              echo "G4_QUOTA_EFFECTIVE=NOT_BLOCKING_CAPACITY_BLOCKED zone=$Z"
+              RESULT="QUOTA_NOT_BLOCKING"
+              continue
+            fi
+            echo "G4_PROBE_OTHER_ERROR zone=$Z"
+          done
+          echo "G4_FINAL_RESULT=$RESULT"
