@@ -525,6 +525,33 @@ jobs:
           done
           [ "$STATUS" = "RUNNING" ] || { echo "Prepared L4 did not reach RUNNING" >&2; exit 1; }
 
+      - name: Enforce single active prepared supervisor
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Selected target: $TARGET_INSTANCE in $TARGET_ZONE"
+          while IFS=',' read -r NAME ZONE STATUS; do
+            [ -n "$NAME" ] || continue
+            case "$NAME" in
+              hv-dev-l4|hv-dev-l4-failover|hv-dev-l4-route-*|hv-dev-l4-probe-*|hv-dev-l4-cross-*|hv-dev-l4-flex-*)
+                if [ "$NAME" = "$TARGET_INSTANCE" ] && [ "$ZONE" = "$TARGET_ZONE" ]; then
+                  continue
+                fi
+                case "$STATUS" in
+                  RUNNING|STAGING|PROVISIONING|REPAIRING|SUSPENDING|SUSPENDED)
+                    echo "Stopping non-selected prepared supervisor host $NAME in $ZONE (status=$STATUS)"
+                    gcloud compute instances stop "$NAME" --project="$PROJECT_ID" --zone="$ZONE" --quiet || true
+                    ;;
+                esac
+                ;;
+            esac
+          done < <(gcloud compute instances list --project="$PROJECT_ID" \
+            --format='csv[no-heading](name,zone.basename(),status)')
+          echo "Prepared supervisor host state after fencing:"
+          gcloud compute instances list --project="$PROJECT_ID" \
+            --filter='name~^hv-dev-l4' \
+            --format='table(name,zone.basename(),status)' || true
+
       - name: Refresh prepared supervisor from exact source
         shell: bash
         run: |
