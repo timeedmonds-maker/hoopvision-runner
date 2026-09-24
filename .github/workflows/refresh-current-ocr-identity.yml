@@ -150,7 +150,7 @@ jobs:
           allp=pd.DataFrame({'physical_path_id':sorted(p.physical_path_id.astype(str).unique())})
           out=allp.merge(out,on='physical_path_id',how='left').fillna('')
           out.to_csv('work/out/current_physical_ocr_consensus.csv',index=False)
-          Path('work/out/current_temporal_groups.json').write_text(json.dumps(groups_json,indent=2,sort_keys=True)+'\n')
+          Path('work/out/current_temporal_groups.json').write_text(json.dumps(groups_json,indent=2,sort_keys=True,default=lambda o:o.item() if hasattr(o,'item') else str(o))+'\n')
           summary={
              'schema':'hoopvision.current-physical-ocr-refresh.v1','candidate_sha':'4360c2c01bda12386bb75635da923b0049304347',
              'physical_fragments':int(p.physical_path_id.astype(str).nunique()),'input_ocr_crops':int(len(o)),
