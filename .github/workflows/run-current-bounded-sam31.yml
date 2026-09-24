@@ -67,15 +67,15 @@ jobs:
           jq -e '.status == "READY" and .restricted_ocr_assets_present == false' /tmp/session.json >/dev/null
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
             set -e
-            test \"$(cat /srv/hoopvision/commercial-prepared.candidate.sha)\" = '$CANDIDATE_SHA'
+            test \"\$(cat /srv/hoopvision/commercial-prepared.candidate.sha)\" = '$CANDIDATE_SHA'
             systemctl is-active --quiet hoopvision-dev-supervisor.service
             pgrep -f '/opt/hoopvision-control/dev_supervisor.py' >/dev/null
             test ! -e /srv/hoopvision/models/nbacv/parseq_soccernet.ckpt
             test ! -e /srv/hoopvision/models/nbacv/legibility_soccernet.pth
             echo '5f43c16f2a684b1d2284662178bdb604febd3d6bfdb5ca73828d08d0f7c0c3e9  /srv/hoopvision/models/cache/ppocrv6/medium/model.safetensors' | sha256sum -c -
             echo 'f65a332afe5aa663f0b9d5706f4ae8457b5b4058a842d5c1eb22df505c27d642  /srv/hoopvision/models/cache/ppocrv6/small/model.safetensors' | sha256sum -c -
-            test \"$(stat -c %s /srv/hoopvision/models/cache/sam3.1_multiplex.pt)\" = 3502755717
-            test -z \"$(sudo docker ps -q --filter label=hoopvision.dev.worker=true)\"
+            test \"\$(stat -c %s /srv/hoopvision/models/cache/sam3.1_multiplex.pt)\" = 3502755717
+            test -z \"\$(sudo docker ps -q --filter label=hoopvision.dev.worker=true)\"
             nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
             echo HOOPVISION_CURRENT_SAM31_HOST_ATTESTED
           "
@@ -94,7 +94,7 @@ jobs:
             cd /tmp/hv-current-sam31
             mkdir -p src sam31
             tar -C src -xzf candidate.tgz
-            test \"$(cat candidate.sha)\" = '$CANDIDATE_SHA'
+            test \"\$(cat candidate.sha)\" = '$CANDIDATE_SHA'
             /usr/bin/time -f '%e' -o sam31_wall_s.txt sudo docker run --rm --pull=never --gpus all               --name hv-current-sam31               -e PYTHONPATH=/opt/hoopvision               -v /tmp/hv-current-sam31/src:/opt/hoopvision:ro               -v /tmp/hv-current-sam31:/work               -v /srv/hoopvision/models/cache:/models:ro               --workdir /opt/hoopvision               --entrypoint python               '$IMAGE'               -m screen_tracker_nextgen.sam31_ambiguity_continuity               --source /work/source_native.mp4               --observations /work/uniform_observations.csv               --windows /work/sam31_decisions.json               --out-dir /work/sam31               --checkpoint /models/sam3.1_multiplex.pt
             python3 - <<'PY'
           import json
