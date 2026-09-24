@@ -1,0 +1,153 @@
+name: Build Event301 Native Reference Review Pack
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/build-event301-native-reference-review.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: c8abdc751499a324693f287116f77840b6f915c6
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate reference config
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Recover exact Event301 source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/out/frames
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+      - name: Extract native frames and build blank independent-reference scaffold
+        run: |
+          set -euo pipefail
+          ffmpeg -hide_banner -loglevel error -i work/source_native.mp4 -vsync 0 -q:v 2 work/out/frames/frame_%04d.jpg
+          python - <<'PY'
+          import csv,json,subprocess,hashlib
+          from pathlib import Path
+
+          source=Path('work/source_native.mp4')
+          out=Path('work/out')
+          lineup=json.load(open('src/hoopvision/config/fresh_hawks_event301_lineup.json'))
+          schema=json.load(open('src/hoopvision/config/native_frame_reference_schema.json'))
+
+          probe=json.loads(subprocess.check_output([
+            'ffprobe','-v','error','-select_streams','v:0',
+            '-show_entries','stream=avg_frame_rate,r_frame_rate,nb_frames,width,height,duration',
+            '-of','json',str(source)
+          ]))
+          st=probe['streams'][0]
+          def rate(s):
+              a,b=map(float,str(s).split('/')); return a/b
+          fps=rate(st.get('avg_frame_rate') or st['r_frame_rate'])
+          frames=sorted((out/'frames').glob('frame_*.jpg'))
+          n=len(frames)
+          if n != 359:
+              raise SystemExit(f'expected 359 native frames, got {n}')
+
+          players=[]
+          for team,t in lineup['teams'].items():
+              for p in t['players']:
+                  players.append({
+                      'team':team,'player_id':int(p['id']),'player_name':p['name'],
+                      'jersey':str(p['jersey'])
+                  })
+          assert len(players)==10
+          assert set(p['player_id'] for p in players)==set(lineup['exact_lineup_ids'])
+
+          fields=[
+            'output_frame','time_s','team','jersey','player_id','player_name',
+            'eligible','fully_occluded','off_screen',
+            'x1','y1','x2','y2',
+            'floor_anchor_evaluable','floor_anchor_x','floor_anchor_y',
+            'hard_crossing_id','shot_id','view_id','reference_identity_unknown',
+            'review_status','evidence_note'
+          ]
+          with open(out/'event301_native_reference_scaffold.csv','w',newline='',encoding='utf-8') as f:
+              w=csv.DictWriter(f,fieldnames=fields); w.writeheader()
+              for fi in range(n):
+                  t=fi/fps
+                  for p in players:
+                      w.writerow({
+                          'output_frame':fi,'time_s':f'{t:.6f}',
+                          **p,
+                          'eligible':'','fully_occluded':'','off_screen':'',
+                          'x1':'','y1':'','x2':'','y2':'',
+                          'floor_anchor_evaluable':'','floor_anchor_x':'','floor_anchor_y':'',
+                          'hard_crossing_id':'','shot_id':'','view_id':'',
+                          'reference_identity_unknown':'',
+                          'review_status':'PENDING_INDEPENDENT_REVIEW',
+                          'evidence_note':''
+                      })
+
+          frame_index=[]
+          for fi,p in enumerate(frames):
+              frame_index.append({
+                  'output_frame':fi,
+                  'time_s':round(fi/fps,6),
+                  'file':p.name,
+                  'sha256':hashlib.sha256(p.read_bytes()).hexdigest()
+              })
+          with open(out/'frame_index.csv','w',newline='',encoding='utf-8') as f:
+              w=csv.DictWriter(f,fieldnames=frame_index[0].keys());w.writeheader();w.writerows(frame_index)
+
+          instructions={
+            'schema':'hoopvision.event301-native-reference-review-pack.v1',
+            'qualification_source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
+            'game_id':lineup['game_id'],'event_id':lineup['event_num'],'angle':lineup['angle'],
+            'native_frame_count':n,'fps':fps,'source_width':int(st['width']),'source_height':int(st['height']),
+            'rows_to_review':n*len(players),'lineup_players':players,
+            'candidate_predictions_included':False,
+            'reviewer_must_be_independent':True,
+            'reviewer_type_must_be_recorded':True,
+            'rules':{
+              'eligible_is_independent_of_candidate_success':True,
+              'detector_misses_remain_eligible_if_reference_player_is_visible':True,
+              'candidate_abstentions_remain_eligible_if_reference_player_is_visible':True,
+              'exclude_only_if_fully_occluded_or_off_screen_under_frozen_rule':True,
+              'body_geometry_before_candidate_roster_identity':True,
+              'do_not_infer_visibility_from_model_outputs':True
+            },
+            'required_schema':schema,
+            'status':'SCAFFOLD_ONLY_NOT_GROUND_TRUTH'
+          }
+          (out/'review_pack_manifest.json').write_text(json.dumps(instructions,indent=2,sort_keys=True)+'\n')
+          (out/'REVIEW_INSTRUCTIONS.txt').write_text(
+              'Event301 independent native-frame reference review\n\n'
+              'Review the raw frames only. Candidate detections, tracks, OCR and names are intentionally absent.\n'
+              'For each player-frame row, mark eligible/fully_occluded/off_screen and body geometry.\n'
+              'Eligibility is determined from the reference footage, never from model success.\n'
+              'Record reference_identity_unknown where canonical identity cannot be established independently.\n'
+              'Do not convert this scaffold into qualification evidence until reviewer type and frozen rules are recorded.\n'
+          )
+          print('HOOPVISION_EVENT301_REFERENCE_PACK='+json.dumps({
+              'native_frames':n,'players':len(players),'rows':n*len(players),
+              'candidate_predictions_included':False,'status':'SCAFFOLD_ONLY_NOT_GROUND_TRUTH'
+          },sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-event301-native-reference-review-pack
+          path: work/out/
+          retention-days: 30
