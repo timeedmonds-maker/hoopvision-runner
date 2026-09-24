@@ -1,7 +1,7 @@
 name: Inspect Live GPU Instances
 # read-only state check
 # event296 capacity probe
-# live check during simplified event296 retry
+# live check during run 35947794165 target resolution
 
 on:
   push:
