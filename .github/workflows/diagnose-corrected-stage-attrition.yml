@@ -1,0 +1,169 @@
+name: Diagnose Corrected Stage Attrition
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/diagnose-corrected-stage-attrition.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 4206110d15e5204d1e2b06f0024f5aa9abc56bc6
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  P1A_RUN_ID: '35972465174'
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install exact CPU detector/tracker runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision scipy rich requests 'jsonargparse<5' pydeprecate onnxruntime
+          git clone -q https://github.com/roboflow/trackers.git /tmp/trackers
+          git -C /tmp/trackers checkout -q 3fb83d1618f29b7fdd4617757b6894e4ec71146d
+          python -m pip install -q -e /tmp/trackers --no-deps
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+      - name: Recover exact source, baseline P1A and detector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/p1a work/models work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir work/p1a
+          test -s work/p1a/physical_paths.csv
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o work/models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  work/models/rfdetr_m_640.onnx" | sha256sum -c -
+      - name: Measure detector NMS McByte and P1A counts per scheduled frame
+        run: |
+          PYTHONPATH="$PWD/src" python - <<'PY'
+          import sys, json, time, math
+          from pathlib import Path
+          from collections import Counter
+          import cv2, numpy as np, pandas as pd
+          sys.path.insert(0,'/tmp/object-detection-eval/src')
+          from object_detection_eval.inference.detectors.rfdetr import RFDETRDetector
+          from tools.diagnose_rfdetr_tracking_taxonomy import CORRECTED_PLAYER_CLASSES, RAW_LABEL_MAP, to_sv, make_tracker
+
+          src='work/source_native.mp4'
+          det=RFDETRDetector('work/models/rfdetr_m_640.onnx',RAW_LABEL_MAP,confidence_threshold=.045,num_select=300,input_height=640,input_width=640,providers=['CPUExecutionProvider'])
+          tracker=make_tracker(15.0)
+          p1a=pd.read_csv('work/p1a/physical_paths.csv')
+          pcount=p1a.groupby('tracking_frame').physical_path_id.nunique().to_dict()
+
+          cap=cv2.VideoCapture(src)
+          fps=float(cap.get(cv2.CAP_PROP_FPS) or 30000/1001)
+          W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+          start=int(round(4.0*fps)); end=int(round(16.0*fps)); every=max(1,int(round(fps/15.0)))
+          rows=[]; debug=[]; t0=time.monotonic()
+          for rel,absf in enumerate(range(start,end)):
+              if rel%every: continue
+              cap.set(cv2.CAP_PROP_POS_FRAMES,absf)
+              ok,frame=cap.read()
+              if not ok: continue
+              all_dets=det.predict(frame)
+              raw=[d for d in all_dets if int(d.class_id) in CORRECTED_PLAYER_CLASSES and float(d.confidence)>=.20]
+              cls=Counter(int(d.class_id) for d in raw)
+              nms=to_sv(all_dets,W,H,CORRECTED_PLAYER_CLASSES)
+              tracked=tracker.update(nms,frame=frame,timestamp=rel/fps)
+              valid=[i for i,tid in enumerate(tracked.tracker_id)] if len(tracked) else []
+              valid=[i for i in valid if int(tracked.tracker_id[i])>=0]
+              fr=int(rel)
+              rec={
+                'tracking_frame':fr,'source_frame_abs':int(absf),'time_s':float(4.0+rel/fps),
+                'raw_player_ge20':len(raw),'nms_player_ge20':len(nms),'mcbyte_tracks':len(valid),
+                'p1a_roots':int(pcount.get(fr,0)),
+                'raw_class4':int(cls.get(4,0)),'raw_class5':int(cls.get(5,0)),'raw_class6':int(cls.get(6,0)),'raw_class7':int(cls.get(7,0)),'raw_class8':int(cls.get(8,0)),
+              }
+              rec['loss_nms']=rec['raw_player_ge20']-rec['nms_player_ge20']
+              rec['loss_tracker']=rec['nms_player_ge20']-rec['mcbyte_tracks']
+              rec['loss_p1a']=rec['mcbyte_tracks']-rec['p1a_roots']
+              rows.append(rec)
+              if rec['mcbyte_tracks']<10 and (5.7<=rec['time_s']<=7.0 or 14.8<=rec['time_s']<=15.3):
+                  vis=frame.copy()
+                  for box in nms.xyxy:
+                      x1,y1,x2,y2=map(int,box); cv2.rectangle(vis,(x1,y1),(x2,y2),(0,255,255),2)
+                  if len(tracked):
+                      for i in valid:
+                          box=tracked.xyxy[i]; tid=int(tracked.tracker_id[i]); x1,y1,x2,y2=map(int,box)
+                          cv2.rectangle(vis,(x1,y1),(x2,y2),(255,0,255),2)
+                          cv2.putText(vis,f'T{tid}',(x1,max(15,y1-4)),cv2.FONT_HERSHEY_SIMPLEX,.45,(255,0,255),1,cv2.LINE_AA)
+                  cv2.putText(vis,f"{rec['time_s']:.3f}s raw={rec['raw_player_ge20']} nms={rec['nms_player_ge20']} trk={rec['mcbyte_tracks']} p1a={rec['p1a_roots']}",(10,24),cv2.FONT_HERSHEY_SIMPLEX,.55,(255,255,255),2,cv2.LINE_AA)
+                  p=Path('work/out')/f"frame_{fr:04d}_{rec['time_s']:.3f}.jpg"; cv2.imwrite(str(p),vis); debug.append(str(p))
+          cap.release()
+          d=pd.DataFrame(rows); d.to_csv('work/out/stage_attrition_by_frame.csv',index=False)
+          def n(cond): return int(cond.sum())
+          report={
+            'schema':'hoopvision.corrected-stage-attrition.v1',
+            'candidate_sha':'4206110d15e5204d1e2b06f0024f5aa9abc56bc6',
+            'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
+            'sampled_frames':len(d),
+            'frames_raw_ge10':n(d.raw_player_ge20>=10),
+            'frames_nms_ge10':n(d.nms_player_ge20>=10),
+            'frames_mcbyte_ge10':n(d.mcbyte_tracks>=10),
+            'frames_p1a_ge10':n(d.p1a_roots>=10),
+            'frames_nms_loss_positive':n(d.loss_nms>0),
+            'frames_tracker_loss_positive':n(d.loss_tracker>0),
+            'frames_p1a_loss_positive':n(d.loss_p1a>0),
+            'sum_nms_loss':int(d.loss_nms.clip(lower=0).sum()),
+            'sum_tracker_loss':int(d.loss_tracker.clip(lower=0).sum()),
+            'sum_p1a_loss':int(d.loss_p1a.clip(lower=0).sum()),
+            'target_5p8_6p8':{
+              'frames':int(((d.time_s>=5.8)&(d.time_s<=6.8)).sum()),
+              'raw_lt10':n((d.time_s>=5.8)&(d.time_s<=6.8)&(d.raw_player_ge20<10)),
+              'nms_lt10':n((d.time_s>=5.8)&(d.time_s<=6.8)&(d.nms_player_ge20<10)),
+              'mcbyte_lt10':n((d.time_s>=5.8)&(d.time_s<=6.8)&(d.mcbyte_tracks<10)),
+              'p1a_lt10':n((d.time_s>=5.8)&(d.time_s<=6.8)&(d.p1a_roots<10)),
+            },
+            'elapsed_s':round(time.monotonic()-t0,3),
+            'debug_frames':len(debug),
+            'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+            'eligibility_reference':'NOT_ESTABLISHED_BY_THIS_RUN'
+          }
+          Path('work/out/stage_attrition_summary.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_STAGE_ATTRITION='+json.dumps(report,sort_keys=True))
+          PY
+      - name: Build debug contact sheet
+        run: |
+          python - <<'PY'
+          import cv2, glob, math, numpy as np
+          files=sorted(glob.glob('work/out/frame_*.jpg'))
+          imgs=[]
+          for p in files:
+              im=cv2.imread(p)
+              if im is None: continue
+              imgs.append(cv2.resize(im,(480,270)))
+          if imgs:
+              cols=4; rows=math.ceil(len(imgs)/cols); blank=np.zeros_like(imgs[0]); imgs += [blank]*(rows*cols-len(imgs))
+              sheet=np.vstack([np.hstack(imgs[r*cols:(r+1)*cols]) for r in range(rows)])
+              cv2.imwrite('work/out/target_loss_contact_sheet.jpg',sheet)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-corrected-stage-attrition
+          path: work/out/
+          retention-days: 14
