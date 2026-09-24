@@ -43,18 +43,17 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           python -m pip install -q 'numpy<2' pandas opencv-python-headless pillow requests
-      - name: Authenticate to Google Cloud for immutable fixture
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.DEV_PUBLISH_SA }}
-      - uses: google-github-actions/setup-gcloud@v2
-      - name: Recover exact Event301 source
+      - name: Recover exact Event301 source from durable recovery artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p work
-          gcloud storage cp "gs://$BUCKET/$SOURCE_OBJECT" work/source_event301.mp4
+          mkdir -p work/source_recovery
+          gh run download 35923251814 --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source_recovery
+          SRC="$(find work/source_recovery -type f -name 'exact_source_native.mp4' | head -n1)"
+          test -n "$SRC" && test -s "$SRC"
+          cp "$SRC" work/source_event301.mp4
           GOT="$(sha256sum work/source_event301.mp4 | awk '{print $1}')"
           test "$GOT" = "$EXPECTED_SOURCE_SHA256" || { echo "source hash mismatch $GOT != $EXPECTED_SOURCE_SHA256" >&2; exit 2; }
           python - <<'PY'
@@ -62,7 +61,7 @@ jobs:
           from pathlib import Path
           p=Path('work/source_event301.mp4')
           got=hashlib.sha256(p.read_bytes()).hexdigest()
-          Path('work/source_verification.json').write_text(json.dumps({'game_id':'0012500014','event':301,'angle':'Play by Play','sha256':got,'exact_match':True,'source':'immutable_gcs_fixture'},indent=2)+'\n')
+          Path('work/source_verification.json').write_text(json.dumps({'game_id':'0012500014','event':301,'angle':'Play by Play','sha256':got,'exact_match':True,'source':'durable_recovery_artifact_run_35923251814'},indent=2)+'\n')
           print('SOURCE_OK',got)
           PY
       - name: Recover corrected physical paths
