@@ -41,7 +41,13 @@ jobs:
           p=pd.read_csv('p1a/physical_paths.csv')
           l=pd.read_csv('ledger/identity_coverage_ledger.csv')
           root='physical_path_id'
-          assert root in p and root in l
+          assert root in p.columns
+          ledger_root=root if root in l.columns else ('root_id' if 'root_id' in l.columns else None)
+          assert ledger_root is not None
+          if ledger_root != root:
+              l=l.rename(columns={ledger_root:root})
+          p[root]=p[root].astype(str)
+          l[root]=l[root].astype(str)
           timecol='time_s' if 'time_s' in p else None
           framecol='tracking_frame' if 'tracking_frame' in p else None
           teamcol=next((c for c in ['team','team_id','team_code'] if c in p),None)
@@ -57,34 +63,22 @@ jobs:
                   rec['team']=vals.mode().iloc[0] if len(vals) else ''
               rows.append(rec)
           d=pd.DataFrame(rows)
-          keep=[c for c in [root,'localised_crop_references','medium_raw_digit_reads','small_raw_digit_reads'] if c in l]
+          cropcol=next((c for c in ['localised_crop_references','localized_crop_references','crop_references','localised_crops'] if c in l),None)
+          medcol=next((c for c in ['medium_raw_digit_reads','ppocrv6_medium_raw_digit_reads'] if c in l),None)
+          smlcol=next((c for c in ['small_raw_digit_reads','ppocrv6_small_raw_digit_reads'] if c in l),None)
+          keep=[root]+[c for c in [cropcol,medcol,smlcol] if c]
           d=d.merge(l[keep],on=root,how='left')
           for c in keep[1:]: d[c]=pd.to_numeric(d[c],errors='coerce').fillna(0)
-          d['has_crop']=d.get('localised_crop_references',0)>0
-          d['has_medium_digits']=d.get('medium_raw_digit_reads',0)>0
-          d['has_small_digits']=d.get('small_raw_digit_reads',0)>0
+          d['has_crop']=(d[cropcol]>0) if cropcol else False
+          d['has_medium_digits']=(d[medcol]>0) if medcol else False
+          d['has_small_digits']=(d[smlcol]>0) if smlcol else False
           sortcols=[c for c in ['team','start_s','start_frame'] if c in d]
           d=d.sort_values(sortcols or [root])
           d.to_csv('fragment_gap_ledger.csv',index=False)
           uncovered=d[~d.has_crop].copy()
           uncovered.to_csv('uncovered_fragments.csv',index=False)
-          short_threshold_s=1.0
-          short_uncovered=int(((uncovered.duration_s<=short_threshold_s) if 'duration_s' in uncovered else (uncovered.observations<=5)).sum())
-          summary={
-            'schema':'hoopvision.corrected-fragment-gap-analysis.v1',
-            'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
-            'physical_fragments':int(len(d)),
-            'crop_covered_fragments':int(d.has_crop.sum()),
-            'crop_uncovered_fragments':int((~d.has_crop).sum()),
-            'medium_digit_fragments':int(d.has_medium_digits.sum()),
-            'small_digit_fragments':int(d.has_small_digits.sum()),
-            'short_uncovered_fragments':short_uncovered,
-            'short_definition':'duration_s<=1.0 when time_s exists, else observations<=5',
-            'identity_accuracy':'UNKNOWN',
-            'joins_applied':0,
-            'motion_only_joins_applied':0,
-            'note':'Descriptive gap ledger only. No identity assignment, continuity acceptance, threshold change, or ground-truth generation.'
-          }
+          short_uncovered=int(((uncovered.duration_s<=1.0) if 'duration_s' in uncovered else (uncovered.observations<=5)).sum())
+          summary={'schema':'hoopvision.corrected-fragment-gap-analysis.v1','qualification_claim':'NONE_DIAGNOSTIC_ONLY','physical_fragments':int(len(d)),'crop_covered_fragments':int(d.has_crop.sum()),'crop_uncovered_fragments':int((~d.has_crop).sum()),'medium_digit_fragments':int(d.has_medium_digits.sum()),'small_digit_fragments':int(d.has_small_digits.sum()),'short_uncovered_fragments':short_uncovered,'short_definition':'duration_s<=1.0 when time_s exists, else observations<=5','identity_accuracy':'UNKNOWN','joins_applied':0,'motion_only_joins_applied':0,'ledger_root_column':ledger_root,'crop_column':cropcol,'medium_column':medcol,'small_column':smlcol,'note':'Descriptive gap ledger only. No identity assignment, continuity acceptance, threshold change, or ground-truth generation.'}
           open('fragment_gap_summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
           print('HOOPVISION_FRAGMENT_GAP_SUMMARY='+json.dumps(summary,sort_keys=True))
           PY
