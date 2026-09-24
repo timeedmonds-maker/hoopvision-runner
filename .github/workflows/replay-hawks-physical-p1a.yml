@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: timeedmonds-maker/104
-          ref: ceb67ee39da1c56729fc47e4b81e07cf08f1b304
+          ref: aebc718d97ab830525e44217988416c30285813c
           token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
           fetch-depth: 1
           persist-credentials: false
@@ -166,3 +166,15 @@ jobs:
           assert h["candidate_margin"] < h["baseline_margin"]
           assert h["candidate_same_raw_margin"] == 0
           PY
+
+      - name: Upload P1A replay artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-p1a-current-replay
+          path: |
+            candidate/
+            baseline_identity/
+            candidate_identity/
+          if-no-files-found: error
+          retention-days: 7
