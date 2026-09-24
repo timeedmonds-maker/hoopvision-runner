@@ -312,15 +312,25 @@ jobs:
               fi
 
               if [ -z "$FOUND_ZONE" ]; then
-                # Build the prepared clone image once. Earlier routing recreated
-                # essentially the same global machine image three times before
-                # reaching a proven us-west4 L4, adding minutes of pure setup.
-                MACHINE_IMAGE="hv-dev-l4-route-${GITHUB_RUN_ID}"
-                echo "Creating one reusable prepared L4 machine image $MACHINE_IMAGE"
-                gcloud compute machine-images create "$MACHINE_IMAGE" \
-                  --project="$PROJECT_ID" \
-                  --source-instance="$L4_INSTANCE" \
-                  --source-instance-zone="$L4_ZONE"
+                # Reuse the already-prepared immutable L4 machine image when
+                # available. Rebuilding the same image on every bounded retry
+                # costs several minutes before any GPU work begins.
+                BASE_ROUTE_IMAGE="hv-dev-l4-failover-35686643542"
+                DELETE_ROUTE_IMAGE=0
+                IMAGE_STATUS="$(gcloud compute machine-images describe "$BASE_ROUTE_IMAGE" \
+                  --project="$PROJECT_ID" --format='value(status)' 2>/dev/null || true)"
+                if [ "$IMAGE_STATUS" = "READY" ]; then
+                  MACHINE_IMAGE="$BASE_ROUTE_IMAGE"
+                  echo "Reusing READY prepared L4 machine image $MACHINE_IMAGE"
+                else
+                  MACHINE_IMAGE="hv-dev-l4-route-${GITHUB_RUN_ID}"
+                  DELETE_ROUTE_IMAGE=1
+                  echo "Reusable prepared image unavailable (status=${IMAGE_STATUS:-missing}); creating $MACHINE_IMAGE"
+                  gcloud compute machine-images create "$MACHINE_IMAGE" \
+                    --project="$PROJECT_ID" \
+                    --source-instance="$L4_INSTANCE" \
+                    --source-instance-zone="$L4_ZONE"
+                fi
 
                 # Keep the first probe local. If Singapore is stocked out, use
                 # the cross-region zone already proven to admit this exact L4
@@ -425,8 +435,12 @@ jobs:
                   done
                 fi
 
-                gcloud compute machine-images delete "$MACHINE_IMAGE" \
-                  --project="$PROJECT_ID" --quiet || true
+                if [ "$DELETE_ROUTE_IMAGE" = "1" ]; then
+                  gcloud compute machine-images delete "$MACHINE_IMAGE" \
+                    --project="$PROJECT_ID" --quiet || true
+                else
+                  echo "Retaining reusable prepared machine image $MACHINE_IMAGE"
+                fi
               fi
 
               if [ -z "$FOUND_ZONE" ]; then
