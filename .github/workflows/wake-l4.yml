@@ -1,5 +1,6 @@
 name: Wake HoopVision L4
 # wake-trigger: identity-evidence-debug
+# release-candidate-sam-refresh-20260925
 
 on:
   push:
