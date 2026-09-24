@@ -89,6 +89,10 @@ jobs:
           d=pd.read_csv('ledger/identity_coverage_ledger.csv')
           assert q['candidate_predictions_are_ground_truth'] is False
           assert q['identity_accuracy']=='UNKNOWN'
+          medq=json.load(open('ocr/localised_medium/qa.json'))
+          smlq=json.load(open('ocr/localised_small/qa.json'))
+          assert int(medq['physical_revision_bound_count'])==554
+          assert int(smlq['physical_revision_bound_count'])==554
           summary={
               'schema':'hoopvision.corrected-physical-ocr-ledger-summary.v1',
               'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
@@ -100,6 +104,8 @@ jobs:
               'fragments_with_small_raw_digits':int((d.small_raw_digit_reads.fillna(0)>0).sum()),
               'medium_raw_digit_reads':int(d.medium_raw_digit_reads.fillna(0).sum()),
               'small_raw_digit_reads':int(d.small_raw_digit_reads.fillna(0).sum()),
+              'physical_revision_bound_count_medium':int(medq['physical_revision_bound_count']),
+              'physical_revision_bound_count_small':int(smlq['physical_revision_bound_count']),
               'identity_accuracy':'UNKNOWN',
           }
           open('ledger/summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
