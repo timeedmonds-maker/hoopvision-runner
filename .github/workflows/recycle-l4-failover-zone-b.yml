@@ -1,0 +1,60 @@
+name: Recycle Failed L4 Failover Into Zone B
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/recycle-l4-failover-zone-b.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  OLD_ZONE: asia-southeast1-a
+  NEW_ZONE: asia-southeast1-b
+  OLD_INSTANCE: hv-dev-l4-failover
+  NEW_INSTANCE: hv-dev-l4-failover-b
+  MACHINE_TYPE: g2-standard-8
+  RUNTIME_SA: hoopvision-worker@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  recycle:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Delete failed zone-a failover and free disk quota
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gcloud compute instances describe "$OLD_INSTANCE" --zone "$OLD_ZONE" --project "$PROJECT_ID" >/dev/null 2>&1; then
+            STATUS="$(gcloud compute instances describe "$OLD_INSTANCE" --zone "$OLD_ZONE" --project "$PROJECT_ID" --format='value(status)')"
+            echo "OLD_STATUS=$STATUS"
+            test "$STATUS" = "TERMINATED"
+            gcloud compute instances delete "$OLD_INSTANCE" --zone "$OLD_ZONE" --project "$PROJECT_ID" --delete-disks=all --quiet
+          fi
+          for i in $(seq 1 30); do
+            if ! gcloud compute disks describe "$OLD_INSTANCE" --zone "$OLD_ZONE" --project "$PROJECT_ID" >/dev/null 2>&1; then
+              echo "OLD_DISK_REMOVED"
+              break
+            fi
+            sleep 2
+          done
+      - name: Create 100GB L4 failover in zone b
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gcloud compute instances describe "$NEW_INSTANCE" --zone "$NEW_ZONE" --project "$PROJECT_ID" >/dev/null 2>&1; then
+            echo "NEW_INSTANCE_ALREADY_EXISTS"
+            gcloud compute instances describe "$NEW_INSTANCE" --zone "$NEW_ZONE" --project "$PROJECT_ID" --format='yaml(name,status,zone,machineType)'
+            exit 0
+          fi
+          gcloud compute instances create "$NEW_INSTANCE"             --project "$PROJECT_ID"             --zone "$NEW_ZONE"             --machine-type "$MACHINE_TYPE"             --image-family common-cu129-ubuntu-2204-nvidia-580             --image-project deeplearning-platform-release             --boot-disk-type pd-balanced             --boot-disk-size 100GB             --service-account "$RUNTIME_SA"             --scopes cloud-platform             --maintenance-policy TERMINATE             --no-restart-on-failure             --max-run-duration 4h             --instance-termination-action STOP             --labels hoopvision=development,role=prepared-l4,failover=true             --quiet
+          gcloud compute instances describe "$NEW_INSTANCE" --zone "$NEW_ZONE" --project "$PROJECT_ID" --format='yaml(name,status,zone,machineType,serviceAccounts)'
