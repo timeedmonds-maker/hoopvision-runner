@@ -1,0 +1,62 @@
+name: Create Singapore L4 Failover
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/create-singapore-l4-failover.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  INSTANCE: hv-dev-l4
+  MACHINE_TYPE: g2-standard-8
+  RUNTIME_SA: hoopvision-worker@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  PROVISION_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  create:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.PROVISION_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Create in first available zone
+        shell: bash
+        run: |
+          set -euo pipefail
+          SELECTED_ZONE=""
+          for Z in asia-southeast1-a asia-southeast1-b; do
+            if gcloud compute instances describe "$INSTANCE" --zone "$Z" --project "$PROJECT_ID" >/dev/null 2>&1; then
+              STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$Z" --project "$PROJECT_ID" --format='value(status)')"
+              if test "$STATUS" = "RUNNING"; then
+                SELECTED_ZONE="$Z"
+                break
+              fi
+              continue
+            fi
+            set +e
+            gcloud compute instances create "$INSTANCE" --project "$PROJECT_ID" --zone "$Z" --machine-type "$MACHINE_TYPE" --image-family common-cu129-ubuntu-2204-nvidia-580 --image-project deeplearning-platform-release --boot-disk-type pd-balanced --boot-disk-size 200GB --service-account "$RUNTIME_SA" --scopes cloud-platform --maintenance-policy TERMINATE --no-restart-on-failure --max-run-duration 4h --instance-termination-action STOP --labels hoopvision=development,role=prepared-l4 > /tmp/create.log 2>&1
+            RC=$?
+            set -e
+            cat /tmp/create.log
+            if test "$RC" -eq 0; then
+              SELECTED_ZONE="$Z"
+              break
+            fi
+            if grep -Eq 'ZONE_RESOURCE_POOL_EXHAUSTED|resource_availability|does not have enough resources|currently unavailable|STOCKOUT' /tmp/create.log; then
+              echo "STOCKOUT=$Z"
+              continue
+            fi
+            exit "$RC"
+          done
+          test -n "$SELECTED_ZONE" || { echo "NO_SINGAPORE_L4_CAPACITY"; exit 42; }
+          echo "HOOPVISION_FAILOVER_ZONE=$SELECTED_ZONE"
+          gcloud compute instances describe "$INSTANCE" --zone "$SELECTED_ZONE" --project "$PROJECT_ID" --format='yaml(name,status,zone,machineType,serviceAccounts)'
