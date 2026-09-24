@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     env:
-      DEFAULT_SOURCE_SHA: aebc718d97ab830525e44217988416c30285813c
+      DEFAULT_SOURCE_SHA: 6647e5ad014a5628fa23206f4d4f214257e2d86f
     steps:
       - name: Resolve exact candidate
         id: source
@@ -50,6 +50,43 @@ jobs:
         run: |
           set -euo pipefail
           python -m py_compile             hoopvision/core/control_plane_contract.py             tools/release/dev_supervisor.py             tools/release/submit_dev.py             hoopvision/worker/interactive_service.py
+
+      - name: Install commercial OCR smoke dependencies
+        run: |
+          python -m pip install -q numpy opencv-python-headless onnxruntime
+
+      - name: Validate commercial PaddleOCR adapter
+        run: |
+          set -euo pipefail
+          python -m py_compile \
+            hoopvision/core/commercial_jersey_ocr.py \
+            tools/adams_event_track_identity_ocr.py \
+            screen_tracker_nextgen/global_identity_solver.py \
+            hoopvision/worker/run_toronto_nextgen.py \
+            hoopvision/worker/run_fresh_hawks_all_player.py \
+            hoopvision/worker/run_hawks_event296_all_player.py \
+            hoopvision/worker/run_pelicans_season_roster.py
+          python -m unittest -v hoopvision.tests.test_commercial_jersey_ocr
+          mkdir -p /tmp/hoopvision-ocr
+          curl -fsSL https://github.com/gitakoos/ocr-models/releases/download/v1/rec_latin.onnx -o /tmp/hoopvision-ocr/ppocrv5_latin_rec.onnx
+          curl -fsSL https://github.com/gitakoos/ocr-models/releases/download/v1/ppocrv5_latin_dict.txt -o /tmp/hoopvision-ocr/ppocrv5_latin_dict.txt
+          echo '995b0f5f28d2073896a78c03b5b863eae6af3744bafa0245b8522beea6994927  /tmp/hoopvision-ocr/ppocrv5_latin_rec.onnx' | sha256sum -c -
+          echo 'ccbcc45730b3fbbd9050c5bc74db6a99067141ef1035e3d14889a84a6b9b1aff  /tmp/hoopvision-ocr/ppocrv5_latin_dict.txt' | sha256sum -c -
+          python - <<'PY'
+          import cv2, numpy as np
+          from pathlib import Path
+          from hoopvision.core.commercial_jersey_ocr import PaddleJerseyOCR
+          img=np.full((96,180,3),255,np.uint8)
+          cv2.putText(img,'12',(18,72),cv2.FONT_HERSHEY_SIMPLEX,2.3,(0,0,0),5,cv2.LINE_AA)
+          ocr=PaddleJerseyOCR(
+              Path('/tmp/hoopvision-ocr/ppocrv5_latin_rec.onnx'),
+              Path('/tmp/hoopvision-ocr/ppocrv5_latin_dict.txt'),
+              device='cpu',
+          )
+          result=ocr.read([img])
+          assert len(result)==1 and isinstance(result[0][0],str)
+          print('HOOPVISION_COMMERCIAL_OCR_SMOKE_OK', result, ocr.providers)
+          PY
 
       - name: Prove exact event296 dispatch contract on CPU
         run: |
