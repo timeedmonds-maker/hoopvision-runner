@@ -1,0 +1,52 @@
+name: Inspect Toronto Durable Run
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-toronto-durable-run.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  RUN_ID: public-36062527172-1-95bd1d0abd99
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect durable events and prepared host
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== durable events ==="
+          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/events/**" || true
+          for x in $(gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/events/**" 2>/dev/null || true); do
+            echo "--- $x"; gcloud storage cat "$x" || true
+          done
+          echo "=== current session ==="
+          gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" || true
+          echo "=== supervisor ==="
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='
+            set +e
+            systemctl status hoopvision-dev-supervisor.service --no-pager
+            echo "--- recent supervisor log ---"
+            journalctl -u hoopvision-dev-supervisor.service -n 180 --no-pager
+            echo "--- processes ---"
+            ps aux | grep -E "boot.py|run_toronto|interactive_service|docker" | grep -v grep
+            echo "--- run dirs ---"
+            find /srv/hoopvision/runs -maxdepth 2 -type f -printf "%TY-%Tm-%Td %TH:%TM:%TS %p\n" 2>/dev/null | tail -80
+          ' || true
