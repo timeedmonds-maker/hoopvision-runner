@@ -1,0 +1,37 @@
+name: Check Exact G4 Quota Request
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/check-exact-g4-quota-request.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  PREF_NAME: hoopvision-g4-asia-southeast1
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  READ_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.READ_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Describe exact G4 quota preference
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "=== STABLE ==="
+          gcloud quotas preferences describe "$PREF_NAME"             --project="$PROJECT_ID"             --billing-project="$PROJECT_ID"             --format=yaml || true
+          echo "=== BETA ==="
+          gcloud beta quotas preferences describe "$PREF_NAME"             --project="$PROJECT_ID"             --billing-project="$PROJECT_ID"             --format=yaml || true
+          echo "=== RAW PREFERENCE LIST ==="
+          gcloud beta quotas preferences list             --project="$PROJECT_ID"             --billing-project="$PROJECT_ID"             --format=yaml || true
