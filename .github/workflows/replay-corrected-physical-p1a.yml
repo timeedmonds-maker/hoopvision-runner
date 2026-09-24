@@ -20,7 +20,7 @@ env:
   CORRECTED_SEGMENTS_RUN_ID: '35969360881'
   CLUSTER_TRANSFER_RUN_ID: '35969840332'
   FROZEN_EVIDENCE_RUN_ID: '35891572936'
-  DEFAULT_SOURCE_SHA: dc3a08efd65be63cf53a91888763639ba422a30a
+  DEFAULT_SOURCE_SHA: d940666887dcb3cd833c0e6e8f970b4dc5b7df20
 
 jobs:
   replay:
@@ -154,6 +154,8 @@ jobs:
                   'unmatched_active_states':int(t['forward_tracking'].get('unmatched_active_states',0)),
                   'unmatched_observations':int(t['forward_tracking'].get('unmatched_observations',0)),
                   'raw_claim_revocations':int(t['forward_tracking'].get('raw_claim_revocations',0)),
+                  'unsupported_continuity_candidates_forward':len(t['forward_tracking'].get('unsupported_continuity_candidates',[])),
+                  'unsupported_continuity_candidates_backward':len(t['backward_tracking'].get('unsupported_continuity_candidates',[])),
               }
           open('corrected_p1a/replay_summary.json','w').write(
               json.dumps(report,indent=2,sort_keys=True)+'\n'
