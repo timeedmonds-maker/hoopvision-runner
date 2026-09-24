@@ -1,0 +1,201 @@
+name: Render Current Integrated Diagnostic
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/render-current-integrated-diagnostic.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: d679b5f5ab5f1ecf2c7be2f3733678da9933b3dc
+  P1A_RUN_ID: '35972465174'
+  EXPECTED_SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install diagnostic dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless pillow requests
+      - name: Recover exact Event301 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib,re,subprocess,sys,json
+          from pathlib import Path
+          from urllib.parse import urljoin,urlsplit,urlunsplit
+          import requests
+          sys.path.insert(0,'src/tools')
+          from fetch_official_nba_event_clip import parse,UA
+          game='0012500014'; event=301
+          expected='23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a'
+          page,angles,_=parse(game,event)
+          matches=[x for x in angles if str(x.get('label','')).strip()=='Play by Play']
+          if len(matches)!=1: raise SystemExit(f'expected one Play by Play angle, got {matches}')
+          url=matches[0]['url']; headers={'User-Agent':UA,'Referer':'https://clips.nba.com/'}
+          r=requests.get(url,headers=headers,timeout=30); r.raise_for_status(); txt=r.text
+          if '#EXT-X-STREAM-INF' in txt:
+              lines=[x.strip() for x in txt.splitlines() if x.strip()]; variants=[]
+              for i,line in enumerate(lines):
+                  if not line.startswith('#EXT-X-STREAM-INF'): continue
+                  rs=re.search(r'RESOLUTION=(\d+)x(\d+)',line); child=None
+                  for q in lines[i+1:i+5]:
+                      if not q.startswith('#'): child=q; break
+                  if not child: continue
+                  full=urljoin(url,child)
+                  if not urlsplit(full).query and urlsplit(url).query:
+                      b=urlsplit(url); f=urlsplit(full); full=urlunsplit((f.scheme,f.netloc,f.path,b.query,f.fragment))
+                  variants.append((int(rs.group(1)) if rs else 10**9,int(rs.group(2)) if rs else 0,full))
+              under=[v for v in variants if v[0]<=960]
+              if not under: raise SystemExit('no <=960 HLS variant')
+              _,_,url=max(under,key=lambda x:x[0])
+          Path('work').mkdir(exist_ok=True)
+          out=Path('work/source_event301.mp4')
+          hdr=f'User-Agent: {UA}\r\nReferer: https://clips.nba.com/\r\n'
+          subprocess.run(['ffmpeg','-y','-v','error','-rw_timeout','30000000','-headers',hdr,'-i',url,'-c','copy',str(out)],check=True,timeout=180)
+          got=hashlib.sha256(out.read_bytes()).hexdigest()
+          if got!=expected: raise SystemExit(f'source hash mismatch {got} != {expected}')
+          Path('work/source_verification.json').write_text(json.dumps({'game_id':game,'event':event,'angle':'Play by Play','sha256':got,'exact_match':True},indent=2)+'\n')
+          print('SOURCE_OK',got)
+          PY
+      - name: Recover corrected physical paths
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/p1a
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir work/p1a
+          test -s work/p1a/physical_paths.csv
+      - name: Build diagnostic render assignments and coverage intervals
+        run: |
+          python - <<'PY'
+          import pandas as pd, json, hashlib
+          from pathlib import Path
+          p=pd.read_csv('work/p1a/physical_paths.csv')
+          ids=sorted(p.physical_path_id.astype(str).unique())
+          imap={x:i+1 for i,x in enumerate(ids)}
+          q=p.copy()
+          q['player_id']=q.physical_path_id.astype(str).map(imap)
+          q['player_name']=q.physical_path_id.astype(str).map(lambda s:s.replace(':','-P'))
+          q['source_track_id']=q.player_id
+          q['ring_authorized']=q.get('render_safe_fast',False).astype(bool)
+          q['floor_anchor_x']=(q.x1.astype(float)+q.x2.astype(float))*0.5
+          q['floor_anchor_y']=q.y2.astype(float)-4.0
+          cols=['time_s','team','player_id','player_name','x1','y1','x2','y2','source_track_id','ring_authorized','floor_anchor_x','floor_anchor_y','physical_path_id','raw_source_track_id','render_safe_fast']
+          q[cols].to_csv('work/diagnostic_assignments.csv',index=False)
+          # Root-count deficit intervals at independent scheduled tracking instants.
+          c=p.groupby('tracking_frame').agg(time_s=('time_s','first'),physical_roots=('physical_path_id','nunique'),hou=('team',lambda x:(x=='HOU').sum()),atl=('team',lambda x:(x=='ATL').sum())).reset_index()
+          c.to_csv('work/root_count_by_tracking_frame.csv',index=False)
+          bad=c[c.physical_roots<10].copy()
+          intervals=[]
+          if len(bad):
+              rows=list(bad.itertuples(index=False)); start=prev=rows[0]
+              group=[rows[0]]
+              for r in rows[1:]:
+                  if int(r.tracking_frame)-int(prev.tracking_frame)<=2:
+                      group.append(r)
+                  else:
+                      mid=group[len(group)//2]
+                      intervals.append({'start_tracking_frame':int(start.tracking_frame),'end_tracking_frame':int(prev.tracking_frame),'start_s':float(start.time_s),'end_s':float(prev.time_s),'representative_s':float(mid.time_s),'min_roots':min(int(x.physical_roots) for x in group),'max_roots':max(int(x.physical_roots) for x in group),'sampled_frames':len(group)})
+                      start=r; group=[r]
+                  prev=r
+              mid=group[len(group)//2]
+              intervals.append({'start_tracking_frame':int(start.tracking_frame),'end_tracking_frame':int(prev.tracking_frame),'start_s':float(start.time_s),'end_s':float(prev.time_s),'representative_s':float(mid.time_s),'min_roots':min(int(x.physical_roots) for x in group),'max_roots':max(int(x.physical_roots) for x in group),'sampled_frames':len(group)})
+          pd.DataFrame(intervals).to_csv('work/root_deficit_intervals.csv',index=False)
+          summary={'candidate_sha':'d679b5f5ab5f1ecf2c7be2f3733678da9933b3dc','physical_fragments':len(ids),'sampled_frames':int(len(c)),'frames_with_10_roots':int((c.physical_roots==10).sum()),'frames_below_10_roots':int((c.physical_roots<10).sum()),'deficit_intervals':len(intervals),'identity_state':'UNRESOLVED_CLIP_LOCAL_IDS_ONLY','accepted_names':0,'note':'Diagnostic labels are physical fragment IDs, not roster identities.'}
+          Path('work/diagnostic_summary.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary,sort_keys=True))
+          PY
+      - name: Render native and UHD diagnostic outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          /usr/bin/time -f '%e' -o work/render_native_wall_s.txt env PYTHONPATH="$PWD/src" python src/screen_tracker_nextgen/render_all_player_labels.py             --source work/source_event301.mp4 --assignments work/diagnostic_assignments.csv --out work/event301_diagnostic_native.mp4 --start-s 4 --end-s 16
+          /usr/bin/time -f '%e' -o work/render_uhd_wall_s.txt env PYTHONPATH="$PWD/src" python src/screen_tracker_nextgen/render_all_player_labels.py             --source work/source_event301.mp4 --assignments work/diagnostic_assignments.csv --out work/event301_diagnostic_uhd.mp4 --start-s 4 --end-s 16 --uhd
+      - name: Validate encoded outputs and generate visual review sheets
+        shell: bash
+        run: |
+          set -euo pipefail
+          ffprobe -v error -show_streams -show_format -of json work/source_event301.mp4 > work/source_probe.json
+          ffprobe -v error -show_streams -show_format -of json work/event301_diagnostic_native.mp4 > work/native_probe.json
+          ffprobe -v error -show_streams -show_format -of json work/event301_diagnostic_uhd.mp4 > work/uhd_probe.json
+          ffmpeg -nostdin -v error -i work/event301_diagnostic_native.mp4 -f null -
+          ffmpeg -nostdin -v error -i work/event301_diagnostic_uhd.mp4 -f null -
+          mkdir -p work/review
+          ffmpeg -nostdin -y -v error -i work/event301_diagnostic_uhd.mp4 -vf "fps=1,scale=960:540,tile=4x3" -frames:v 1 work/review/uhd_contact_sheet.png
+          python - <<'PY'
+          import pandas as pd, cv2, json
+          from pathlib import Path
+          src='work/source_event301.mp4'
+          d=pd.read_csv('work/root_deficit_intervals.csv')
+          cap=cv2.VideoCapture(src); fps=float(cap.get(cv2.CAP_PROP_FPS) or 30)
+          imgs=[]
+          for i,r in d.iterrows():
+              t=float(r.representative_s)
+              cap.set(cv2.CAP_PROP_POS_MSEC,t*1000)
+              ok,im=cap.read()
+              if not ok: continue
+              im=cv2.resize(im,(640,360))
+              cv2.putText(im,f"{t:.2f}s roots {int(r.min_roots)}-{int(r.max_roots)}",(12,28),cv2.FONT_HERSHEY_SIMPLEX,.7,(255,255,255),2,cv2.LINE_AA)
+              cv2.putText(im,f"interval {float(r.start_s):.2f}-{float(r.end_s):.2f}",(12,56),cv2.FONT_HERSHEY_SIMPLEX,.55,(255,255,255),1,cv2.LINE_AA)
+              imgs.append(im)
+          cap.release()
+          if imgs:
+              import numpy as np, math
+              cols=3; rows=math.ceil(len(imgs)/cols)
+              blank=np.zeros_like(imgs[0])
+              imgs += [blank]*(rows*cols-len(imgs))
+              sheet=np.vstack([np.hstack(imgs[r*cols:(r+1)*cols]) for r in range(rows)])
+              cv2.imwrite('work/review/root_deficit_representatives.png',sheet)
+          probes={k:json.load(open(f'work/{k}_probe.json')) for k in ['source','native','uhd']}
+          def vs(p): return next(x for x in p['streams'] if x['codec_type']=='video')
+          out={}
+          for k,p in probes.items():
+              v=vs(p); out[k]={'width':int(v['width']),'height':int(v['height']),'codec':v.get('codec_name'),'fps':v.get('r_frame_rate'),'duration_s':float(p['format']['duration'])}
+          out['render_native_wall_s']=float(Path('work/render_native_wall_s.txt').read_text())
+          out['render_uhd_wall_s']=float(Path('work/render_uhd_wall_s.txt').read_text())
+          out['uhd_is_presentation_upscale_from_source']=True
+          Path('work/render_validation.json').write_text(json.dumps(out,indent=2)+'\n')
+          print(json.dumps(out,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-current-integrated-diagnostic
+          path: |
+            work/event301_diagnostic_native.mp4
+            work/event301_diagnostic_uhd.mp4
+            work/diagnostic_assignments.csv
+            work/diagnostic_summary.json
+            work/root_count_by_tracking_frame.csv
+            work/root_deficit_intervals.csv
+            work/source_verification.json
+            work/source_probe.json
+            work/native_probe.json
+            work/uhd_probe.json
+            work/render_validation.json
+            work/render_native_wall_s.txt
+            work/render_uhd_wall_s.txt
+            work/review/*.png
+          compression-level: 0
+          retention-days: 14
