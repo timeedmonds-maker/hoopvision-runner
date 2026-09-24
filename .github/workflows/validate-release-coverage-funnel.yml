@@ -1,0 +1,103 @@
+name: Validate Release Coverage Funnel
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/validate-release-coverage-funnel.yml']
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: 22ed617e44a0be55a30054eb226862d42f2355ca
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'numpy<2' pandas scipy
+      - name: Build synthetic independent reference and stage evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/out
+          cat > work/reference.csv <<'CSV'
+          output_frame,time_s,team,jersey,player_id,player_name,eligible,fully_occluded,off_screen,x1,y1,x2,y2,review_status
+          0,4.000,A,1,1,Alpha,true,false,false,0,0,20,40,REVIEWED
+          0,4.000,B,2,2,Beta,true,false,false,40,0,60,40,REVIEWED
+          2,4.067,A,1,1,Alpha,true,false,false,2,0,22,40,REVIEWED
+          2,4.067,B,2,2,Beta,true,false,false,38,0,58,40,REVIEWED
+          4,4.133,A,1,1,Alpha,true,false,false,4,0,24,40,REVIEWED
+          4,4.133,B,2,2,Beta,false,false,true,0,0,0,0,REVIEWED
+          CSV
+          cat > work/physical.csv <<'CSV'
+          tracking_frame,physical_path_id,x1,y1,x2,y2
+          0,P1,0,0,20,40
+          0,P2,40,0,60,40
+          1,P1,2,0,22,40
+          1,PX,38,0,58,40
+          2,P3,4,0,24,40
+          CSV
+          cat > work/ocr.csv <<'CSV'
+          physical_path_id,exact_cross_model_crop_count,independent_temporal_groups,identity_state,propagation_state
+          P1,3,2,ACCEPTED,SUPPORTED
+          P2,1,1,UNKNOWN,
+          PX,2,2,CANDIDATE,
+          P3,0,0,UNKNOWN,
+          CSV
+          cat > work/ledger.csv <<'CSV'
+          output_frame,player_id,player_name,team,x1,y1,x2,y2
+          0,1,Alpha,A,0,0,20,40
+          0,2,Beta,B,40,0,60,40
+          2,1,Alpha,A,2,0,22,40
+          2,99,Wrong,B,38,0,58,40
+          4,1,Alpha,A,4,0,24,40
+          CSV
+      - name: Validate funnel semantics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python src/tools/build_release_coverage_funnel.py             --reference work/reference.csv             --physical work/physical.csv             --ocr-consensus work/ocr.csv             --render-ledger work/ledger.csv             --out-dir work/out             --sample-step-output-frames 2
+          python - <<'PY'
+          import json
+          r=json.load(open('work/out/coverage_funnel.json'))
+          # Off-screen Beta on frame 4 is excluded independently of candidate success:
+          # denominator = 2 + 2 + 1 = 5.
+          assert r['eligible_visible_player_frame_pairs']==5, r
+          s=r['stages']
+          assert s['source_visibility']['count']==5
+          assert s['correct_detections']['status']=='UNKNOWN_BOX_LEDGER_NOT_SUPPLIED'
+          assert s['identity_consistent_physical_tracks']['count']==5
+          # P1 gives usable/independent/accepted evidence twice; PX gives usable/
+          # independent candidate once; P2 usable only once; P3 none.
+          assert s['usable_number_observations']['count']==4
+          assert s['independent_number_evidence']['count']==3
+          assert s['candidate_identity']['count']==1
+          assert s['accepted_identity_anchors']['count']==2
+          assert s['supported_propagation']['count']==2
+          assert s['correctly_rendered_geometry']['count']==5
+          assert s['correctly_rendered_names']['count']==4
+          assert r['wrong_rendered_names']==1
+          # Alpha changes physical path P1 -> P3 between sampled frames.
+          assert r['physical_path_changes_for_continuously_sampled_reference_players']>=1
+          # No candidate stage is silently promoted to accepted.
+          assert s['candidate_identity']['count'] != s['accepted_identity_anchors']['count']
+          print('HOOPVISION_RELEASE_COVERAGE_FUNNEL_VALIDATED')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-release-coverage-funnel-validation
+          path: work/out/
+          retention-days: 14
