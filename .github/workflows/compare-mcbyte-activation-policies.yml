@@ -1,0 +1,121 @@
+name: Compare McByte Activation Policies
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/compare-mcbyte-activation-policies.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 0a11572c868bd1b0741980e2588a7a8c7a928e59
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install exact CPU detector/tracker runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision scipy rich requests 'jsonargparse<5' pydeprecate onnxruntime
+          git clone -q https://github.com/roboflow/trackers.git /tmp/trackers
+          git -C /tmp/trackers checkout -q 3fb83d1618f29b7fdd4617757b6894e4ec71146d
+          python -m pip install -q -e /tmp/trackers --no-deps
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+      - name: Recover exact source and detector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/models work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o work/models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  work/models/rfdetr_m_640.onnx" | sha256sum -c -
+      - name: Replay fixed NMS with tracker activation arms
+        run: |
+          PYTHONPATH="$PWD/src" python - <<'PY'
+          import sys,json,time
+          from pathlib import Path
+          import cv2,numpy as np,pandas as pd,supervision as sv
+          sys.path.insert(0,'/tmp/object-detection-eval/src')
+          from object_detection_eval.inference.detectors.rfdetr import RFDETRDetector
+          from tools.diagnose_rfdetr_tracking_taxonomy import CORRECTED_PLAYER_CLASSES,RAW_LABEL_MAP
+          from trackers import McByteTracker
+
+          configs={
+            'baseline':dict(track_activation_threshold=.30,high_conf_det_threshold=.25,minimum_consecutive_frames=2,minimum_iou_threshold_unconfirmed_assoc=.30),
+            'activate25':dict(track_activation_threshold=.25,high_conf_det_threshold=.25,minimum_consecutive_frames=2,minimum_iou_threshold_unconfirmed_assoc=.30),
+            'activate20':dict(track_activation_threshold=.20,high_conf_det_threshold=.20,minimum_consecutive_frames=2,minimum_iou_threshold_unconfirmed_assoc=.30),
+            'activate20_min1':dict(track_activation_threshold=.20,high_conf_det_threshold=.20,minimum_consecutive_frames=1,minimum_iou_threshold_unconfirmed_assoc=.30),
+            'activate20_unconf20':dict(track_activation_threshold=.20,high_conf_det_threshold=.20,minimum_consecutive_frames=1,minimum_iou_threshold_unconfirmed_assoc=.20),
+          }
+          trackers={
+            k:McByteTracker(frame_rate=15.0,cmc_downscale=2,enable_isolated_mask_matching=False,enable_mask_manager=False,enable_cmc=True,cmc_method='sparseOptFlow',**v)
+            for k,v in configs.items()
+          }
+          det=RFDETRDetector('work/models/rfdetr_m_640.onnx',RAW_LABEL_MAP,confidence_threshold=.045,num_select=300,input_height=640,input_width=640,providers=['CPUExecutionProvider'])
+          rows=[]; tids={k:[] for k in trackers}
+          cap=cv2.VideoCapture('work/source_native.mp4'); fps=float(cap.get(cv2.CAP_PROP_FPS) or 30000/1001); W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+          start=int(round(4*fps)); end=int(round(16*fps)); every=max(1,int(round(fps/15.0)))
+          for rel,absf in enumerate(range(start,end)):
+              if rel%every: continue
+              cap.set(cv2.CAP_PROP_POS_FRAMES,absf); ok,frame=cap.read()
+              if not ok: continue
+              alld=det.predict(frame); boxes=[]; conf=[]
+              for d in alld:
+                  if int(d.class_id) not in CORRECTED_PLAYER_CLASSES or float(d.confidence)<.20: continue
+                  b=d.bbox; boxes.append([b.x*W,b.y*H,(b.x+b.w)*W,(b.y+b.h)*H]); conf.append(float(d.confidence))
+              q=sv.Detections(xyxy=np.asarray(boxes,np.float32),confidence=np.asarray(conf,np.float32),class_id=np.zeros(len(boxes),np.int32)) if boxes else sv.Detections.empty()
+              q=q.with_nms(threshold=.50,class_agnostic=True) if len(q) else q
+              rec={'tracking_frame':rel,'time_s':4+rel/fps,'nms_count':len(q),'detections_20_25':int(sum(.20<=x<.25 for x in conf)),'detections_25_30':int(sum(.25<=x<.30 for x in conf))}
+              for name,tr in trackers.items():
+                  out=tr.update(q,frame=frame,timestamp=rel/fps)
+                  valid=[int(t) for t in out.tracker_id if int(t)>=0] if len(out) else []
+                  rec[f'{name}_tracks']=len(valid)
+                  tids[name].extend(valid)
+              rows.append(rec)
+          cap.release()
+          d=pd.DataFrame(rows); d.to_csv('work/out/mcbyte_activation_by_frame.csv',index=False)
+          early=(d.time_s>=5.8)&(d.time_s<=6.8); arms={}
+          for name in trackers:
+              s=d[f'{name}_tracks']
+              from collections import Counter
+              counts=Counter(tids[name])
+              arms[name]={
+                'frames_track_ge10':int((s>=10).sum()),'frames_track_gt10':int((s>10).sum()),'max_tracks':int(s.max()),
+                'total_tracker_rows':int(s.sum()),'unique_confirmed_track_ids':len(counts),
+                'short_ids_le2_rows':sum(v<=2 for v in counts.values()),'short_ids_le4_rows':sum(v<=4 for v in counts.values()),
+                'early_track_ge10':int((early&(s>=10)).sum()),'early_track_gt10':int((early&(s>10)).sum()),
+              }
+          rep={'schema':'hoopvision.mcbyte-activation-comparison.v1','candidate_sha':'0a11572c868bd1b0741980e2588a7a8c7a928e59','source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a','fixed_player_gate':.20,'fixed_nms_iou':.50,'arms':arms,'input_low_conf_counts':{'20_to_25':int(d.detections_20_25.sum()),'25_to_30':int(d.detections_25_30.sum())},'qualification_claim':'NONE_DIAGNOSTIC_ONLY','identity_authorized':False}
+          Path('work/out/mcbyte_activation_summary.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_MCBYTE_ACTIVATION='+json.dumps(rep,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-mcbyte-activation-comparison
+          path: work/out/
+          retention-days: 14
