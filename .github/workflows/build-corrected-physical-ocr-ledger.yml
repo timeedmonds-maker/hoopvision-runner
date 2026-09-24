@@ -19,7 +19,7 @@ permissions:
 env:
   CORRECTED_P1A_RUN_ID: '35972465174'
   OCR_RUN_ID: '35972536456'
-  DEFAULT_SOURCE_SHA: b51a20b0b41351ae68674cd648b4508fd1349a14
+  DEFAULT_SOURCE_SHA: 1bf886411370bcf2628c020be531b3f6f9a2ba8a
 
 jobs:
   ledger:
@@ -89,6 +89,8 @@ jobs:
           d=pd.read_csv('ledger/identity_coverage_ledger.csv')
           assert q['candidate_predictions_are_ground_truth'] is False
           assert q['identity_accuracy']=='UNKNOWN'
+          assert q['review_candidates_are_ground_truth'] is False
+          assert int(q['review_candidates_per_root_max'])==3
           medq=json.load(open('ocr/localised_medium/qa.json'))
           smlq=json.load(open('ocr/localised_small/qa.json'))
           assert int(medq['physical_revision_bound_count'])==554
@@ -106,6 +108,7 @@ jobs:
               'small_raw_digit_reads':int(d.small_raw_digit_reads.fillna(0).sum()),
               'physical_revision_bound_count_medium':int(medq['physical_revision_bound_count']),
               'physical_revision_bound_count_small':int(smlq['physical_revision_bound_count']),
+              'review_candidate_rows':int(q['review_candidate_rows']),
               'identity_accuracy':'UNKNOWN',
           }
           open('ledger/summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
