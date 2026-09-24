@@ -20,7 +20,7 @@ env:
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
   EVIDENCE_RUN_ID: '35891572936'
   SOURCE_RECOVERY_RUN_ID: '35923251814'
-  DEFAULT_SOURCE_SHA: 5551551a2fdca190a4e2470b3c8846e0ffebc663
+  DEFAULT_SOURCE_SHA: 0f0745eb8ad7be88a1d56a872afdcf3331bb07d4
 
 jobs:
   compare:
@@ -60,7 +60,7 @@ jobs:
       - name: Run adapter unit tests
         run: |
           set -euo pipefail
-          python -m unittest hoopvision.tests.test_ppocrv6_jersey_ocr -v
+          python -m unittest hoopvision.tests.test_ppocrv6_jersey_ocr hoopvision.tests.test_commercial_ocr_boundary -v
 
       - name: Recover exact source and frozen evidence
         env:
