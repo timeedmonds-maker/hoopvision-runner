@@ -33,6 +33,8 @@ jobs:
           gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir p1a
           gh run download "$LEDGER_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-physical-ocr-ledger --dir ledger
           gh run download "$CONTINUITY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-continuity-extract --dir continuity || true
+          gh api -H 'Accept: application/vnd.github.raw+json' '/repos/timeedmonds-maker/104/contents/config/season_roster_number_map.json?ref=hoopvision-proven-enhancements' > season_roster_number_map.json
+          test -s season_roster_number_map.json
           test -s p1a/physical_paths.csv
           test -s ledger/identity_coverage_ledger.csv
       - name: Build fail-closed reachability ledger
@@ -90,6 +92,12 @@ jobs:
           if 'team' in d.columns:
               for team,g in d.groupby('team',dropna=False):
                   team_summary.append({'team':str(team),'physical_fragments':int(len(g)),'crop_fragments':int(g.crop_available.sum()),'medium_digit_fragments':int(g.medium_digit_evidence.sum()),'small_digit_fragments':int(g.small_digit_evidence.sum()),'authorized_identity_fragments':0})
+          roster=json.load(open('season_roster_number_map.json'))
+          vocab={}
+          for season_team,m in roster['rosters'].items():
+              unique={n:v for n,v in m.items() if isinstance(v,str)}
+              ambiguous={n:v for n,v in m.items() if isinstance(v,list)}
+              vocab[season_team]={'unique_number_candidates':len(unique),'ambiguous_numbers':ambiguous}
           summary={
               'schema':'hoopvision.corrected-identity-reachability.v1',
               'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
@@ -106,7 +114,9 @@ jobs:
               'motion_only_joins_applied':0,
               'self_generated_ground_truth':False,
               'team_summary':team_summary,
-              'next_evidence_boundary':'independent OCR calibration/reference labels or independently established roster anchor evidence',
+              'season_roster_vocabulary':vocab,
+              'roster_mapping_policy':'team+season+accepted jersey number -> unique canonical candidate; ambiguous/unlisted -> UNKNOWN',
+              'next_evidence_boundary':'apply independently supportable jersey-number evidence to roster-bounded candidates; uncalibrated OCR remains non-authorizing',
               'note':'Evidence availability ledger only. Raw OCR predictions, team context, temporal proximity and SAM unsupported_continuity do not authorize a roster identity.'
           }
           open('identity_reachability_summary.json','w').write(json.dumps(summary,indent=2,sort_keys=True)+'\n')
