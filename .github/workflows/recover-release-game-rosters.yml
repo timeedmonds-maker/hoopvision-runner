@@ -1,0 +1,83 @@
+name: Recover Exact Release-Game Rosters
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/recover-release-game-rosters.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  roster:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Recover official liveData boxscores
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python - <<'PY'
+          import json, urllib.request, hashlib
+          from pathlib import Path
+          games={'event301':'0012500014','toronto585':'0022500131'}
+          result={'schema':'hoopvision.release-game-rosters.v1','source':'cdn.nba.com liveData boxscore','games':{}}
+          for label,gid in games.items():
+              url=f'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{gid}.json'
+              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Accept':'application/json'})
+              with urllib.request.urlopen(req,timeout=30) as r:
+                  raw=r.read()
+              Path(f'out/{label}_boxscore.json').write_bytes(raw)
+              d=json.loads(raw)
+              game=d['game']
+              rec={'game_id':gid,'game_time_local':game.get('gameTimeLocal'),'game_time_utc':game.get('gameTimeUTC'),'teams':{}}
+              for side in ['homeTeam','awayTeam']:
+                  t=game[side]
+                  players=[]
+                  for p in t.get('players',[]):
+                      players.append({
+                          'person_id':str(p.get('personId','')),
+                          'name':p.get('name'),
+                          'name_i':p.get('nameI'),
+                          'jersey_num':str(p.get('jerseyNum','')),
+                          'position':p.get('position'),
+                          'played':p.get('played'),
+                          'starter':p.get('starter'),
+                      })
+                  rec['teams'][t.get('teamTricode')]={
+                      'team_id':str(t.get('teamId','')),
+                      'team_name':t.get('teamName'),
+                      'players':players,
+                  }
+              result['games'][label]=rec
+              print(label,json.dumps(rec,sort_keys=True))
+          Path('out/release_game_rosters.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          PY
+      - name: Validate number uniqueness as-of exact game
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.load(open('out/release_game_rosters.json'))
+          out={'schema':'hoopvision.release-game-number-map.v1','games':{}}
+          for label,g in d['games'].items():
+              gg={}
+              for team,t in g['teams'].items():
+                  nums={}
+                  for p in t['players']:
+                      n=str(p['jersey_num']).strip()
+                      if not n: continue
+                      nums.setdefault(n,[]).append({'person_id':p['person_id'],'name':p['name'],'played':p['played'],'starter':p['starter']})
+                  gg[team]={n:(v[0] if len(v)==1 else v) for n,v in nums.items()}
+              out['games'][label]={'game_id':g['game_id'],'game_time_local':g['game_time_local'],'teams':gg}
+          Path('out/release_game_number_map.json').write_text(json.dumps(out,indent=2,sort_keys=True)+'\n')
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-release-game-rosters
+          path: out/
+          retention-days: 30
