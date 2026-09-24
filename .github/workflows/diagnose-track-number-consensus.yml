@@ -41,10 +41,10 @@ jobs:
           # Discover stable shared crop key and physical track key from artifacts rather than assuming schema.
           keys=[c for c in loc.columns if c in med.columns and c in sml.columns]
           track=next((c for c in ['physical_path_id','track_id','root_id'] if c in loc.columns),None)
-          digit=lambda d: next((c for c in ['canonical_digits','raw_digits','digits','prediction'] if c in d.columns),None)
+          digit=lambda d: next((c for c in ['number','canonical_digits','raw_digits','digits','prediction','raw_prediction'] if c in d.columns),None)
           mk,sk=digit(med),digit(sml)
           assert track and mk and sk, (track,mk,sk)
-          join=next((c for c in ['crop_id','crop_path','localisation_id','localization_id','source_frame','tracking_frame'] if c in keys),None)
+          join=next((c for c in ['crop_reference','crop_sha256','crop_id','crop_path','localisation_id','localization_id','source_frame_rel','source_frame','tracking_frame'] if c in keys),None)
           assert join, keys
           x=loc.merge(med[[join,mk]],on=join,how='left').merge(sml[[join,sk]],on=join,how='left',suffixes=('_med','_sml'))
           # suffix handling
