@@ -336,9 +336,9 @@ jobs:
                 # the cross-region zone already proven to admit this exact L4
                 # image before exploring lower-confidence regions.
                 for SPEC in \
-                  "asia-southeast1:asia-southeast1-b" \
                   "us-west4:us-west4-a" \
                   "us-central1:us-central1-b" \
+                  "asia-southeast1:asia-southeast1-b" \
                   "us-west4:us-west4-b" \
                   "us-west4:us-west4-c" \
                   "us-central1:us-central1-a" \
