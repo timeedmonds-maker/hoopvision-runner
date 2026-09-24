@@ -1,4 +1,5 @@
 name: Validate Season-Roster Identity Solver
+# trigger regression run
 
 on:
   push:
