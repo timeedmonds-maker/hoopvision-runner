@@ -1,0 +1,80 @@
+name: Calibrate PP-OCRv6 Against Independent References
+
+on:
+  workflow_dispatch:
+    inputs:
+      validation_run_id:
+        description: Successful Validate Independent OCR Labels run
+        required: true
+      source_prediction_run_id:
+        description: Frozen PP-OCRv6 localised comparison run
+        required: false
+        default: '35972536456'
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  calibrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q pandas
+      - name: Recover independently validated references and frozen candidate predictions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VALIDATION_RUN_ID: ${{ inputs.validation_run_id }}
+          SOURCE_PREDICTION_RUN_ID: ${{ inputs.source_prediction_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p reference predictions
+          gh run download "$VALIDATION_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-validated-independent-ocr-reference --dir reference
+          gh run download "$SOURCE_PREDICTION_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-ppocrv6-localised-comparison --dir predictions
+          test -s reference/validated_independent_reference.csv
+          test -s reference/validation_summary.json
+          test -s predictions/review/candidate_predictions.csv
+      - name: Measure calibration without authorizing identity
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+          ref=pd.read_csv('reference/validated_independent_reference.csv',dtype=str).fillna('')
+          pred=pd.read_csv('predictions/review/candidate_predictions.csv',dtype=str).fillna('')
+          v=json.load(open('reference/validation_summary.json'))
+          assert v['reference_source']=='INDEPENDENT_REVIEW'
+          assert v['candidate_predictions_used'] is False
+          assert v['labels_generated_by_pipeline'] is False
+          assert v['reviewed_rows']==554
+          assert len(ref)==554 and len(pred)==554
+          assert ref.crop_reference.is_unique and pred.crop_reference.is_unique
+          d=ref.merge(pred,on='crop_reference',how='inner',validate='one_to_one')
+          assert len(d)==554
+          readable=d.review_readability.str.upper().eq('READABLE')
+          complete=d.review_complete_number_visible.str.upper().isin(['TRUE','YES','1','COMPLETE'])
+          eligible=readable & complete & d.review_exact_number.str.fullmatch(r'\d{1,2}')
+          rows=[]
+          summary={'schema':'hoopvision.ppocrv6-independent-calibration.v1','reference_source':'INDEPENDENT_REVIEW','total_crops':554,'eligible_reference_crops':int(eligible.sum()),'identity_authorized':False,'qualification_claim':'NONE_CALIBRATION_ONLY','threshold_changed':False,'sampling_changed':False,'ground_truth_generated_by_pipeline':False}
+          for backend in ['medium','small']:
+              raw=d[f'{backend}_raw_prediction'].str.strip()
+              score=pd.to_numeric(d[f'{backend}_raw_score'],errors='coerce')
+              exact=raw.eq(d.review_exact_number.str.strip()) & eligible
+              denom=int(eligible.sum())
+              summary[backend]={'exact_matches':int(exact.sum()),'eligible':denom,'raw_exact_accuracy':(float(exact.sum()/denom) if denom else None),'scored_eligible':int((eligible & score.notna()).sum())}
+              for _,r in d.loc[eligible].iterrows():
+                  rows.append({'crop_reference':r.crop_reference,'backend':backend,'independent_reference':r.review_exact_number,'raw_prediction':r[f'{backend}_raw_prediction'],'raw_score':r[f'{backend}_raw_score'],'exact_match':str(r[f'{backend}_raw_prediction']).strip()==str(r.review_exact_number).strip()})
+          pd.DataFrame(rows).to_csv('independent_calibration_rows.csv',index=False)
+          Path('independent_calibration_summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_INDEPENDENT_CALIBRATION='+json.dumps(summary,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-ppocrv6-independent-calibration
+          path: |
+            independent_calibration_rows.csv
+            independent_calibration_summary.json
+          if-no-files-found: error
+          retention-days: 30
