@@ -1,0 +1,108 @@
+name: Validate Native Render Ledger
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/validate-native-render-ledger.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: e8ceaa91167ea19697a07bc5d240672b65d0d8ec
+  P1A_RUN_ID: '36053461888'
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless pillow
+      - name: Recover exact source and physical graph
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/p1a work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-current-candidate-physical --dir work/p1a
+          cp work/p1a/p1a/physical_paths.csv work/physical_paths.csv
+      - name: Build clip-local diagnostic assignments
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          p=pd.read_csv('work/physical_paths.csv')
+          ids=sorted(p.physical_path_id.astype(str).unique())
+          imap={x:i+1 for i,x in enumerate(ids)}
+          q=p.copy()
+          q['player_id']=q.physical_path_id.astype(str).map(imap)
+          q['player_name']=q.physical_path_id.astype(str).map(lambda s:s.replace(':','-P'))
+          q['source_track_id']=q.player_id
+          q['ring_authorized']=q.get('render_safe_fast',False).astype(bool)
+          q['floor_anchor_x']=(q.x1.astype(float)+q.x2.astype(float))*0.5
+          q['floor_anchor_y']=q.y2.astype(float)-4.0
+          q.to_csv('work/assignments.csv',index=False)
+          PY
+      - name: Render native output with exact audit ledger
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$PWD/src" python src/screen_tracker_nextgen/render_all_player_labels.py             --source work/source_native.mp4             --assignments work/assignments.csv             --out work/out/event301_native.mp4             --start-s 4 --end-s 16             --frame-ledger work/out/native_render_ledger.csv
+          ffmpeg -nostdin -v error -i work/out/event301_native.mp4 -f null -
+      - name: Validate encoded/ledger binding
+        run: |
+          python - <<'PY'
+          import csv,json,subprocess
+          rows=list(csv.DictReader(open('work/out/native_render_ledger.csv')))
+          n=int(subprocess.check_output([
+            'ffprobe','-v','error','-count_frames','-select_streams','v:0',
+            '-show_entries','stream=nb_read_frames','-of','default=nw=1:nk=1',
+            'work/out/event301_native.mp4'
+          ]).decode().strip())
+          assert n==359, n
+          assert rows
+          frames={int(r['output_frame']) for r in rows}
+          assert min(frames)>=0
+          assert max(frames)<n
+          by={}
+          for r in rows:
+              key=(int(r['output_frame']),int(r['player_id']))
+              assert key not in by, f'duplicate rendered identity on one frame {key}'
+              by[key]=r
+          rep={
+            'schema':'hoopvision.native-render-ledger-validation.v1',
+            'candidate_sha':'e8ceaa91167ea19697a07bc5d240672b65d0d8ec',
+            'encoded_frames':n,
+            'frames_with_at_least_one_label':len(frames),
+            'rendered_label_rows':len(rows),
+            'max_output_frame':max(frames),
+            'ledger_bound_to_actual_encoded_frame_count':True,
+            'identity_state':'CLIP_LOCAL_DIAGNOSTIC_ONLY'
+          }
+          open('work/out/validation.json','w').write(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_NATIVE_RENDER_LEDGER='+json.dumps(rep,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-native-render-ledger-validation
+          path: work/out/
+          retention-days: 14
