@@ -1,0 +1,36 @@
+name: Check Exact G4 Quota Request V2
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/check-exact-g4-quota-request-v2.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  PREF_NAME: hoopvision-g4-asia-southeast1
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  READ_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.READ_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Install beta commands and inspect exact request
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud components install beta --quiet
+          echo "=== EXACT PREFERENCE ==="
+          gcloud beta quotas preferences describe "$PREF_NAME"             --project="$PROJECT_ID"             --billing-project="$PROJECT_ID"             --format=yaml
+          echo "=== ALL PREFERENCES ==="
+          gcloud beta quotas preferences list             --project="$PROJECT_ID"             --billing-project="$PROJECT_ID"             --format=yaml
