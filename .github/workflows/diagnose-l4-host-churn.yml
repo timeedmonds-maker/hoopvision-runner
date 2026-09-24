@@ -1,0 +1,72 @@
+name: Diagnose L4 Host Churn
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-l4-host-churn.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Describe VM identity and persistent state
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          gcloud compute instances describe "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --format=json > evidence/instance.json
+          python3 - <<'PY' | tee evidence/instance-summary.json
+          import json,hashlib
+          d=json.load(open('evidence/instance.json'))
+          md={x['key']:x.get('value','') for x in (d.get('metadata') or {}).get('items',[])}
+          out={
+            'id':d.get('id'),'name':d.get('name'),'status':d.get('status'),
+            'creationTimestamp':d.get('creationTimestamp'),'lastStartTimestamp':d.get('lastStartTimestamp'),'lastStopTimestamp':d.get('lastStopTimestamp'),
+            'zone':(d.get('zone') or '').split('/')[-1],
+            'machineType':(d.get('machineType') or '').split('/')[-1],
+            'disks':[{'deviceName':x.get('deviceName'),'source':(x.get('source') or '').split('/')[-1],'boot':x.get('boot'),'autoDelete':x.get('autoDelete')} for x in d.get('disks',[])],
+            'metadataFingerprint':(d.get('metadata') or {}).get('fingerprint'),
+            'startupScriptSha256':hashlib.sha256(md.get('startup-script','').encode()).hexdigest() if md.get('startup-script') else None,
+            'shutdownScriptPresent':'shutdown-script' in md,
+          }
+          print(json.dumps(out,indent=2,sort_keys=True))
+          PY
+          gcloud compute ssh "$INSTANCE" --project="$PROJECT_ID" --zone="$ZONE" --quiet --command='
+            set -e
+            echo "boot_id=$(cat /proc/sys/kernel/random/boot_id)"
+            echo "boot_time=$(uptime -s)"
+            echo "uptime=$(uptime -p)"
+            echo "root_device=$(findmnt -n -o SOURCE /)"
+            echo "srv_mount=$(findmnt -n -o SOURCE,TARGET /srv 2>/dev/null || true)"
+            echo "srv_hoopvision_mount=$(findmnt -n -o SOURCE,TARGET /srv/hoopvision 2>/dev/null || true)"
+            echo "candidate=$(cat /srv/hoopvision/commercial-prepared.candidate.sha 2>/dev/null || echo MISSING)"
+            echo "sam=$(stat -c "%s %y" /srv/hoopvision/models/cache/sam3.1_multiplex.pt 2>/dev/null || echo MISSING)"
+            echo "supervisor=$(systemctl is-active hoopvision-dev-supervisor.service || true)"
+            echo "root_listing:"
+            ls -la /srv/hoopvision 2>/dev/null | head -40 || true
+            echo "disk:"
+            lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS
+          ' | tee evidence/host.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-l4-host-churn-diagnostic
+          path: evidence/
+          retention-days: 14
