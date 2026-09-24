@@ -15,6 +15,7 @@ mkdir -p "$CONTROL" "$ROOT/models/cache/ppocrv6/medium" "$ROOT/models/cache/ppoc
 tar -C /tmp -xzf /tmp/control-current.tgz
 install -m 0755 /tmp/tools/release/dev_supervisor.py "$CONTROL/dev_supervisor.py"
 install -m 0644 /tmp/tools/release/durable_events.py "$CONTROL/durable_events.py"
+install -m 0644 /tmp/tools/release/control_plane_contract.py "$CONTROL/control_plane_contract.py"
 install -m 0644 /tmp/infra/hoopvision-dev/hoopvision-dev-supervisor.service /etc/systemd/system/hoopvision-dev-supervisor.service
 
 if [ ! -x "$CONTROL/venv/bin/python" ]; then
@@ -50,5 +51,7 @@ printf '%s\n' "$CANDIDATE_SHA" > "$ROOT/commercial-prepared.candidate.sha"
 printf '%s\n' "$CONTROL_BUNDLE_SHA" > "$ROOT/commercial-prepared.control-bundle.sha256"
 systemctl daemon-reload
 systemctl restart hoopvision-dev-supervisor.service
+sleep 3
 systemctl is-active hoopvision-dev-supervisor.service
+pgrep -f "/opt/hoopvision-control/dev_supervisor.py" >/dev/null
 echo "HOOPVISION_COMMERCIAL_HOST_REPAIRED"
