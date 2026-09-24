@@ -1,0 +1,168 @@
+name: Compare Body-Aware Player Collapse
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/compare-body-aware-player-collapse.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 0a11572c868bd1b0741980e2588a7a8c7a928e59
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install exact CPU detector/tracker runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' pandas opencv-python-headless supervision scipy rich requests 'jsonargparse<5' pydeprecate onnxruntime
+          git clone -q https://github.com/roboflow/trackers.git /tmp/trackers
+          git -C /tmp/trackers checkout -q 3fb83d1618f29b7fdd4617757b6894e4ec71146d
+          python -m pip install -q -e /tmp/trackers --no-deps
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+      - name: Recover exact source and detector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/models work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o work/models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  work/models/rfdetr_m_640.onnx" | sha256sum -c -
+      - name: Compare baseline and body-aware collapse
+        run: |
+          PYTHONPATH="$PWD/src" python - <<'PY'
+          import sys,json,time,math
+          from pathlib import Path
+          import cv2,numpy as np,pandas as pd,supervision as sv
+          sys.path.insert(0,'/tmp/object-detection-eval/src')
+          from object_detection_eval.inference.detectors.rfdetr import RFDETRDetector
+          from tools.diagnose_rfdetr_tracking_taxonomy import CORRECTED_PLAYER_CLASSES,RAW_LABEL_MAP,make_tracker
+
+          def iou(a,b):
+              x1=max(a[0],b[0]); y1=max(a[1],b[1]); x2=min(a[2],b[2]); y2=min(a[3],b[3])
+              inter=max(0,x2-x1)*max(0,y2-y1)
+              aa=max(0,a[2]-a[0])*max(0,a[3]-a[1]); bb=max(0,b[2]-b[0])*max(0,b[3]-b[1])
+              return inter/max(aa+bb-inter,1e-9)
+          def center_nd(a,b):
+              ha=max(10.,a[3]-a[1]); hb=max(10.,b[3]-b[1])
+              ca=np.array(((a[0]+a[2])*.5,(a[1]+a[3])*.5))
+              cb=np.array(((b[0]+b[2])*.5,(b[1]+b[3])*.5))
+              return float(np.linalg.norm(ca-cb)/max(10.,.5*(ha+hb)))
+          def body_aware(base,nd_thr):
+              # First keep distinct overlapping bodies through IoU .70. Then
+              # collapse only near-concentric residual boxes consistent with
+              # duplicate class heads firing on the same body.
+              if not len(base): return base
+              q=base.with_nms(threshold=.70,class_agnostic=True)
+              order=np.argsort(-(q.confidence if q.confidence is not None else np.ones(len(q))))
+              keep=[]
+              for idx in order:
+                  b=q.xyxy[idx]
+                  dup=False
+                  for k in keep:
+                      a=q.xyxy[k]
+                      if iou(a,b)>=.45 and center_nd(a,b)<=nd_thr:
+                          dup=True; break
+                  if not dup: keep.append(int(idx))
+              keep=np.asarray(sorted(keep),dtype=int)
+              return q[keep] if len(keep) else sv.Detections.empty()
+          def pair_risk(boxes):
+              return sum(
+                  iou(boxes[i],boxes[j])>=.50 and center_nd(boxes[i],boxes[j])<.35
+                  for i in range(len(boxes)) for j in range(i+1,len(boxes))
+              )
+
+          det=RFDETRDetector('work/models/rfdetr_m_640.onnx',RAW_LABEL_MAP,confidence_threshold=.045,num_select=300,input_height=640,input_width=640,providers=['CPUExecutionProvider'])
+          policies={'nms50':None,'aware18':.18,'aware22':.22,'aware26':.26,'nms70':.0}
+          trackers={k:make_tracker(15.0) for k in policies}
+          rows=[]; review=[]
+          cap=cv2.VideoCapture('work/source_native.mp4'); fps=float(cap.get(cv2.CAP_PROP_FPS) or 30000/1001); W=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)); H=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+          start=int(round(4*fps)); end=int(round(16*fps)); every=max(1,int(round(fps/15.0)))
+          for rel,absf in enumerate(range(start,end)):
+              if rel%every: continue
+              cap.set(cv2.CAP_PROP_POS_FRAMES,absf); ok,frame=cap.read()
+              if not ok: continue
+              alld=det.predict(frame); boxes=[]; conf=[]; cls=[]
+              for d in alld:
+                  if int(d.class_id) not in CORRECTED_PLAYER_CLASSES or float(d.confidence)<.20: continue
+                  b=d.bbox; boxes.append([b.x*W,b.y*H,(b.x+b.w)*W,(b.y+b.h)*H]); conf.append(float(d.confidence)); cls.append(int(d.class_id))
+              base=sv.Detections(xyxy=np.asarray(boxes,np.float32),confidence=np.asarray(conf,np.float32),class_id=np.asarray(cls,np.int32)) if boxes else sv.Detections.empty()
+              outputs={}
+              outputs['nms50']=base.with_nms(threshold=.50,class_agnostic=True) if len(base) else base
+              outputs['nms70']=base.with_nms(threshold=.70,class_agnostic=True) if len(base) else base
+              for name,nd in [('aware18',.18),('aware22',.22),('aware26',.26)]:
+                  outputs[name]=body_aware(base,nd)
+              rec={'tracking_frame':rel,'time_s':4+rel/fps,'raw':len(base)}
+              for name,q in outputs.items():
+                  tr=trackers[name].update(q,frame=frame,timestamp=rel/fps)
+                  valid=sum(int(t)>=0 for t in tr.tracker_id) if len(tr) else 0
+                  rec[f'{name}_nms']=len(q); rec[f'{name}_trk']=valid; rec[f'{name}_risk']=pair_risk(q.xyxy if len(q) else [])
+              rows.append(rec)
+              if rec['nms50_nms']<10 and any(rec[f'{x}_nms']>=10 for x in ['aware18','aware22','aware26']):
+                  vis=frame.copy()
+                  for b in outputs['nms50'].xyxy:
+                      x1,y1,x2,y2=map(int,b); cv2.rectangle(vis,(x1,y1),(x2,y2),(255,0,255),2)
+                  for b in outputs['aware22'].xyxy:
+                      if not any(iou(b,a)>.88 for a in outputs['nms50'].xyxy):
+                          x1,y1,x2,y2=map(int,b); cv2.rectangle(vis,(x1,y1),(x2,y2),(0,255,255),2)
+                  cv2.putText(vis,f"{rec['time_s']:.3f}s raw={len(base)} n50={rec['nms50_nms']} a18={rec['aware18_nms']} a22={rec['aware22_nms']} a26={rec['aware26_nms']}",(10,24),cv2.FONT_HERSHEY_SIMPLEX,.52,(255,255,255),2,cv2.LINE_AA)
+                  p=Path('work/out')/f"aware_{rel:04d}_{rec['time_s']:.3f}.jpg"; cv2.imwrite(str(p),vis); review.append(str(p))
+          cap.release()
+          d=pd.DataFrame(rows); d.to_csv('work/out/body_aware_by_frame.csv',index=False)
+          arms={}
+          early=(d.time_s>=5.8)&(d.time_s<=6.8)
+          for name in policies:
+              n=d[f'{name}_nms']; t=d[f'{name}_trk']; risk=d[f'{name}_risk']
+              arms[name]={
+                'frames_nms_ge10':int((n>=10).sum()),'frames_track_ge10':int((t>=10).sum()),
+                'frames_track_gt10':int((t>10).sum()),'total_nms_boxes':int(n.sum()),'total_track_rows':int(t.sum()),
+                'duplicate_risk_pairs':int(risk.sum()),'frames_duplicate_risk':int((risk>0).sum()),
+                'early_nms_ge10':int((early&(n>=10)).sum()),'early_track_ge10':int((early&(t>=10)).sum()),'early_track_gt10':int((early&(t>10)).sum())
+              }
+          rep={'schema':'hoopvision.body-aware-player-collapse.v1','candidate_sha':'0a11572c868bd1b0741980e2588a7a8c7a928e59','source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a','arms':arms,'review_frames':len(review),'qualification_claim':'NONE_DIAGNOSTIC_ONLY','identity_authorized':False,'policy':'IoU .70 first-stage, then suppress residual IoU>=.45 only when normalized box-center distance is near-concentric; no class/identity forcing.'}
+          Path('work/out/body_aware_summary.json').write_text(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_BODY_AWARE='+json.dumps(rep,sort_keys=True))
+          PY
+      - name: Build review sheet
+        run: |
+          python - <<'PY'
+          import cv2,glob,math,numpy as np
+          files=sorted(glob.glob('work/out/aware_*.jpg'))[:36]; imgs=[]
+          for p in files:
+              im=cv2.imread(p)
+              if im is not None: imgs.append(cv2.resize(im,(480,270)))
+          if imgs:
+              cols=4; rows=math.ceil(len(imgs)/cols); blank=np.zeros_like(imgs[0]); imgs += [blank]*(rows*cols-len(imgs))
+              cv2.imwrite('work/out/body_aware_contact_sheet.jpg',np.vstack([np.hstack(imgs[r*cols:(r+1)*cols]) for r in range(rows)]))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-body-aware-player-collapse
+          path: work/out/
+          retention-days: 14
