@@ -20,7 +20,7 @@ env:
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
   SOURCE_RECOVERY_RUN_ID: '35923251814'
   DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
-  DEFAULT_SOURCE_SHA: ead98c233265c2b791420fcf741933b8f33cbcb8
+  DEFAULT_SOURCE_SHA: e3e68bbce19800c47006f9ae023005b96dbc2156
 
 jobs:
   compare:
@@ -60,7 +60,7 @@ jobs:
           python -m pip install -q -e /tmp/trackers --no-deps
           git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
           git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
-          python -m pip install -q -e /tmp/object-detection-eval --no-deps
+          python -m pip install -q -e /tmp/object-detection-eval
 
       - name: Recover exact source and detector
         env:
