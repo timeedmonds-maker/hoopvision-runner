@@ -1,0 +1,93 @@
+name: Retry L4 Capacity Now
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/retry-l4-capacity-now.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ORIGINAL_INSTANCE: hv-dev-l4
+  FAILOVER_INSTANCE: hv-dev-l4-failover
+  RUNTIME_SA: hoopvision-worker@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  retry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Retry existing host then alternate zones
+        shell: bash
+        run: |
+          set -euo pipefail
+          SELECTED=""
+          echo "=== RETRY ORIGINAL C ==="
+          if gcloud compute instances describe "$ORIGINAL_INSTANCE" --zone asia-southeast1-c --project "$PROJECT_ID" >/dev/null 2>&1; then
+            STATUS="$(gcloud compute instances describe "$ORIGINAL_INSTANCE" --zone asia-southeast1-c --project "$PROJECT_ID" --format='value(status)')"
+            echo "ORIGINAL_STATUS=$STATUS"
+            if test "$STATUS" = "TERMINATED"; then
+              set +e
+              gcloud compute instances start "$ORIGINAL_INSTANCE" --zone asia-southeast1-c --project "$PROJECT_ID" --quiet > /tmp/start-c.log 2>&1
+              RC=$?
+              set -e
+              cat /tmp/start-c.log
+              if test "$RC" -eq 0; then
+                SELECTED="asia-southeast1-c/$ORIGINAL_INSTANCE"
+              fi
+            elif test "$STATUS" = "RUNNING"; then
+              SELECTED="asia-southeast1-c/$ORIGINAL_INSTANCE"
+            fi
+          fi
+
+          if test -z "$SELECTED"; then
+            for Z in asia-southeast1-a asia-southeast1-b; do
+              echo "=== TRY CREATE $Z ==="
+              if gcloud compute instances describe "$FAILOVER_INSTANCE" --zone "$Z" --project "$PROJECT_ID" >/dev/null 2>&1; then
+                STATUS="$(gcloud compute instances describe "$FAILOVER_INSTANCE" --zone "$Z" --project "$PROJECT_ID" --format='value(status)')"
+                echo "EXISTING_FAILOVER_STATUS=$STATUS"
+                if test "$STATUS" = "TERMINATED"; then
+                  set +e
+                  gcloud compute instances start "$FAILOVER_INSTANCE" --zone "$Z" --project "$PROJECT_ID" --quiet > /tmp/start-alt.log 2>&1
+                  RC=$?
+                  set -e
+                  cat /tmp/start-alt.log
+                  if test "$RC" -eq 0; then SELECTED="$Z/$FAILOVER_INSTANCE"; break; fi
+                elif test "$STATUS" = "RUNNING"; then
+                  SELECTED="$Z/$FAILOVER_INSTANCE"; break
+                fi
+                continue
+              fi
+
+              set +e
+              gcloud compute instances create "$FAILOVER_INSTANCE"                 --project "$PROJECT_ID"                 --zone "$Z"                 --machine-type g2-standard-8                 --image-family common-cu129-ubuntu-2204-nvidia-580                 --image-project deeplearning-platform-release                 --boot-disk-type pd-balanced                 --boot-disk-size 100GB                 --service-account "$RUNTIME_SA"                 --scopes cloud-platform                 --maintenance-policy TERMINATE                 --no-restart-on-failure                 --max-run-duration 4h                 --instance-termination-action STOP                 --labels hoopvision=development,role=prepared-l4,failover=true                 --quiet > /tmp/create-alt.log 2>&1
+              RC=$?
+              set -e
+              cat /tmp/create-alt.log
+              if test "$RC" -eq 0; then
+                SELECTED="$Z/$FAILOVER_INSTANCE"
+                break
+              fi
+            done
+          fi
+
+          if test -z "$SELECTED"; then
+            echo "L4_CAPACITY_RESULT=STILL_UNAVAILABLE"
+            exit 0
+          fi
+
+          echo "L4_CAPACITY_RESULT=AVAILABLE"
+          echo "L4_SELECTED=$SELECTED"
+          ZONE="${SELECTED%%/*}"
+          NAME="${SELECTED##*/}"
+          gcloud compute instances describe "$NAME" --zone "$ZONE" --project "$PROJECT_ID" --format='yaml(name,status,zone,machineType,serviceAccounts)'
