@@ -1,0 +1,47 @@
+name: Prepare Independent OCR Review
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+env:
+  LEDGER_RUN_ID: '35973189638'
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q pandas
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir ledger
+          gh run download "$LEDGER_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-physical-ocr-ledger --dir ledger
+      - run: |
+          python - <<'PY'
+          import json,pandas as pd
+          d=pd.read_csv('ledger/identity_coverage_ledger.csv')
+          root='physical_path_id' if 'physical_path_id' in d else 'root_id'
+          team=next((c for c in ['team','team_id','team_code'] if c in d),None)
+          crop=next((c for c in ['localised_crop_count','localized_crop_count','localised_crop_references','localized_crop_references','crop_references'] if c in d),None)
+          cols=[c for c in [root,team,crop] if c]
+          out=d[cols].drop_duplicates(root).copy()
+          if crop:
+            out[crop]=pd.to_numeric(out[crop],errors='coerce').fillna(0)
+            out=out[out[crop]>0]
+          out['review_jersey_number']=''
+          out['review_legible']=''
+          out['reviewer']=''
+          out['status']='UNREVIEWED'
+          out.to_csv('independent_ocr_review.csv',index=False)
+          s={'schema':'hoopvision.independent-ocr-review.v1','eligible_fragments':len(out),'reviewed':0,'identity_authorized':False,'candidate_predictions_included':False,'note':'Blind review preparation only. No identity assignment or threshold change.'}
+          open('summary.json','w').write(json.dumps(s,indent=2)+'\n')
+          print(json.dumps(s))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-independent-ocr-review
+          path: |
+            independent_ocr_review.csv
+            summary.json
