@@ -1,0 +1,152 @@
+name: Repair Commercial Prepared L4 Session
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/repair-commercial-prepared-l4.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-southeast1-c
+  INSTANCE: hv-dev-l4
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  CANDIDATE_SHA: a81bf2f8683a126bd2a94ed24c9e8cbd911a6f4e
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  repair:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Package exact candidate control plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p bundle/tools/release bundle/infra/hoopvision-dev
+          cp src/tools/release/dev_supervisor.py bundle/tools/release/
+          cp src/tools/release/durable_events.py bundle/tools/release/
+          cp src/infra/hoopvision-dev/hoopvision-dev-supervisor.service bundle/infra/hoopvision-dev/
+          tar -C bundle -czf /tmp/control-current.tgz .
+          echo "CONTROL_BUNDLE_SHA=$(sha256sum /tmp/control-current.tgz | awk '{print $1}')" >> "$GITHUB_ENV"
+          gcloud compute scp /tmp/control-current.tgz "$INSTANCE:/tmp/control-current.tgz" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+      - name: Repair commercial assets and current supervisor
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo env CANDIDATE_SHA='$CANDIDATE_SHA' CONTROL_BUNDLE_SHA='$CONTROL_BUNDLE_SHA' bash -s" <<'REMOTE'
+          set -euxo pipefail
+          ROOT=/srv/hoopvision
+          CONTROL=/opt/hoopvision-control
+          test -d "$ROOT"
+          nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+          systemctl is-active docker
+          mkdir -p "$CONTROL" "$ROOT/models/cache/ppocrv6/medium" "$ROOT/models/cache/ppocrv6/small"
+          tar -C /tmp -xzf /tmp/control-current.tgz
+          install -m 0755 /tmp/tools/release/dev_supervisor.py "$CONTROL/dev_supervisor.py"
+          install -m 0644 /tmp/tools/release/durable_events.py "$CONTROL/durable_events.py"
+          install -m 0644 /tmp/infra/hoopvision-dev/hoopvision-dev-supervisor.service /etc/systemd/system/hoopvision-dev-supervisor.service
+          if [ ! -x "$CONTROL/venv/bin/python" ]; then
+            python3 -m venv "$CONTROL/venv"
+          fi
+          "$CONTROL/venv/bin/pip" install --disable-pip-version-check -q             google-cloud-storage==3.4.0 google-cloud-pubsub==2.31.1 huggingface_hub
+          rm -f "$ROOT/models/nbacv/parseq_soccernet.ckpt" "$ROOT/models/nbacv/legibility_soccernet.pth"
+          # Keep PP-OCRv5 only as the commercial reserve.
+          if ! echo "995b0f5f28d2073896a78c03b5b863eae6af3744bafa0245b8522beea6994927  $ROOT/models/cache/ppocrv5_latin_rec.onnx" | sha256sum -c -; then
+            curl -L --fail --retry 3 -o "$ROOT/models/cache/ppocrv5_latin_rec.onnx"               https://github.com/gitakoos/ocr-models/releases/download/v1/rec_latin.onnx
+          fi
+          echo "995b0f5f28d2073896a78c03b5b863eae6af3744bafa0245b8522beea6994927  $ROOT/models/cache/ppocrv5_latin_rec.onnx" | sha256sum -c -
+          if ! echo "ccbcc45730b3fbbd9050c5bc74db6a99067141ef1035e3d14889a84a6b9b1aff  $ROOT/models/cache/ppocrv5_latin_dict.txt" | sha256sum -c -; then
+            curl -L --fail --retry 3 -o "$ROOT/models/cache/ppocrv5_latin_dict.txt"               https://github.com/gitakoos/ocr-models/releases/download/v1/ppocrv5_latin_dict.txt
+          fi
+          echo "ccbcc45730b3fbbd9050c5bc74db6a99067141ef1035e3d14889a84a6b9b1aff  $ROOT/models/cache/ppocrv5_latin_dict.txt" | sha256sum -c -
+          "$CONTROL/venv/bin/python" - <<'PY'
+          from pathlib import Path
+          from huggingface_hub import snapshot_download
+          import hashlib,shutil
+          root=Path("/srv/hoopvision/models/cache/ppocrv6")
+          specs={
+            "medium":("PaddlePaddle/PP-OCRv6_medium_rec_safetensors","024cad6a831de75c2c3c26e711ba8c4a82ccd24b",{
+              "model.safetensors":"5f43c16f2a684b1d2284662178bdb604febd3d6bfdb5ca73828d08d0f7c0c3e9",
+              "config.json":"aa5f351b4a7df95cc4953f013d53a6d44205f1bb0aee0ec7eb243d1d8fae1c27",
+              "preprocessor_config.json":"2b24fa36f548893f26a931cf44f1a1a6b2b14ed7e2f8f8e28e6848801a8278db"}),
+            "small":("PaddlePaddle/PP-OCRv6_small_rec_safetensors","fe049fb103f57443fe8840c54ed06b702f3c1de5",{
+              "model.safetensors":"f65a332afe5aa663f0b9d5706f4ae8457b5b4058a842d5c1eb22df505c27d642",
+              "config.json":"8693fd8485e8543e13d0f6dde3891a3f4af9a47fc4e3a391fbed71f8015c899e",
+              "preprocessor_config.json":"2b24fa36f548893f26a931cf44f1a1a6b2b14ed7e2f8f8e28e6848801a8278db"})
+          }
+          for name,(repo,rev,hashes) in specs.items():
+            dst=root/name; dst.mkdir(parents=True,exist_ok=True)
+            valid=True
+            for fn,h in hashes.items():
+              p=dst/fn
+              if not p.is_file() or hashlib.sha256(p.read_bytes()).hexdigest()!=h: valid=False
+            if not valid:
+              snap=Path(snapshot_download(repo_id=repo,revision=rev,allow_patterns=list(hashes)))
+              for fn,h in hashes.items():
+                shutil.copyfile(snap/fn,dst/fn)
+                got=hashlib.sha256((dst/fn).read_bytes()).hexdigest()
+                if got!=h: raise RuntimeError((name,fn,got,h))
+          PY
+          test ! -e "$ROOT/models/nbacv/parseq_soccernet.ckpt"
+          test ! -e "$ROOT/models/nbacv/legibility_soccernet.pth"
+          echo "708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939  $ROOT/models/cache/rfdetr_m_640.onnx" | sha256sum -c -
+          test "$(stat -c %s "$ROOT/models/cache/sam3.1_multiplex.pt")" = "3502755717"
+          echo "5f43c16f2a684b1d2284662178bdb604febd3d6bfdb5ca73828d08d0f7c0c3e9  $ROOT/models/cache/ppocrv6/medium/model.safetensors" | sha256sum -c -
+          echo "f65a332afe5aa663f0b9d5706f4ae8457b5b4058a842d5c1eb22df505c27d642  $ROOT/models/cache/ppocrv6/small/model.safetensors" | sha256sum -c -
+          printf '%s
+' "$CANDIDATE_SHA" > "$ROOT/commercial-prepared.candidate.sha"
+          printf '%s
+' "$CONTROL_BUNDLE_SHA" > "$ROOT/commercial-prepared.control-bundle.sha256"
+          systemctl daemon-reload
+          systemctl restart hoopvision-dev-supervisor.service
+          systemctl is-active hoopvision-dev-supervisor.service
+          REMOTE
+      - name: Verify regenerated commercial session manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in $(seq 1 30); do
+            gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" > /tmp/session.json
+            if python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/session.json'))
+          raise SystemExit(0 if d.get('restricted_ocr_assets_present') is False else 1)
+          PY
+            then break; fi
+            sleep 2
+          done
+          python3 - <<'PY'
+          import json,subprocess,hashlib
+          s=json.load(open('/tmp/session.json'))
+          assert s.get('restricted_ocr_assets_present') is False,s
+          h=s['models_manifest_sha256']
+          raw=subprocess.check_output(['gcloud','storage','cat',f'gs://project-d88c48c6-7f48-4c33-928-hoopvision-dev/manifests/models/{h}.json'])
+          assert hashlib.sha256(raw).hexdigest()==h
+          m=json.loads(raw)
+          paths=[x['path'] for x in m['entries']]
+          assert not any('soccernet' in p.lower() for p in paths),paths
+          assert any('ppocrv6/medium/model.safetensors' in p for p in paths),paths
+          assert any('ppocrv6/small/model.safetensors' in p for p in paths),paths
+          print('HOOPVISION_COMMERCIAL_PREPARED_SESSION='+json.dumps({'session':s,'model_paths':paths},sort_keys=True))
+          PY
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="set -e; test \"$(cat /srv/hoopvision/commercial-prepared.candidate.sha)\" = '$CANDIDATE_SHA'; test \"$(cat /srv/hoopvision/commercial-prepared.control-bundle.sha256)\" = '$CONTROL_BUNDLE_SHA'; test ! -e /srv/hoopvision/models/nbacv/parseq_soccernet.ckpt; test ! -e /srv/hoopvision/models/nbacv/legibility_soccernet.pth; echo HOOPVISION_COMMERCIAL_HOST_ATTESTED"
