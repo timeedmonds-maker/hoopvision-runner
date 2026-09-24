@@ -1,0 +1,41 @@
+name: Inspect Toronto Events Only
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-toronto-events-only.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  RUN_ID: public-36062527172-1-95bd1d0abd99
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Read durable state
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== EVENTS ==="
+          mapfile -t EVENTS < <(gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/events/**" 2>/dev/null || true)
+          echo "EVENT_COUNT=${#EVENTS[@]}"
+          for x in "${EVENTS[@]}"; do
+            echo "--- $x"
+            gcloud storage cat "$x"
+          done
+          echo "=== RESULT OBJECTS ==="
+          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/**" 2>/dev/null || true
