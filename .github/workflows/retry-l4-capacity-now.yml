@@ -10,6 +10,7 @@ permissions:
   id-token: write
 
 env:
+  RETRY_NONCE: '2026-09-25-1039-nz'
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   ORIGINAL_INSTANCE: hv-dev-l4
   FAILOVER_INSTANCE: hv-dev-l4-failover
