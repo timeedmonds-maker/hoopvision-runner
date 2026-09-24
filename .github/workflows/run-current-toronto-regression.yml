@@ -75,6 +75,7 @@ jobs:
           HOOPVISION_RELEASE_BUCKET: ${{ env.RELEASE_BUCKET }}
           HOOPVISION_EVIDENCE_BUCKET: ${{ env.EVIDENCE_BUCKET }}
           HOOPVISION_DEV_TOPIC: ${{ env.DEV_TOPIC }}
+          HOOPVISION_PIPELINE_LOCK: src/release/pipeline.lock.json
         run: |
           set -euo pipefail
           RUN_ID="public-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${CANDIDATE_SHA:0:12}"
