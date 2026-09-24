@@ -20,7 +20,7 @@ env:
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
   SOURCE_RECOVERY_RUN_ID: '35923251814'
   TRACKING_RUN_ID: '35968920974'
-  DEFAULT_SOURCE_SHA: bb05c831b40120536ca71fff99f96b48ea1078d4
+  DEFAULT_SOURCE_SHA: 8e5e62b7e1415b0aa097bde2595c7091f581b349
 
 jobs:
   compare:
@@ -84,6 +84,12 @@ jobs:
           cq=json.load(open('corrected_segments/segment_qa.json'))
           os=pd.read_csv('old_segments/segments.csv')
           cs=pd.read_csv('corrected_segments/segments.csv')
+          co=pd.read_csv('corrected_segments/uniform_observations.csv')
+          oo=pd.read_csv('old_segments/uniform_observations.csv')
+          assert 'tracking_frame' in co.columns
+          assert 'tracking_frame' in oo.columns
+          assert (co.tracking_frame.astype(int)==co.source_frame_rel.astype(int)).all()
+          assert (oo.tracking_frame.astype(int)==oo.source_frame_rel.astype(int)).all()
           report={
               'schema':'hoopvision.corrected-taxonomy-identity-segments.v1',
               'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
@@ -99,6 +105,7 @@ jobs:
                   'segment_rows':int(len(cs)),
               },
               'causal_scope':'shared exact source and detector inference policy; tracking arms differ only by raw RF-DETR player-class mapping',
+              'tracking_frame_provenance':'source_frame_rel_preserved',
               'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
           }
           Path('comparison.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
