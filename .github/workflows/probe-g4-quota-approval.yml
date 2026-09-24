@@ -33,7 +33,7 @@ jobs:
           for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
             echo "=== PROBE $Z ==="
             set +e
-            gcloud compute instances create "$INSTANCE"               --project "$PROJECT_ID"               --zone "$Z"               --machine-type g4-standard-48               --image-family ubuntu-2204-lts-amd64               --image-project ubuntu-os-cloud               --boot-disk-type pd-balanced               --boot-disk-size 50GB               --maintenance-policy TERMINATE               --no-restart-on-failure               --max-run-duration 10m               --instance-termination-action DELETE               --quiet > /tmp/g4.out 2>&1
+            gcloud compute instances create "$INSTANCE"               --project "$PROJECT_ID"               --zone "$Z"               --machine-type g4-standard-48               --image-family common-cu129-ubuntu-2204-nvidia-580               --image-project deeplearning-platform-release               --boot-disk-type pd-balanced               --boot-disk-size 50GB               --maintenance-policy TERMINATE               --no-restart-on-failure               --max-run-duration 10m               --instance-termination-action DELETE               --quiet > /tmp/g4.out 2>&1
             RC=$?
             set -e
             cat /tmp/g4.out
