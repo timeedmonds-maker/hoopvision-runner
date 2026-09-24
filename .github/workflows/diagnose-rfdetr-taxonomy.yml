@@ -1,0 +1,86 @@
+name: Diagnose RF-DETR Taxonomy Impact
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-rfdetr-taxonomy.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  DETECTOR_SHA256: 708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939
+  DEFAULT_SOURCE_SHA: a189610e39ee515f7433cff0fa2cc0240cb85dd3
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install exact detector runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q 'numpy<2' opencv-python-headless onnxruntime
+          git clone -q https://github.com/ortizeg/object-detection-eval.git /tmp/object-detection-eval
+          git -C /tmp/object-detection-eval checkout -q bcf6279073af042c3a5084a041f6c5d8e71e6af1
+          python -m pip install -q -e /tmp/object-detection-eval
+
+      - name: Recover exact source and detector
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p recovered models evidence
+          gh run download "$SOURCE_RECOVERY_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-hawks-source-l4-disk-recovery             --dir recovered
+          cp recovered/exact_source_native.mp4 source_native.mp4
+          echo "$SOURCE_SHA256  source_native.mp4" | sha256sum -c -
+          curl -fsSL https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx -o models/rfdetr_m_640.onnx
+          echo "$DETECTOR_SHA256  models/rfdetr_m_640.onnx" | sha256sum -c -
+
+      - name: Run detector-only taxonomy impact diagnostic
+        run: |
+          set -euo pipefail
+          python tools/diagnose_rfdetr_taxonomy_impact.py             --source source_native.mp4             --source-sha256 "$SOURCE_SHA256"             --detector-onnx models/rfdetr_m_640.onnx             --object-eval-src /tmp/object-detection-eval/src             --start-s 4             --end-s 16             --fps 5             --out evidence/taxonomy_impact.json
+          test -s evidence/taxonomy_impact.json
+
+      - name: Upload taxonomy impact evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-rfdetr-taxonomy-impact
+          path: evidence/taxonomy_impact.json
+          if-no-files-found: error
+          retention-days: 14
