@@ -1,0 +1,127 @@
+name: Prepare Current Blind Ground Truth Review Packs
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/prepare-current-ground-truth-review.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  OCR_RUN_ID: '35972536456'
+  CURRENT_OCR_RUN_ID: '36054306268'
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install -q pandas pillow opencv-python-headless
+      - name: Recover exact source and current evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/source work/ocr work/current work/out
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          gh run download "$OCR_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-ppocrv6-localised-comparison --dir work/ocr
+          gh run download "$CURRENT_OCR_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-current-physical-ocr-refresh --dir work/current
+          test -s work/ocr/review/candidate_predictions.csv
+          test -s work/current/current_crop_mapping.csv
+          test -s work/current/current_physical_ocr_consensus.csv
+      - name: Build blind jersey review pack
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import shutil, pandas as pd, json, math
+          from PIL import Image,ImageOps,ImageDraw,ImageFont
+          root=Path('work/out/jersey_review'); (root/'crops').mkdir(parents=True,exist_ok=True)
+          m=pd.read_csv('work/current/current_crop_mapping.csv').fillna('')
+          c=pd.read_csv('work/current/current_physical_ocr_consensus.csv').fillna('')
+          # High-value paths: every conflict, every >=2 independent-group path,
+          # and every current candidate. Selection uses diagnostic state only;
+          # reviewer sees no prediction or roster name.
+          g=c.copy()
+          ng=pd.to_numeric(g['independent_temporal_groups'],errors='coerce').fillna(0)
+          mask=(g['identity_state'].astype(str).isin(['CANDIDATE','CONFLICTED'])) | (ng>=2)
+          paths=set(g.loc[mask,'physical_path_id'].astype(str))
+          rows=[]; item=0
+          for pid in sorted(paths):
+              q=m[(m.physical_path_id.astype(str)==pid) & (m.cross_model_exact.astype(str).str.lower().isin(['true','1']))].copy()
+              if q.empty:
+                  q=m[m.physical_path_id.astype(str)==pid].copy()
+              q=q.sort_values('pts_s')
+              # At most one representative every 0.75s, up to 5 per path.
+              chosen=[]; last=-1e9
+              for r in q.itertuples(index=False):
+                  t=float(r.pts_s)
+                  if t-last<.75: continue
+                  chosen.append(r); last=t
+                  if len(chosen)>=5: break
+              for r in chosen:
+                  src=Path('work/ocr/localisation')/str(r.crop_reference)
+                  if not src.exists(): continue
+                  item+=1; fn=f'J{item:03d}{src.suffix.lower()}'; shutil.copy2(src,root/'crops'/fn)
+                  rows.append({'item_id':f'J{item:03d}','time_s':round(float(r.pts_s),3),'crop_file':f'crops/{fn}','label_number':'','readability':'','quality_category':'','reviewer_notes':''})
+          pd.DataFrame(rows).to_csv(root/'blind_jersey_review.csv',index=False)
+          instructions={
+            'schema':'hoopvision.blind-jersey-review.v1',
+            'purpose':'Independent human jersey-number reference for current high-value identity evidence.',
+            'rules':['Do not infer from roster/team context.','Enter 00 distinctly from 0.','Use readability=unreadable when digits cannot be supported visually.','quality_category may be clear, blurred, partial, occluded, misleading, or other.','No model predictions are included in this pack.'],
+            'items':len(rows)
+          }
+          (root/'README.json').write_text(json.dumps(instructions,indent=2)+'\n')
+          print('JERSEY_REVIEW_ITEMS',len(rows),'PATHS',len(paths))
+          PY
+      - name: Build independent visibility / eligibility review pack
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import cv2,pandas as pd,json,math,numpy as np
+          root=Path('work/out/visibility_review'); (root/'frames').mkdir(parents=True,exist_ok=True); (root/'sheets').mkdir(exist_ok=True)
+          cap=cv2.VideoCapture('work/source_native.mp4'); fps=float(cap.get(cv2.CAP_PROP_FPS) or 30000/1001)
+          start=int(round(4*fps)); end=int(round(16*fps)); every=max(1,int(round(fps/15.0)))
+          rows=[]; thumbs=[]
+          for rel,absf in enumerate(range(start,end)):
+              if rel%every: continue
+              cap.set(cv2.CAP_PROP_POS_FRAMES,absf); ok,im=cap.read()
+              if not ok: continue
+              idx=len(rows)+1; t=4+rel/fps; fid=f'V{idx:03d}'
+              cv2.imwrite(str(root/'frames'/f'{fid}.jpg'),im,[int(cv2.IMWRITE_JPEG_QUALITY),88])
+              th=cv2.resize(im,(480,270))
+              cv2.rectangle(th,(0,0),(150,28),(0,0,0),-1); cv2.putText(th,f'{fid} {t:.3f}s',(7,20),cv2.FONT_HERSHEY_SIMPLEX,.55,(255,255,255),1,cv2.LINE_AA)
+              thumbs.append(th)
+              rows.append({'item_id':fid,'time_s':round(t,3),'source_frame_abs':int(absf),'frame_file':f'frames/{fid}.jpg','scene_state':'','visible_target_players':'','fully_occluded_target_players':'','off_screen_target_players':'','eligible_player_pairs':'','hard_crossing':'','reviewer_notes':''})
+          cap.release()
+          pd.DataFrame(rows).to_csv(root/'blind_visibility_review.csv',index=False)
+          cols=4; per=16
+          for s in range(0,len(thumbs),per):
+              chunk=thumbs[s:s+per]; blank=np.zeros_like(chunk[0]); chunk=chunk+[blank]*(per-len(chunk))
+              sheet=np.vstack([np.hstack(chunk[r*cols:(r+1)*cols]) for r in range(4)])
+              cv2.imwrite(str(root/'sheets'/f'sheet_{s//per+1:02d}.jpg'),sheet,[int(cv2.IMWRITE_JPEG_QUALITY),88])
+          instructions={
+            'schema':'hoopvision.blind-visibility-review.v1',
+            'purpose':'Freeze an eligibility denominator independently of model success.',
+            'rules':['Review source imagery only; no detections or model overlays are shown.','Count only target basketball players in the active playing view.','Fully occluded and off-screen players are recorded separately and excluded only under the frozen acceptance rule.','Detector misses and model abstentions do not change eligibility.','Mark non-target scene only when the supported-profile rule genuinely excludes it.'],
+            'items':len(rows),'sample_rate_hz':15.0,'clip_start_s':4.0,'clip_end_s':16.0
+          }
+          (root/'README.json').write_text(json.dumps(instructions,indent=2)+'\n')
+          print('VISIBILITY_REVIEW_ITEMS',len(rows))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-current-blind-ground-truth-review
+          path: work/out/
+          retention-days: 30
