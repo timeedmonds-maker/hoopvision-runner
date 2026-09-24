@@ -1,0 +1,82 @@
+name: Validate Render-Ledger Acceptance Evaluation
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/validate-render-ledger-evaluator.yml']
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: 2b1a40673571a1633f4d0dd2706785021fed6194
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'numpy<2' pandas scipy opencv-python-headless
+      - name: Create independent synthetic reference and exact render ledger
+        run: |
+          mkdir -p work/out
+          cat > work/reference.csv <<'CSV'
+          output_frame,time_s,player_id,player_name,eligible,fully_occluded,off_screen,x1,y1,x2,y2,floor_anchor_evaluable,floor_anchor_x,floor_anchor_y,review_status
+          0,4.000000,1,Alpha,true,false,false,10,10,30,50,true,20,48,REVIEWED
+          0,4.000000,2,Beta,true,false,false,70,10,90,50,true,80,48,REVIEWED
+          1,4.033333,1,Alpha,true,false,false,12,10,32,50,true,22,48,REVIEWED
+          1,4.033333,2,Beta,true,false,false,68,10,88,50,true,78,48,REVIEWED
+          2,4.066667,1,Alpha,true,false,false,14,10,34,50,true,24,48,REVIEWED
+          2,4.066667,2,Beta,true,false,false,66,10,86,50,true,76,48,REVIEWED
+          CSV
+          cat > work/assignments.csv <<'CSV'
+          time_s,team,player_id,player_name,x1,y1,x2,y2,source_track_id,ring_authorized,floor_anchor_x,floor_anchor_y
+          4.0,A,1,Alpha,10,10,30,50,1,true,20,48
+          4.0,B,2,Beta,70,10,90,50,2,true,80,48
+          CSV
+          cat > work/ledger.csv <<'CSV'
+          output_frame,time_s,source_frame,source_time_s,team,player_id,player_name,display_label,x1,y1,x2,y2,ring_rendered,floor_anchor_x,floor_anchor_y
+          0,4.000000,0,4.000000,A,1,Alpha,ALPHA,10,10,30,50,true,20,48
+          0,4.000000,0,4.000000,B,2,Beta,BETA,70,10,90,50,true,80,48
+          1,4.033333,1,4.033333,A,1,Alpha,ALPHA,12,10,32,50,true,22,48
+          1,4.033333,1,4.033333,B,99,Wrong,WRONG,68,10,88,50,true,78,48
+          2,4.066667,2,4.066667,A,1,Alpha,ALPHA,14,10,34,50,true,24,48
+          CSV
+          cat > work/roster.json <<'JSON'
+          {"teams":{"A":{"players":[{"id":1,"name":"Alpha"}]},"B":{"players":[{"id":2,"name":"Beta"}]}}
+          JSON
+      - name: Run diagnostic evaluator against exact ledger
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$PWD/src" python src/screen_tracker_nextgen/evaluate_native_overlay.py             --reference work/reference.csv             --assignments work/assignments.csv             --render-ledger work/ledger.csv             --roster work/roster.json             --out work/out/eval.json             --geometry-iou .5             --floor-anchor-height-fraction .18
+          python - <<'PY'
+          import json
+          r=json.load(open('work/out/eval.json'))
+          m=r['micro']
+          assert r['prediction_source']=='ENCODED_RENDER_LEDGER'
+          assert r['eligible_pair_denominator']==6
+          # Five bodies rendered geometrically: Beta is completely missing on frame 2.
+          assert abs(m['geometry_coverage']-(5/6))<1e-12, m
+          # One geometrically correct body carries a deliberately wrong name.
+          assert m['wrong_name_frames']==1, m
+          assert abs(m['correct_name_coverage']-(4/6))<1e-12, m
+          assert abs(m['complete_overlay_coverage']-(4/6))<1e-12, m
+          assert m['name_precision']==4/5, m
+          print('HOOPVISION_RENDER_LEDGER_EVALUATOR_OK')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-render-ledger-evaluator-validation
+          path: work/out/eval.json
+          retention-days: 14
