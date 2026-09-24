@@ -1,0 +1,170 @@
+name: Replay Corrected Hawks Physical P1A
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/replay-corrected-physical-p1a.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CORRECTED_SEGMENTS_RUN_ID: '35969360881'
+  CLUSTER_TRANSFER_RUN_ID: '35969840332'
+  FROZEN_EVIDENCE_RUN_ID: '35891572936'
+  DEFAULT_SOURCE_SHA: dc3a08efd65be63cf53a91888763639ba422a30a
+
+jobs:
+  replay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install CPU physical runtime
+        run: |
+          python -m pip install -q 'numpy<2' pandas scipy pytest
+
+      - name: Run physical lifecycle regressions
+        run: |
+          set -euo pipefail
+          python -m pytest -q screen_tracker_nextgen/test_fast_physical_paths.py
+          python -m py_compile screen_tracker_nextgen/build_fast_physical_paths.py
+
+      - name: Recover corrected observations and diagnostic team map
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p corrected transfer frozen
+          gh run download "$CORRECTED_SEGMENTS_RUN_ID" \
+            --repo timeedmonds-maker/hoopvision-runner \
+            --name hoopvision-taxonomy-identity-segments \
+            --dir corrected
+          gh run download "$CLUSTER_TRANSFER_RUN_ID" \
+            --repo timeedmonds-maker/hoopvision-runner \
+            --name hoopvision-corrected-cluster-transfer \
+            --dir transfer
+          gh run download "$FROZEN_EVIDENCE_RUN_ID" \
+            --repo timeedmonds-maker/hoopvision-runner \
+            --name hoopvision-evidence-completed \
+            --dir frozen
+          test -s corrected/corrected_segments/uniform_observations.csv
+          test -s corrected/corrected_segments/segments.csv
+          test -s transfer/cluster_transfer.json
+          test -s frozen/exact_lineup_roster.json
+
+      - name: Rebuild corrected physical graph
+        run: |
+          set -euo pipefail
+          python -m screen_tracker_nextgen.build_fast_physical_paths \
+            --observations corrected/corrected_segments/uniform_observations.csv \
+            --segments corrected/corrected_segments/segments.csv \
+            --team-map-json transfer/cluster_transfer.json \
+            --roster frozen/exact_lineup_roster.json \
+            --out-dir corrected_p1a
+          python -m screen_tracker_nextgen.diagnose_physical_first_loss \
+            --observations corrected/corrected_segments/uniform_observations.csv \
+            --physical-qa corrected_p1a/physical_paths_qa.json \
+            --out corrected_p1a/first_loss_diagnostic.json
+
+      - name: Validate corrected P1A safety and summarize
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import pandas as pd
+
+          qa=json.load(open('corrected_p1a/physical_paths_qa.json'))
+          diag=json.load(open('corrected_p1a/first_loss_diagnostic.json'))
+          paths=pd.read_csv('corrected_p1a/physical_paths.csv').sort_values(
+              ['team','physical_path_id','time_s']
+          )
+          unsupported=[]
+          for (_,pid),g in paths.groupby(['team','physical_path_id'],sort=False):
+              prev=None
+              for row in g.itertuples(index=False):
+                  if prev is not None:
+                      detail=json.loads(str(row.association_detail or '{}'))
+                      if (
+                          int(row.raw_source_track_id)!=int(prev.raw_source_track_id)
+                          and int(row.source_track_id)!=int(prev.source_track_id)
+                          and not bool(detail.get('same_sam31_continuity_group'))
+                          and not bool(detail.get('same_source_track'))
+                      ):
+                          unsupported.append({
+                              'team':str(row.team),
+                              'physical_path_id':str(pid),
+                              'from_time_s':float(prev.time_s),
+                              'to_time_s':float(row.time_s),
+                              'from_raw':int(prev.raw_source_track_id),
+                              'to_raw':int(row.raw_source_track_id),
+                          })
+                  prev=row
+          assert unsupported==[],unsupported
+          assert qa['team_mapping']['qualification_claim']=='NONE_DIAGNOSTIC_ONLY'
+          report={
+              'schema':'hoopvision.corrected-p1a-replay.v1',
+              'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+              'unsupported_cross_track_accepts':unsupported,
+              'precision_window_count':int(qa.get('precision_window_count',0)),
+              'sam31_decision_count':int(qa.get('sam31_decision_count',0)),
+              'teams':{},
+          }
+          for team in ('ATL','HOU'):
+              t=qa['teams'][team]
+              d=diag['teams'][team]
+              report['teams'][team]={
+                  'physical_fragment_count':int(t['physical_fragment_count']),
+                  'forward_backward_agreement_fraction':float(t['forward_backward_agreement_fraction']),
+                  'precision_required_rows':int(t['precision_required_rows']),
+                  'forward_margin_rejections':int(t['forward_tracking']['margin_rejections']),
+                  'backward_margin_rejections':int(t['backward_tracking']['margin_rejections']),
+                  'same_raw_forward_margin':int(d['forward_rejections']['same_raw_margin']),
+                  'same_raw_backward_margin':int(d['backward_rejections']['same_raw_margin']),
+                  'unmatched_active_states':int(t['forward_tracking'].get('unmatched_active_states',0)),
+                  'unmatched_observations':int(t['forward_tracking'].get('unmatched_observations',0)),
+                  'raw_claim_revocations':int(t['forward_tracking'].get('raw_claim_revocations',0)),
+              }
+          open('corrected_p1a/replay_summary.json','w').write(
+              json.dumps(report,indent=2,sort_keys=True)+'\n'
+          )
+          print('HOOPVISION_CORRECTED_P1A='+json.dumps(report,sort_keys=True))
+          PY
+
+      - name: Upload corrected P1A evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-corrected-p1a-replay
+          path: corrected_p1a/
+          if-no-files-found: error
+          retention-days: 14
