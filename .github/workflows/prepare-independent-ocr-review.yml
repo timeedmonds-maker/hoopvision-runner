@@ -8,43 +8,64 @@ permissions:
   contents: read
   actions: read
 env:
-  LEDGER_RUN_ID: '35973189638'
+  LOCALISED_OCR_RUN_ID: '35972536456'
 jobs:
   prepare:
     runs-on: ubuntu-24.04
+    timeout-minutes: 8
     steps:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - run: python -m pip install -q pandas
-      - env:
+      - run: python -m pip install -q pandas pillow
+      - name: Recover blind source crops and reference template
+        env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir ledger
-          gh run download "$LEDGER_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-physical-ocr-ledger --dir ledger
-      - run: |
+          set -euo pipefail
+          mkdir source
+          gh run download "$LOCALISED_OCR_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-ppocrv6-localised-comparison --dir source
+          test -s source/review/blind_reference_template.csv
+          test -d source/localisation/crops
+          test "$(find source/localisation/crops -type f -name '*.jpg' | wc -l)" -eq 554
+          # Deliberately do not copy source/review/candidate_predictions.csv into the review package.
+      - name: Build prediction-blind review package with visible crops
+        run: |
+          set -euo pipefail
+          mkdir -p review/crops
+          cp source/review/blind_reference_template.csv review/blind_reference_template.csv
+          cp source/localisation/crops/*.jpg review/crops/
           python - <<'PY'
-          import json,pandas as pd
-          d=pd.read_csv('ledger/identity_coverage_ledger.csv')
-          root='physical_path_id' if 'physical_path_id' in d else 'root_id'
-          team=next((c for c in ['team','team_id','team_code'] if c in d),None)
-          crop=next((c for c in ['localised_crop_count','localized_crop_count','localised_crop_references','localized_crop_references','crop_references'] if c in d),None)
-          cols=[c for c in [root,team,crop] if c]
-          out=d[cols].drop_duplicates(root).copy()
-          if crop:
-            out[crop]=pd.to_numeric(out[crop],errors='coerce').fillna(0)
-            out=out[out[crop]>0]
-          out['review_jersey_number']=''
-          out['review_legible']=''
-          out['reviewer']=''
-          out['status']='UNREVIEWED'
-          out.to_csv('independent_ocr_review.csv',index=False)
-          s={'schema':'hoopvision.independent-ocr-review.v1','eligible_fragments':len(out),'reviewed':0,'identity_authorized':False,'candidate_predictions_included':False,'note':'Blind review preparation only. No identity assignment or threshold change.'}
-          open('summary.json','w').write(json.dumps(s,indent=2)+'\n')
+          import json, hashlib
+          from pathlib import Path
+          import pandas as pd
+          d=pd.read_csv('review/blind_reference_template.csv')
+          assert len(d)==554
+          assert 'crop_reference' in d
+          # Verify every reference resolves to an actual crop without exposing predictions.
+          missing=[]
+          for ref in d.crop_reference.astype(str):
+              p=Path('review')/ref
+              if not p.exists(): missing.append(ref)
+          assert not missing, missing[:5]
+          assert not Path('review/candidate_predictions.csv').exists()
+          d['review_readability']=''
+          d['review_exact_number']=''
+          d['review_complete_number_visible']=''
+          d['review_negative_type']=''
+          d['reviewer']=''
+          d['review_status']='PENDING'
+          d.to_csv('review/blind_reference_template.csv',index=False)
+          manifest=[]
+          for p in sorted(Path('review/crops').glob('*.jpg')):
+              manifest.append({'crop_reference':str(Path('crops')/p.name),'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),'bytes':p.stat().st_size})
+          Path('review/crop_manifest.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          s={'schema':'hoopvision.independent-ocr-review.v2','eligible_crops':len(d),'visible_crop_files':len(manifest),'reviewed':0,'identity_authorized':False,'candidate_predictions_included':False,'prediction_file_present':False,'accuracy_status':'UNKNOWN','note':'Prediction-blind review package with actual jersey crops. No identity assignment, threshold change, or generated ground truth.'}
+          Path('review/summary.json').write_text(json.dumps(s,indent=2,sort_keys=True)+'\n')
           print('HOOPVISION_INDEPENDENT_OCR_REVIEW='+json.dumps(s,sort_keys=True))
           PY
       - uses: actions/upload-artifact@v4
         with:
           name: hoopvision-independent-ocr-review
-          path: |
-            independent_ocr_review.csv
-            summary.json
+          path: review/
+          if-no-files-found: error
+          retention-days: 30
