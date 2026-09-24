@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
-      - run: python -m pip install -q 'numpy<2' pandas scipy opencv-python-headless
+      - run: python -m pip install -q 'numpy<2' pandas scipy opencv-python-headless pillow
       - name: Create independent synthetic reference and exact render ledger
         run: |
           mkdir -p work/out
