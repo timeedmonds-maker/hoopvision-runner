@@ -1,5 +1,6 @@
 name: Inspect Runtime Image Identity
 # registry metadata only
+# release-candidate-refresh-20260925
 
 on:
   push:
