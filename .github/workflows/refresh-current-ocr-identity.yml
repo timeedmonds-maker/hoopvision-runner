@@ -1,0 +1,176 @@
+name: Refresh OCR Evidence Onto Current Physical Graph
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/refresh-current-ocr-identity.yml']
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 4360c2c01bda12386bb75635da923b0049304347
+  CURRENT_PHYSICAL_RUN_ID: '36053461888'
+  OCR_RUN_ID: '35972536456'
+  SEASON: '2025-26'
+
+jobs:
+  refresh:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q pandas numpy
+      - name: Recover current graph and reusable OCR evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/current work/ocr work/out
+          gh run download "$CURRENT_PHYSICAL_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-current-candidate-physical --dir work/current
+          gh run download "$OCR_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-ppocrv6-localised-comparison --dir work/ocr
+          test -s work/current/p1a/physical_paths.csv
+          test -s work/ocr/review/candidate_predictions.csv
+          test -s src/config/season_roster_number_map.json
+      - name: Spatially remap crops and de-correlate jersey evidence
+        run: |
+          python - <<'PY'
+          import ast,json,math
+          from pathlib import Path
+          import pandas as pd
+          p=pd.read_csv('work/current/p1a/physical_paths.csv')
+          o=pd.read_csv('work/ocr/review/candidate_predictions.csv',dtype=str).fillna('')
+          rosters=json.load(open('src/config/season_roster_number_map.json'))['rosters']
+          season='2025-26'
+          def box(s):
+              try:
+                  v=ast.literal_eval(str(s)); return tuple(map(float,v))
+              except Exception:return None
+          def ios(a,b):
+              x1=max(a[0],b[0]);y1=max(a[1],b[1]);x2=min(a[2],b[2]);y2=min(a[3],b[3])
+              inter=max(0,x2-x1)*max(0,y2-y1); aa=max(1e-9,(a[2]-a[0])*(a[3]-a[1]))
+              return inter/aa
+          by_frame={int(k):g for k,g in p.groupby('source_frame')}
+          mapped=[]; unmapped=[]
+          for r in o.itertuples(index=False):
+              try: sf=int(float(r.source_frame))
+              except: continue
+              cb=box(r.crop_xyxy)
+              if cb is None or sf not in by_frame:
+                  unmapped.append({'crop_reference':r.crop_reference,'reason':'no_frame_or_box'}); continue
+              scores=[]
+              for q in by_frame[sf].itertuples(index=False):
+                  pb=(float(q.x1),float(q.y1),float(q.x2),float(q.y2))
+                  scores.append((ios(cb,pb),str(q.physical_path_id),str(q.team),int(q.raw_source_track_id)))
+              scores.sort(reverse=True,key=lambda x:x[0])
+              best=scores[0] if scores else (0,'','','')
+              second=scores[1][0] if len(scores)>1 else 0.0
+              if best[0] < .55 or (best[0]-second)<.08:
+                  unmapped.append({'crop_reference':r.crop_reference,'source_frame':sf,'best_ios':best[0],'second_ios':second,'reason':'weak_or_ambiguous_spatial_match'}); continue
+              def norm_num(x):
+                  s=str(x).strip()
+                  if not s:return ''
+                  try:
+                      if s.endswith('.0'): s=s[:-2]
+                  except: pass
+                  return s
+              mn=norm_num(r.medium_number); sn=norm_num(r.small_number)
+              agree=(mn!='' and mn==sn)
+              mapped.append({
+                  'crop_reference':r.crop_reference,'crop_sha256':r.crop_sha256,'source_frame':sf,'pts_s':float(r.pts_s),
+                  'physical_path_id':best[1],'team':best[2],'current_raw_track_id':best[3],
+                  'best_ios':best[0],'second_ios':second,
+                  'medium_number':mn,'small_number':sn,'cross_model_exact':agree,
+                  'medium_score':r.medium_raw_score,'small_score':r.small_raw_score,
+                  'old_physical_span_revision':r.physical_span_revision,
+              })
+          m=pd.DataFrame(mapped); u=pd.DataFrame(unmapped)
+          m.to_csv('work/out/current_crop_mapping.csv',index=False); u.to_csv('work/out/unmapped_crops.csv',index=False)
+          rows=[]; groups_json={}
+          for pid,g in m.groupby('physical_path_id',sort=True):
+              team=str(g.team.iloc[0]); gg=g[g.cross_model_exact==True].sort_values('pts_s').copy()
+              groups=[]; cur=[]
+              for r in gg.itertuples(index=False):
+                  if not cur or float(r.pts_s)-float(cur[-1].pts_s) < .75:
+                      cur.append(r)
+                  else:
+                      groups.append(cur); cur=[r]
+              if cur: groups.append(cur)
+              votes=[]
+              gj=[]
+              contradictions=[]
+              for grp in groups:
+                  nums=[str(x.medium_number) for x in grp if str(x.medium_number)]
+                  counts=pd.Series(nums).value_counts() if nums else pd.Series(dtype=int)
+                  if len(counts)==0: continue
+                  top=str(counts.index[0]); topn=int(counts.iloc[0])
+                  tied=(len(counts)>1 and int(counts.iloc[1])==topn)
+                  if tied:
+                      gj.append({'start_s':float(grp[0].pts_s),'end_s':float(grp[-1].pts_s),'state':'CONFLICTED_WITHIN_GROUP','numbers':dict(counts)})
+                      contradictions.append(dict(counts)); continue
+                  votes.append(top)
+                  gj.append({'start_s':float(grp[0].pts_s),'end_s':float(grp[-1].pts_s),'state':'VOTE','number':top,'crop_count':len(grp)})
+              vc=pd.Series(votes).value_counts() if votes else pd.Series(dtype=int)
+              cand=str(vc.index[0]) if len(vc) else ''
+              top=int(vc.iloc[0]) if len(vc) else 0
+              runner=int(vc.iloc[1]) if len(vc)>1 else 0
+              conflict=(len(vc)>1 and runner>0)
+              state='UNKNOWN_NO_EVIDENCE'
+              if top:
+                  state='CANDIDATE'
+                  if conflict: state='CONFLICTED'
+                  elif top<2: state='UNKNOWN_INSUFFICIENT_INDEPENDENT_GROUPS'
+              rk=f'{season}:{team}'; rv=rosters.get(rk,{})
+              roster_val=rv.get(cand) if cand else None
+              if roster_val is None: roster_state='NO_NUMBER_CANDIDATE' if not cand else 'NUMBER_NOT_ON_SEASON_TEAM_ROSTER'
+              elif isinstance(roster_val,list): roster_state='AMBIGUOUS_ROSTER_CANDIDATE'
+              else: roster_state='UNIQUE_ROSTER_CANDIDATE'
+              rows.append({
+                  'physical_path_id':pid,'team':team,'mapped_crop_count':int(len(g)),'exact_cross_model_crop_count':int(len(gg)),
+                  'independent_temporal_groups':int(len(votes)),'candidate_number':cand,'candidate_group_votes':top,'runner_up_group_votes':runner,
+                  'jersey_evidence_state':state,'roster_state':roster_state,
+                  'roster_candidate':json.dumps(roster_val,ensure_ascii=False) if roster_val is not None else '',
+                  'identity_state':'CANDIDATE' if state=='CANDIDATE' and roster_state=='UNIQUE_ROSTER_CANDIDATE' else ('CONFLICTED' if state=='CONFLICTED' or roster_state=='AMBIGUOUS_ROSTER_CANDIDATE' else 'UNKNOWN'),
+                  'identity_authorized':False,
+              })
+              groups_json[pid]=gj
+          out=pd.DataFrame(rows)
+          allp=pd.DataFrame({'physical_path_id':sorted(p.physical_path_id.astype(str).unique())})
+          out=allp.merge(out,on='physical_path_id',how='left').fillna('')
+          out.to_csv('work/out/current_physical_ocr_consensus.csv',index=False)
+          Path('work/out/current_temporal_groups.json').write_text(json.dumps(groups_json,indent=2,sort_keys=True)+'\n')
+          summary={
+             'schema':'hoopvision.current-physical-ocr-refresh.v1','candidate_sha':'4360c2c01bda12386bb75635da923b0049304347',
+             'physical_fragments':int(p.physical_path_id.astype(str).nunique()),'input_ocr_crops':int(len(o)),
+             'spatially_mapped_crops':int(len(m)),'unmapped_or_ambiguous_crops':int(len(u)),
+             'paths_with_any_mapped_crop':int(m.physical_path_id.nunique()) if len(m) else 0,
+             'paths_with_exact_cross_model_crop':int(m[m.cross_model_exact==True].physical_path_id.nunique()) if len(m) else 0,
+             'paths_with_2plus_independent_groups':int((pd.to_numeric(out.get('independent_temporal_groups',0),errors='coerce').fillna(0)>=2).sum()),
+             'unique_roster_candidate_paths':int((out.get('identity_state','')=='CANDIDATE').sum()),
+             'conflicted_paths':int((out.get('identity_state','')=='CONFLICTED').sum()),
+             'accepted_identity_paths':0,'identity_authorized':False,
+             'ocr_calibration':'UNKNOWN_INDEPENDENT_LABELS_PENDING',
+             'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+             'evidence_rule':'Medium+Small exact agreement on one crop is one observation; adjacent reads within 0.75s are one correlated temporal group; contradictions retained.'
+          }
+          Path('work/out/current_physical_ocr_summary.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_CURRENT_OCR_REFRESH='+json.dumps(summary,sort_keys=True))
+          print(out[['physical_path_id','team','mapped_crop_count','exact_cross_model_crop_count','independent_temporal_groups','candidate_number','candidate_group_votes','runner_up_group_votes','jersey_evidence_state','roster_state','roster_candidate','identity_state']].to_string(index=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-current-physical-ocr-refresh
+          path: work/out/
+          retention-days: 30
