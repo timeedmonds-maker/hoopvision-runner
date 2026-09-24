@@ -1,0 +1,206 @@
+name: Compare PP-OCRv6 on Localised Hawks Numbers
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Exact private HoopVision candidate SHA
+        required: false
+        type: string
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/compare-ppocrv6-localised.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  LOCALISATION_RUN_ID: '35967538305'
+  FROZEN_EVIDENCE_RUN_ID: '35891572936'
+  DEFAULT_SOURCE_SHA: a189610e39ee515f7433cff0fa2cc0240cb85dd3
+
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Resolve exact candidate
+        id: source
+        shell: bash
+        env:
+          INPUT_SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          set -euo pipefail
+          SHA="${INPUT_SOURCE_SHA:-$DEFAULT_SOURCE_SHA}"
+          test "${#SHA}" -eq 40
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact private candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ steps.source.outputs.sha }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          persist-credentials: false
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install exact recogniser runtime
+        run: |
+          set -euo pipefail
+          python -m pip install -q --upgrade pip
+          python -m pip install -q torch==2.10.0 torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -q transformers==5.17.0 huggingface_hub safetensors pillow 'numpy<2' pandas opencv-python-headless psutil
+
+      - name: Run OCR adapter and taxonomy regressions
+        run: |
+          set -euo pipefail
+          python -m unittest             hoopvision.tests.test_ppocrv6_jersey_ocr             hoopvision.tests.test_commercial_ocr_boundary             hoopvision.tests.test_rfdetr_basketball_taxonomy -v
+
+      - name: Recover corrected localised number crops and frozen physical evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p localisation frozen
+          gh run download "$LOCALISATION_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-hawks-number-localisation             --dir localisation
+          gh run download "$FROZEN_EVIDENCE_RUN_ID"             --repo timeedmonds-maker/hoopvision-runner             --name hoopvision-evidence-completed             --dir frozen
+          test -f localisation/qa.json
+          test -f localisation/number_localisation.csv
+          test -d localisation/crops
+          python - <<'PY'
+          import json, pandas as pd
+          q=json.load(open('localisation/qa.json'))
+          d=pd.read_csv('localisation/number_localisation.csv')
+          accepted=d[d.status=='LOCALISED_NUMBER_CROP']
+          assert q['source_sha256']=='23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a'
+          assert q['rules']['production_number_class']==3
+          assert abs(float(q['rules']['production_detector_confidence_threshold'])-.045)<1e-12
+          assert len(accepted)==554
+          assert accepted.crop_reference.notna().all()
+          print('HOOPVISION_LOCALISED_INPUT='+json.dumps({
+              'crop_count':len(accepted),
+              'unique_track_ids':int(accepted.track_id.nunique()),
+              'median_crop_height':float(accepted.crop_height.median()),
+              'median_crop_width':float(accepted.crop_width.median()),
+          },sort_keys=True))
+          PY
+
+      - name: Stage exact official PP-OCRv6 snapshots
+        run: |
+          set -euo pipefail
+          mkdir -p models/ppocrv6
+          python tools/stage_ppocrv6_assets.py --backend ppocrv6-medium --destination models/ppocrv6/medium
+          python tools/stage_ppocrv6_assets.py --backend ppocrv6-small --destination models/ppocrv6/small
+
+      - name: Benchmark Medium warm batched recognition
+        run: |
+          set -euo pipefail
+          mkdir -p localised_medium
+          EXTRA=()
+          if test -f frozen/physical_paths/physical_paths.csv; then
+            EXTRA+=(--physical-paths frozen/physical_paths/physical_paths.csv --physical-reference frozen-event301-physical-paths)
+          fi
+          /usr/bin/time -v -o localised_medium/time.txt             python tools/benchmark_ppocrv6_localised_crops.py               --localisation-csv localisation/number_localisation.csv               --crop-root localisation               "${EXTRA[@]}"               --backend ppocrv6-medium               --snapshot-dir models/ppocrv6/medium               --device cpu               --batch-size 32               --out localised_medium
+
+      - name: Benchmark Small warm batched recognition
+        run: |
+          set -euo pipefail
+          mkdir -p localised_small
+          EXTRA=()
+          if test -f frozen/physical_paths/physical_paths.csv; then
+            EXTRA+=(--physical-paths frozen/physical_paths/physical_paths.csv --physical-reference frozen-event301-physical-paths)
+          fi
+          /usr/bin/time -v -o localised_small/time.txt             python tools/benchmark_ppocrv6_localised_crops.py               --localisation-csv localisation/number_localisation.csv               --crop-root localisation               "${EXTRA[@]}"               --backend ppocrv6-small               --snapshot-dir models/ppocrv6/small               --device cpu               --batch-size 32               --out localised_small
+
+      - name: Build measured comparison and blind review template
+        run: |
+          set -euo pipefail
+          mkdir -p review
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          import pandas as pd
+
+          loc=pd.read_csv('localisation/number_localisation.csv')
+          loc=loc[loc.status=='LOCALISED_NUMBER_CROP'].copy()
+          med=pd.read_csv('localised_medium/evidence.csv')
+          sml=pd.read_csv('localised_small/evidence.csv')
+          medq=json.load(open('localised_medium/qa.json'))
+          smlq=json.load(open('localised_small/qa.json'))
+
+          keys=['crop_reference','source_frame','pts_s','crop_xyxy','crop_sha256',
+                'track_id','raw_track_id','physical_span_revision']
+          # evidence.csv stores crop provenance emitted by the recogniser; retain
+          # candidate outputs separately from the blind reference.
+          mp=med[['crop_reference','raw_prediction','raw_score','number','status','reason']].copy()
+          mp=mp.rename(columns={
+              'raw_prediction':'medium_raw_prediction','raw_score':'medium_raw_score',
+              'number':'medium_number','status':'medium_status','reason':'medium_reason'})
+          sp=sml[['crop_reference','raw_prediction','raw_score','number','status','reason']].copy()
+          sp=sp.rename(columns={
+              'raw_prediction':'small_raw_prediction','raw_score':'small_raw_score',
+              'number':'small_number','status':'small_status','reason':'small_reason'})
+          predictions=med[keys].merge(mp,on='crop_reference').merge(sp,on='crop_reference')
+          predictions.to_csv('review/candidate_predictions.csv',index=False)
+
+          ref=med[keys].copy()
+          ref['review_readability']=''
+          ref['review_exact_number']=''
+          ref['review_complete_number_visible']=''
+          ref['review_negative_type']=''
+          ref['reviewer']=''
+          ref['review_status']='PENDING'
+          ref.to_csv('review/blind_reference_template.csv',index=False)
+
+          report={
+              'schema':'hoopvision.ppocrv6-localised-comparison.v1',
+              'source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
+              'localisation_run_id':35967538305,
+              'crop_count':len(loc),
+              'independent_reference_status':'PENDING_INDEPENDENT_REVIEW',
+              'accuracy_status':'UNKNOWN',
+              'medium':medq,
+              'small':smlq,
+              'candidate_disagreement_count':int((med.raw_prediction.astype(str)!=sml.raw_prediction.astype(str)).sum()),
+              'blind_reference_file':'review/blind_reference_template.csv',
+              'candidate_predictions_file':'review/candidate_predictions.csv',
+              'note':'Predictions are not ground truth; threshold calibration and identity voting remain disabled.'
+          }
+          Path('ppocrv6_localised_comparison.json').write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_PPOCRV6_LOCALISED_COMPARISON='+json.dumps(report,sort_keys=True))
+          assert medq['identity_authorisation_enabled'] is False
+          assert smlq['identity_authorisation_enabled'] is False
+          PY
+
+      - name: Upload localised PP-OCRv6 comparison
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-ppocrv6-localised-comparison
+          path: |
+            ppocrv6_localised_comparison.json
+            localised_medium/qa.json
+            localised_medium/evidence.json
+            localised_medium/evidence.csv
+            localised_medium/batch_timings.json
+            localised_medium/time.txt
+            localised_small/qa.json
+            localised_small/evidence.json
+            localised_small/evidence.csv
+            localised_small/batch_timings.json
+            localised_small/time.txt
+            models/ppocrv6/medium/hoopvision_snapshot.json
+            models/ppocrv6/small/hoopvision_snapshot.json
+            review/blind_reference_template.csv
+            review/candidate_predictions.csv
+            localisation/qa.json
+            localisation/number_localisation.csv
+            localisation/crops/*.jpg
+          if-no-files-found: warn
+          retention-days: 14
