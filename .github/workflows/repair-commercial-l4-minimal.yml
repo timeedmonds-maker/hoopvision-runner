@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/repair-commercial-l4-minimal.yml'
+      - 'scripts/repair_commercial_l4.sh'
+      - 'scripts/install_ppocrv6_exact.py'
 
 permissions:
   contents: read
