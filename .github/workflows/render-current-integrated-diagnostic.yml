@@ -11,8 +11,8 @@ permissions:
   id-token: write
 
 env:
-  CANDIDATE_SHA: 95f0144732b53eb53fb3e928e7e146a3d1ba56dc
-  P1A_RUN_ID: '35972465174'
+  CANDIDATE_SHA: 0a11572c868bd1b0741980e2588a7a8c7a928e59
+  P1A_RUN_ID: '36051317583'
   EXPECTED_SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
@@ -70,7 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p work/p1a
-          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir work/p1a
+          gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-same-raw-resume-p1a --dir work/p1a
           test -s work/p1a/physical_paths.csv
       - name: Build diagnostic render assignments and coverage intervals
         run: |
@@ -108,7 +108,7 @@ jobs:
               mid=group[len(group)//2]
               intervals.append({'start_tracking_frame':int(start.tracking_frame),'end_tracking_frame':int(prev.tracking_frame),'start_s':float(start.time_s),'end_s':float(prev.time_s),'representative_s':float(mid.time_s),'min_roots':min(int(x.physical_roots) for x in group),'max_roots':max(int(x.physical_roots) for x in group),'sampled_frames':len(group)})
           pd.DataFrame(intervals).to_csv('work/root_deficit_intervals.csv',index=False)
-          summary={'candidate_sha':'95f0144732b53eb53fb3e928e7e146a3d1ba56dc','physical_fragments':len(ids),'sampled_frames':int(len(c)),'frames_with_10_roots':int((c.physical_roots==10).sum()),'frames_below_10_roots':int((c.physical_roots<10).sum()),'deficit_intervals':len(intervals),'identity_state':'UNRESOLVED_CLIP_LOCAL_IDS_ONLY','accepted_names':0,'note':'Diagnostic labels are physical fragment IDs, not roster identities.'}
+          summary={'candidate_sha':'0a11572c868bd1b0741980e2588a7a8c7a928e59','physical_fragments':len(ids),'sampled_frames':int(len(c)),'frames_with_10_roots':int((c.physical_roots==10).sum()),'frames_below_10_roots':int((c.physical_roots<10).sum()),'deficit_intervals':len(intervals),'identity_state':'UNRESOLVED_CLIP_LOCAL_IDS_ONLY','accepted_names':0,'note':'Diagnostic labels are physical fragment IDs, not roster identities.'}
           Path('work/diagnostic_summary.json').write_text(json.dumps(summary,indent=2)+'\n')
           print(json.dumps(summary,sort_keys=True))
           PY
