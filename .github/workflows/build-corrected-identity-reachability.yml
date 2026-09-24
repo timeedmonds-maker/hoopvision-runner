@@ -27,13 +27,14 @@ jobs:
       - name: Recover corrected evidence only
         env:
           GH_TOKEN: ${{ github.token }}
+          HOOPVISION_104_READ_TOKEN: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
         run: |
           set -euo pipefail
           mkdir -p p1a ledger continuity
           gh run download "$P1A_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-replay --dir p1a
           gh run download "$LEDGER_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-physical-ocr-ledger --dir ledger
           gh run download "$CONTINUITY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-corrected-p1a-continuity-extract --dir continuity || true
-          gh api -H 'Accept: application/vnd.github.raw+json' '/repos/timeedmonds-maker/104/contents/config/season_roster_number_map.json?ref=hoopvision-proven-enhancements' > season_roster_number_map.json
+          curl -fsSL -H "Authorization: Bearer ${HOOPVISION_104_READ_TOKEN}" -H "Accept: application/vnd.github.raw+json" "https://api.github.com/repos/timeedmonds-maker/104/contents/config/season_roster_number_map.json?ref=hoopvision-proven-enhancements" > season_roster_number_map.json
           test -s season_roster_number_map.json
           test -s p1a/physical_paths.csv
           test -s ledger/identity_coverage_ledger.csv
