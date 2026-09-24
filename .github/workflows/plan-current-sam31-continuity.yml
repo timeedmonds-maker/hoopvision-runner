@@ -11,7 +11,7 @@ permissions:
   actions: read
 
 env:
-  CANDIDATE_SHA: 2767b38f058b67320aed167ad15c9831eb2512f6
+  CANDIDATE_SHA: 70a8b80d834c2f5d0323b8859824b1fdff5f8a2e
   CURRENT_PHYSICAL_RUN_ID: '36053461888'
   SOURCE_RECOVERY_RUN_ID: '35923251814'
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
@@ -57,7 +57,7 @@ jobs:
           windows=p if isinstance(p,list) else p.get('windows',p.get('plan',[]))
           rep={
             'schema':'hoopvision.current-sam31-plan-summary.v1',
-            'candidate_sha':'2767b38f058b67320aed167ad15c9831eb2512f6',
+            'candidate_sha':'70a8b80d834c2f5d0323b8859824b1fdff5f8a2e',
             'physical_decisions_input':26,
             'planned_windows':len(windows),
             'seed_count':sum(int(x.get('seed_count',0)) for x in windows),
