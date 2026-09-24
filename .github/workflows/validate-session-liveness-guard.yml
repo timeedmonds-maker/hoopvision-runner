@@ -1,0 +1,48 @@
+name: Validate Session Liveness Guard
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/validate-session-liveness-guard.yml']
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: f2436b19bd3f0fc280d09c1013b904129163897a
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Syntax and focused control-plane tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile src/tools/release/dev_supervisor.py src/tools/release/submit_dev.py
+          PYTHONPATH=src python -m unittest src/hoopvision/tests/test_control_plane_contract.py
+          python - <<'PY'
+          import ast, pathlib
+          s=pathlib.Path('src/tools/release/submit_dev.py').read_text()
+          t=ast.parse(s)
+          assert 'SESSION_NOT_LIVE' in s
+          assert 'heartbeat_unix_s' in s
+          d=pathlib.Path('src/tools/release/dev_supervisor.py').read_text()
+          ast.parse(d)
+          assert 'HOOPVISION_PULL_ERROR' in d
+          assert 'heartbeat_session' in d
+          assert 'HOOPVISION_SESSION_HEARTBEAT_LOST_OWNERSHIP' in d
+          print('HOOPVISION_SESSION_LIVENESS_GUARD_OK')
+          PY
