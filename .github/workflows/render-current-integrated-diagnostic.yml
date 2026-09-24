@@ -8,11 +8,17 @@ on:
 permissions:
   contents: read
   actions: read
+  id-token: write
 
 env:
   CANDIDATE_SHA: d679b5f5ab5f1ecf2c7be2f3733678da9933b3dc
   P1A_RUN_ID: '35972465174'
   EXPECTED_SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  SOURCE_OBJECT: fixtures/fresh/atl-hou-0012500014-event301-pxp/source_native.mp4
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
 jobs:
   render:
@@ -37,46 +43,26 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
           python -m pip install -q 'numpy<2' pandas opencv-python-headless pillow requests
+      - name: Authenticate to Google Cloud for immutable fixture
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
       - name: Recover exact Event301 source
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p work
+          gcloud storage cp "gs://$BUCKET/$SOURCE_OBJECT" work/source_event301.mp4
+          GOT="$(sha256sum work/source_event301.mp4 | awk '{print $1}')"
+          test "$GOT" = "$EXPECTED_SOURCE_SHA256" || { echo "source hash mismatch $GOT != $EXPECTED_SOURCE_SHA256" >&2; exit 2; }
           python - <<'PY'
-          import hashlib,re,subprocess,sys,json
+          import json,hashlib
           from pathlib import Path
-          from urllib.parse import urljoin,urlsplit,urlunsplit
-          import requests
-          sys.path.insert(0,'src/tools')
-          from fetch_official_nba_event_clip import parse,UA
-          game='0012500014'; event=301
-          expected='23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a'
-          page,angles,_=parse(game,event)
-          matches=[x for x in angles if str(x.get('label','')).strip()=='Play by Play']
-          if len(matches)!=1: raise SystemExit(f'expected one Play by Play angle, got {matches}')
-          url=matches[0]['url']; headers={'User-Agent':UA,'Referer':'https://clips.nba.com/'}
-          r=requests.get(url,headers=headers,timeout=30); r.raise_for_status(); txt=r.text
-          if '#EXT-X-STREAM-INF' in txt:
-              lines=[x.strip() for x in txt.splitlines() if x.strip()]; variants=[]
-              for i,line in enumerate(lines):
-                  if not line.startswith('#EXT-X-STREAM-INF'): continue
-                  rs=re.search(r'RESOLUTION=(\d+)x(\d+)',line); child=None
-                  for q in lines[i+1:i+5]:
-                      if not q.startswith('#'): child=q; break
-                  if not child: continue
-                  full=urljoin(url,child)
-                  if not urlsplit(full).query and urlsplit(url).query:
-                      b=urlsplit(url); f=urlsplit(full); full=urlunsplit((f.scheme,f.netloc,f.path,b.query,f.fragment))
-                  variants.append((int(rs.group(1)) if rs else 10**9,int(rs.group(2)) if rs else 0,full))
-              under=[v for v in variants if v[0]<=960]
-              if not under: raise SystemExit('no <=960 HLS variant')
-              _,_,url=max(under,key=lambda x:x[0])
-          Path('work').mkdir(exist_ok=True)
-          out=Path('work/source_event301.mp4')
-          hdr=f'User-Agent: {UA}\r\nReferer: https://clips.nba.com/\r\n'
-          subprocess.run(['ffmpeg','-y','-v','error','-rw_timeout','30000000','-headers',hdr,'-i',url,'-c','copy',str(out)],check=True,timeout=180)
-          got=hashlib.sha256(out.read_bytes()).hexdigest()
-          if got!=expected: raise SystemExit(f'source hash mismatch {got} != {expected}')
-          Path('work/source_verification.json').write_text(json.dumps({'game_id':game,'event':event,'angle':'Play by Play','sha256':got,'exact_match':True},indent=2)+'\n')
+          p=Path('work/source_event301.mp4')
+          got=hashlib.sha256(p.read_bytes()).hexdigest()
+          Path('work/source_verification.json').write_text(json.dumps({'game_id':'0012500014','event':301,'angle':'Play by Play','sha256':got,'exact_match':True,'source':'immutable_gcs_fixture'},indent=2)+'\n')
           print('SOURCE_OK',got)
           PY
       - name: Recover corrected physical paths
