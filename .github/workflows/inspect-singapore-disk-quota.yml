@@ -1,0 +1,43 @@
+name: Inspect Singapore Disk Quota
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-singapore-disk-quota.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  READ_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.READ_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect Singapore instances and disks
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "=== INSTANCES ==="
+          gcloud compute instances list --project "$PROJECT_ID" --filter='zone~asia-southeast1-' --format='table(name,zone,status,machineType.basename(),disks[].source.basename())' || true
+          echo "=== DISKS ==="
+          gcloud compute disks list --project "$PROJECT_ID" --filter='zone~asia-southeast1-' --format='table(name,zone,sizeGb,type.basename(),status,users.list():label=USERS)' || true
+          echo "=== REGIONAL SSD QUOTA ==="
+          gcloud compute regions describe asia-southeast1 --project "$PROJECT_ID" --format=json 2>/dev/null | python - <<'PY'
+          import json,sys
+          try:d=json.load(sys.stdin)
+          except Exception: raise SystemExit(0)
+          for q in d.get('quotas',[]):
+              if 'SSD' in str(q.get('metric','')).upper():
+                  print(q)
+          PY
