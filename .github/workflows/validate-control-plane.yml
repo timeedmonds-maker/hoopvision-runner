@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     env:
-      DEFAULT_SOURCE_SHA: 6647e5ad014a5628fa23206f4d4f214257e2d86f
+      DEFAULT_SOURCE_SHA: e538ac58debc64f1f6ec1296e195441e1da7d374
     steps:
       - name: Resolve exact candidate
         id: source
@@ -49,7 +49,7 @@ jobs:
       - name: Compile actual control-plane consumers
         run: |
           set -euo pipefail
-          python -m py_compile             hoopvision/core/control_plane_contract.py             tools/release/dev_supervisor.py             tools/release/submit_dev.py             hoopvision/worker/interactive_service.py
+          python -m py_compile             hoopvision/core/control_plane_contract.py             tools/release/dev_supervisor.py             tools/release/submit_dev.py             hoopvision/worker/interactive_service.py             hoopvision/core/ppocrv6_jersey_ocr.py             tools/stage_ppocrv6_assets.py
 
       - name: Install commercial OCR smoke dependencies
         run: |
@@ -66,7 +66,7 @@ jobs:
             hoopvision/worker/run_fresh_hawks_all_player.py \
             hoopvision/worker/run_hawks_event296_all_player.py \
             hoopvision/worker/run_pelicans_season_roster.py
-          python -m unittest -v hoopvision.tests.test_commercial_jersey_ocr
+          python -m unittest -v             hoopvision.tests.test_commercial_jersey_ocr             hoopvision.tests.test_ppocrv6_jersey_ocr             hoopvision.tests.test_rfdetr_basketball_taxonomy
           mkdir -p /tmp/hoopvision-ocr
           curl -fsSL https://github.com/gitakoos/ocr-models/releases/download/v1/rec_latin.onnx -o /tmp/hoopvision-ocr/ppocrv5_latin_rec.onnx
           curl -fsSL https://github.com/gitakoos/ocr-models/releases/download/v1/ppocrv5_latin_dict.txt -o /tmp/hoopvision-ocr/ppocrv5_latin_dict.txt
