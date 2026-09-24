@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install -q --upgrade pip
-          python -m pip install -q torch==2.10.0 --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -q torch==2.10.0 torchvision --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -q transformers==5.17.0 huggingface_hub safetensors pillow
       - name: Probe exact official snapshots
         run: |
