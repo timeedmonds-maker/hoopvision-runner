@@ -10,7 +10,7 @@ permissions:
   actions: read
 
 env:
-  CANDIDATE_SHA: c8abdc751499a324693f287116f77840b6f915c6
+  CANDIDATE_SHA: 4fd57445d61faf5dceddc1f9343228cfc08c2bce
   SOURCE_RECOVERY_RUN_ID: '35923251814'
   SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
 
@@ -44,7 +44,7 @@ jobs:
       - name: Extract native frames and build blank independent-reference scaffold
         run: |
           set -euo pipefail
-          ffmpeg -hide_banner -loglevel error -i work/source_native.mp4 -vf "select='between(n,120,478)'" -vsync 0 -q:v 2 work/out/frames/frame_%04d.jpg
+          ffmpeg -hide_banner -loglevel error -ss 4 -to 16 -i work/source_native.mp4 -vf fps=30 -q:v 2 work/out/frames/frame_%04d.jpg
           python - <<'PY'
           import csv,json,subprocess,hashlib
           from pathlib import Path
@@ -62,7 +62,7 @@ jobs:
           st=probe['streams'][0]
           def rate(s):
               a,b=map(float,str(s).split('/')); return a/b
-          fps=rate(st.get('avg_frame_rate') or st['r_frame_rate'])
+          fps=30.0
           frames=sorted((out/'frames').glob('frame_*.jpg'))
           n=len(frames)
           if n != 359:
@@ -92,7 +92,7 @@ jobs:
                   t=fi/fps
                   for p in players:
                       w.writerow({
-                          'output_frame':fi,'time_s':f'{t:.6f}',
+                          'output_frame':fi,'time_s':f'{4.0+t:.6f}',
                           **p,
                           'eligible':'','fully_occluded':'','off_screen':'',
                           'x1':'','y1':'','x2':'','y2':'',
@@ -118,7 +118,7 @@ jobs:
             'schema':'hoopvision.event301-native-reference-review-pack.v1',
             'qualification_source_sha256':'23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a',
             'game_id':lineup['game_id'],'event_id':lineup['event_num'],'angle':lineup['angle'],
-            'native_frame_count':n,'fps':fps,'source_width':int(st['width']),'source_height':int(st['height']),
+            'final_output_frame_count':n,'final_output_fps':fps,'source_width':int(st['width']),'source_height':int(st['height']),
             'rows_to_review':n*len(players),'lineup_players':players,
             'candidate_predictions_included':False,
             'reviewer_must_be_independent':True,
@@ -144,7 +144,7 @@ jobs:
               'Do not convert this scaffold into qualification evidence until reviewer type and frozen rules are recorded.\n'
           )
           print('HOOPVISION_EVENT301_REFERENCE_PACK='+json.dumps({
-              'native_frames':n,'players':len(players),'rows':n*len(players),
+              'final_output_frames':n,'players':len(players),'rows':n*len(players),
               'candidate_predictions_included':False,'status':'SCAFFOLD_ONLY_NOT_GROUND_TRUTH'
           },sort_keys=True))
           PY
