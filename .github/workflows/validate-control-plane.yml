@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     env:
-      DEFAULT_SOURCE_SHA: e538ac58debc64f1f6ec1296e195441e1da7d374
+      DEFAULT_SOURCE_SHA: d711021e6d7bbffa2f596ebf5f438477cbc72005
     steps:
       - name: Resolve exact candidate
         id: source
@@ -53,7 +53,7 @@ jobs:
 
       - name: Install commercial OCR smoke dependencies
         run: |
-          python -m pip install -q numpy opencv-python-headless onnxruntime
+          python -m pip install -q numpy opencv-python-headless onnxruntime pillow
 
       - name: Validate commercial PaddleOCR adapter
         run: |
