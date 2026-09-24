@@ -1,4 +1,5 @@
 name: Inspect Current Event296 Supervisor
+# trigger live read-only inspection
 
 on:
   push:
