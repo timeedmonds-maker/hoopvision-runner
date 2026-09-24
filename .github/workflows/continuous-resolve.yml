@@ -1,0 +1,57 @@
+name: HoopVision Continuous Resolve Orchestrator
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_cycles:
+        description: Maximum bounded CPU cycles
+        required: false
+        default: '8'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/continuous-resolve.yml']
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: hoopvision-continuous-resolve
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Continuous bounded resolve loop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MAX_CYCLES: ${{ inputs.max_cycles || '8' }}
+        run: |
+          set -euo pipefail
+          repo=timeedmonds-maker/hoopvision-runner
+          echo "HoopVision continuous resolve: CPU/control-plane only; production/GPU forbidden here."
+          for cycle in $(seq 1 "$MAX_CYCLES"); do
+            echo "=== resolve cycle $cycle/$MAX_CYCLES ==="
+            # Ordered expert-plan stages. Dispatch only when no successful run exists at/after current main SHA.
+            case "$cycle" in
+              1) wf=extract-corrected-p1a-continuity.yml ;;
+              2) wf=validate-control-plane.yml ;;
+              *) echo "No further pre-authorized deterministic stage. Fail closed for expert reasoning."; break ;;
+            esac
+            gh workflow run "$wf" --repo "$repo" --ref main
+            sleep 3
+            run_id=$(gh run list --repo "$repo" --workflow "$wf" --limit 1 --json databaseId --jq '.[0].databaseId')
+            echo "waiting for $wf run $run_id"
+            set +e
+            gh run watch "$run_id" --repo "$repo" --exit-status
+            rc=$?
+            set -e
+            if [ "$rc" -ne 0 ]; then
+              echo "BLOCKED: deterministic stage $wf failed. Stop rather than weaken gates or improvise."
+              exit "$rc"
+            fi
+            echo "PASS: $wf run $run_id"
+          done
+          echo "Resolve orchestrator stopped at explicit authority boundary. No GPU, production mutation, gate change, identity forcing, or motion-only transfer permitted."
