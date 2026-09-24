@@ -181,6 +181,7 @@ jobs:
         working-directory: src
         run: |
           set -euo pipefail
+          python -m pip install -q numpy opencv-python-headless onnxruntime
           python -m unittest discover -s hoopvision/tests -p 'test_*.py' -v
           python -m py_compile tools/release/package_app.py tools/release/submit_dev.py tools/release/watch_run.py tools/release/durable_events.py tools/release/dev_supervisor.py screen_tracker_nextgen/evaluate_native_overlay.py hoopvision/worker/boot.py hoopvision/worker/interactive_service.py hoopvision/worker/run_toronto_nextgen.py hoopvision/worker/run_fresh_hawks_all_player.py hoopvision/worker/run_fresh_hawks_identity_replay.py hoopvision/worker/run_fresh_hawks_fast_path.py hoopvision/worker/run_hawks_event296_all_player.py hoopvision/worker/run_pelicans_season_roster.py screen_tracker_nextgen/build_fast_physical_paths.py screen_tracker_nextgen/audit_physical_paths_with_identity.py screen_tracker_nextgen/solve_fast_path_identities.py screen_tracker_nextgen/sam31_ambiguity_continuity.py screen_tracker_nextgen/materialize_sam31_player_paths.py screen_tracker_nextgen/build_named_render_paths.py screen_tracker_nextgen/build_kickout_semantic_anchors.py screen_tracker_nextgen/global_identity_solver.py screen_tracker_nextgen/all_player_identity_solver.py screen_tracker_nextgen/render_global_identity_safe.py screen_tracker_nextgen/render_all_player_labels.py screen_tracker_kickout3/render_kickout3.py screen_tracker_kickout3/render_kickout3_v100.py tools/locked_broadcast_screen_v2.py tools/locked_broadcast_screen_v4.py
 
@@ -577,11 +578,20 @@ jobs:
           EXPECTED_CONTRACT_SHA="$(sha256sum src/hoopvision/core/control_plane_contract.py | awk '{print $1}')"
           EXPECTED_REGISTRY_SHA="$(cd src && python -c 'from hoopvision.core.control_plane_contract import benchmark_registry_sha256; print(benchmark_registry_sha256())')"
 
+          OCR_MODEL=/tmp/ppocrv5_latin_rec.onnx
+          OCR_DICT=/tmp/ppocrv5_latin_dict.txt
+          curl -fsSL https://github.com/gitakoos/ocr-models/releases/download/v1/rec_latin.onnx -o "$OCR_MODEL"
+          curl -fsSL https://github.com/gitakoos/ocr-models/releases/download/v1/ppocrv5_latin_dict.txt -o "$OCR_DICT"
+          echo '995b0f5f28d2073896a78c03b5b863eae6af3744bafa0245b8522beea6994927  /tmp/ppocrv5_latin_rec.onnx' | sha256sum -c -
+          echo 'ccbcc45730b3fbbd9050c5bc74db6a99067141ef1035e3d14889a84a6b9b1aff  /tmp/ppocrv5_latin_dict.txt' | sha256sum -c -
+
           SCP_OK=0
           for i in $(seq 1 12); do
             if gcloud compute scp \
               src/tools/release/dev_supervisor.py \
               src/hoopvision/core/control_plane_contract.py \
+              "$OCR_MODEL" \
+              "$OCR_DICT" \
               "$TARGET_INSTANCE:/tmp/" \
               --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet; then
               SCP_OK=1
@@ -620,6 +630,13 @@ jobs:
               echo 'HOOPVISION_SUPERVISOR_BUILD_REVISION=$SOURCE_SHA' | sudo tee -a /etc/hoopvision-dev.env >/dev/null
 
               sudo systemctl stop hoopvision-dev-supervisor || true
+              MODEL_CACHE_HOST=\"\$(grep '^HOOPVISION_MODEL_CACHE_HOST=' /etc/hoopvision-dev.env 2>/dev/null | tail -n1 | cut -d= -f2- || true)\"
+              [ -n \"\$MODEL_CACHE_HOST\" ] || MODEL_CACHE_HOST=/srv/hoopvision/models/cache
+              sudo install -d -m 0755 \"\$MODEL_CACHE_HOST\"
+              sudo install -m 0644 /tmp/ppocrv5_latin_rec.onnx \"\$MODEL_CACHE_HOST/ppocrv5_latin_rec.onnx\"
+              sudo install -m 0644 /tmp/ppocrv5_latin_dict.txt \"\$MODEL_CACHE_HOST/ppocrv5_latin_dict.txt\"
+              test \"\$(sudo sha256sum \"\$MODEL_CACHE_HOST/ppocrv5_latin_rec.onnx\" | cut -d' ' -f1)\" = '995b0f5f28d2073896a78c03b5b863eae6af3744bafa0245b8522beea6994927'
+              test \"\$(sudo sha256sum \"\$MODEL_CACHE_HOST/ppocrv5_latin_dict.txt\" | cut -d' ' -f1)\" = 'ccbcc45730b3fbbd9050c5bc74db6a99067141ef1035e3d14889a84a6b9b1aff'
               sudo install -m 0644 /tmp/control_plane_contract.py \"\$SUP_DIR/control_plane_contract.py\"
               sudo install -m 0755 /tmp/dev_supervisor.py \"\$SUP_PATH\"
 
