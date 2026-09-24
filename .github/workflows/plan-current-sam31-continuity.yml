@@ -1,0 +1,77 @@
+name: Plan Current Bounded SAM31 Continuity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/plan-current-sam31-continuity.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: 180abf74757434775c54d3a31ba276204c66518e
+  CURRENT_PHYSICAL_RUN_ID: '36053461888'
+  SOURCE_RECOVERY_RUN_ID: '35923251814'
+  SOURCE_SHA256: 23b4beeee56b343e733f804047cce2289729b7cc31b445dcae2489900fb9217a
+
+jobs:
+  plan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: python -m pip install -q 'numpy<2' pandas opencv-python-headless
+      - name: Recover exact current graph and source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p work/current work/source work/out
+          gh run download "$CURRENT_PHYSICAL_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-current-candidate-physical --dir work/current
+          gh run download "$SOURCE_RECOVERY_RUN_ID" --repo timeedmonds-maker/hoopvision-runner --name hoopvision-hawks-source-l4-disk-recovery --dir work/source
+          cp work/source/exact_source_native.mp4 work/source_native.mp4
+          echo "$SOURCE_SHA256  work/source_native.mp4" | sha256sum -c -
+          test -s work/current/segments/uniform_observations.csv
+          test -s work/current/p1a/sam31_decisions.json
+      - name: Build exact bounded SAM3.1 plan without GPU
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$PWD/src" python -m screen_tracker_nextgen.sam31_ambiguity_continuity             --source work/source_native.mp4             --observations work/current/segments/uniform_observations.csv             --windows work/current/p1a/sam31_decisions.json             --out-dir work/out             --dry-run
+          python - <<'PY'
+          import json
+          q=json.load(open('work/out/sam31_qa.json'))
+          p=json.load(open('work/out/sam31_plan.json'))
+          windows=p.get('windows',p.get('plan',p if isinstance(p,list) else []))
+          rep={
+            'schema':'hoopvision.current-sam31-plan-summary.v1',
+            'candidate_sha':'180abf74757434775c54d3a31ba276204c66518e',
+            'physical_decisions_input':26,
+            'planned_windows':len(windows),
+            'seed_count':sum(int(x.get('seed_count',0)) for x in windows),
+            'estimated_object_frames':sum(int((x.get('estimated_resource_cost') or {}).get('estimated_object_frames',0)) for x in windows),
+            'multi_hypothesis_windows':sum(1 for x in windows if len(x.get('candidate_segment_ids') or [])>1),
+            'dry_run':True,
+            'identity_authorized':False,
+            'qualification_claim':'NONE_DIAGNOSTIC_ONLY',
+          }
+          open('work/out/current_sam31_plan_summary.json','w').write(json.dumps(rep,indent=2,sort_keys=True)+'\n')
+          print('HOOPVISION_CURRENT_SAM31_PLAN='+json.dumps(rep,sort_keys=True))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-current-sam31-plan
+          path: work/out/
+          retention-days: 14
