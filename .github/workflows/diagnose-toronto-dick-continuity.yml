@@ -15,7 +15,7 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
-  RUN_ID: public-36183686926-1-6ac9fad67411
+  CANDIDATE_PREFIX: 0b1290c674a3
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -50,8 +50,14 @@ jobs:
           test "$ok" = 1 || { cat /tmp/diag-ssh.err; exit 3; }
       - name: Copy diagnostic
         run: gcloud compute scp scripts/diag_toronto_dick_continuity.py "$INSTANCE:/tmp/diag_toronto_dick_continuity.py" --zone "$ZONE" --project "$PROJECT_ID" --quiet
-      - name: Inspect fresh Toronto continuity
-        run: gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo python3 /tmp/diag_toronto_dick_continuity.py /srv/hoopvision/runs/$RUN_ID/artifacts"
+      - name: Locate and inspect newest exact-candidate Toronto continuity
+        shell: bash
+        run: |
+          set -euo pipefail
+          RUN_ID="$(gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo find /srv/hoopvision/runs -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' | grep '$CANDIDATE_PREFIX' | sort -r | head -1")"
+          test -n "$RUN_ID" || { echo "NO_EXACT_CANDIDATE_RUN_FOUND=$CANDIDATE_PREFIX"; exit 4; }
+          echo "DIAG_RUN_ID=$RUN_ID"
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo python3 /tmp/diag_toronto_dick_continuity.py /srv/hoopvision/runs/$RUN_ID/artifacts"
       - name: Stop VM if diagnostic started it
         if: always()
         shell: bash
