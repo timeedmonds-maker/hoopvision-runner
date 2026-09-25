@@ -1,0 +1,64 @@
+name: Probe Taiwan L4 Capacity Now
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/probe-taiwan-l4-now.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  INSTANCE: hv-l4-taiwan-probe
+  RUNTIME_SA: hoopvision-worker@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  PROBE_NONCE: '1790301736176'
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Probe one-L4 G2 capacity in Taiwan
+        shell: bash
+        run: |
+          set -euo pipefail
+          RESULT=""
+          for Z in asia-east1-a asia-east1-b asia-east1-c; do
+            echo "=== PROBE g2-standard-8 $Z ==="
+            set +e
+            gcloud compute instances create "$INSTANCE" \
+              --project "$PROJECT_ID" --zone "$Z" --machine-type g2-standard-8 \
+              --image-family common-cu129-ubuntu-2204-nvidia-580 \
+              --image-project deeplearning-platform-release \
+              --boot-disk-type pd-balanced --boot-disk-size 50GB \
+              --service-account "$RUNTIME_SA" --scopes cloud-platform \
+              --maintenance-policy TERMINATE --no-restart-on-failure \
+              --max-run-duration 10m --instance-termination-action DELETE \
+              --quiet > /tmp/probe.log 2>&1
+            RC=$?
+            set -e
+            cat /tmp/probe.log
+            if test "$RC" -eq 0; then
+              echo "TAIWAN_L4_AVAILABLE=$Z"
+              gcloud compute instances describe "$INSTANCE" --zone "$Z" --project "$PROJECT_ID" \
+                --format='yaml(name,status,zone,machineType,guestAccelerators)'
+              gcloud compute instances delete "$INSTANCE" --zone "$Z" --project "$PROJECT_ID" --delete-disks=all --quiet || true
+              RESULT="$Z"
+              break
+            fi
+          done
+          if test -z "$RESULT"; then
+            echo "TAIWAN_L4_RESULT=NO_CAPACITY"
+          else
+            echo "TAIWAN_L4_RESULT=AVAILABLE $RESULT"
+          fi
