@@ -1,0 +1,85 @@
+name: Probe Tokyo and Taiwan GPU Capacity
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/probe-tokyo-taiwan-gpu-capacity.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  RUNTIME_SA: hoopvision-worker@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  PROBE_NONCE: '1790302818452'
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Probe Tokyo L4 then G4 then Taiwan G4
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          probe() {
+            LABEL="$1"
+            MACHINE="$2"
+            ZONES="$3"
+            INSTANCE="$4"
+            echo "===== $LABEL / $MACHINE ====="
+            for Z in $ZONES; do
+              gcloud compute machine-types describe "$MACHINE" --zone "$Z" --project "$PROJECT_ID" --format='value(name)' >/dev/null 2>&1 && echo "SUPPORTED $Z $MACHINE" || echo "UNSUPPORTED $Z $MACHINE"
+            done
+            for Z in $ZONES; do
+              if ! gcloud compute machine-types describe "$MACHINE" --zone "$Z" --project "$PROJECT_ID" >/dev/null 2>&1; then
+                continue
+              fi
+              echo "=== CREATE $LABEL $MACHINE $Z ==="
+              set +e
+              gcloud compute instances create "$INSTANCE" \
+                --project "$PROJECT_ID" \
+                --zone "$Z" \
+                --machine-type "$MACHINE" \
+                --image-family common-cu129-ubuntu-2204-nvidia-580 \
+                --image-project deeplearning-platform-release \
+                --boot-disk-type pd-balanced \
+                --boot-disk-size 50GB \
+                --service-account "$RUNTIME_SA" \
+                --scopes cloud-platform \
+                --maintenance-policy TERMINATE \
+                --no-restart-on-failure \
+                --max-run-duration 10m \
+                --instance-termination-action DELETE \
+                --quiet > "/tmp/$LABEL.log" 2>&1
+              RC=$?
+              set -e
+              cat "/tmp/$LABEL.log"
+              if test "$RC" -eq 0; then
+                echo "$LABEL"_RESULT=AVAILABLE zone="$Z" machine="$MACHINE"
+                gcloud compute instances describe "$INSTANCE" --zone "$Z" --project "$PROJECT_ID" \
+                  --format='yaml(name,status,zone,machineType,guestAccelerators)'
+                gcloud compute instances delete "$INSTANCE" --zone "$Z" --project "$PROJECT_ID" --delete-disks=all --quiet || true
+                return 0
+              fi
+            done
+            echo "$LABEL"_RESULT=NO_CAPACITY
+            return 0
+          }
+
+          probe TOKYO_L4 g2-standard-8 "asia-northeast1-a asia-northeast1-b asia-northeast1-c" hv-probe-tokyo-l4
+          probe TOKYO_G4 g4-standard-48 "asia-northeast1-a asia-northeast1-b asia-northeast1-c" hv-probe-tokyo-g4
+          probe TAIWAN_G4 g4-standard-48 "asia-east1-a asia-east1-b asia-east1-c" hv-probe-taiwan-g4
+
+          echo "HOOPVISION_GPU_CAPACITY_PROBE_COMPLETE"
