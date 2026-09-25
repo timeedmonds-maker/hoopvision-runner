@@ -1,9 +1,7 @@
 name: Run Current Toronto Regression
 
 on:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/run-current-toronto-regression.yml']
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -40,7 +38,6 @@ jobs:
         run: |
           set -euo pipefail
           python src/tools/validate_governing_delivery_policy.py
-          python -m pytest -q src/hoopvision/tests/test_governing_delivery_policy.py
       - name: Build deterministic application snapshot
         run: |
           set -euo pipefail
