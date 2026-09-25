@@ -13,7 +13,7 @@ env:
   EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   DEV_TOPIC: hv-dev-jobs
   SESSION_ID: hv-dev-l4
-  CANDIDATE_SHA: 0023fcfa7b490833262fa0ec4a97f69e7ae0eeee
+  CANDIDATE_SHA: e15e5fda4676c113d65205d8525ae91b72c0864a
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -38,6 +38,12 @@ jobs:
         run: |
           set -euo pipefail
           python src/tools/validate_governing_delivery_policy.py
+          python - <<'PY'
+          import runpy
+          ns=runpy.run_path('src/hoopvision/tests/test_semantic_anchor_detector_taxonomy.py')
+          ns['test_semantic_anchor_rfdetr_taxonomy_matches_raw11_checkpoint']()
+          print('HOOPVISION_SEMANTIC_ANCHOR_TAXONOMY_OK')
+          PY
       - name: Build deterministic application snapshot
         run: |
           set -euo pipefail
