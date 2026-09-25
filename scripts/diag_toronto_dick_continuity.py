@@ -418,3 +418,12 @@ if awp.exists():
             print(json.dumps(rec,sort_keys=True))
 else:
     print("NO_AMBIGUITY_WINDOWS")
+
+
+print("SAM31_RUNTIME_SOURCE_PROBE")
+for p in (Path("/srv/hoopvision/src/screen_tracker_nextgen/sam31_ambiguity_continuity.py"),Path("/opt/hoopvision/screen_tracker_nextgen/sam31_ambiguity_continuity.py"),Path("/srv/hoopvision/screen_tracker_nextgen/sam31_ambiguity_continuity.py")):
+    print("SAM31_SOURCE_CANDIDATE",str(p),p.exists())
+    if p.exists():
+        txt=p.read_text(errors="replace")
+        print("SAM31_SOURCE_HAS_LEGACY_SAME_SKIP", "if not same.empty:" in txt)
+        print("SAM31_SOURCE_HAS_SAME_SEGMENT_FIX", "same_segment=same[" in txt)
