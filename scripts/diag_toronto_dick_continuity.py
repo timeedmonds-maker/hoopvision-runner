@@ -179,3 +179,61 @@ else:
               "BALL_ROWS",sum(1 for r in q if int(float(r.get("det_class") or -1))==1),
               "JUMPSHOT_ROWS",sum(1 for r in q if int(float(r.get("det_class") or -1))==6),
               "LAYUP_ROWS",sum(1 for r in q if int(float(r.get("det_class") or -1))==7))
+
+
+print("COURT_MODEL_SOURCE_HINTS")
+court_src=Path("/opt/nbacv/src/nbacv/court.py")
+if court_src.exists():
+    for idx,line in enumerate(court_src.read_text(errors="replace").splitlines(),1):
+        low=line.lower()
+        if any(k in low for k in ("2800","1500","court","keypoint","world","template","canonical")):
+            if len(line)<500:
+                print(f"COURT_SRC {idx}: {line}")
+else:
+    print("COURT_SOURCE_MISSING",str(court_src))
+
+print("TRACK2_3_COURT_PROJECTION")
+cfp=root/"nextgen_mask/court_frames.json"
+csp=root/"nextgen_mask/court_scale_attempts.csv"
+if not cfp.exists() or not csp.exists():
+    print("COURT_ARTIFACT_MISSING",cfp.exists(),csp.exists())
+else:
+    court_frames=json.load(open(cfp))
+    scale_rows=rows(csp)
+    frame_to_time={int(float(r["frame"])):float(r["time_s"]) for r in scale_rows}
+    cal=[]
+    for r in court_frames:
+        H=r.get("H")
+        fr=int(r.get("frame", -1))
+        if H is not None and fr in frame_to_time:
+            cal.append((frame_to_time[fr],fr,H))
+    print("COURT_CALIBRATED",len(cal),"FIRST_LAST",
+          None if not cal else (cal[0][0],cal[-1][0]))
+    def proj(H,x,y):
+        a=H[0][0]*x+H[0][1]*y+H[0][2]
+        b=H[1][0]*x+H[1][1]*y+H[1][2]
+        w=H[2][0]*x+H[2][1]*y+H[2][2]
+        return (a/w,b/w) if abs(w)>1e-9 else None
+    for target_t in (9.3038,9.637466666666668,9.770933333333334):
+        if not cal:
+            break
+        ht,hf,H=min(cal,key=lambda z:abs(z[0]-target_t))
+        print("COURT_H",target_t,"USES",ht,"FRAME",hf,"DT",abs(ht-target_t))
+        for tid in (5,2,3):
+            cand=[]
+            for r in obs:
+                try:
+                    if int(float(r["source_track_id"]))==tid:
+                        cand.append((abs(float(r["time_s"])-target_t),r))
+                except Exception:
+                    pass
+            if not cand:
+                print("COURT_POINT",target_t,tid,"NO_OBS"); continue
+            _,r=min(cand,key=lambda z:z[0])
+            x=(float(r["x1"])+float(r["x2"]))*0.5
+            y=float(r["y2"])
+            p=proj(H,x,y)
+            print("COURT_POINT",target_t,"TRACK",tid,
+                  "OBS_T",r["time_s"],"PX",(round(x,3),round(y,3)),
+                  "COURT",None if p is None else (round(p[0],3),round(p[1],3)),
+                  "AMBIG",r.get("ambiguous"))
