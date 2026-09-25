@@ -1,0 +1,189 @@
+name: Prepare Tokyo L4 and Run Toronto
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/prepare-tokyo-l4-and-run-toronto.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+  actions: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  SOURCE_ZONE: asia-southeast1-c
+  SOURCE_INSTANCE: hv-dev-l4
+  TARGET_ZONE: asia-northeast1-b
+  TARGET_INSTANCE: hv-dev-l4-tokyo
+  TARGET_DISK: hv-dev-l4-tokyo-boot
+  CANDIDATE_SHA: 0023fcfa7b490833262fa0ec4a97f69e7ae0eeee
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Validate exact candidate policy
+        run: python src/tools/validate_governing_delivery_policy.py
+
+      - name: Package exact current control plane
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p bundle/tools/release bundle/infra/hoopvision-dev
+          cp src/tools/release/dev_supervisor.py bundle/tools/release/
+          cp src/tools/release/durable_events.py bundle/tools/release/
+          cp src/infra/hoopvision-dev/hoopvision-dev-supervisor.service bundle/infra/hoopvision-dev/
+          tar -C bundle -czf /tmp/control-current.tgz .
+          echo "CONTROL_BUNDLE_SHA=$(sha256sum /tmp/control-current.tgz | awk '{print $1}')" >> "$GITHUB_ENV"
+
+      - name: Clone prepared commercial L4 disk into Tokyo
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC_DISK="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(disks[0].source.basename())')"
+          SA="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(serviceAccounts[0].email)')"
+          NETWORK="$(gcloud compute instances describe "$SOURCE_INSTANCE" --project="$PROJECT_ID" --zone="$SOURCE_ZONE" --format='value(networkInterfaces[0].network.basename())')"
+          SNAP="hv-l4-tokyo-${GITHUB_RUN_ID}"
+
+          echo "SOURCE_DISK=$SRC_DISK"
+          echo "SOURCE_NETWORK=$NETWORK"
+          echo "RUNTIME_SA=$SA"
+
+          if gcloud compute instances describe "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" >/dev/null 2>&1; then
+            STATUS="$(gcloud compute instances describe "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --format='value(status)')"
+            echo "Existing Tokyo target status=$STATUS"
+            if test "$STATUS" = "RUNNING"; then
+              echo "TARGET_REUSED=1" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            gcloud compute instances start "$TARGET_INSTANCE" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet
+            echo "TARGET_REUSED=1" >> "$GITHUB_ENV"
+            exit 0
+          fi
+
+          gcloud compute snapshots create "$SNAP" \
+            --project="$PROJECT_ID" \
+            --source-disk="$SRC_DISK" \
+            --source-disk-zone="$SOURCE_ZONE" \
+            --storage-location=asia
+
+          if gcloud compute disks describe "$TARGET_DISK" --project="$PROJECT_ID" --zone="$TARGET_ZONE" >/dev/null 2>&1; then
+            gcloud compute disks delete "$TARGET_DISK" --project="$PROJECT_ID" --zone="$TARGET_ZONE" --quiet
+          fi
+
+          gcloud compute disks create "$TARGET_DISK" \
+            --project="$PROJECT_ID" \
+            --zone="$TARGET_ZONE" \
+            --type=pd-balanced \
+            --source-snapshot="$SNAP"
+
+          set +e
+          gcloud compute instances create "$TARGET_INSTANCE" \
+            --project="$PROJECT_ID" \
+            --zone="$TARGET_ZONE" \
+            --machine-type=g2-standard-8 \
+            --disk="name=$TARGET_DISK,boot=yes,auto-delete=no" \
+            --service-account="$SA" \
+            --scopes=cloud-platform \
+            --network="$NETWORK" \
+            --maintenance-policy=TERMINATE \
+            --no-restart-on-failure \
+            --max-run-duration=2h \
+            --instance-termination-action=STOP \
+            --labels=hoopvision=development,role=prepared-l4,region=tokyo
+          RC=$?
+          set -e
+          gcloud compute snapshots delete "$SNAP" --project="$PROJECT_ID" --quiet || true
+          test "$RC" -eq 0
+
+      - name: Wait for Tokyo SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          ok=0
+          for i in $(seq 1 60); do
+            if gcloud compute ssh "$TARGET_INSTANCE" --zone "$TARGET_ZONE" --project "$PROJECT_ID" --quiet --command='echo TOKYO_SSH_OK' >/tmp/ssh.out 2>/tmp/ssh.err; then
+              cat /tmp/ssh.out
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          if test "$ok" != 1; then cat /tmp/ssh.err; exit 3; fi
+
+      - name: Repair exact candidate and attest GPU/runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$TARGET_INSTANCE" --zone "$TARGET_ZONE" --project "$PROJECT_ID" --quiet \
+            --command='sudo systemctl stop hoopvision-dev-supervisor.service || true'
+          gcloud compute scp /tmp/control-current.tgz scripts/repair_commercial_host.sh scripts/ensure_ppocrv6.py \
+            "$TARGET_INSTANCE:/tmp/" --zone "$TARGET_ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute ssh "$TARGET_INSTANCE" --zone "$TARGET_ZONE" --project "$PROJECT_ID" --quiet \
+            --command="sudo bash /tmp/repair_commercial_host.sh '$CANDIDATE_SHA' '$CONTROL_BUNDLE_SHA'"
+
+          gcloud compute ssh "$TARGET_INSTANCE" --zone "$TARGET_ZONE" --project "$PROJECT_ID" --quiet --command='
+            set -e
+            echo "=== GPU ==="
+            nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+            test "$(cat /srv/hoopvision/commercial-prepared.candidate.sha)" = "'"$CANDIDATE_SHA"'"
+            test ! -e /srv/hoopvision/models/nbacv/parseq_soccernet.ckpt
+            test ! -e /srv/hoopvision/models/nbacv/legibility_soccernet.pth
+            sudo docker run --rm --pull=never --gpus all --entrypoint python "$(grep "^HOOPVISION_BASE_IMAGE=" /etc/hoopvision-dev.env | cut -d= -f2-)" -c "import torch; assert torch.cuda.is_available(); print(torch.cuda.get_device_name(0))"
+            sudo systemctl is-active hoopvision-dev-supervisor.service
+            echo HOOPVISION_TOKYO_L4_HOST_ATTESTED
+          '
+
+      - name: Verify fresh session heartbeat
+        shell: bash
+        run: |
+          set -euo pipefail
+          OK=0
+          for i in $(seq 1 30); do
+            if gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" >/tmp/session.json 2>/dev/null; then
+              echo "SESSION=$(cat /tmp/session.json)"
+              HOST="$(jq -r '.hostname // ""' /tmp/session.json)"
+              CAND="$(jq -r '.candidate_sha // .git_sha // ""' /tmp/session.json)"
+              if echo "$HOST" | grep -q 'hv-dev-l4-tokyo'; then
+                OK=1
+                break
+              fi
+            fi
+            sleep 2
+          done
+          test "$OK" = 1
+          echo HOOPVISION_TOKYO_SESSION_LIVE
+
+      - name: Dispatch exact current Toronto workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/actions/workflows/run-current-toronto-regression.yml/dispatches" \
+            -f ref=main
+          echo HOOPVISION_TORONTO_DISPATCH_REQUESTED
