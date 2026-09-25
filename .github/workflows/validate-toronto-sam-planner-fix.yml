@@ -35,5 +35,5 @@ jobs:
           python src/screen_tracker_nextgen/test_global_identity_solver.py
           PYTHONPATH=src python -m pytest -q             src/screen_tracker_nextgen/test_global_identity_solver.py             src/hoopvision/tests/test_global_identity_mixed_uniform_abstention.py             src/hoopvision/tests/test_semantic_defender_soft_team.py
           python -m py_compile src/screen_tracker_nextgen/sam31_ambiguity_continuity.py
-          python -m pytest -q src/hoopvision/tests/test_sam31_same_lane_identity_split.py
+          PYTHONPATH=src python -m pytest -q src/screen_tracker_nextgen/test_sam31_same_lane_split.py
           echo HOOPVISION_TORONTO_SAM_PLANNER_CORRECTED_CPU_OK
