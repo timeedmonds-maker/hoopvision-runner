@@ -151,7 +151,9 @@ jobs:
             test "$(cat /srv/hoopvision/commercial-prepared.candidate.sha)" = "'"$CANDIDATE_SHA"'"
             test ! -e /srv/hoopvision/models/nbacv/parseq_soccernet.ckpt
             test ! -e /srv/hoopvision/models/nbacv/legibility_soccernet.pth
-            sudo docker run --rm --pull=never --gpus all --entrypoint python "$(grep "^HOOPVISION_BASE_IMAGE=" /etc/hoopvision-dev.env | cut -d= -f2-)" -c "import torch; assert torch.cuda.is_available(); print(torch.cuda.get_device_name(0))"
+            IMAGE="$(sudo sh -c "grep ^HOOPVISION_BASE_IMAGE= /etc/hoopvision-dev.env | cut -d= -f2-")"
+            test -n "$IMAGE"
+            sudo docker run --rm --pull=never --gpus all --entrypoint python "$IMAGE" -c "import torch; assert torch.cuda.is_available(); print(torch.cuda.get_device_name(0))"
             sudo systemctl is-active hoopvision-dev-supervisor.service
             echo HOOPVISION_TOKYO_L4_HOST_ATTESTED
           '
