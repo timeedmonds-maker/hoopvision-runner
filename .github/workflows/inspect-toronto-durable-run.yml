@@ -14,7 +14,7 @@ env:
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
-  RUN_ID: public-36086965980-1-0023fcfa7b49
+  RUN_ID: public-36102119528-1-8cce8f74deff
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -50,7 +50,7 @@ jobs:
             echo "--- run dirs ---"
             find /srv/hoopvision/runs -maxdepth 3 -type f -printf "%TY-%Tm-%Td %TH:%TM:%TS %p\n" 2>/dev/null | tail -120
             echo "--- target run files ---"
-            find /srv/hoopvision/runs/public-36086965980-1-0023fcfa7b49 -maxdepth 3 -type f -print -exec sh -c 'echo "### $1"; tail -n 220 "$1" 2>/dev/null || true' sh {} \; 2>/dev/null || true
+            find /srv/hoopvision/runs/public-36102119528-1-8cce8f74deff -maxdepth 3 -type f -print -exec sh -c 'echo "### $1"; tail -n 220 "$1" 2>/dev/null || true' sh {} \; 2>/dev/null || true
             echo "--- docker all ---"
             sudo docker ps -a --no-trunc --format '{{.ID}} {{.Image}} {{.Names}} {{.Status}}' | head -40
             C="$(sudo docker ps -a --filter name=hvdev-5f30b89ef214945f7051 --format '{{.ID}}' | head -1)"
