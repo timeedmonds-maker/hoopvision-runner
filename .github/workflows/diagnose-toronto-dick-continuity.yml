@@ -30,7 +30,40 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.CONTROL_SA }}
       - uses: google-github-actions/setup-gcloud@v2
+      - name: Start retained Tokyo VM if stopped
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          echo "TOKYO_INSTANCE_STATUS_BEFORE=$STATUS"
+          if test "$STATUS" != "RUNNING"; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+            echo "HV_DIAG_STARTED_INSTANCE=1" >> "$GITHUB_ENV"
+          else
+            echo "HV_DIAG_STARTED_INSTANCE=0" >> "$GITHUB_ENV"
+          fi
+          ok=0
+          for i in $(seq 1 60); do
+            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='echo DIAG_SSH_OK' >/tmp/diag-ssh.out 2>/tmp/diag-ssh.err; then
+              cat /tmp/diag-ssh.out
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          if test "$ok" != 1; then
+            cat /tmp/diag-ssh.err
+            exit 3
+          fi
       - name: Copy diagnostic
         run: gcloud compute scp scripts/diag_toronto_dick_continuity.py "$INSTANCE:/tmp/diag_toronto_dick_continuity.py" --zone "$ZONE" --project "$PROJECT_ID" --quiet
       - name: Inspect defender continuity
         run: gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo python3 /tmp/diag_toronto_dick_continuity.py /srv/hoopvision/runs/$RUN_ID/artifacts"
+      - name: Stop VM if diagnostic started it
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test "${HV_DIAG_STARTED_INSTANCE:-0}" = "1"; then
+            gcloud compute instances stop "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          fi
