@@ -1,0 +1,98 @@
+name: Retrieve Toronto Exit6 Evidence
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/retrieve-toronto-exit6.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-northeast1-b
+  INSTANCE: hv-dev-l4-tokyo
+  RUN_ID: public-36199682572-1-1acf43ac64f1
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  retrieve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Start Tokyo only if needed
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          echo "STATUS_BEFORE=$STATUS"
+          if test "$STATUS" != "RUNNING"; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+            echo "HV_STARTED_INSTANCE=1" >> "$GITHUB_ENV"
+          else
+            echo "HV_STARTED_INSTANCE=0" >> "$GITHUB_ENV"
+          fi
+          for i in $(seq 1 60); do
+            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='echo SSH_OK' >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 5
+          done
+          exit 3
+
+      - name: Package exact failed-run evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+            set -euo pipefail
+            R=/srv/hoopvision/runs/$RUN_ID/artifacts
+            sudo test -d \"\$R\"
+            echo ===FILES===
+            sudo find \"\$R/global_identity\" \"\$R/sam31\" \"\$R/identity_ocr\" -maxdepth 2 -type f -printf '%p %s bytes\n' 2>/dev/null | sort || true
+            sudo find \"\$R\" -maxdepth 1 -type f -printf '%p %s bytes\n' 2>/dev/null | sort || true
+            sudo find \"\$R/nextgen_mask\" -maxdepth 1 \( -name 'qa.json' -o -name 'tracks.csv' \) -type f -printf '%p %s bytes\n' 2>/dev/null | sort || true
+            sudo tar -C \"\$R\" -czf /tmp/toronto-exit6-evidence.tgz \
+              global_identity \
+              sam31 \
+              identity_ocr \
+              identity_segments \
+              semantic_anchors.json \
+              semantic_anchors.associations.csv \
+              exact_lineup_roster.json \
+              base_config.json \
+              nextgen_mask/qa.json \
+              nextgen_mask/tracks.csv
+            sudo chown $(id -u):$(id -g) /tmp/toronto-exit6-evidence.tgz
+          "
+          gcloud compute scp "$INSTANCE:/tmp/toronto-exit6-evidence.tgz" . --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          mkdir evidence
+          tar -xzf toronto-exit6-evidence.tgz -C evidence
+          echo ===ORACLE_QA===
+          cat evidence/global_identity/visual_identity_oracle_qa.json || true
+          echo ===GLOBAL_QA===
+          cat evidence/global_identity/global_identity_qa.json || true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-toronto-exit6-evidence
+          path: evidence/
+          retention-days: 30
+
+      - name: Stop Tokyo if this job started it
+        if: always()
+        shell: bash
+        run: |
+          if test "${HV_STARTED_INSTANCE:-0}" = "1"; then
+            gcloud compute instances stop "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          fi
