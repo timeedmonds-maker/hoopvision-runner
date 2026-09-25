@@ -1,0 +1,169 @@
+name: Run Toronto SAM Observability Micro
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/run-toronto-sam-observability-micro.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-northeast1-b
+  INSTANCE: hv-dev-l4-tokyo
+  CANDIDATE_SHA: f0cdbef750af513c1bd4347be5162ac54e099a49
+  RETAINED_RUN_ID: public-36185446517-1-0b1290c674a3
+  IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  sam-observe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Validate and package exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m py_compile src/hoopvision/core/progress.py src/screen_tracker_nextgen/sam31_ambiguity_continuity.py
+          python src/tools/validate_governing_delivery_policy.py
+          tar -C src -czf /tmp/candidate.tgz screen_tracker_nextgen hoopvision/core
+          echo "$CANDIDATE_SHA" > /tmp/candidate.sha
+          sha256sum /tmp/candidate.tgz
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Start retained Tokyo L4 if stopped
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          echo "TOKYO_STATUS_BEFORE=$STATUS"
+          if test "$STATUS" != "RUNNING"; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+            echo "HV_STARTED_INSTANCE=1" >> "$GITHUB_ENV"
+          else
+            echo "HV_STARTED_INSTANCE=0" >> "$GITHUB_ENV"
+          fi
+          ok=0
+          for i in $(seq 1 60); do
+            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='echo TORONTO_SAM_SSH_OK' >/tmp/ssh.out 2>/tmp/ssh.err; then
+              cat /tmp/ssh.out
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          test "$ok" = 1 || { cat /tmp/ssh.err; exit 3; }
+      - name: Stage exact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo rm -rf /tmp/hv-toronto-sam-observe && sudo mkdir -p /tmp/hv-toronto-sam-observe/src /tmp/hv-toronto-sam-observe/out && sudo chown -R $(id -u):$(id -g) /tmp/hv-toronto-sam-observe"
+          gcloud compute scp /tmp/candidate.tgz /tmp/candidate.sha "$INSTANCE:/tmp/hv-toronto-sam-observe/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+            set -euo pipefail
+            cd /tmp/hv-toronto-sam-observe
+            tar -C src -xzf candidate.tgz
+            test \"\$(cat candidate.sha)\" = '$CANDIDATE_SHA'
+          "
+      - name: Execute retained Toronto SAM boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+            set -euo pipefail
+            ROOT=/srv/hoopvision/runs/$RETAINED_RUN_ID/artifacts
+            WORK=/tmp/hv-toronto-sam-observe
+            test -s \"\$ROOT/nextgen_mask/source_native.mp4\"
+            test -s \"\$ROOT/identity_segments/uniform_observations.csv\"
+            test -s \"\$ROOT/sam31/ambiguity_windows.json\"
+            test -s /srv/hoopvision/models/cache/sam3.1_multiplex.pt
+            test \"\$(stat -c %s /srv/hoopvision/models/cache/sam3.1_multiplex.pt)\" = 3502755717
+            sudo docker image inspect '$IMAGE' >/dev/null
+            nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+            rm -rf \"\$WORK/out\" && mkdir -p \"\$WORK/out\"
+            set +e
+            /usr/bin/time -f '%e' -o \"\$WORK/wall_s.txt\" sudo timeout --signal=TERM --kill-after=30s 600s docker run --rm --pull=never --gpus all \
+              --name hv-toronto-sam-observe \
+              -e PYTHONPATH=/opt/hoopvision \
+              -v \"\$WORK/src:/opt/hoopvision:ro\" \
+              -v \"\$ROOT:/retained:ro\" \
+              -v \"\$WORK/out:/out\" \
+              -v /srv/hoopvision/models/cache:/models:ro \
+              --workdir /opt/hoopvision \
+              --entrypoint python \
+              '$IMAGE' \
+              -m screen_tracker_nextgen.sam31_ambiguity_continuity \
+              --source /retained/nextgen_mask/source_native.mp4 \
+              --observations /retained/identity_segments/uniform_observations.csv \
+              --windows /retained/sam31/ambiguity_windows.json \
+              --out-dir /out \
+              --checkpoint /models/sam3.1_multiplex.pt
+            RC=\$?
+            set -e
+            echo \"\$RC\" > \"\$WORK/sam31_exit_code.txt\"
+            echo SAM_MICRO_RC=\$RC
+            echo ===SAM31_PROGRESS===
+            cat \"\$WORK/out/sam31_progress.jsonl\" 2>/dev/null || true
+            echo ===SAM31_QA===
+            cat \"\$WORK/out/sam31_qa.json\" 2>/dev/null || true
+            echo ===SAM31_LINKS_HEAD===
+            head -30 \"\$WORK/out/continuity_links.csv\" 2>/dev/null || true
+          "
+      - name: Retrieve durable evidence
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p result
+          gcloud compute scp --recurse "$INSTANCE:/tmp/hv-toronto-sam-observe/out" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          gcloud compute scp "$INSTANCE:/tmp/hv-toronto-sam-observe/sam31_exit_code.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          gcloud compute scp "$INSTANCE:/tmp/hv-toronto-sam-observe/wall_s.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          echo CANDIDATE_SHA="$CANDIDATE_SHA" > result/tuple.txt
+          echo RETAINED_RUN_ID="$RETAINED_RUN_ID" >> result/tuple.txt
+          find result -maxdepth 3 -type f -printf '%P %s bytes\n' | sort
+          cat result/out/sam31_progress.jsonl 2>/dev/null || true
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hoopvision-toronto-sam-observability-micro
+          path: result/
+          retention-days: 30
+      - name: Classify execution
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          RC="$(cat result/sam31_exit_code.txt 2>/dev/null || echo 999)"
+          echo "FINAL_SAM_MICRO_RC=$RC"
+          if test "$RC" = "0"; then
+            test -s result/out/sam31_qa.json
+            echo HOOPVISION_TORONTO_SAM_MICRO_COMPLETED
+          else
+            echo HOOPVISION_TORONTO_SAM_MICRO_INCOMPLETE
+            exit 1
+          fi
+      - name: Stop Tokyo L4 if this run started it
+        if: always()
+        shell: bash
+        run: |
+          if test "${HV_STARTED_INSTANCE:-0}" = "1"; then
+            gcloud compute instances stop "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          fi
