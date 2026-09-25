@@ -41,9 +41,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python -m py_compile src/hoopvision/core/progress.py src/screen_tracker_nextgen/sam31_ambiguity_continuity.py
-          python -m pytest -q src/hoopvision/tests/test_sam31_multiplex_batching.py src/hoopvision/tests/test_sam31_progress_journal.py
-          python src/tools/validate_governing_delivery_policy.py
+          (
+            cd src
+            python -m py_compile hoopvision/core/progress.py screen_tracker_nextgen/sam31_ambiguity_continuity.py
+            python -m pytest -q hoopvision/tests/test_sam31_multiplex_batching.py hoopvision/tests/test_sam31_progress_journal.py
+            python tools/validate_governing_delivery_policy.py
+          )
           tar -C src -czf /tmp/candidate.tgz screen_tracker_nextgen hoopvision/core
           echo "$CANDIDATE_SHA" > /tmp/candidate.sha
 
