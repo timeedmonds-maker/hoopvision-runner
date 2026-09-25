@@ -13,7 +13,7 @@ env:
   EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   DEV_TOPIC: hv-dev-jobs
   SESSION_ID: hv-dev-l4
-  CANDIDATE_SHA: 3430b3c94c271e7b6bd3596bca97801defdb72f7
+  CANDIDATE_SHA: 0023fcfa7b490833262fa0ec4a97f69e7ae0eeee
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
