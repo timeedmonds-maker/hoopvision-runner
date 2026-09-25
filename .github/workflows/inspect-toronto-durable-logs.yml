@@ -1,0 +1,46 @@
+name: Inspect Toronto Durable Logs
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-toronto-durable-logs.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  RUN_ID: public-36086965980-1-0023fcfa7b49
+  ZONE: asia-northeast1-b
+  INSTANCE: hv-dev-l4-tokyo
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Print durable app logs and host run directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== DURABLE APP LOG OBJECTS ==="
+          LOGS="$(gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/**" 2>/dev/null || true)"
+          printf '%s\n' "$LOGS"
+          for x in $LOGS; do
+            echo "===== $x ====="
+            gcloud storage cat "$x" || true
+          done
+          echo "=== HOST RUN FILES ==="
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo find /srv/hoopvision/runs/$RUN_ID -maxdepth 3 -type f -printf '%p %s bytes\n' 2>/dev/null || true"
+          echo "=== SUPERVISOR TAIL ==="
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo journalctl -u hoopvision-dev-supervisor.service -n 120 --no-pager || true"
