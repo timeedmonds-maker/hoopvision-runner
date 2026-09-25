@@ -237,3 +237,97 @@ else:
                   "OBS_T",r["time_s"],"PX",(round(x,3),round(y,3)),
                   "COURT",None if p is None else (round(p[0],3),round(p[1],3)),
                   "AMBIG",r.get("ambiguous"))
+
+
+print("GUARDING_GEOMETRY_ALL_CANDIDATES")
+# NBA court coordinates from the same nbacv BasketballCourtConfiguration used
+# by the production homography: 2865 x 1524 cm, rim centers 160 cm from each baseline.
+LEFT_HOOP=(160.0,762.0)
+RIGHT_HOOP=(2705.0,762.0)
+CANDS=(0,2,3,4,10,12)
+SHOOTER=5
+
+def bottom(r):
+    return ((float(r["x1"])+float(r["x2"]))*0.5,float(r["y2"]))
+def nearest_obs(tid,t):
+    q=[]
+    for r in obs:
+        try:
+            if int(float(r["source_track_id"]))==tid:
+                q.append((abs(float(r["time_s"])-t),r))
+        except Exception:
+            pass
+    return min(q,key=lambda z:z[0]) if q else (999,None)
+
+if cfp.exists() and csp.exists() and cal:
+    # Probe each genuinely calibrated time rather than extrapolating a homography.
+    for ht,hf,H in cal:
+        print("CALIBRATED_GUARD_FRAME",ht,"FRAME",hf)
+        sd,sr=nearest_obs(SHOOTER,ht)
+        if sr is None or sd>0.12:
+            print("NO_SHOOTER_NEAR_CAL",sd)
+            continue
+        sp=proj(H,*bottom(sr))
+        print("SHOOTER_COURT",SHOOTER,"OBS_T",sr["time_s"],"COURT",tuple(round(x,3) for x in sp))
+        for tid in CANDS:
+            dd,r=nearest_obs(tid,ht)
+            if r is None or dd>0.12:
+                continue
+            cp=proj(H,*bottom(r))
+            rec={"track":tid,"obs_t":float(r["time_s"]),"ambiguous":str(r.get("ambiguous")),
+                 "court":[round(cp[0],3),round(cp[1],3)]}
+            for label,hoop in (("left",LEFT_HOOP),("right",RIGHT_HOOP)):
+                vx,vy=hoop[0]-sp[0],hoop[1]-sp[1]
+                vn=math.hypot(vx,vy)
+                ux,uy=vx/vn,vy/vn
+                dx,dy=cp[0]-sp[0],cp[1]-sp[1]
+                along=dx*ux+dy*uy
+                lateral=abs(-dx*uy+dy*ux)
+                rec[label+"_along_cm"]=round(along,3)
+                rec[label+"_lateral_cm"]=round(lateral,3)
+                rec[label+"_basket_dist_cm"]=round(math.hypot(hoop[0]-cp[0],hoop[1]-cp[1]),3)
+                rec[label+"_cos_to_basket"]=round(along/max(1e-9,math.hypot(dx,dy)),5)
+            print("GUARD_COURT",json.dumps(rec,sort_keys=True))
+
+print("RELATIVE_MOTION_ALL_CANDIDATES")
+for tid in CANDS:
+    pts=[]
+    for t,m in sorted(bytime.items()):
+        if not (9.3038-0.001<=t<=9.7709+0.001):
+            continue
+        if SHOOTER not in m or tid not in m:
+            continue
+        if str(m[tid].get("ambiguous","")).lower() in {"true","1"}:
+            continue
+        sx,sy=bottom(m[SHOOTER]); cx,cy=bottom(m[tid])
+        scale=max(1.0,0.5*(h(m[SHOOTER])+h(m[tid])))
+        pts.append((t,(cx-sx)/scale,(cy-sy)/scale))
+    if len(pts)<3:
+        continue
+    rel_steps=[]
+    angles=[]
+    radii=[]
+    for t,x,y in pts:
+        radii.append(math.hypot(x,y))
+        angles.append(math.atan2(y,x))
+    for a,b in zip(pts,pts[1:]):
+        dt=max(1e-6,b[0]-a[0])
+        rel_steps.append(math.hypot(b[1]-a[1],b[2]-a[2])/dt)
+    # unwrap angle locally for a compact guarding-direction stability measure
+    angle_steps=[]
+    for a,b in zip(angles,angles[1:]):
+        d=(b-a+math.pi)%(2*math.pi)-math.pi
+        angle_steps.append(abs(d))
+    n=len(radii); mt=sum(p[0] for p in pts)/n; mr=sum(radii)/n
+    den=sum((p[0]-mt)**2 for p in pts)
+    slope=(sum((p[0]-mt)*(r-mr) for p,r in zip(pts,radii))/den) if den>0 else 0.0
+    std=(sum((r-mr)**2 for r in radii)/n)**0.5
+    print("REL_MOTION",tid,
+          "N",n,
+          "MEAN_R",round(mr,4),
+          "STD_R",round(std,4),
+          "RANGE_R",round(max(radii)-min(radii),4),
+          "SLOPE_R_PER_S",round(slope,4),
+          "MEAN_REL_SPEED",round(sum(rel_steps)/len(rel_steps),4),
+          "MEAN_ANGLE_STEP_RAD",round(sum(angle_steps)/len(angle_steps),4),
+          "SERIES",json.dumps([[round(t,4),round(x,4),round(y,4)] for t,x,y in pts]))
