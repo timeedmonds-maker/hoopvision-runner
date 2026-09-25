@@ -14,7 +14,7 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
-  CANDIDATE_SHA: f0cdbef750af513c1bd4347be5162ac54e099a49
+  CANDIDATE_SHA: 1acf43ac64f1195128e5fbdb09a9aee138bcb947
   RETAINED_RUN_ID: public-36185446517-1-0b1290c674a3
   IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
