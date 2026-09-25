@@ -1,76 +1,16 @@
-name: Repair L4 failover acquisition
+name: Deprecated L4 Failover Repair
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/repair-l4-failover.yml'
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  repair:
+  deprecated:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: main
-          persist-credentials: true
-      - name: Make prepared failover start capacity-aware
-        shell: bash
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('.github/workflows/hoopvision.yml')
-          s = p.read_text()
-          old = '''              if [ -z "$FOUND_ZONE" ]; then
-                FAILOVER_INSTANCE="hv-dev-l4-failover"
-                for Z in asia-southeast1-a asia-southeast1-b; do
-                  if gcloud compute instances describe "$FAILOVER_INSTANCE" --project="$PROJECT_ID" --zone="$Z" >/dev/null 2>&1; then
-                    FOUND_ZONE="$Z"
-                    FOUND_INSTANCE="$FAILOVER_INSTANCE"
-                    echo "Reusing prepared L4 failover target $FAILOVER_INSTANCE in $FOUND_ZONE"
-                    break
-                  fi
-                done
-              fi
-'''
-          new = '''              if [ -z "$FOUND_ZONE" ]; then
-                FAILOVER_INSTANCE="hv-dev-l4-failover"
-                for Z in asia-southeast1-a asia-southeast1-b; do
-                  if gcloud compute instances describe "$FAILOVER_INSTANCE" --project="$PROJECT_ID" --zone="$Z" >/dev/null 2>&1; then
-                    echo "Found prepared L4 failover target $FAILOVER_INSTANCE in $Z; testing capacity by starting it now."
-                    set +e
-                    gcloud compute instances start "$FAILOVER_INSTANCE" --project="$PROJECT_ID" --zone="$Z"
-                    RC=$?
-                    set -e
-                    if [ "$RC" -eq 0 ]; then
-                      FOUND_ZONE="$Z"
-                      FOUND_INSTANCE="$FAILOVER_INSTANCE"
-                      echo "Prepared L4 failover started in $FOUND_ZONE"
-                      break
-                    fi
-                    echo "Prepared failover in $Z could not start; continuing to clone/Flex-start acquisition paths."
-                  fi
-                done
-              fi
-'''
-          if old not in s:
-              if new in s:
-                  print('Repair already applied.')
-                  raise SystemExit(0)
-              raise SystemExit('Expected failover block not found; refusing unsafe rewrite')
-          p.write_text(s.replace(old, new, 1))
-          PY
-          if git diff --quiet -- .github/workflows/hoopvision.yml; then
-            echo 'No repair commit required.'
-            exit 0
-          fi
-          git config user.name hoopvision-runner
-          git config user.email hoopvision-runner@users.noreply.github.com
-          git add .github/workflows/hoopvision.yml
-          git commit -m 'Continue past unavailable prepared L4 failover'
-          git push origin HEAD:main
+      - run: |
+          echo "DEPRECATED: automated failover-repair mutation is disabled by the 25 Sep integrated delivery plan."
+          echo "Use the bounded capacity probe / prepared-host workflow and explicit current-candidate dispatch."
+          echo "HOOPVISION_DEPRECATED_FAILOVER_REPAIR_OK"
