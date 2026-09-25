@@ -1,0 +1,37 @@
+name: Inspect Toronto Failure Tail
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-toronto-failure-tail.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  RUN_ID: public-36087278778-1-0023fcfa7b49
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Tail only final durable chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/**" | tail -n 12 > /tmp/list
+          cat /tmp/list
+          while read -r x; do
+            echo "===== $x ====="
+            gcloud storage cat "$x" || true
+          done < /tmp/list
