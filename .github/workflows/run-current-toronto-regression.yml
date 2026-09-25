@@ -35,13 +35,14 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - name: Install lightweight regression dependencies
-        run: python -m pip install -q --disable-pip-version-check numpy pandas
+        run: python -m pip install -q --disable-pip-version-check numpy pandas pytest
       - name: Enforce governing delivery policy
         run: |
           set -euo pipefail
           python src/tools/validate_governing_delivery_policy.py
           python -m py_compile src/screen_tracker_nextgen/build_kickout_semantic_anchors.py src/screen_tracker_nextgen/global_identity_solver.py
-          grep -F "safe=bool((not ambiguous)" src/screen_tracker_nextgen/global_identity_solver.py
+          grep -F "safe=bool(positive_identity" src/screen_tracker_nextgen/global_identity_solver.py
+          grep -F "'positive_identity_evidence':positive_identity" src/screen_tracker_nextgen/global_identity_solver.py
           grep -F "collision_anchor_never_authorizes_ambiguous_render" src/screen_tracker_nextgen/build_kickout_semantic_anchors.py
           echo HOOPVISION_COLLISION_ANCHOR_RENDER_SAFETY_OK
           python - <<'PY'
@@ -63,6 +64,12 @@ jobs:
           ns['test_main_records_soft_colour_invariant']()
           print('HOOPVISION_DEFENDER_SOFT_TEAM_POLICY_OK')
           PY
+          python src/screen_tracker_nextgen/test_global_identity_solver.py
+          PYTHONPATH=src:src/screen_tracker_nextgen python -m pytest -q \
+            src/screen_tracker_nextgen/test_global_identity_solver.py \
+            src/hoopvision/tests/test_global_identity_mixed_uniform_abstention.py \
+            src/hoopvision/tests/test_semantic_defender_soft_team.py
+          echo HOOPVISION_POSITIVE_IDENTITY_RENDER_GATE_OK
       - name: Build deterministic application snapshot
         run: |
           set -euo pipefail
