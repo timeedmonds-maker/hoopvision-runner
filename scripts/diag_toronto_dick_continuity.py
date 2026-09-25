@@ -147,3 +147,35 @@ for r in groups:
     except: continue
     if sid in track0_segments:
         print(json.dumps(r,sort_keys=True))
+
+
+print("TRACK2_3_ACTION_ASSOCIATIONS")
+assocp=root/"semantic_anchors.associations.csv"
+if not assocp.exists():
+    print("NO_ASSOCIATIONS_FILE",str(assocp))
+else:
+    assoc=rows(assocp)
+    for r in assoc:
+        try:
+            tid=int(float(r.get("source_track_id") or -1))
+            t=float(r.get("time_s") or -1)
+        except Exception:
+            continue
+        if tid in {2,3} and 8.5<=t<=10.2:
+            print(json.dumps(r,sort_keys=True))
+    print("TRACK2_3_ACTION_SUMMARY")
+    for tid in (2,3):
+        q=[]
+        for r in assoc:
+            try:
+                if int(float(r.get("source_track_id") or -1))==tid and 8.5<=float(r.get("time_s") or -1)<=10.2:
+                    q.append(r)
+            except Exception:
+                pass
+        print("TRACK",tid,"ROWS",len(q),
+              "CLASS_COUNTS",dict(Counter(str(r.get("det_class")) for r in q)),
+              "STRONG_ROWS",sum(1 for r in q if int(float(r.get("det_class") or -1)) in {1,6,7}),
+              "POSSESSION_ROWS",sum(1 for r in q if int(float(r.get("det_class") or -1))==5),
+              "BALL_ROWS",sum(1 for r in q if int(float(r.get("det_class") or -1))==1),
+              "JUMPSHOT_ROWS",sum(1 for r in q if int(float(r.get("det_class") or -1))==6),
+              "LAYUP_ROWS",sum(1 for r in q if int(float(r.get("det_class") or -1))==7))
