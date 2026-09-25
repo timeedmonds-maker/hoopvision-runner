@@ -10,7 +10,7 @@ permissions:
   actions: write
 
 env:
-  REDISPATCH_NONCE: '1790305155599'
+  REDISPATCH_NONCE: '1790306174183'
 
 jobs:
   dispatch:
