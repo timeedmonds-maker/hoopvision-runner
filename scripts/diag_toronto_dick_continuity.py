@@ -95,3 +95,24 @@ if tip.exists():
 for r in assign:
     if int(float(r.get("identity_segment_id") or -1))==36:
         print("ASSIGN36",json.dumps({k:r.get(k) for k in ("time_s","player_id","player_name","jersey","source_track_id","identity_segment_id","safe","global_margin","ambiguous","team","direct_ocr","jersey_support")},sort_keys=True))
+
+
+print("DEFENDER_TEMPORAL_GEOMETRY")
+import math
+bytime={}
+for r in obs:
+    t=round(float(r["time_s"]),4)
+    bytime.setdefault(t,{})[int(float(r["source_track_id"]))]=r
+def center(r):
+    return ((float(r["x1"])+float(r["x2"]))*0.5,(float(r["y1"])+float(r["y2"]))*0.5)
+def h(r): return max(1.0,float(r["y2"])-float(r["y1"]))
+for cand in (0,2,3,4,10,12):
+    vals=[]
+    for t,m in sorted(bytime.items()):
+        if 8.9<=t<=9.8 and 5 in m and cand in m:
+            a=center(m[5]); b=center(m[cand])
+            d=math.hypot(a[0]-b[0],a[1]-b[1])/max(1.0,0.5*(h(m[5])+h(m[cand])))
+            vals.append((t,d,str(m[cand].get("ambiguous")),float(m[cand].get("cluster_conf") or 0)))
+    if vals:
+        ds=[x[1] for x in vals]
+        print("CAND",cand,"N",len(vals),"MEAN",round(sum(ds)/len(ds),4),"MIN",round(min(ds),4),"MAX",round(max(ds),4),"SERIES",json.dumps(vals))
