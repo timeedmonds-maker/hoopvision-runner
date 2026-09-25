@@ -12,6 +12,7 @@ permissions:
   actions: write
 
 env:
+  PREPARE_NONCE: 'restart-1790308945246'
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   SOURCE_ZONE: asia-southeast1-c
@@ -19,7 +20,7 @@ env:
   TARGET_ZONE: asia-northeast1-b
   TARGET_INSTANCE: hv-dev-l4-tokyo
   TARGET_DISK: hv-dev-l4-tokyo-boot
-  CANDIDATE_SHA: 0023fcfa7b490833262fa0ec4a97f69e7ae0eeee
+  CANDIDATE_SHA: dc538ab9ef54ba39d959f904109cbbd9e7ab1412
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
