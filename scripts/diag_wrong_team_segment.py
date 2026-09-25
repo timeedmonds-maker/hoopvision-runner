@@ -49,3 +49,17 @@ for sid in (3,72,80):
           "SEG",json.dumps(ss,sort_keys=True) if ss else None,
           "CLUSTERS",dict(Counter(r.get("uniform_cluster","") for r in qq)),
           "AMBIG",dict(Counter(r.get("ambiguous","") for r in qq)))
+
+# Summarize every segment whose observation-level uniform cluster changes.
+mixed=[]
+byseg={}
+for r in obs:
+    sid=int(float(r["identity_segment_id"]))
+    if float(r.get("cluster_conf") or 0)>=0.52:
+        byseg.setdefault(sid,set()).add(str(r.get("uniform_cluster")))
+for sid,vals in sorted(byseg.items()):
+    if len(vals)>1:
+        sr=next((x for x in segs if int(float(x["segment_id"]))==sid),{})
+        mixed.append({"segment_id":sid,"clusters":sorted(vals),"segment_cluster":sr.get("uniform_cluster"),"segment_conf":sr.get("cluster_conf"),"rows":sr.get("rows"),"ambiguity_fraction":sr.get("ambiguity_fraction")})
+print("MIXED_SEGMENT_COUNT",len(mixed))
+print("MIXED_SEGMENTS",json.dumps(mixed,indent=2))
