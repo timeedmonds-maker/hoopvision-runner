@@ -75,3 +75,23 @@ print("TRACK3_ALL_ASSIGNMENTS")
 for r in assign:
     if int(float(r["source_track_id"]))==3 and 5.5<=float(r["time_s"])<=14.3:
         print(json.dumps({k:r.get(k) for k in ("time_s","player_id","source_track_id","identity_segment_id","safe","global_margin","ambiguous","team","evidence_conflict")},sort_keys=True))
+
+
+print("SEGMENT36_IDENTITY_EVIDENCE")
+ocrp=root/"identity_ocr/ocr_evidence.json"
+if ocrp.exists():
+    for rec in json.load(open(ocrp)):
+        try: sid=int(float(rec.get("track_id")))
+        except: continue
+        if sid==36:
+            print("OCR36",json.dumps(rec,sort_keys=True))
+tip=root/"identity_ocr/track_identity.csv"
+if tip.exists():
+    for r in rows(tip):
+        try: sid=int(float(r.get("track_id")))
+        except: continue
+        if sid==36:
+            print("TRACK_ID36",json.dumps(r,sort_keys=True))
+for r in assign:
+    if int(float(r.get("identity_segment_id") or -1))==36:
+        print("ASSIGN36",json.dumps({k:r.get(k) for k in ("time_s","player_id","player_name","jersey","source_track_id","identity_segment_id","safe","global_margin","ambiguous","team","direct_ocr","jersey_support")},sort_keys=True))
