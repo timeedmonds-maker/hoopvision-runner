@@ -13,7 +13,7 @@ env:
   EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   DEV_TOPIC: hv-dev-jobs
   SESSION_ID: hv-dev-l4
-  CANDIDATE_SHA: e15e5fda4676c113d65205d8525ae91b72c0864a
+  CANDIDATE_SHA: 97d6f7df56aa7fc57d8f6aeb07cd17b5cf2c9a7f
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -38,6 +38,10 @@ jobs:
         run: |
           set -euo pipefail
           python src/tools/validate_governing_delivery_policy.py
+          python -m py_compile src/screen_tracker_nextgen/build_kickout_semantic_anchors.py src/screen_tracker_nextgen/global_identity_solver.py
+          grep -F "safe=bool((not ambiguous)" src/screen_tracker_nextgen/global_identity_solver.py
+          grep -F "collision_anchor_never_authorizes_ambiguous_render" src/screen_tracker_nextgen/build_kickout_semantic_anchors.py
+          echo HOOPVISION_COLLISION_ANCHOR_RENDER_SAFETY_OK
           python - <<'PY'
           import runpy
           ns=runpy.run_path('src/hoopvision/tests/test_semantic_anchor_detector_taxonomy.py')
