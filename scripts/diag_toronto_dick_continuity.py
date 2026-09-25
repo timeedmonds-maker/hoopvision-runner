@@ -331,3 +331,63 @@ for tid in CANDS:
           "MEAN_REL_SPEED",round(sum(rel_steps)/len(rel_steps),4),
           "MEAN_ANGLE_STEP_RAD",round(sum(angle_steps)/len(angle_steps),4),
           "SERIES",json.dumps([[round(t,4),round(x,4),round(y,4)] for t,x,y in pts]))
+
+
+print("RIM_ATTACK_DIRECTION_CPU_PROBE")
+try:
+    import cv2, os
+    sys.path.insert(0,"/opt/object-detection-eval/src")
+    from object_detection_eval.inference.detectors.rfdetr import RFDETRDetector
+    model_path=Path("/srv/hoopvision/models/cache/rfdetr_m_640.onnx")
+    source_path=root/"nextgen_mask/source_native.mp4"
+    if not model_path.exists():
+        print("RIM_PROBE_NO_MODEL",str(model_path))
+    elif not source_path.exists():
+        print("RIM_PROBE_NO_SOURCE",str(source_path))
+    elif not cal:
+        print("RIM_PROBE_NO_CALIBRATION")
+    else:
+        detector=RFDETRDetector(
+            model_path,
+            {0:'basketball-unused',1:'ball',2:'ball-in-basket',3:'number',4:'player',
+             5:'player-in-possession',6:'player-jump-shot',7:'player-layup-dunk',
+             8:'player-shot-block',9:'referee',10:'rim'},
+            confidence_threshold=.025,
+            num_select=300,
+            input_height=640,
+            input_width=640,
+            providers=["CPUExecutionProvider"],
+        )
+        cap=cv2.VideoCapture(str(source_path))
+        for ht,hf,H in cal:
+            # court_frames frame numbering is source-native frame numbering here.
+            cap.set(cv2.CAP_PROP_POS_FRAMES,int(hf))
+            ok,img=cap.read()
+            if not ok:
+                print("RIM_PROBE_FRAME_READ_FAIL",ht,hf)
+                continue
+            dets=detector.predict(img)
+            print("RIM_PROBE_FRAME",ht,hf,"DETS",len(dets))
+            for d in dets:
+                cid=int(d.class_id)
+                if cid not in {1,2,10}:
+                    continue
+                bb=detector_box(d,img.shape[1],img.shape[0])
+                # Rim/ball center is the meaningful image point.
+                x=float((bb[0]+bb[2])*.5); y=float((bb[1]+bb[3])*.5)
+                cp=proj(H,x,y)
+                dl=math.hypot(cp[0]-LEFT_HOOP[0],cp[1]-LEFT_HOOP[1])
+                dr=math.hypot(cp[0]-RIGHT_HOOP[0],cp[1]-RIGHT_HOOP[1])
+                print("RIM_PROBE_DET",json.dumps({
+                    "time_s":ht,"frame":hf,"class_id":cid,
+                    "confidence":round(float(d.confidence),6),
+                    "px":[round(x,3),round(y,3)],
+                    "court":[round(cp[0],3),round(cp[1],3)],
+                    "left_rim_dist_cm":round(dl,3),
+                    "right_rim_dist_cm":round(dr,3),
+                    "nearest_canonical_rim":"left" if dl<dr else "right",
+                    "rim_distance_margin_cm":round(abs(dl-dr),3),
+                },sort_keys=True))
+        cap.release()
+except Exception as exc:
+    print("RIM_PROBE_ERROR",type(exc).__name__,repr(exc))
