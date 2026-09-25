@@ -91,13 +91,16 @@ jobs:
             set -euo pipefail
             ROOT=/srv/hoopvision/runs/$RETAINED_RUN_ID/artifacts
             WORK=/tmp/hv-toronto-sam-observe
-            test -s \"\$ROOT/nextgen_mask/source_native.mp4\"
-            test -s \"\$ROOT/identity_segments/uniform_observations.csv\"
-            test -s \"\$ROOT/sam31/ambiguity_windows.json\"
-            test -s /srv/hoopvision/models/cache/sam3.1_multiplex.pt
-            test \"\$(stat -c %s /srv/hoopvision/models/cache/sam3.1_multiplex.pt)\" = 3502755717
-            sudo docker image inspect '$IMAGE' >/dev/null
-            nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
+            echo ===PRECHECKS===
+            sudo test -s \"\$ROOT/nextgen_mask/source_native.mp4\" && echo SOURCE_OK
+            sudo test -s \"\$ROOT/identity_segments/uniform_observations.csv\" && echo OBSERVATIONS_OK
+            sudo test -s \"\$ROOT/sam31/ambiguity_windows.json\" && echo WINDOWS_OK
+            sudo test -s /srv/hoopvision/models/cache/sam3.1_multiplex.pt && echo SAM_CHECKPOINT_OK
+            SIZE=\$(sudo stat -c %s /srv/hoopvision/models/cache/sam3.1_multiplex.pt)
+            echo SAM_CHECKPOINT_SIZE=\$SIZE
+            test \"\$SIZE\" = 3502755717
+            sudo docker image inspect '$IMAGE' >/dev/null && echo IMAGE_OK
+            nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader && echo GPU_OK
             rm -rf \"\$WORK/out\" && mkdir -p \"\$WORK/out\"
             set +e
             /usr/bin/time -f '%e' -o \"\$WORK/wall_s.txt\" sudo timeout --signal=TERM --kill-after=30s 600s docker run --rm --pull=never --gpus all \
