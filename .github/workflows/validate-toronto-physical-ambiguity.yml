@@ -1,0 +1,149 @@
+name: Validate Toronto Physical Ambiguity Fix
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-toronto-physical-ambiguity.yml'
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  CANDIDATE_SHA: c7637a7c34a2bf8a9b0f064a565469b90dab3193
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Install light validation dependencies
+        run: python -m pip install -q --disable-pip-version-check numpy pandas opencv-python-headless pytest
+
+      - name: Run focused regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd src
+          python -m py_compile screen_tracker_nextgen/build_identity_segments.py
+          python -m pytest -q screen_tracker_nextgen/test_identity_ambiguity.py
+          python tools/validate_governing_delivery_policy.py
+          git diff --check
+
+      - name: Download exact Toronto exit-6 evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          gh run download 36201161692 -n hoopvision-toronto-exit6-evidence -D evidence
+          test -s evidence/nextgen_mask/tracks.csv
+
+      - name: Replay ambiguity classifier on retained Toronto tracks
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH=src python - <<'PY'
+          import json
+          import numpy as np
+          import pandas as pd
+          from screen_tracker_nextgen.build_identity_segments import (
+              iou, normalized_bottom_distance, pair_assignment_margin
+          )
+
+          tracks = pd.read_csv('evidence/nextgen_mask/tracks.csv')
+          tracks = tracks[tracks.track_id >= 0].copy().sort_values(['time_s','track_id']).reset_index(drop=True)
+          near_norm = 0.52
+          iou_threshold = 0.10
+          assignment_margin = near_norm * 0.50
+          gap_s = 0.24
+
+          prev_idx, next_idx = {}, {}
+          for _, tg in tracks.groupby('track_id', sort=False):
+              inds = tg.sort_values('time_s').index.to_list()
+              for j, rowi in enumerate(inds):
+                  if j > 0 and float(tracks.at[rowi,'time_s'] - tracks.at[inds[j-1],'time_s']) <= gap_s:
+                      prev_idx[rowi] = inds[j-1]
+                  if j + 1 < len(inds) and float(tracks.at[inds[j+1],'time_s'] - tracks.at[rowi,'time_s']) <= gap_s:
+                      next_idx[rowi] = inds[j+1]
+
+          def box_at(idx):
+              r=tracks.loc[idx]
+              return (float(r.x1),float(r.y1),float(r.x2),float(r.y2))
+
+          events=[]
+          for t, g in tracks.groupby(tracks.time_s.round(4), sort=False):
+              rows=list(g.itertuples())
+              for i,a in enumerate(rows):
+                  A=(a.x1,a.y1,a.x2,a.y2)
+                  for b in rows[i+1:]:
+                      B=(b.x1,b.y1,b.x2,b.y2)
+                      nd=normalized_bottom_distance(A,B)
+                      ov=iou(A,B)
+                      if not (ov >= iou_threshold or nd <= near_norm):
+                          continue
+                      margins=[]
+                      pa,pb=prev_idx.get(a.Index),prev_idx.get(b.Index)
+                      if pa is not None and pb is not None:
+                          margins.append(pair_assignment_margin(box_at(pa),box_at(pb),A,B))
+                      na,nb=next_idx.get(a.Index),next_idx.get(b.Index)
+                      if na is not None and nb is not None:
+                          margins.append(pair_assignment_margin(A,B,box_at(na),box_at(nb)))
+                      min_margin=min(margins) if margins else None
+                      ambiguous=(not margins) or min_margin <= assignment_margin
+                      events.append({
+                          'time_s':float(t),'a':int(a.track_id),'b':int(b.track_id),
+                          'iou':float(ov),'nd':float(nd),'min_margin':min_margin,
+                          'ambiguous':bool(ambiguous)
+                      })
+
+          def target(time_s, tid):
+              same=[e for e in events if abs(e['time_s']-round(time_s,4))<1e-6 and tid in (e['a'],e['b'])]
+              assert same, (time_s,tid)
+              # The failing oracle row only needs every proximity relation involving
+              # its physical track to be assignment-clear at that sample.
+              return same
+
+          adams=target(9.3038,6)
+          dick=target(11.9064,3)
+          assert all(not e['ambiguous'] for e in adams), adams
+          assert all(not e['ambiguous'] for e in dick), dick
+
+          kept=[e for e in events if e['ambiguous']]
+          assert kept, 'classifier unexpectedly cleared every proximity event'
+          known=[e for e in events if e['min_margin'] is not None]
+          assert known
+          summary={
+              'proximity_candidate_pair_frames':len(events),
+              'retained_physically_ambiguous_pair_frames':len(kept),
+              'retained_fraction':len(kept)/len(events),
+              'assignment_margin_threshold':assignment_margin,
+              'adams_events':adams,
+              'dick_events':dick,
+              'lowest_assignment_margin_events':sorted(
+                  [e for e in known if e['min_margin'] is not None],
+                  key=lambda x:x['min_margin']
+              )[:12],
+          }
+          print(json.dumps(summary,indent=2))
+          open('toronto_ambiguity_replay.json','w').write(json.dumps(summary,indent=2))
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: toronto-ambiguity-replay-c7637a7c
+          path: toronto_ambiguity_replay.json
+          retention-days: 30
