@@ -1,0 +1,22 @@
+name: Dispatch Current Toronto Now
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/dispatch-current-toronto-now.yml']
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Dispatch exact current Toronto workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api --method POST             -H "Accept: application/vnd.github+json"             "/repos/${GITHUB_REPOSITORY}/actions/workflows/run-current-toronto-regression.yml/dispatches"             -f ref=main
+          echo HOOPVISION_TORONTO_REDISPATCHED
