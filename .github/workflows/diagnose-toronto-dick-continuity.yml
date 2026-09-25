@@ -57,7 +57,7 @@ jobs:
           RUN_ID="$(gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo find /srv/hoopvision/runs -mindepth 1 -maxdepth 1 -type d -printf '%f\\n' | grep '$CANDIDATE_PREFIX' | sort -r | head -1")"
           test -n "$RUN_ID" || { echo "NO_EXACT_CANDIDATE_RUN_FOUND=$CANDIDATE_PREFIX"; exit 4; }
           echo "DIAG_RUN_ID=$RUN_ID"
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo python3 /tmp/diag_toronto_dick_continuity.py /srv/hoopvision/runs/$RUN_ID/artifacts"
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo bash -lc 'ROOT=/srv/hoopvision/runs/$RUN_ID; echo DIAG_ROOT=\$ROOT; echo ===TOP_LEVEL===; find \$ROOT -maxdepth 2 -type f -printf "%P\\n" | sort | head -200; echo ===IDENTITY_CANDIDATES===; find \$ROOT -type f \( -name "*identity*" -o -name "*sam*" -o -name "*continuity*" -o -name "*status*" -o -name "*result*" \) -printf "%P\\n" | sort | head -300; if test -f \$ROOT/artifacts/global_identity/identity_assignments.csv; then sudo python3 /tmp/diag_toronto_dick_continuity.py \$ROOT/artifacts; else echo GLOBAL_IDENTITY_ASSIGNMENTS_MISSING; echo ===ARTIFACT_TREE===; find \$ROOT/artifacts -maxdepth 4 -type f -printf "%P\\n" 2>/dev/null | sort | head -500; fi'"
       - name: Stop VM if diagnostic started it
         if: always()
         shell: bash
