@@ -12,7 +12,7 @@ permissions:
   actions: write
 
 env:
-  PREPARE_NONCE: 'strong-jersey-dbe19aff80e6'
+  PREPARE_NONCE: 'temporal-defender-9638f8f83325'
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   SOURCE_ZONE: asia-southeast1-c
@@ -20,7 +20,7 @@ env:
   TARGET_ZONE: asia-northeast1-b
   TARGET_INSTANCE: hv-dev-l4-tokyo
   TARGET_DISK: hv-dev-l4-tokyo-boot
-  CANDIDATE_SHA: dbe19aff80e6e6d32b154f22f229fb6276e28a19
+  CANDIDATE_SHA: 9638f8f83325273f969114d8e3d825fe0269aa09
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
