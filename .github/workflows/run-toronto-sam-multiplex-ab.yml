@@ -89,19 +89,32 @@ jobs:
             WORK=/tmp/hv-toronto-multiplex-ab
             sudo rm -rf \"\$WORK\"
             sudo mkdir -p \"\$WORK/src\" \"\$WORK/out\"
+            sudo cp \"\$ROOT/sam31/ambiguity_windows.json\" \"\$WORK/ambiguity_windows_full.json\"
             sudo chown -R $(id -u):$(id -g) \"\$WORK\"
+            test -s \"\$WORK/ambiguity_windows_full.json\"
             sudo test -s \"\$ROOT/nextgen_mask/source_native.mp4\"
             sudo test -s \"\$ROOT/identity_segments/uniform_observations.csv\"
-            sudo test -s \"\$ROOT/sam31/ambiguity_windows.json\"
-            sudo python3 -c 'import json; p=\"/srv/hoopvision/runs/$RETAINED_RUN_ID/artifacts/sam31/ambiguity_windows.json\"; d=json.load(open(p)); keep={12,27}; d[\"decisions\"]=[x for x in (d.get(\"decisions\") or []) if int(x.get(\"decision_id\",-1)) in keep]; assert len(d[\"decisions\"])==2, len(d[\"decisions\"]); json.dump(d,open(\"/tmp/hv-toronto-multiplex-ab/ambiguity_windows_ab.json\",\"w\"),indent=2)'
-            sudo chown $(id -u):$(id -g) \"\$WORK/ambiguity_windows_ab.json\"
           "
-          gcloud compute scp /tmp/candidate.tgz /tmp/candidate.sha "$INSTANCE:/tmp/hv-toronto-multiplex-ab/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute scp "$INSTANCE:/tmp/hv-toronto-multiplex-ab/ambiguity_windows_full.json" /tmp/ambiguity_windows_full.json --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          python - <<'PY'
+          import json
+          src='/tmp/ambiguity_windows_full.json'
+          dst='/tmp/ambiguity_windows_ab.json'
+          d=json.load(open(src))
+          keep={12,27}
+          decisions=[x for x in (d.get('decisions') or []) if int(x.get('decision_id',-1)) in keep]
+          assert len(decisions)==2, [(x.get('decision_id'),x.get('from_segment_id'),x.get('to_segment_id')) for x in decisions]
+          d['decisions']=decisions
+          json.dump(d,open(dst,'w'),indent=2)
+          print('FILTERED_DECISIONS', [int(x['decision_id']) for x in decisions])
+          PY
+          gcloud compute scp /tmp/candidate.tgz /tmp/candidate.sha /tmp/ambiguity_windows_ab.json "$INSTANCE:/tmp/hv-toronto-multiplex-ab/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
             set -euo pipefail
             cd /tmp/hv-toronto-multiplex-ab
             tar -C src -xzf candidate.tgz
             test \"\$(cat candidate.sha)\" = '$CANDIDATE_SHA'
+            test -s ambiguity_windows_ab.json
           "
 
       - name: Execute real two-object multiplex A-B
