@@ -9,15 +9,20 @@ permissions:
   contents: read
   actions: write
 
+env:
+  REDISPATCH_NONCE: '1790305155599'
+
 jobs:
   dispatch:
     runs-on: ubuntu-24.04
     steps:
       - name: Dispatch exact current Toronto workflow
         env:
-  REDISPATCH_NONCE: '1790305125723'
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api --method POST             -H "Accept: application/vnd.github+json"             "/repos/${GITHUB_REPOSITORY}/actions/workflows/run-current-toronto-regression.yml/dispatches"             -f ref=main
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/actions/workflows/run-current-toronto-regression.yml/dispatches" \
+            -f ref=main
           echo HOOPVISION_TORONTO_REDISPATCHED
