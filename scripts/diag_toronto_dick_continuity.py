@@ -391,3 +391,30 @@ try:
         cap.release()
 except Exception as exc:
     print("RIM_PROBE_ERROR",type(exc).__name__,repr(exc))
+
+
+print("SAM31_PLAN_TRACK3")
+planp=root/"sam31/sam31_plan.json"
+if planp.exists():
+    plan=json.load(open(planp))
+    for rec in plan:
+        seeds=rec.get("seeds") or []
+        cand={int(x) for x in (rec.get("candidate_segment_ids") or [])}
+        seed_sids={int(x.get("identity_segment_id")) for x in seeds if x.get("identity_segment_id") is not None}
+        seed_tids={int(x.get("source_track_id")) for x in seeds if x.get("source_track_id") is not None}
+        if seed_sids & {46,47,48} or cand & {46,47,48} or 3 in seed_tids:
+            print(json.dumps(rec,sort_keys=True))
+else:
+    print("NO_SAM31_PLAN")
+
+print("AMBIGUITY_WINDOWS_TRACK3")
+awp=root/"sam31/ambiguity_windows.json"
+if awp.exists():
+    aw=json.load(open(awp))
+    print("AMBIGUITY_WINDOW_COUNT",aw.get("window_count"),"TRIGGERS",aw.get("trigger_sample_count"))
+    for rec in aw.get("windows") or []:
+        pairs=[tuple(int(v) for v in p) for p in (rec.get("track_pairs") or [])]
+        if any(3 in p for p in pairs) or (float(rec.get("start_s",999))<=11.97 and float(rec.get("end_s",-1))>=9.30):
+            print(json.dumps(rec,sort_keys=True))
+else:
+    print("NO_AMBIGUITY_WINDOWS")
