@@ -28,3 +28,16 @@ print("OBS_CLUSTER_CONF_MINMAX",
 print("OBS_AMBIG_COUNTS",dict(Counter(r.get("ambiguous","") for r in q)))
 for r in q[:40]:
     print("OBS",json.dumps({k:r.get(k) for k in ("time_s","source_track_id","raw_source_track_id","uniform_cluster","cluster_conf","ambiguous","conf")},sort_keys=True))
+
+# Independent identity evidence for the segment.
+ocr=json.load(open(root/"identity_ocr/ocr_evidence.json"))
+print("OCR_TOPLEVEL_TYPE",type(ocr).__name__)
+print("OCR_SEGMENT16",json.dumps(
+    {k:v for k,v in (ocr.items() if isinstance(ocr,dict) else []) if str(k)=="16"},
+    sort_keys=True
+) if isinstance(ocr,dict) else "not-dict")
+try:
+    ti=rows(root/"identity_ocr/track_identity.csv")
+    print("TRACK_IDENTITY_SEG16",json.dumps([r for r in ti if r.get("identity_segment_id")=="16" or r.get("segment_id")=="16" or r.get("source_track_id")=="1"],indent=2))
+except Exception as e:
+    print("TRACK_IDENTITY_ERR",repr(e))
