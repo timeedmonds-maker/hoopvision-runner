@@ -13,7 +13,7 @@ env:
   EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   DEV_TOPIC: hv-dev-jobs
   SESSION_ID: hv-dev-l4
-  CANDIDATE_SHA: 00313acb5936b0bde9a2cba06ddf471016eb3d51
+  CANDIDATE_SHA: dc538ab9ef54ba39d959f904109cbbd9e7ab1412
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -47,6 +47,12 @@ jobs:
           ns=runpy.run_path('src/hoopvision/tests/test_semantic_anchor_detector_taxonomy.py')
           ns['test_semantic_anchor_rfdetr_taxonomy_matches_raw11_checkpoint']()
           print('HOOPVISION_SEMANTIC_ANCHOR_TAXONOMY_OK')
+          PY
+          PYTHONPATH=src python - <<'PY'
+          import runpy
+          ns=runpy.run_path('src/hoopvision/tests/test_global_identity_mixed_uniform_abstention.py')
+          ns['test_mixed_uniform_segments_abstain_from_both_team_solvers']()
+          print('HOOPVISION_MIXED_UNIFORM_ABSTENTION_OK')
           PY
       - name: Build deterministic application snapshot
         run: |
