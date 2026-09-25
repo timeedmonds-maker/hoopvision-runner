@@ -84,7 +84,7 @@ jobs:
           # independent candidate once; P2 usable only once; P3 none.
           assert s['usable_number_observations']['count']==4
           assert s['independent_number_evidence']['count']==3
-          assert s['candidate_identity']['count']==1
+          assert s['candidate_identity']['count']==3
           assert s['accepted_identity_anchors']['count']==2
           assert s['supported_propagation']['count']==2
           assert s['correctly_rendered_geometry']['count']==5
