@@ -10,7 +10,7 @@ permissions:
   actions: read
 
 env:
-  CANDIDATE_SHA: f782720ddf5a91ba94afd373164d8d62b962c4fc
+  CANDIDATE_SHA: 6ac9fad67411f074e2c3062370964986e9929aea
 
 jobs:
   validate:
@@ -28,13 +28,12 @@ jobs:
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: python -m pip install -q --disable-pip-version-check 'numpy<2' pandas pytest opencv-python-headless
-      - name: Run governing and identity regressions
+      - name: Run governing and corrected planner regressions
         run: |
           set -euo pipefail
           python src/tools/validate_governing_delivery_policy.py
           python src/screen_tracker_nextgen/test_global_identity_solver.py
           PYTHONPATH=src python -m pytest -q             src/screen_tracker_nextgen/test_global_identity_solver.py             src/hoopvision/tests/test_global_identity_mixed_uniform_abstention.py             src/hoopvision/tests/test_semantic_defender_soft_team.py
           python -m py_compile src/screen_tracker_nextgen/sam31_ambiguity_continuity.py
-          grep -F "same identity segment" src/screen_tracker_nextgen/sam31_ambiguity_continuity.py
-          grep -F "Source-lane equality" src/screen_tracker_nextgen/sam31_ambiguity_continuity.py
-          echo HOOPVISION_TORONTO_SAM_PLANNER_FIX_CPU_OK
+          python -m pytest -q src/hoopvision/tests/test_sam31_same_lane_identity_split.py
+          echo HOOPVISION_TORONTO_SAM_PLANNER_CORRECTED_CPU_OK
