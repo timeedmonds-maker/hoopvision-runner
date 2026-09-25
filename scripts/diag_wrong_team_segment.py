@@ -41,3 +41,11 @@ try:
     print("TRACK_IDENTITY_SEG16",json.dumps([r for r in ti if r.get("identity_segment_id")=="16" or r.get("segment_id")=="16" or r.get("source_track_id")=="1"],indent=2))
 except Exception as e:
     print("TRACK_IDENTITY_ERR",repr(e))
+
+for sid in (3,72,80):
+    ss=next((r for r in segs if int(float(r["segment_id"]))==sid),None)
+    qq=[r for r in obs if int(float(r["identity_segment_id"]))==sid]
+    print("ROLE_SEGMENT",sid,
+          "SEG",json.dumps(ss,sort_keys=True) if ss else None,
+          "CLUSTERS",dict(Counter(r.get("uniform_cluster","") for r in qq)),
+          "AMBIG",dict(Counter(r.get("ambiguous","") for r in qq)))
