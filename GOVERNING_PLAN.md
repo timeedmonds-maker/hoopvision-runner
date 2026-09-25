@@ -5,7 +5,7 @@ Effective 25 September 2026.
 The runner is an execution bridge for the private candidate. It must not become a second source of product policy.
 
 ## Current exact candidate
-`e15e5fda4676c113d65205d8525ae91b72c0864a` on `timeedmonds-maker/104:hoopvision-proven-enhancements`.
+`97d6f7df56aa7fc57d8f6aeb07cd17b5cf2c9a7f` on `timeedmonds-maker/104:hoopvision-proven-enhancements`.
 
 Production `hoopvision-production` is not modified by runner work.
 
