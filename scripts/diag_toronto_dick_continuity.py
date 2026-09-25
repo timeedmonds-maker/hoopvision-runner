@@ -116,3 +116,34 @@ for cand in (0,2,3,4,10,12):
     if vals:
         ds=[x[1] for x in vals]
         print("CAND",cand,"N",len(vals),"MEAN",round(sum(ds)/len(ds),4),"MIN",round(min(ds),4),"MAX",round(max(ds),4),"SERIES",json.dumps(vals))
+
+
+print("TRACK0_POSITIVE_PROVENANCE")
+track0_segments=sorted({int(float(r["identity_segment_id"])) for r in obs if int(float(r["source_track_id"]))==0})
+print("TRACK0_SEGMENT_IDS",track0_segments)
+for r in assign:
+    if int(float(r["source_track_id"]))==0 and int(float(r.get("player_id") or -1))==pid:
+        print("DICK_TRACK0",json.dumps({k:r.get(k) for k in (
+            "time_s","player_id","player_name","source_track_id","raw_source_track_id",
+            "identity_segment_id","safe","global_margin","ambiguous",
+            "positive_identity_evidence","positive_identity_evidence_propagated",
+            "semantic_anchor","direct_ocr","jersey_support"
+        )},sort_keys=True))
+if ocrp.exists():
+    for rec in json.load(open(ocrp)):
+        try: sid=int(float(rec.get("track_id")))
+        except: continue
+        if sid in track0_segments:
+            print("TRACK0_OCR",json.dumps(rec,sort_keys=True))
+if tip.exists():
+    for r in rows(tip):
+        try: sid=int(float(r.get("track_id")))
+        except: continue
+        if sid in track0_segments:
+            print("TRACK0_IDENTITY_ROW",json.dumps(r,sort_keys=True))
+print("TRACK0_SAM_GROUP_ROWS")
+for r in groups:
+    try: sid=int(float(r.get("identity_segment_id")))
+    except: continue
+    if sid in track0_segments:
+        print(json.dumps(r,sort_keys=True))
