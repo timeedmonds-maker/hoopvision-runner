@@ -427,3 +427,19 @@ for p in (Path("/srv/hoopvision/src/screen_tracker_nextgen/sam31_ambiguity_conti
         txt=p.read_text(errors="replace")
         print("SAM31_SOURCE_HAS_LEGACY_SAME_SKIP", "if not same.empty:" in txt)
         print("SAM31_SOURCE_HAS_SAME_SEGMENT_FIX", "same_segment=same[" in txt)
+
+print("EXACT_CANDIDATE_RUN_PROBE_V2")
+import glob, os
+prefix="0b1290c674a3"
+roots=sorted(glob.glob("/srv/hoopvision/runs/*"+prefix+"*"), reverse=True)
+print("EXACT_CANDIDATE_RUNS", roots[:5])
+for rr in roots[:1]:
+    art=Path(rr)/"artifacts"
+    print("EXACT_CANDIDATE_SELECTED",rr)
+    for rel in ("sam31/sam31_plan.json","sam31/sam31_qa.json","sam31/accepted_links.json","identity_segments/segments.csv"):
+        p=art/rel; print("EXACT_FILE",rel,p.exists(),p.stat().st_size if p.exists() else -1)
+        if p.exists() and p.suffix==".json":
+            try:
+                obj=json.loads(p.read_text())
+                print("EXACT_JSON",rel,json.dumps(obj)[:12000])
+            except Exception as e: print("EXACT_JSON_ERROR",rel,repr(e))
