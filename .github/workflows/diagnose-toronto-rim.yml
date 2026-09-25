@@ -1,0 +1,83 @@
+name: Diagnose Toronto Rim Evidence
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-toronto-rim.yml'
+      - 'scripts/diag_toronto_rim.py'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-northeast1-b
+  INSTANCE: hv-dev-l4-tokyo
+  RUN_ID: public-36105592318-1-9638f8f83325
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Start retained Tokyo VM if stopped
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          echo "TOKYO_INSTANCE_STATUS_BEFORE=$STATUS"
+          if test "$STATUS" != "RUNNING"; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+            echo "HV_DIAG_STARTED_INSTANCE=1" >> "$GITHUB_ENV"
+          else
+            echo "HV_DIAG_STARTED_INSTANCE=0" >> "$GITHUB_ENV"
+          fi
+          ok=0
+          for i in $(seq 1 60); do
+            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='echo RIM_DIAG_SSH_OK' >/tmp/diag-ssh.out 2>/tmp/diag-ssh.err; then
+              cat /tmp/diag-ssh.out
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          if test "$ok" != 1; then cat /tmp/diag-ssh.err; exit 3; fi
+      - name: Copy rim diagnostic
+        run: gcloud compute scp scripts/diag_toronto_rim.py "$INSTANCE:/tmp/diag_toronto_rim.py" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+      - name: Run exact detector on retained catch frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo bash -s" <<'REMOTE'
+          set -euo pipefail
+          RUN_ID="${RUN_ID}"
+          ROOT="/srv/hoopvision"
+          ART="$ROOT/runs/$RUN_ID/artifacts"
+          APP="$(find "$ROOT/apps" -type f -path '*/screen_tracker_nextgen/build_kickout_semantic_anchors.py' -printf '%h\n' | sed 's#/screen_tracker_nextgen$##' | tail -1)"
+          test -n "$APP"
+          IMG="$(docker images --format '{{.Repository}}@{{.Digest}} {{.ID}}' | grep 'hoopvision-nextgen' | head -1 | awk '{print $1}')"
+          if test -z "$IMG" || test "$IMG" = '<none>@<none>'; then
+            IMG="$(docker images --format '{{.ID}}' | head -1)"
+          fi
+          echo "RIM_DIAG_APP=$APP"
+          echo "RIM_DIAG_IMAGE=$IMG"
+          docker run --rm --gpus all --pull=never             -v "$APP:/opt/hoopvision:ro"             -v "$ROOT/models:/models:ro"             -v "$ROOT/nbacv:/opt/nbacv:ro"             -v "$ART:/artifacts:ro"             -v /tmp/diag_toronto_rim.py:/tmp/diag_toronto_rim.py:ro             -e PYTHONPATH=/opt/hoopvision:/opt/object-detection-eval/src             --workdir /opt/hoopvision             "$IMG" python /tmp/diag_toronto_rim.py /artifacts
+          REMOTE
+      - name: Stop VM if diagnostic started it
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test "${HV_DIAG_STARTED_INSTANCE:-0}" = "1"; then
+            gcloud compute instances stop "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          fi
