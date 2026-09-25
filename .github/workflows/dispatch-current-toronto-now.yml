@@ -10,7 +10,7 @@ permissions:
   actions: write
 
 env:
-  REDISPATCH_NONCE: '20260925-mixed-uniform-abstain-1'
+  REDISPATCH_NONCE: '20260925-mixed-uniform-abstain-2'
 
 jobs:
   dispatch:
