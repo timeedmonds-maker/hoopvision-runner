@@ -38,4 +38,4 @@ jobs:
         run: |
           set -euo pipefail
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet \
-            --command="python3 /tmp/diag_toronto_passer.py /srv/hoopvision/runs/$RUN_ID/artifacts"
+            --command="sudo python3 /tmp/diag_toronto_passer.py /srv/hoopvision/runs/$RUN_ID/artifacts"
