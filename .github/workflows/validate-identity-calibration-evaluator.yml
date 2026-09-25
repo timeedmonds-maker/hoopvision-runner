@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  CANDIDATE_SHA: 3430b3c94c271e7b6bd3596bca97801defdb72f7
+  CANDIDATE_SHA: 0023fcfa7b490833262fa0ec4a97f69e7ae0eeee
 
 jobs:
   validate:
