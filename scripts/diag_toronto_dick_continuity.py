@@ -34,3 +34,21 @@ print("TRACK0_3_OBS")
 for r in obs:
     if int(float(r["source_track_id"])) in {0,3} and 8.5<=float(r["time_s"])<=12.5:
         print(json.dumps({k:r.get(k) for k in ("time_s","source_track_id","identity_segment_id","uniform_cluster","cluster_conf","ambiguous","conf","x1","y1","x2","y2")},sort_keys=True))
+
+
+print("TRACK2_3_COMPARISON")
+for r in obs:
+    if int(float(r["source_track_id"])) in {2,3} and 8.8<=float(r["time_s"])<=12.2:
+        print(json.dumps({k:r.get(k) for k in ("time_s","source_track_id","identity_segment_id","uniform_cluster","cluster_conf","ambiguous","conf","x1","y1","x2","y2")},sort_keys=True))
+
+print("TRACK2_3_ASSIGNMENTS")
+for r in assign:
+    if int(float(r["source_track_id"])) in {2,3} and 8.8<=float(r["time_s"])<=12.2:
+        print(json.dumps({k:r.get(k) for k in ("time_s","player_id","source_track_id","identity_segment_id","safe","global_margin","ambiguous","team","evidence_conflict")},sort_keys=True))
+
+print("TRACK2_3_SEGMENTS")
+for r in segs:
+    if int(float(r.get("source_track_id") or -1)) in {2,3}:
+        end=float(r["end_s"]); start=float(r["start_s"])
+        if end>=8.8 and start<=12.2:
+            print(json.dumps(r,sort_keys=True))
