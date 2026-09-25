@@ -65,8 +65,8 @@ jobs:
           ART="$ROOT/runs/$RUN_ID/artifacts"
           APP="$(find "$ROOT/apps" -type f -path '*/screen_tracker_nextgen/build_kickout_semantic_anchors.py' -printf '%h\n' | sed 's#/screen_tracker_nextgen$##' | tail -1)"
           test -n "$APP"
-          IMG="$(docker images --format '{{.Repository}}@{{.Digest}} {{.ID}}' | grep 'hoopvision-nextgen' | head -1 | awk '{print $1}')"
-          if test -z "$IMG" || test "$IMG" = '<none>@<none>'; then
+          IMG="$(docker images --format '{{.Repository}} {{.ID}}' | awk '$1 ~ /hoopvision-nextgen/ {print $2; exit}')"
+          if test -z "$IMG"; then
             IMG="$(docker images --format '{{.ID}}' | head -1)"
           fi
           echo "RIM_DIAG_APP=$APP"
