@@ -1,0 +1,36 @@
+name: Diagnose Toronto Dick Continuity
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-toronto-dick-continuity.yml'
+      - 'scripts/diag_toronto_dick_continuity.py'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-northeast1-b
+  INSTANCE: hv-dev-l4-tokyo
+  RUN_ID: public-36092946480-1-dc538ab9ef54
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Copy diagnostic
+        run: gcloud compute scp scripts/diag_toronto_dick_continuity.py "$INSTANCE:/tmp/diag_toronto_dick_continuity.py" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+      - name: Inspect defender continuity
+        run: gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo python3 /tmp/diag_toronto_dick_continuity.py /srv/hoopvision/runs/$RUN_ID/artifacts"
