@@ -8,31 +8,19 @@ app=Path("/srv/hoopvision/apps")
 models=Path("/srv/hoopvision/models")
 print("SOURCE",source,source.exists())
 print("MODEL_CANDIDATES")
-for p in [models/"rfdetr_m_640.onnx", Path("/models/rfdetr_m_640.onnx")]:
+for p in [Path("/models/rfdetr_m_640.onnx")]:
     print(str(p),p.exists(),p.stat().st_size if p.exists() else None)
 
-# Locate the exact candidate app and object-eval source already used by prepared host.
-cands=[]
-for p in app.glob("**/build_kickout_semantic_anchors.py"):
-    cands.append(p)
-print("APP_BUILDERS",[str(x) for x in cands[-5:]])
-builder=cands[-1] if cands else None
-if builder is None:
-    raise SystemExit("NO_BUILDER")
-app_root=builder.parents[1]
-for p in [Path("/opt/object-detection-eval/src"), Path("/srv/hoopvision/object-detection-eval/src"), app_root/"object-detection-eval/src"]:
-    if p.exists():
-        objsrc=p;break
-else:
-    # search bounded host roots, not the whole filesystem
-    found=list(Path("/srv/hoopvision").glob("**/object_detection_eval/inference/detectors/rfdetr.py"))
-    if not found: raise SystemExit("NO_OBJECT_EVAL")
-    objsrc=found[-1].parents[4]
-print("APP_ROOT",app_root)
-print("OBJECT_EVAL_SRC",objsrc)
+# The diagnostic runs inside the same cached production image with the exact
+# candidate app mounted at /opt/hoopvision and prepared model cache at /models.
+app_root=Path("/opt/hoopvision")
+objsrc=Path("/opt/object-detection-eval/src")
+print("APP_ROOT",app_root,app_root.exists())
+print("OBJECT_EVAL_SRC",objsrc,objsrc.exists())
 sys.path.insert(0,str(objsrc))
 from object_detection_eval.inference.detectors.rfdetr import RFDETRDetector
-model=next((p for p in [models/"rfdetr_m_640.onnx",Path("/models/rfdetr_m_640.onnx")] if p.exists()),None)
+model=Path("/models/rfdetr_m_640.onnx")
+if not model.exists(): model=None
 if model is None: raise SystemExit("NO_RFDETR_MODEL")
 label={0:'basketball-unused',1:'ball',2:'ball-in-basket',3:'number',4:'player',5:'player-in-possession',6:'player-jump-shot',7:'player-layup-dunk',8:'player-shot-block',9:'referee',10:'rim'}
 det=RFDETRDetector(model,label,confidence_threshold=.025,num_select=300,input_height=640,input_width=640,providers=["CUDAExecutionProvider","CPUExecutionProvider"])
