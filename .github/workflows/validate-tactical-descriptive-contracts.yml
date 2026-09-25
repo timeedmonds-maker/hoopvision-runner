@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 env:
-  TACTICAL_SHA: e7ff6d386cdbbe9eb2014e51a6982db2d848d523
+  TACTICAL_SHA: 613aac5623c0bd9ee3e66aca359a1841b99674d8
 
 jobs:
   validate:
@@ -34,6 +34,7 @@ jobs:
           set -euo pipefail
           python src/tools/validate_governing_delivery_policy.py
           PYTHONPATH=src python -m pytest -q src/hoopvision/tests/test_tactical_descriptive_contracts.py src/hoopvision/tests/test_governing_delivery_policy.py
+          python src/tools/validate_tactical_calibration_pack.py
       - name: Verify no advice fields entered tactical contracts
         run: |
           set -euo pipefail
