@@ -52,3 +52,26 @@ for r in segs:
         end=float(r["end_s"]); start=float(r["start_s"])
         if end>=8.8 and start<=12.2:
             print(json.dumps(r,sort_keys=True))
+
+
+print("TRACK3_OCR_EVIDENCE")
+ocrp=root/"identity_ocr/ocr_evidence.json"
+if ocrp.exists():
+    raw=json.load(open(ocrp))
+    for rec in raw:
+        try: sid=int(float(rec.get("track_id")))
+        except: continue
+        if sid in {41,42,43,44,45,46,47,48,49,50}:
+            print(json.dumps(rec,sort_keys=True))
+print("TRACK3_TRACK_IDENTITY")
+tip=root/"identity_ocr/track_identity.csv"
+if tip.exists():
+    for r in rows(tip):
+        try: sid=int(float(r.get("track_id")))
+        except: continue
+        if sid in {41,42,43,44,45,46,47,48,49,50}:
+            print(json.dumps(r,sort_keys=True))
+print("TRACK3_ALL_ASSIGNMENTS")
+for r in assign:
+    if int(float(r["source_track_id"]))==3 and 5.5<=float(r["time_s"])<=14.3:
+        print(json.dumps({k:r.get(k) for k in ("time_s","player_id","source_track_id","identity_segment_id","safe","global_margin","ambiguous","team","evidence_conflict")},sort_keys=True))
