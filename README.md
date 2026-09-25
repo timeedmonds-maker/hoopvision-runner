@@ -12,3 +12,6 @@ Public execution shell for HoopVision CI/control-plane jobs.
 - Failure of private-repository GitHub Actions in `104` does not imply HoopVision execution is blocked while this public runner bridge is healthy.
 
 This repository must not contain HoopVision source code, model files, video fixtures, credentials, or generated private evidence.
+
+
+<!-- Toronto SAM planner exact-candidate CPU validation: 6ac9fad67411f074e2c3062370964986e9929aea -->
