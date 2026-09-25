@@ -37,8 +37,8 @@ jobs:
           done
 
           RESULT=""
-          # Probe small-to-large shapes. Successful probe is deleted immediately.
-          for SHAPE in g2-standard-4 g2-standard-8 g2-standard-12 g2-standard-16; do
+          # One bounded previously-unprobed shape required by the integrated delivery plan. Successful probe is deleted immediately.
+          for SHAPE in g2-standard-32; do
             for Z in asia-southeast1-a asia-southeast1-b asia-southeast1-c; do
               echo "=== PROBE $SHAPE $Z ==="
               set +e

@@ -15,7 +15,7 @@ env:
   EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   DEV_TOPIC: hv-dev-jobs
   SESSION_ID: hv-dev-l4
-  CANDIDATE_SHA: 95bd1d0abd99978ec2d65a512b7e842f9dc2714f
+  CANDIDATE_SHA: 3430b3c94c271e7b6bd3596bca97801defdb72f7
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -35,6 +35,12 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
       - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Enforce governing delivery policy
+        run: |
+          set -euo pipefail
+          python src/tools/validate_governing_delivery_policy.py
+          python -m pytest -q src/hoopvision/tests/test_governing_delivery_policy.py
         with: {python-version: '3.12'}
       - name: Build deterministic application snapshot
         run: |

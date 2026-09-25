@@ -1,0 +1,42 @@
+name: Validate Governing Delivery Plan
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/validate-governing-plan.yml'
+      - 'GOVERNING_PLAN.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CANDIDATE_SHA: 3430b3c94c271e7b6bd3596bca97801defdb72f7
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Validate policy and repository guard
+        run: |
+          set -euo pipefail
+          python src/tools/validate_governing_delivery_policy.py
+          python -m pytest -q src/hoopvision/tests/test_governing_delivery_policy.py
+      - name: Verify exact candidate
+        run: |
+          set -euo pipefail
+          test "$(git -C src rev-parse HEAD)" = "$CANDIDATE_SHA"
+          echo "HOOPVISION_GOVERNING_PLAN_OK candidate=$CANDIDATE_SHA"
