@@ -2,6 +2,9 @@ name: Run Current Toronto Regression
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/run-current-toronto-regression.yml'
 
 permissions:
   contents: read
