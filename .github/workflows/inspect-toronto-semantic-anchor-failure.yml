@@ -1,0 +1,44 @@
+name: Inspect Toronto Semantic Anchor Failure
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/inspect-toronto-semantic-anchor-failure.yml']
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  RUN_ID: public-36087278778-1-0023fcfa7b49
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Extract failure context
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/hvlogs
+          i=0
+          for x in $(gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/**" 2>/dev/null || true); do
+            gcloud storage cat "$x" >> /tmp/hvlogs/all.log || true
+            printf '\n' >> /tmp/hvlogs/all.log
+            i=$((i+1))
+          done
+          echo "LOG_OBJECTS=$i"
+          echo "=== LAST 300 LINES ==="
+          tail -n 300 /tmp/hvlogs/all.log
+          echo "=== ERROR CONTEXT ==="
+          grep -n -B 30 -A 80 -E 'Traceback|build_kickout_semantic_anchors|CalledProcessError|ERROR|Exception|FileNotFoundError|ModuleNotFoundError|ImportError|KeyError|ValueError|AssertionError' /tmp/hvlogs/all.log | tail -n 500 || true
