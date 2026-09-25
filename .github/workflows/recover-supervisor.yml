@@ -1,4 +1,5 @@
 name: Recover HoopVision Supervisor
+# recovery-trigger: multiplex-toronto-1acf43ac
 on:
   push:
     branches: [main]
