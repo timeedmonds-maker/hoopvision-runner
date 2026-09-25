@@ -6,6 +6,9 @@ on:
     paths:
       - '.github/workflows/diagnose-toronto-dick-continuity.yml'
       - 'scripts/diag_toronto_dick_continuity.py'
+  pull_request:
+    paths:
+      - '.github/workflows/diagnose-toronto-dick-continuity.yml'
 
 permissions:
   contents: read
