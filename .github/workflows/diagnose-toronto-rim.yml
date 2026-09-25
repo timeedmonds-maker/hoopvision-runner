@@ -71,7 +71,7 @@ jobs:
           fi
           echo "RIM_DIAG_APP=$APP"
           echo "RIM_DIAG_IMAGE=$IMG"
-          docker run --rm --gpus all --pull=never             -v "$APP:/opt/hoopvision:ro"             -v "$ROOT/models:/models:ro"             -v "$ROOT/nbacv:/opt/nbacv:ro"             -v "$ART:/artifacts:ro"             -v /tmp/diag_toronto_rim.py:/tmp/diag_toronto_rim.py:ro             -e PYTHONPATH=/opt/hoopvision:/opt/object-detection-eval/src             --workdir /opt/hoopvision             --entrypoint python             "$IMG" /tmp/diag_toronto_rim.py /artifacts
+          docker run --rm --gpus all --pull=never             -v "$APP:/opt/hoopvision:ro"             -v "$ROOT/models/cache:/models:ro"             -v "$ROOT/models/nbacv:/opt/nbacv/models:ro"             -v "$ART:/artifacts:ro"             -v /tmp/diag_toronto_rim.py:/tmp/diag_toronto_rim.py:ro             -e PYTHONPATH=/opt/hoopvision:/opt/object-detection-eval/src             --workdir /opt/hoopvision             --entrypoint python             "$IMG" /tmp/diag_toronto_rim.py /artifacts
           REMOTE
       - name: Stop VM if diagnostic started it
         if: always()
