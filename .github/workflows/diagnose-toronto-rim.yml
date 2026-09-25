@@ -60,7 +60,7 @@ jobs:
           set -euo pipefail
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo bash -s" <<'REMOTE'
           set -euo pipefail
-          RUN_ID="${RUN_ID}"
+          RUN_ID="public-36105592318-1-9638f8f83325"
           ROOT="/srv/hoopvision"
           ART="$ROOT/runs/$RUN_ID/artifacts"
           APP="$(find "$ROOT/apps" -type f -path '*/screen_tracker_nextgen/build_kickout_semantic_anchors.py' -printf '%h\n' | sed 's#/screen_tracker_nextgen$##' | tail -1)"
