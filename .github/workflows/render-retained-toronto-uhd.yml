@@ -125,7 +125,7 @@ jobs:
           mkdir -p /tmp/toronto-replay
           unzip -q /tmp/toronto-replay.zip -d /tmp/toronto-replay
           find /tmp/toronto-replay -maxdepth 4 -type f -print
-          # The successful replay workflow already produced the canonical tar with\n          # replay-d3b56542 CONTENTS at archive root. Reuse it verbatim.\n          test -s /tmp/toronto-replay/replay/toronto-replay-d3b56542.tgz\n          cp /tmp/toronto-replay/replay/toronto-replay-d3b56542.tgz /tmp/toronto-replay.tgz
+          # GitHub artifact extraction yields replay-d3b56542 contents under replay/.\n          # Package those contents directly at archive root, matching the original replay tar contract.\n          test -f /tmp/toronto-replay/replay/global_identity/resolved_config.json\n          test -f /tmp/toronto-replay/replay/global_identity/global_identity_qa.json\n          test -f /tmp/toronto-replay/replay/global_identity/visual_identity_oracle_qa.json\n          test -f /tmp/toronto-replay/replay/global_identity/identity_assignments.csv\n          tar -C /tmp/toronto-replay/replay -czf /tmp/toronto-replay.tgz .\n          test -s /tmp/toronto-replay.tgz
           scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             /tmp/toronto-replay.tgz "runner@$HV_IP:/tmp/"
           ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$HV_IP" '
