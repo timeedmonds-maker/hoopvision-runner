@@ -40,6 +40,10 @@ jobs:
           gcloud storage cp "$PREFIX/identity_ocr/track_identity.csv" debug/identity_ocr/
           gcloud storage cp "$PREFIX/identity_ocr/ocr_evidence.json" debug/identity_ocr/
           gcloud storage cp "$PREFIX/identity_ocr/qa.json" debug/identity_ocr/
+          mkdir -p debug/identity_segments
+          gcloud storage cp "$PREFIX/identity_segments/segments.csv" debug/identity_segments/
+          gcloud storage cp "$PREFIX/identity_segments/uniform_observations.csv" debug/identity_segments/
+          gcloud storage cp "$PREFIX/identity_segments/segment_qa.json" debug/identity_segments/
           mkdir -p debug/sam31
           gcloud storage cp "$PREFIX/sam31/sam31_qa.json" debug/sam31/
           gcloud storage cp "$PREFIX/sam31/sam31_plan.json" debug/sam31/
