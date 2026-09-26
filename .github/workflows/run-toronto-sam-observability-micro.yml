@@ -14,7 +14,7 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
-  CANDIDATE_SHA: 9ed6224022130c1f319e15f4b5fcd7798f2fe0aa
+  CANDIDATE_SHA: 6469bfd47494fca0089c36d5f4e669c91d0bcb26
   RETAINED_RUN_ID: public-36202716389-1-c7637a7c34a2
   IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
@@ -48,16 +48,23 @@ jobs:
           cat > /tmp/targeted_decision.json <<'JSON'
           {
             "schema": "hoopvision.targeted-competitive-physical-decision.v1",
-            "decision_count": 1,
+            "decision_count": 2,
             "decisions": [
               {
-                "decision_id": 107071,
-                "from_segment_id": 71,
-                "to_segment_id": 107,
-                "candidate_from_segment_ids": [71, 15, 29, 37, 56, 116],
-                "propagation_direction": "backward",
-                "seed_time_s": 11.9064,
-                "resolver_reason": "retained_toronto_adams_boxout_backward_recovery"
+                "decision_id": 350037,
+                "from_segment_id": 35,
+                "to_segment_id": 37,
+                "candidate_to_segment_ids": [37, 44, 5, 15, 29, 56, 71, 87, 116],
+                "seed_time_s": 10.638467,
+                "resolver_reason": "retained_toronto_dick_joint_reacquire"
+              },
+              {
+                "decision_id": 430044,
+                "from_segment_id": 43,
+                "to_segment_id": 44,
+                "candidate_to_segment_ids": [44, 37, 5, 15, 29, 56, 71, 87, 116],
+                "seed_time_s": 10.771933,
+                "resolver_reason": "retained_toronto_neighbor_joint_reacquire"
               }
             ]
           }
@@ -94,11 +101,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo rm -rf /srv/hoopvision/recovery/toronto-backward-sam && sudo mkdir -p /srv/hoopvision/recovery/toronto-backward-sam/src /srv/hoopvision/recovery/toronto-backward-sam/out && sudo chown -R $(id -u):$(id -g) /srv/hoopvision/recovery/toronto-backward-sam"
-          gcloud compute scp /tmp/candidate.tgz /tmp/candidate.sha /tmp/targeted_decision.json "$INSTANCE:/srv/hoopvision/recovery/toronto-backward-sam/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo rm -rf /srv/hoopvision/recovery/toronto-dick-joint-sam && sudo mkdir -p /srv/hoopvision/recovery/toronto-dick-joint-sam/src /srv/hoopvision/recovery/toronto-dick-joint-sam/out && sudo chown -R $(id -u):$(id -g) /srv/hoopvision/recovery/toronto-dick-joint-sam"
+          gcloud compute scp /tmp/candidate.tgz /tmp/candidate.sha /tmp/targeted_decision.json "$INSTANCE:/srv/hoopvision/recovery/toronto-dick-joint-sam/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
             set -euo pipefail
-            cd /srv/hoopvision/recovery/toronto-backward-sam
+            cd /srv/hoopvision/recovery/toronto-dick-joint-sam
             tar -C src -xzf candidate.tgz
             test \"\$(cat candidate.sha)\" = '$CANDIDATE_SHA'
           "
@@ -109,7 +116,7 @@ jobs:
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
             set -euo pipefail
             ROOT=/srv/hoopvision/runs/$RETAINED_RUN_ID/artifacts
-            WORK=/srv/hoopvision/recovery/toronto-backward-sam
+            WORK=/srv/hoopvision/recovery/toronto-dick-joint-sam
             echo ===PRECHECKS===
             sudo test -s \"\$ROOT/nextgen_mask/source_native.mp4\" && echo SOURCE_OK
             sudo test -s \"\$ROOT/identity_segments/uniform_observations.csv\" && echo OBSERVATIONS_OK
@@ -156,9 +163,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p result
-          gcloud compute scp --recurse "$INSTANCE:/srv/hoopvision/recovery/toronto-backward-sam/out" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
-          gcloud compute scp "$INSTANCE:/srv/hoopvision/recovery/toronto-backward-sam/sam31_exit_code.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
-          gcloud compute scp "$INSTANCE:/srv/hoopvision/recovery/toronto-backward-sam/wall_s.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          gcloud compute scp --recurse "$INSTANCE:/srv/hoopvision/recovery/toronto-dick-joint-sam/out" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          gcloud compute scp "$INSTANCE:/srv/hoopvision/recovery/toronto-dick-joint-sam/sam31_exit_code.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          gcloud compute scp "$INSTANCE:/srv/hoopvision/recovery/toronto-dick-joint-sam/wall_s.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
           echo CANDIDATE_SHA="$CANDIDATE_SHA" > result/tuple.txt
           echo RETAINED_RUN_ID="$RETAINED_RUN_ID" >> result/tuple.txt
           find result -maxdepth 3 -type f -printf '%P %s bytes\n' | sort
