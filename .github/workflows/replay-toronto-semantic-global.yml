@@ -174,6 +174,7 @@ jobs:
           tar -C /tmp/toronto-replay-code -xzf /tmp/toronto-replay-code.tgz
           install -m 0755 /tmp/container-replay.sh /tmp/toronto-replay-code/run-container-replay.sh
 
+          set +e
           docker run --rm --pull=never --gpus all \
             -v /tmp/toronto-replay-code:/opt/hoopvision:ro \
             -v "$MODELS:/models:ro" \
@@ -182,9 +183,14 @@ jobs:
             -e PYTHONPATH=/opt/hoopvision \
             --workdir /opt/hoopvision \
             --entrypoint bash "$BASE" /opt/hoopvision/run-container-replay.sh
+          RC=$?
+          set -e
 
-          tar -C "$R/replay-d3b56542" -czf /tmp/toronto-replay-d3b56542.tgz .
-          chown runner:runner /tmp/toronto-replay-d3b56542.tgz
+          if test -d "$R/replay-d3b56542"; then
+            tar -C "$R/replay-d3b56542" -czf /tmp/toronto-replay-d3b56542.tgz .
+            chown runner:runner /tmp/toronto-replay-d3b56542.tgz
+          fi
+          exit "$RC"
           HOST
           chmod +x /tmp/host-replay.sh
 
@@ -210,11 +216,14 @@ jobs:
           set -e
           tail -n 400 replay-remote.log || true
 
-          if test "$RC" -eq 0; then
-            scp -i "$HV_SSH_KEY" \
-              -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-              "$HV_SSH_USER@$HV_SSH_IP:/tmp/toronto-replay-d3b56542.tgz" .
-            mkdir replay
+          set +e
+          scp -i "$HV_SSH_KEY" \
+            -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "$HV_SSH_USER@$HV_SSH_IP:/tmp/toronto-replay-d3b56542.tgz" .
+          SCP_RC=$?
+          set -e
+          if test "$SCP_RC" -eq 0; then
+            mkdir -p replay
             tar -xzf toronto-replay-d3b56542.tgz -C replay
           fi
           exit "$RC"
