@@ -41,148 +41,130 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg jq curl >/dev/null
 
-      - name: Start self-hosted Cobalt extraction stack
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          docker pull ghcr.io/imputnet/yt-session-generator:latest
-          docker pull ghcr.io/imputnet/cobalt:11
-
-          set +e
-          timeout 120 docker run --rm --privileged --shm-size=1g             ghcr.io/imputnet/yt-session-generator:latest             > /tmp/youtube_session.raw 2>&1
-          SESSION_RC=$?
-          set -e
-          cat /tmp/youtube_session.raw
-          test "$SESSION_RC" -eq 0
-
-          python3 - <<'PY'
-          import json, re, time
-          raw=open("/tmp/youtube_session.raw",encoding="utf-8",errors="ignore").read()
-          vd=re.findall(r'(?m)^visitor_data:\s*(\S+)\s*$',raw)
-          pt=re.findall(r'(?m)^po_token:\s*(\S+)\s*$',raw)
-          if not vd or not pt:
-              raise SystemExit("one-shot generator did not emit visitor_data + po_token")
-          obj={"visitor_data":vd[-1],"potoken":pt[-1],"updated":int(time.time()*1000)}
-          open("/tmp/youtube_session.json","w").write(json.dumps(obj))
-          print("SESSION_VISITOR_LEN",len(obj["visitor_data"]))
-          print("SESSION_POTOKEN_LEN",len(obj["potoken"]))
-          PY
-
-          cat > /tmp/session_adapter.py <<'PY'
-          from http.server import BaseHTTPRequestHandler, HTTPServer
-          import pathlib
-          payload=pathlib.Path("/tmp/youtube_session.json").read_bytes()
-          class H(BaseHTTPRequestHandler):
-              def _send(self):
-                  self.send_response(200)
-                  self.send_header("Content-Type","application/json")
-                  self.send_header("Content-Length",str(len(payload)))
-                  self.end_headers()
-                  self.wfile.write(payload)
-              def do_POST(self):
-                  if self.path == "/get_pot": self._send()
-                  else: self.send_error(404)
-              def do_GET(self):
-                  if self.path in ("/get_pot","/health"): self._send()
-                  else: self.send_error(404)
-              def log_message(self, *args): pass
-          HTTPServer(("127.0.0.1",8080),H).serve_forever()
-          PY
-          python3 /tmp/session_adapter.py >/tmp/session_adapter.log 2>&1 &
-          echo $! > /tmp/session_adapter.pid
-
-          for i in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:8080/health >/tmp/session_probe.json 2>/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-          jq -e '.visitor_data and .potoken' /tmp/session_probe.json >/dev/null
-
-          docker run -d --rm             --name hv-cobalt             --network host             -e API_URL=http://127.0.0.1:9000/             -e YOUTUBE_SESSION_SERVER=http://127.0.0.1:8080/             -e FORCE_LOCAL_PROCESSING=never             ghcr.io/imputnet/cobalt:11
-
-          for i in $(seq 1 45); do
-            if curl -fsS http://127.0.0.1:9000/ > /tmp/cobalt_info.json 2>/dev/null; then
-              break
-            fi
-            sleep 1
-          done
-          cat /tmp/cobalt_info.json
-          jq -e '.cobalt.version' /tmp/cobalt_info.json >/dev/null
-          sleep 2
-          docker logs hv-cobalt 2>&1 | tail -n 160
-          docker logs hv-cobalt 2>&1 | grep -F 'poToken & visitor_data loaded successfully!'
-
-      - name: Resolve and download exact requested video
+      - name: Resolve exact video through public Piped backends
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p ingest
-          cat > ingest/request.json <<JSON
-          {
-            "url": "$SOURCE_URL",
-            "videoQuality": "max",
-            "downloadMode": "auto",
-            "filenameStyle": "basic",
-            "youtubeVideoCodec": "h264",
-            "youtubeVideoContainer": "mp4",
-            "disableMetadata": true
-          }
-          JSON
+          INSTANCES=(
+            "https://pipedapi.kavin.rocks"
+            "https://pipedapi.leptons.xyz"
+            "https://pipedapi.nosebs.ru"
+            "https://piped-api.privacy.com.de"
+            "https://pipedapi.adminforge.de"
+            "https://api.piped.yt"
+            "https://pipedapi.drgns.space"
+            "https://pipedapi.owo.si"
+            "https://pipedapi.ducks.party"
+            "https://piped-api.codespace.cz"
+            "https://pipedapi.reallyaweso.me"
+            "https://api.piped.private.coffee"
+            "https://pipedapi.darkness.services"
+            "https://pipedapi.orangenet.cc"
+          )
 
-          HTTP_CODE="$(curl -sS -o ingest/cobalt_response.json -w '%{http_code}'             -H 'Accept: application/json'             -H 'Content-Type: application/json'             --data-binary @ingest/request.json             http://127.0.0.1:9000/)"
-          echo "COBALT_HTTP=$HTTP_CODE"
-          cat ingest/cobalt_response.json
-          test "$HTTP_CODE" -ge 200
-          test "$HTTP_CODE" -lt 300
+          : > ingest/probe.log
+          FOUND=""
+          for BASE in "${INSTANCES[@]}"; do
+            echo "PROBE $BASE" | tee -a ingest/probe.log
+            rm -f ingest/candidate.json
+            CODE="$(curl -A 'Mozilla/5.0 HoopVision/1.0'               --connect-timeout 7 --max-time 20               -sS -o ingest/candidate.json -w '%{http_code}'               "$BASE/streams/$VIDEO_ID" || true)"
+            echo "HTTP $CODE" | tee -a ingest/probe.log
+            if [ "$CODE" != "200" ]; then
+              continue
+            fi
+            if jq -e '
+              (.title | type == "string" and length > 0) and
+              (.videoStreams | type == "array" and length > 0) and
+              (.audioStreams | type == "array" and length > 0)
+            ' ingest/candidate.json >/dev/null 2>&1; then
+              FOUND="$BASE"
+              cp ingest/candidate.json ingest/piped_streams.json
+              printf '%s\n' "$FOUND" > ingest/piped_instance.txt
+              echo "SELECTED $FOUND" | tee -a ingest/probe.log
+              break
+            fi
+          done
 
-          STATUS="$(jq -r '.status // empty' ingest/cobalt_response.json)"
-          echo "COBALT_STATUS=$STATUS"
-
-          case "$STATUS" in
-            tunnel|redirect)
-              URL="$(jq -r '.url' ingest/cobalt_response.json)"
-              test -n "$URL"
-              curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors                 "$URL" -o ingest/source_download
-              ;;
-            local-processing)
-              TYPE="$(jq -r '.type' ingest/cobalt_response.json)"
-              COUNT="$(jq '.tunnel | length' ingest/cobalt_response.json)"
-              echo "COBALT_LOCAL_TYPE=$TYPE TUNNELS=$COUNT"
-              if [ "$TYPE" = "merge" ] && [ "$COUNT" -ge 2 ]; then
-                VURL="$(jq -r '.tunnel[0]' ingest/cobalt_response.json)"
-                AURL="$(jq -r '.tunnel[1]' ingest/cobalt_response.json)"
-                curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors "$VURL" -o ingest/video.part
-                curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors "$AURL" -o ingest/audio.part
-                ffmpeg -y -v error -i ingest/video.part -i ingest/audio.part                   -map 0:v:0 -map 1:a:0? -c copy -movflags +faststart ingest/source_native.mp4
-              elif [ "$COUNT" -ge 1 ]; then
-                URL="$(jq -r '.tunnel[0]' ingest/cobalt_response.json)"
-                curl --fail --location --retry 5 --retry-delay 2 --retry-all-errors                   "$URL" -o ingest/source_download
-              else
-                echo "Unsupported Cobalt local-processing response" >&2
-                exit 3
-              fi
-              ;;
-            error)
-              docker logs hv-cobalt 2>&1 | tail -n 220
-              echo "Cobalt returned an error" >&2
-              exit 4
-              ;;
-            *)
-              docker logs hv-cobalt 2>&1 | tail -n 220
-              echo "Unexpected Cobalt status: $STATUS" >&2
-              exit 5
-              ;;
-          esac
-
-          if [ ! -s ingest/source_native.mp4 ]; then
-            test -s ingest/source_download
-            ffmpeg -y -v error -i ingest/source_download -map 0:v:0 -map 0:a:0?               -c copy -movflags +faststart ingest/source_native.mp4
+          if [ -z "$FOUND" ]; then
+            echo "No Piped backend resolved $VIDEO_ID" >&2
+            cat ingest/probe.log >&2
+            exit 2
           fi
+
+          python3 - <<'PY'
+          import json, re
+          d=json.load(open("ingest/piped_streams.json"))
+
+          vids=d.get("videoStreams") or []
+          auds=d.get("audioStreams") or []
+
+          def height(v):
+              h=v.get("height")
+              if isinstance(h,(int,float)): return int(h)
+              q=str(v.get("quality",""))
+              m=re.search(r"(\d{3,4})",q)
+              return int(m.group(1)) if m else 0
+
+          def fps(v):
+              try: return int(v.get("fps") or 0)
+              except: return 0
+
+          def is_h264(v):
+              s=(" ".join(str(v.get(k,"")) for k in ("codec","format","mimeType"))).lower()
+              return any(x in s for x in ("h264","avc1","mpeg_4","mp4"))
+
+          def is_mp4a(a):
+              s=(" ".join(str(a.get(k,"")) for k in ("codec","format","mimeType"))).lower()
+              return any(x in s for x in ("mp4a","m4a","mpeg_4","mp4"))
+
+          vpool=[v for v in vids if v.get("url")]
+          h264=[v for v in vpool if is_h264(v)]
+          if h264: vpool=h264
+          v=max(vpool,key=lambda x:(height(x),fps(x),int(x.get("bitrate") or 0)))
+
+          apool=[a for a in auds if a.get("url")]
+          m4a=[a for a in apool if is_mp4a(a)]
+          if m4a: apool=m4a
+          a=max(apool,key=lambda x:int(x.get("bitrate") or 0))
+
+          open("ingest/video_url.txt","w").write(v["url"])
+          open("ingest/audio_url.txt","w").write(a["url"])
+          selection={
+              "title":d.get("title"),
+              "duration":d.get("duration"),
+              "uploader":d.get("uploader"),
+              "video":{k:v.get(k) for k in ("quality","format","codec","height","width","fps","bitrate","videoOnly")},
+              "audio":{k:a.get(k) for k in ("quality","format","codec","bitrate","audioTrackId","audioTrackName","audioTrackLocale")},
+          }
+          open("ingest/selection.json","w").write(json.dumps(selection,indent=2,sort_keys=True)+"\n")
+          print(json.dumps(selection,indent=2,sort_keys=True))
+          PY
+
+      - name: Download and merge selected streams
+        shell: bash
+        run: |
+          set -euo pipefail
+          VURL="$(cat ingest/video_url.txt)"
+          AURL="$(cat ingest/audio_url.txt)"
+
+          curl --fail --location             --connect-timeout 10 --max-time 900             --retry 5 --retry-delay 2 --retry-all-errors             -A 'Mozilla/5.0 HoopVision/1.0'             "$VURL" -o ingest/video.part
+
+          curl --fail --location             --connect-timeout 10 --max-time 900             --retry 5 --retry-delay 2 --retry-all-errors             -A 'Mozilla/5.0 HoopVision/1.0'             "$AURL" -o ingest/audio.part
+
+          test -s ingest/video.part
+          test -s ingest/audio.part
+
+          ffmpeg -y -v error             -i ingest/video.part -i ingest/audio.part             -map 0:v:0 -map 1:a:0             -c copy -movflags +faststart ingest/source_native.mp4
 
           test -s ingest/source_native.mp4
           ffprobe -v error             -show_entries format=duration,size,format_name,bit_rate:stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,pix_fmt             -of json ingest/source_native.mp4 > ingest/ffprobe.json
+
+          VIDEO_COUNT="$(jq '[.streams[] | select(.codec_type=="video")] | length' ingest/ffprobe.json)"
+          AUDIO_COUNT="$(jq '[.streams[] | select(.codec_type=="audio")] | length' ingest/ffprobe.json)"
+          test "$VIDEO_COUNT" -ge 1
+          test "$AUDIO_COUNT" -ge 1
+
           sha256sum ingest/source_native.mp4 | awk '{print $1}' > ingest/sha256.txt
           wc -c < ingest/source_native.mp4 | tr -d ' ' > ingest/size_bytes.txt
 
@@ -196,12 +178,10 @@ jobs:
           set -euo pipefail
           export CONTENT_SHA256="$(cat ingest/sha256.txt)"
           export SIZE_BYTES="$(cat ingest/size_bytes.txt)"
+          export PIPED_INSTANCE="$(cat ingest/piped_instance.txt)"
           export GCS_URI="gs://$BUCKET/fixtures/youtube/$VIDEO_ID/$CONTENT_SHA256/source_native.mp4"
           python3 - <<'PY'
           import json, os, pathlib
-          probe = json.load(open("ingest/ffprobe.json"))
-          cobalt_info = json.load(open("/tmp/cobalt_info.json"))
-          cobalt_response = json.load(open("ingest/cobalt_response.json"))
           manifest = {
               "schema": "hoopvision.source_fixture.v1",
               "source_kind": "youtube",
@@ -210,13 +190,12 @@ jobs:
               "content_sha256": os.environ["CONTENT_SHA256"],
               "size_bytes": int(os.environ["SIZE_BYTES"]),
               "gcs_uri": os.environ["GCS_URI"],
-              "ffprobe": probe,
+              "ffprobe": json.load(open("ingest/ffprobe.json")),
+              "selection": json.load(open("ingest/selection.json")),
               "acquisition": {
-                  "engine": "self-hosted-cobalt",
-                  "cobalt_version": cobalt_info.get("cobalt", {}).get("version"),
-                  "cobalt_git": cobalt_info.get("git", {}),
-                  "response_status": cobalt_response.get("status"),
-                  "session_generator": "ghcr.io/imputnet/yt-session-generator:webserver",
+                  "engine": "piped-public-backend",
+                  "instance": os.environ["PIPED_INSTANCE"],
+                  "endpoint": "/streams/" + os.environ["VIDEO_ID"],
               },
               "runner_repository": os.environ["GITHUB_REPOSITORY"],
               "runner_sha": os.environ["GITHUB_SHA"],
@@ -236,7 +215,8 @@ jobs:
           PREFIX="fixtures/youtube/$VIDEO_ID/$SHA"
           gcloud storage cp ingest/source_native.mp4 "gs://$BUCKET/$PREFIX/source_native.mp4"
           gcloud storage cp ingest/ffprobe.json "gs://$BUCKET/$PREFIX/ffprobe.json"
-          gcloud storage cp ingest/cobalt_response.json "gs://$BUCKET/$PREFIX/cobalt_response.json"
+          gcloud storage cp ingest/piped_streams.json "gs://$BUCKET/$PREFIX/piped_streams.json"
+          gcloud storage cp ingest/selection.json "gs://$BUCKET/$PREFIX/selection.json"
           gcloud storage cp ingest/source_manifest.json "gs://$BUCKET/$PREFIX/source_manifest.json"
           gcloud storage ls -l "gs://$BUCKET/$PREFIX/**"
 
@@ -245,14 +225,10 @@ jobs:
           name: youtube-w-Xa7phLRx0-source-manifest
           path: |
             ingest/source_manifest.json
-            ingest/cobalt_response.json
+            ingest/selection.json
             ingest/ffprobe.json
             ingest/sha256.txt
             ingest/size_bytes.txt
+            ingest/piped_instance.txt
+            ingest/probe.log
           retention-days: 14
-
-      - name: Cleanup extraction stack
-        if: always()
-        run: |
-          docker rm -f hv-cobalt >/dev/null 2>&1 || true
-          if [ -f /tmp/session_adapter.pid ]; then kill "$(cat /tmp/session_adapter.pid)" >/dev/null 2>&1 || true; fi
