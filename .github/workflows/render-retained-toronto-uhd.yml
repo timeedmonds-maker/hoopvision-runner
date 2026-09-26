@@ -127,40 +127,49 @@ jobs:
             sudo rm -rf /tmp/retained-render-code
             sudo mkdir -p /tmp/retained-render-code
             sudo tar -C /tmp/retained-render-code -xzf /tmp/render-code.tgz
-            sudo rm -rf "$OUT"
             sudo mkdir -p "$OUT"
 
             COMMON="-v /tmp/retained-render-code:/opt/hoopvision:ro -v $R:/run/hoopvision -e PYTHONUNBUFFERED=1 -e PYTHONPATH=/opt/hoopvision --workdir /opt/hoopvision --entrypoint python"
 
-            sudo docker run --rm --pull=never $COMMON "$BASE" \
-              /opt/hoopvision/screen_tracker_nextgen/render_global_identity_safe.py \
-              --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
-              --tracks /run/hoopvision/artifacts/nextgen_mask/tracks.csv \
-              --config /run/hoopvision/replay-d3b56542/global_identity/resolved_config.json \
-              --identity-qa /run/hoopvision/replay-d3b56542/global_identity/global_identity_qa.json \
-              --require-sam31 \
-              --out /run/hoopvision/replay-d3b56542/final_5of5/normal
-
-            NORMAL="$(sudo find "$OUT/normal" -maxdepth 1 -type f -name "*_UHD.mp4" -print -quit)"
-            test -n "$NORMAL"
-
-            sudo docker run --rm --pull=never $COMMON "$BASE" \
-              /opt/hoopvision/screen_tracker_nextgen/render_all_player_labels.py \
-              --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
-              --assignments /run/hoopvision/replay-d3b56542/global_identity/identity_assignments.csv \
-              --out /run/hoopvision/replay-d3b56542/final_5of5/toronto_all_player_UHD.mp4 \
-              --start-s 5.5 --end-s 15.5 --uhd \
-              --frame-ledger /run/hoopvision/replay-d3b56542/final_5of5/all_player_ledger.csv
-
-            sudo docker run --rm --pull=never $COMMON "$BASE" \
-              /opt/hoopvision/screen_tracker_nextgen/summarize_render_timeline.py \
-              --ledger /run/hoopvision/replay-d3b56542/final_5of5/all_player_ledger.csv \
-              --out /run/hoopvision/replay-d3b56542/final_5of5/all_player_qa.json
-
+            NORMAL="$(sudo find "$OUT/normal" -maxdepth 1 -type f -name "*_UHD.mp4" -print -quit 2>/dev/null || true)"
             ALL="$OUT/toronto_all_player_UHD.mp4"
-            test -s "$ALL"
-            test -s "$OUT/all_player_ledger.csv"
-            test -s "$OUT/all_player_qa.json"
+
+            if test -n "$NORMAL" && sudo test -s "$NORMAL" && sudo test -s "$ALL" \
+              && sudo test -s "$OUT/all_player_ledger.csv" && sudo test -s "$OUT/all_player_qa.json"; then
+              echo "REUSING_EXISTING_5OF5_UHD_OUTPUTS"
+            else
+              sudo rm -rf "$OUT"
+              sudo mkdir -p "$OUT"
+
+              sudo docker run --rm --pull=never $COMMON "$BASE" \
+                /opt/hoopvision/screen_tracker_nextgen/render_global_identity_safe.py \
+                --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
+                --tracks /run/hoopvision/artifacts/nextgen_mask/tracks.csv \
+                --config /run/hoopvision/replay-d3b56542/global_identity/resolved_config.json \
+                --identity-qa /run/hoopvision/replay-d3b56542/global_identity/global_identity_qa.json \
+                --require-sam31 \
+                --out /run/hoopvision/replay-d3b56542/final_5of5/normal
+
+              NORMAL="$(sudo find "$OUT/normal" -maxdepth 1 -type f -name "*_UHD.mp4" -print -quit)"
+              test -n "$NORMAL"
+
+              sudo docker run --rm --pull=never $COMMON "$BASE" \
+                /opt/hoopvision/screen_tracker_nextgen/render_all_player_labels.py \
+                --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
+                --assignments /run/hoopvision/replay-d3b56542/global_identity/identity_assignments.csv \
+                --out /run/hoopvision/replay-d3b56542/final_5of5/toronto_all_player_UHD.mp4 \
+                --start-s 5.5 --end-s 15.5 --uhd \
+                --frame-ledger /run/hoopvision/replay-d3b56542/final_5of5/all_player_ledger.csv
+
+              sudo docker run --rm --pull=never $COMMON "$BASE" \
+                /opt/hoopvision/screen_tracker_nextgen/summarize_render_timeline.py \
+                --ledger /run/hoopvision/replay-d3b56542/final_5of5/all_player_ledger.csv \
+                --out /run/hoopvision/replay-d3b56542/final_5of5/all_player_qa.json
+            fi
+
+            sudo test -s "$ALL"
+            sudo test -s "$OUT/all_player_ledger.csv"
+            sudo test -s "$OUT/all_player_qa.json"
 
             for VIDEO in "$NORMAL" "$ALL"; do
               W="$(sudo ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$VIDEO")"
