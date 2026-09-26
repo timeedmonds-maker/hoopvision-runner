@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   id-token: write
 
 env:
@@ -15,7 +16,10 @@ env:
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
   RUN_ID: public-36202716389-1-c7637a7c34a2
-  CANDIDATE_SHA: 49b50e86698ef466807a80ce700f04ae15e836dc
+  CANDIDATE_SHA: 6469bfd47494fca0089c36d5f4e669c91d0bcb26
+  SAM_CHAIN_A_ARTIFACT_ID: '10899279286'
+  SAM_CHAIN_B_ARTIFACT_ID: '10899218405'
+  SAM_CHAIN_C_ARTIFACT_ID: '10899922899'
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -40,11 +44,32 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Fetch exact executed SAM evidence artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for spec in \
+            "a:$SAM_CHAIN_A_ARTIFACT_ID" \
+            "b:$SAM_CHAIN_B_ARTIFACT_ID" \
+            "c:$SAM_CHAIN_C_ARTIFACT_ID"; do
+            key="${spec%%:*}"
+            aid="${spec##*:}"
+            curl -fL --retry 4 --retry-delay 2 \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/timeedmonds-maker/hoopvision-runner/actions/artifacts/$aid/zip" \
+              -o "/tmp/sam-chain-$key.zip"
+            unzip -t "/tmp/sam-chain-$key.zip" >/dev/null
+          done
+
       - name: Run focused CPU regressions
         shell: bash
         run: |
           set -euo pipefail
           python -m pip install -q --disable-pip-version-check numpy pandas pytest opencv-python-headless
+          python -m py_compile src/screen_tracker_nextgen/merge_sam31_continuity_evidence.py
           set +e
           PYTHONPATH=src python -m pytest -q \
             src/screen_tracker_nextgen/test_soft_uniform_team_mapping.py \
@@ -113,6 +138,20 @@ jobs:
           A=/run/hoopvision/artifacts
           O=/run/hoopvision/replay-d3b56542
 
+          echo HV_REPLAY_STAGE=merge_sam_continuity
+          python /opt/hoopvision/screen_tracker_nextgen/merge_sam31_continuity_evidence.py \
+            --segments "$A/identity_segments/segments.csv" \
+            --source "$O/sam_sources/a/out" \
+            --source "$O/sam_sources/b/out" \
+            --source "$O/sam_sources/c/out" \
+            --edge 65:69 \
+            --edge 69:71 \
+            --edge 71:107 \
+            --out-dir "$O/sam31_merged"
+          cat "$O/sam31_merged/continuity_links.csv"
+          cat "$O/sam31_merged/continuity_groups.csv"
+          cat "$O/sam31_merged/sam31_qa.json"
+
           echo HV_REPLAY_STAGE=semantic_anchors
           python /opt/hoopvision/screen_tracker_nextgen/build_kickout_semantic_anchors.py \
             --source "$A/nextgen_mask/source_native.mp4" \
@@ -134,7 +173,7 @@ jobs:
             --ocr-dir "$A/identity_ocr" \
             --roster "$A/exact_lineup_roster.json" \
             --base-config "$A/base_config.json" \
-            --sam31-dir "$A/sam31" \
+            --sam31-dir "$O/sam31_merged" \
             --identity-anchors "$O/semantic_anchors.json" \
             --out-dir "$O/global_identity" \
             --min-render-margin 0.75
@@ -168,6 +207,10 @@ jobs:
 
           rm -rf "$R/replay-d3b56542"
           mkdir -p "$R/replay-d3b56542/global_identity"
+          mkdir -p "$R/replay-d3b56542/sam_sources/a" "$R/replay-d3b56542/sam_sources/b" "$R/replay-d3b56542/sam_sources/c"
+          unzip -q /tmp/sam-chain-a.zip -d "$R/replay-d3b56542/sam_sources/a"
+          unzip -q /tmp/sam-chain-b.zip -d "$R/replay-d3b56542/sam_sources/b"
+          unzip -q /tmp/sam-chain-c.zip -d "$R/replay-d3b56542/sam_sources/c"
 
           rm -rf /tmp/toronto-replay-code
           mkdir -p /tmp/toronto-replay-code
@@ -201,6 +244,7 @@ jobs:
           scp -i "$HV_SSH_KEY" \
             -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             /tmp/toronto-replay-code.tgz /tmp/container-replay.sh /tmp/host-replay.sh \
+            /tmp/sam-chain-a.zip /tmp/sam-chain-b.zip /tmp/sam-chain-c.zip \
             "$HV_SSH_USER@$HV_SSH_IP:/tmp/"
 
       - name: Replay semantic anchors global identity and oracle
