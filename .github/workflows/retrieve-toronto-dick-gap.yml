@@ -1,0 +1,103 @@
+name: Retrieve Toronto Dick Identity Gap
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/retrieve-toronto-dick-gap.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-northeast1-b
+  INSTANCE: hv-dev-l4-tokyo
+  RUN_ID: public-36202716389-1-c7637a7c34a2
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  retrieve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install instance-scoped SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          if test "$STATUS" != RUNNING; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          fi
+          gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='get(metadata.items.ssh-keys)' > /tmp/orig-keys || true
+          ssh-keygen -q -t ed25519 -N '' -C 'hoopvision-retrieve' -f /tmp/hv-key
+          cp /tmp/orig-keys /tmp/new-keys
+          if test -s /tmp/new-keys; then printf '\n' >> /tmp/new-keys; fi
+          printf 'runner:%s\n' "$(cat /tmp/hv-key.pub)" >> /tmp/new-keys
+          gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --metadata-from-file ssh-keys=/tmp/new-keys --quiet
+          IP="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
+          echo "HV_IP=$IP" >> "$GITHUB_ENV"
+          for i in $(seq 1 60); do
+            if ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$IP" 'echo ok' >/dev/null 2>&1; then exit 0; fi
+            sleep 5
+          done
+          exit 3
+
+      - name: Retrieve exact replay evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$HV_IP" "
+            set -euo pipefail
+            R=/srv/hoopvision/runs/$RUN_ID
+            sudo test -f \"\$R/replay-d248ff72/global_identity/identity_assignments.csv\"
+            sudo tar -C \"\$R\" -czf /tmp/dick-gap.tgz \
+              replay-d248ff72/global_identity \
+              replay-d248ff72/semantic_anchors.json \
+              artifacts/identity_segments/uniform_observations.csv \
+              artifacts/identity_segments/segments.csv \
+              artifacts/nextgen_mask/tracks.csv \
+              artifacts/sam31/continuity_groups.csv \
+              artifacts/sam31/continuity_links.csv
+            sudo chown runner:runner /tmp/dick-gap.tgz
+          "
+          scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$HV_IP:/tmp/dick-gap.tgz" .
+          mkdir evidence
+          tar -xzf dick-gap.tgz -C evidence
+          python - <<'PY'
+          import pandas as pd, json
+          root='evidence'
+          a=pd.read_csv(root+'/replay-d248ff72/global_identity/identity_assignments.csv')
+          q=a[(a.player_id==1641711)&(a.time_s.between(10.0,12.8))]
+          print('=== DICK ASSIGNMENTS 10.0-12.8 ===')
+          print(q.to_string(index=False))
+          s=pd.read_csv(root+'/artifacts/identity_segments/segments.csv')
+          ids=sorted(set(q.identity_segment_id.astype(int)))
+          print('=== DICK SEGMENTS ===')
+          print(s[s.segment_id.isin(ids)].to_string(index=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: toronto-dick-gap-evidence
+          path: evidence/
+          retention-days: 30
+
+      - name: Restore instance SSH metadata and stop Tokyo
+        if: always()
+        shell: bash
+        run: |
+          if test -s /tmp/orig-keys; then
+            gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --metadata-from-file ssh-keys=/tmp/orig-keys --quiet || true
+          else
+            gcloud compute instances remove-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --keys=ssh-keys --quiet || true
+          fi
+          gcloud compute instances stop "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
