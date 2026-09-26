@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '.github/workflows/ingest-youtube-w-xa7phlrx0.yml'
+      - '.github/workflows/ingest-michigan-mega-superbet-2026.yml'
   workflow_dispatch:
 
 permissions:
