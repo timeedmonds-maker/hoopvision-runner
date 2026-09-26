@@ -70,6 +70,9 @@ jobs:
               for r in g:
                   sources[r["path_source"]]=sources.get(r["path_source"],0)+1
               print("PLAYER",pid,name,"FIRST",frames[0],"LAST",frames[-1],"N",len(frames),"GAPS",gaps[:30],"SOURCES",sources)
+              tail=sorted(g,key=lambda r:int(r["frame_index"]))[-8:]
+              for r in tail:
+                  print("TAIL",pid,name,r["frame_index"],r["source_time_s"],r["x1"],r["y1"],r["x2"],r["y2"],r["path_source"])
           PY
       - name: Stop host if this diagnostic started it
         if: always()
