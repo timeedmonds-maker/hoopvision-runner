@@ -39,6 +39,7 @@ jobs:
             gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
           fi
           gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='get(metadata.items.ssh-keys)' > /tmp/orig-keys || true
+          rm -f /tmp/hv-key /tmp/hv-key.pub
           ssh-keygen -q -t ed25519 -N '' -C 'hoopvision-retrieve' -f /tmp/hv-key
           cp /tmp/orig-keys /tmp/new-keys
           if test -s /tmp/new-keys; then printf '\n' >> /tmp/new-keys; fi
@@ -56,39 +57,53 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$HV_IP" "
-            set -euo pipefail
-            R=/srv/hoopvision/runs/$RUN_ID
-            sudo test -f \"\$R/replay-d248ff72/global_identity/identity_assignments.csv\"
-            sudo tar -C \"\$R\" -czf /tmp/dick-gap.tgz \
-              replay-d248ff72/global_identity \
-              replay-d248ff72/semantic_anchors.json \
-              artifacts/identity_segments/uniform_observations.csv \
-              artifacts/identity_segments/segments.csv \
-              artifacts/nextgen_mask/tracks.csv \
-              artifacts/sam31/continuity_groups.csv \
-              artifacts/sam31/continuity_links.csv
+          mkdir -p evidence
+          set +e
+          ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$HV_IP" '
+            set -euxo pipefail
+            R="/srv/hoopvision/runs/'"$RUN_ID"'"
+            sudo find "$R/replay-d248ff72" -maxdepth 3 -type f -printf "%P\n" | sort
+            sudo test -f "$R/replay-d248ff72/global_identity/identity_assignments.csv"
+            sudo test -f "$R/replay-d248ff72/global_identity/resolved_config.json"
+            sudo test -f "$R/artifacts/identity_segments/uniform_observations.csv"
+            sudo test -f "$R/artifacts/identity_segments/segments.csv"
+            sudo tar -C "$R" -czf /tmp/dick-gap.tgz               replay-d248ff72/global_identity/identity_assignments.csv               replay-d248ff72/global_identity/resolved_config.json               replay-d248ff72/global_identity/global_identity_qa.json               replay-d248ff72/semantic_anchors.json               artifacts/identity_segments/uniform_observations.csv               artifacts/identity_segments/segments.csv               artifacts/nextgen_mask/tracks.csv
             sudo chown runner:runner /tmp/dick-gap.tgz
-          "
+          ' 2>&1 | tee evidence/retrieve.log
+          RC=${PIPESTATUS[0]}
+          set -e
+          test "$RC" -eq 0
           scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$HV_IP:/tmp/dick-gap.tgz" .
-          mkdir evidence
           tar -xzf dick-gap.tgz -C evidence
-          python - <<'PY'
+          python - <<'PY' | tee evidence/dick-analysis.txt
           import pandas as pd, json
           root='evidence'
           a=pd.read_csv(root+'/replay-d248ff72/global_identity/identity_assignments.csv')
-          q=a[(a.player_id==1641711)&(a.time_s.between(10.0,12.8))]
+          q=a[(a.player_id==1641711)&(a.time_s.between(10.0,12.8))].copy()
           print('=== DICK ASSIGNMENTS 10.0-12.8 ===')
           print(q.to_string(index=False))
           s=pd.read_csv(root+'/artifacts/identity_segments/segments.csv')
           ids=sorted(set(q.identity_segment_id.astype(int)))
           print('=== DICK SEGMENTS ===')
           print(s[s.segment_id.isin(ids)].to_string(index=False))
+          obs=pd.read_csv(root+'/artifacts/identity_segments/uniform_observations.csv')
+          if ids:
+            o=obs[(obs.identity_segment_id.isin(ids)) & (obs.time_s.between(10.0,12.8))]
+            cols=[c for c in ['time_s','source_frame','source_track_id','raw_source_track_id','identity_segment_id','ambiguous','uniform_cluster','cluster_conf','conf'] if c in o.columns]
+            print('=== DICK OBSERVATIONS ===')
+            print(o[cols].to_string(index=False))
+          cfg=json.load(open(root+'/replay-d248ff72/global_identity/resolved_config.json'))
+          role=cfg['roles'].get('shooter_defender',{})
+          print('=== RESOLVED SHOOTER DEFENDER ROLE ===')
+          print(json.dumps(role,indent=2))
           PY
+
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: toronto-dick-gap-evidence
           path: evidence/
+          if-no-files-found: warn
           retention-days: 30
 
       - name: Restore instance SSH metadata and stop Tokyo
