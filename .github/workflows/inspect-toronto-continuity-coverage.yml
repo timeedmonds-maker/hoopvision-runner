@@ -29,7 +29,7 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.CONTROL_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: Ensure host and inspect exact failed continuity outputs
+      - name: Ensure host and retrieve exact failed continuity outputs
         shell: bash
         run: |
           set -euo pipefail
@@ -47,28 +47,30 @@ jobs:
             sleep 5
           done
           ROOT="/srv/hoopvision/runs/$RUN_ID/replay-d3b56542/final_corrected"
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo python3 - <<'PY'
-import json, pathlib, pandas as pd
-root=pathlib.Path('$ROOT')
-q=root/'continuous_player_paths_qa.json'
-print('QA_EXISTS',q.exists())
-if q.exists():
-    data=json.loads(q.read_text())
-    print('=== CONTINUITY_QA ===')
-    print(json.dumps(data,indent=2,sort_keys=True))
-p=root/'continuous_player_paths.csv'
-print('PATHS_EXISTS',p.exists())
-if p.exists():
-    d=pd.read_csv(p)
-    print('PATH_ROWS',len(d))
-    for pid,g in d.groupby('player_id'):
-        frames=sorted(set(int(x) for x in g.frame_index))
-        gaps=[(a,b,b-a-1) for a,b in zip(frames,frames[1:]) if b-a>1]
-        print('PLAYER',pid,g.player_name.iloc[0],
-              'FIRST',frames[0],'LAST',frames[-1],
-              'N',len(frames),'GAPS',gaps[:30],
-              'SOURCES',g.path_source.value_counts().to_dict())
-PY"
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo cp '$ROOT/continuous_player_paths_qa.json' /tmp/continuity_qa.json && sudo cp '$ROOT/continuous_player_paths.csv' /tmp/continuity_paths.csv && sudo chmod 644 /tmp/continuity_qa.json /tmp/continuity_paths.csv"
+          gcloud compute scp "$INSTANCE:/tmp/continuity_qa.json" continuity_qa.json --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute scp "$INSTANCE:/tmp/continuity_paths.csv" continuity_paths.csv --zone "$ZONE" --project "$PROJECT_ID" --quiet
+      - name: Summarize exact coverage boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import csv, json
+          q=json.load(open("continuity_qa.json"))
+          print("=== CONTINUITY_QA ===")
+          print(json.dumps(q,indent=2,sort_keys=True))
+          rows=list(csv.DictReader(open("continuity_paths.csv")))
+          by={}
+          for r in rows:
+              by.setdefault((r["player_id"],r["player_name"]),[]).append(r)
+          for (pid,name),g in sorted(by.items()):
+              frames=sorted({int(r["frame_index"]) for r in g})
+              gaps=[(a,b,b-a-1) for a,b in zip(frames,frames[1:]) if b-a>1]
+              sources={}
+              for r in g:
+                  sources[r["path_source"]]=sources.get(r["path_source"],0)+1
+              print("PLAYER",pid,name,"FIRST",frames[0],"LAST",frames[-1],"N",len(frames),"GAPS",gaps[:30],"SOURCES",sources)
+          PY
       - name: Stop host if this diagnostic started it
         if: always()
         shell: bash
