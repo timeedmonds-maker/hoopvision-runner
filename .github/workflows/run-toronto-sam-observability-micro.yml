@@ -14,7 +14,7 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
-  CANDIDATE_SHA: 6925b4ba708900963dd3dfeda6e1742cbc69f328
+  CANDIDATE_SHA: 172e6cb573cc4094591c722be8029db3cf8e1003
   RETAINED_RUN_ID: public-36202716389-1-c7637a7c34a2
   IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
@@ -46,31 +46,23 @@ jobs:
           cat > /tmp/targeted_decision.json <<'JSON'
           {
             "schema": "hoopvision.targeted-competitive-physical-decision.v1",
-            "decision_count": 3,
+            "decision_count": 2,
             "decisions": [
               {
-                "decision_id": 650102,
-                "from_segment_id": 65,
-                "to_segment_id": 102,
-                "candidate_to_segment_ids": [102, 69, 85],
-                "seed_time_s": 9.7042,
-                "resolver_reason": "retained_toronto_adams_three_object_handoff"
+                "decision_id": 690071,
+                "from_segment_id": 69,
+                "to_segment_id": 71,
+                "candidate_to_segment_ids": [71, 15, 29, 52, 116, 121],
+                "seed_time_s": 10.7719,
+                "resolver_reason": "retained_toronto_adams_same_team_reacquire"
               },
               {
-                "decision_id": 840085,
-                "from_segment_id": 84,
-                "to_segment_id": 85,
-                "candidate_to_segment_ids": [85, 69, 102],
-                "seed_time_s": 9.7042,
-                "resolver_reason": "retained_toronto_competitor_three_object_handoff"
-              },
-              {
-                "decision_id": 100069,
-                "from_segment_id": 100,
-                "to_segment_id": 69,
-                "candidate_to_segment_ids": [69, 85, 102],
-                "seed_time_s": 9.7042,
-                "resolver_reason": "retained_toronto_competitor_three_object_handoff"
+                "decision_id": 710107,
+                "from_segment_id": 71,
+                "to_segment_id": 107,
+                "candidate_to_segment_ids": [107, 16, 30, 56, 117, 123],
+                "seed_time_s": 11.2391,
+                "resolver_reason": "retained_toronto_adams_boxout_handoff_team_filtered"
               }
             ]
           }
