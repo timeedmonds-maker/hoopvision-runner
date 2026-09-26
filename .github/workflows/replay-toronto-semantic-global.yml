@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
       - name: Checkout exact candidate
         uses: actions/checkout@v4
         with:
@@ -34,9 +35,13 @@ jobs:
           path: src
           fetch-depth: 1
           persist-credentials: false
+
       - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
+        with:
+          python-version: '3.12'
+
       - name: Run focused CPU regressions
+        shell: bash
         run: |
           set -euo pipefail
           python -m pip install -q --disable-pip-version-check numpy pandas pytest opencv-python-headless
@@ -50,11 +55,14 @@ jobs:
           python src/tools/validate_governing_delivery_policy.py 2>&1 | tee -a cpu-tests.log
           git -C src diff --check 2>&1 | tee -a cpu-tests.log
           test "$RC" -eq 0
+
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.CONTROL_SA }}
+
       - uses: google-github-actions/setup-gcloud@v2
+
       - name: Ensure Tokyo host and install instance-scoped replay key
         shell: bash
         run: |
@@ -71,9 +79,7 @@ jobs:
           rm -f /tmp/hv-replay-ssh /tmp/hv-replay-ssh.pub
           ssh-keygen -q -t ed25519 -N '' -C 'hoopvision-replay' -f /tmp/hv-replay-ssh
           cp /tmp/hv-original-instance-ssh-keys /tmp/hv-instance-ssh-keys.new
-          if test -s /tmp/hv-instance-ssh-keys.new; then
-            printf '\n' >> /tmp/hv-instance-ssh-keys.new
-          fi
+          if test -s /tmp/hv-instance-ssh-keys.new; then printf '\n' >> /tmp/hv-instance-ssh-keys.new; fi
           printf 'runner:%s\n' "$(cat /tmp/hv-replay-ssh.pub)" >> /tmp/hv-instance-ssh-keys.new
           gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
             --metadata-from-file ssh-keys=/tmp/hv-instance-ssh-keys.new --quiet
@@ -94,94 +100,115 @@ jobs:
             sleep 5
           done
           exit 3
-      - name: Stage exact replay code
+
+      - name: Build explicit replay scripts
         shell: bash
         run: |
           set -euo pipefail
           tar -C src -czf /tmp/toronto-replay-code.tgz screen_tracker_nextgen
+
+          cat > /tmp/container-replay.sh <<'CONTAINER'
+          #!/usr/bin/env bash
+          set -euxo pipefail
+          A=/run/hoopvision/artifacts
+          O=/run/hoopvision/replay-d248ff72
+
+          echo HV_REPLAY_STAGE=semantic_anchors
+          python /opt/hoopvision/screen_tracker_nextgen/build_kickout_semantic_anchors.py \
+            --source "$A/nextgen_mask/source_native.mp4" \
+            --observations "$A/identity_segments/uniform_observations.csv" \
+            --segments "$A/identity_segments/segments.csv" \
+            --ocr-dir "$A/identity_ocr" \
+            --roster "$A/exact_lineup_roster.json" \
+            --base-config "$A/base_config.json" \
+            --detector-onnx /models/rfdetr_m_640.onnx \
+            --object-eval-src /opt/object-detection-eval/src \
+            --court-frames "$A/nextgen_mask/court_frames.json" \
+            --court-scale-attempts "$A/nextgen_mask/court_scale_attempts.csv" \
+            --out "$O/semantic_anchors.json"
+
+          echo HV_REPLAY_STAGE=global_identity
+          python /opt/hoopvision/screen_tracker_nextgen/global_identity_solver.py \
+            --observations "$A/identity_segments/uniform_observations.csv" \
+            --segments "$A/identity_segments/segments.csv" \
+            --ocr-dir "$A/identity_ocr" \
+            --roster "$A/exact_lineup_roster.json" \
+            --base-config "$A/base_config.json" \
+            --sam31-dir "$A/sam31" \
+            --identity-anchors "$O/semantic_anchors.json" \
+            --out-dir "$O/global_identity" \
+            --min-render-margin 0.75
+
+          echo HV_REPLAY_STAGE=visual_oracle
+          python /opt/hoopvision/screen_tracker_nextgen/validate_toronto_visual_identity.py \
+            --tracks "$A/nextgen_mask/tracks.csv" \
+            --config "$O/global_identity/resolved_config.json" \
+            --nextgen-qa "$A/nextgen_mask/qa.json" \
+            --oracle /opt/hoopvision/screen_tracker_nextgen/toronto_visual_identity_oracle.json \
+            --out "$O/global_identity/visual_identity_oracle_qa.json"
+
+          echo HV_REPLAY_STAGE=complete
+          cat "$O/semantic_anchors.json"
+          cat "$O/global_identity/global_identity_qa.json"
+          cat "$O/global_identity/visual_identity_oracle_qa.json"
+          CONTAINER
+          chmod +x /tmp/container-replay.sh
+
+          cat > /tmp/host-replay.sh <<'HOST'
+          #!/usr/bin/env bash
+          set -euxo pipefail
+          RUN_ID="$1"
+          R="/srv/hoopvision/runs/$RUN_ID"
+          test -d "$R/artifacts"
+          BASE="$(grep '^HOOPVISION_BASE_IMAGE=' /etc/hoopvision-dev.env | cut -d= -f2-)"
+          MODELS="$(grep '^HOOPVISION_MODEL_CACHE_HOST=' /etc/hoopvision-dev.env | cut -d= -f2-)"
+          test -n "$BASE"
+          test -n "$MODELS"
+
+          rm -rf "$R/replay-d248ff72"
+          mkdir -p "$R/replay-d248ff72/global_identity"
+
+          rm -rf /tmp/toronto-replay-code
+          mkdir -p /tmp/toronto-replay-code
+          tar -C /tmp/toronto-replay-code -xzf /tmp/toronto-replay-code.tgz
+          install -m 0755 /tmp/container-replay.sh /tmp/toronto-replay-code/run-container-replay.sh
+
+          docker run --rm --pull=never --gpus all \
+            -v /tmp/toronto-replay-code:/opt/hoopvision:ro \
+            -v "$MODELS:/models:ro" \
+            -v "$R:/run/hoopvision" \
+            -e PYTHONUNBUFFERED=1 \
+            -e PYTHONPATH=/opt/hoopvision \
+            --workdir /opt/hoopvision \
+            --entrypoint bash "$BASE" /opt/hoopvision/run-container-replay.sh
+
+          tar -C "$R/replay-d248ff72" -czf /tmp/toronto-replay-d248ff72.tgz .
+          chown runner:runner /tmp/toronto-replay-d248ff72.tgz
+          HOST
+          chmod +x /tmp/host-replay.sh
+
+      - name: Stage exact replay code and scripts
+        shell: bash
+        run: |
+          set -euo pipefail
           scp -i "$HV_SSH_KEY" \
             -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            /tmp/toronto-replay-code.tgz "$HV_SSH_USER@$HV_SSH_IP:/tmp/"
-          ssh -i "$HV_SSH_KEY" \
-            -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            "$HV_SSH_USER@$HV_SSH_IP" "
-            set -euo pipefail
-            rm -rf /tmp/toronto-replay-code
-            mkdir -p /tmp/toronto-replay-code
-            tar -C /tmp/toronto-replay-code -xzf /tmp/toronto-replay-code.tgz
-          "
+            /tmp/toronto-replay-code.tgz /tmp/container-replay.sh /tmp/host-replay.sh \
+            "$HV_SSH_USER@$HV_SSH_IP:/tmp/"
+
       - name: Replay semantic anchors global identity and oracle
         shell: bash
         run: |
           set -euo pipefail
-          : > replay-remote.log
           set +e
           ssh -i "$HV_SSH_KEY" \
             -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            "$HV_SSH_USER@$HV_SSH_IP" "
-            set -euo pipefail
-            R=/srv/hoopvision/runs/$RUN_ID
-            sudo test -d \"\$R/artifacts\"
-            BASE=\$(sudo sh -c \"grep '^HOOPVISION_BASE_IMAGE=' /etc/hoopvision-dev.env | cut -d= -f2-\")
-            MODELS=\$(sudo sh -c \"grep '^HOOPVISION_MODEL_CACHE_HOST=' /etc/hoopvision-dev.env | cut -d= -f2-\")
-            test -n \"\$BASE\"
-            test -n \"\$MODELS\"
-            sudo rm -rf \"\$R/replay-d248ff72\"
-            sudo mkdir -p \"\$R/replay-d248ff72/global_identity\"
-            sudo docker run --rm --pull=never --gpus all \
-              -v /tmp/toronto-replay-code:/opt/hoopvision:ro \
-              -v \"\$MODELS:/models:ro\" \
-              -v \"\$R:/run/hoopvision\" \
-              -e PYTHONUNBUFFERED=1 \
-              -e PYTHONPATH=/opt/hoopvision \
-              --workdir /opt/hoopvision \
-              --entrypoint bash \"\$BASE\" -lc '
-                set -euo pipefail
-                A=/run/hoopvision/artifacts
-                O=/run/hoopvision/replay-d248ff72
-                python /opt/hoopvision/screen_tracker_nextgen/build_kickout_semantic_anchors.py \
-                  --source \$A/nextgen_mask/source_native.mp4 \
-                  --observations \$A/identity_segments/uniform_observations.csv \
-                  --segments \$A/identity_segments/segments.csv \
-                  --ocr-dir \$A/identity_ocr \
-                  --roster \$A/exact_lineup_roster.json \
-                  --base-config \$A/base_config.json \
-                  --detector-onnx /models/rfdetr_m_640.onnx \
-                  --object-eval-src /opt/object-detection-eval/src \
-                  --court-frames \$A/nextgen_mask/court_frames.json \
-                  --court-scale-attempts \$A/nextgen_mask/court_scale_attempts.csv \
-                  --out \$O/semantic_anchors.json
-                python /opt/hoopvision/screen_tracker_nextgen/global_identity_solver.py \
-                  --observations \$A/identity_segments/uniform_observations.csv \
-                  --segments \$A/identity_segments/segments.csv \
-                  --ocr-dir \$A/identity_ocr \
-                  --roster \$A/exact_lineup_roster.json \
-                  --base-config \$A/base_config.json \
-                  --sam31-dir \$A/sam31 \
-                  --identity-anchors \$O/semantic_anchors.json \
-                  --out-dir \$O/global_identity \
-                  --min-render-margin 0.75
-                python /opt/hoopvision/screen_tracker_nextgen/validate_toronto_visual_identity.py \
-                  --tracks \$A/nextgen_mask/tracks.csv \
-                  --config \$O/global_identity/resolved_config.json \
-                  --nextgen-qa \$A/nextgen_mask/qa.json \
-                  --oracle /opt/hoopvision/screen_tracker_nextgen/toronto_visual_identity_oracle.json \
-                  --out \$O/global_identity/visual_identity_oracle_qa.json
-                echo ===SEMANTIC_QA===
-                cat \$O/semantic_anchors.json
-                echo ===GLOBAL_QA===
-                cat \$O/global_identity/global_identity_qa.json
-                echo ===ORACLE_QA===
-                cat \$O/global_identity/visual_identity_oracle_qa.json
-              '
-            sudo tar -C \"\$R/replay-d248ff72\" -czf /tmp/toronto-replay-d248ff72.tgz .
-            sudo chown \$(id -u):\$(id -g) /tmp/toronto-replay-d248ff72.tgz
-          " 2>&1 | tee replay-remote.log
+            "$HV_SSH_USER@$HV_SSH_IP" \
+            "sudo bash /tmp/host-replay.sh '$RUN_ID'" 2>&1 | tee replay-remote.log
           RC=${PIPESTATUS[0]}
           set -e
-          if test -f replay-remote.log; then
-            tail -n 300 replay-remote.log
-          fi
+          tail -n 400 replay-remote.log || true
+
           if test "$RC" -eq 0; then
             scp -i "$HV_SSH_KEY" \
               -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
@@ -190,6 +217,7 @@ jobs:
             tar -xzf toronto-replay-d248ff72.tgz -C replay
           fi
           exit "$RC"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -200,6 +228,7 @@ jobs:
             replay-remote.log
           if-no-files-found: warn
           retention-days: 30
+
       - name: Restore instance SSH metadata
         if: always()
         shell: bash
@@ -213,6 +242,7 @@ jobs:
               --keys=ssh-keys --quiet || true
           fi
           rm -f /tmp/hv-replay-ssh /tmp/hv-replay-ssh.pub /tmp/hv-instance-ssh-keys.new
+
       - name: Stop Tokyo on replay failure
         if: failure()
         run: gcloud compute instances stop "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
