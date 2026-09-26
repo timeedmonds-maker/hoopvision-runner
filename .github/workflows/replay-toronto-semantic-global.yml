@@ -55,7 +55,7 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.CONTROL_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: Ensure Tokyo host is available
+      - name: Ensure Tokyo host and install instance-scoped replay key
         shell: bash
         run: |
           set -euo pipefail
@@ -64,8 +64,33 @@ jobs:
           if test "$STATUS" != RUNNING; then
             gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
           fi
+
+          gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
+            --format='get(metadata.items.ssh-keys)' > /tmp/hv-original-instance-ssh-keys || true
+
+          rm -f /tmp/hv-replay-ssh /tmp/hv-replay-ssh.pub
+          ssh-keygen -q -t ed25519 -N '' -C 'hoopvision-replay' -f /tmp/hv-replay-ssh
+          cp /tmp/hv-original-instance-ssh-keys /tmp/hv-instance-ssh-keys.new
+          if test -s /tmp/hv-instance-ssh-keys.new; then
+            printf '\n' >> /tmp/hv-instance-ssh-keys.new
+          fi
+          printf 'runner:%s\n' "$(cat /tmp/hv-replay-ssh.pub)" >> /tmp/hv-instance-ssh-keys.new
+          gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
+            --metadata-from-file ssh-keys=/tmp/hv-instance-ssh-keys.new --quiet
+
+          IP="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
+            --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
+          test -n "$IP"
+          echo "HV_SSH_IP=$IP" >> "$GITHUB_ENV"
+          echo "HV_SSH_USER=runner" >> "$GITHUB_ENV"
+          echo "HV_SSH_KEY=/tmp/hv-replay-ssh" >> "$GITHUB_ENV"
+
           for i in $(seq 1 60); do
-            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='echo SSH_OK' >/dev/null 2>&1; then exit 0; fi
+            if ssh -i /tmp/hv-replay-ssh \
+              -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              -o ConnectTimeout=5 "runner@$IP" 'echo SSH_OK' >/dev/null 2>&1; then
+              exit 0
+            fi
             sleep 5
           done
           exit 3
@@ -74,8 +99,12 @@ jobs:
         run: |
           set -euo pipefail
           tar -C src -czf /tmp/toronto-replay-code.tgz screen_tracker_nextgen
-          gcloud compute scp /tmp/toronto-replay-code.tgz "$INSTANCE:/tmp/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+          scp -i "$HV_SSH_KEY" \
+            -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            /tmp/toronto-replay-code.tgz "$HV_SSH_USER@$HV_SSH_IP:/tmp/"
+          ssh -i "$HV_SSH_KEY" \
+            -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "$HV_SSH_USER@$HV_SSH_IP" "
             set -euo pipefail
             rm -rf /tmp/toronto-replay-code
             mkdir -p /tmp/toronto-replay-code
@@ -86,12 +115,10 @@ jobs:
         run: |
           set -euo pipefail
           : > replay-remote.log
-          RC=1
-          for ATTEMPT in 1 2 3 4 5 6; do
-            echo "SSH_ATTEMPT=$ATTEMPT" | tee -a replay-remote.log
-            : > replay-attempt.log
-            set +e
-            gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+          set +e
+          ssh -i "$HV_SSH_KEY" \
+            -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "$HV_SSH_USER@$HV_SSH_IP" "
             set -euo pipefail
             R=/srv/hoopvision/runs/$RUN_ID
             test -d \"\$R/artifacts\"
@@ -149,24 +176,16 @@ jobs:
               '
             sudo tar -C \"\$R/replay-d248ff72\" -czf /tmp/toronto-replay-d248ff72.tgz .
             sudo chown \$(id -u):\$(id -g) /tmp/toronto-replay-d248ff72.tgz
-          " 2>&1 | tee replay-attempt.log
-            RC=${PIPESTATUS[0]}
-            set -e
-            cat replay-attempt.log >> replay-remote.log
-            if test "$RC" -eq 0; then
-              break
-            fi
-            if grep -q 'Updating project ssh metadata' replay-attempt.log; then
-              sleep 5
-              continue
-            fi
-            break
-          done
+          " 2>&1 | tee replay-remote.log
+          RC=${PIPESTATUS[0]}
+          set -e
           if test -f replay-remote.log; then
             tail -n 300 replay-remote.log
           fi
           if test "$RC" -eq 0; then
-            gcloud compute scp "$INSTANCE:/tmp/toronto-replay-d248ff72.tgz" . --zone "$ZONE" --project "$PROJECT_ID" --quiet
+            scp -i "$HV_SSH_KEY" \
+              -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              "$HV_SSH_USER@$HV_SSH_IP:/tmp/toronto-replay-d248ff72.tgz" .
             mkdir replay
             tar -xzf toronto-replay-d248ff72.tgz -C replay
           fi
@@ -181,6 +200,19 @@ jobs:
             replay-remote.log
           if-no-files-found: warn
           retention-days: 30
+      - name: Restore instance SSH metadata
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -s /tmp/hv-original-instance-ssh-keys; then
+            gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
+              --metadata-from-file ssh-keys=/tmp/hv-original-instance-ssh-keys --quiet || true
+          else
+            gcloud compute instances remove-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
+              --keys=ssh-keys --quiet || true
+          fi
+          rm -f /tmp/hv-replay-ssh /tmp/hv-replay-ssh.pub /tmp/hv-instance-ssh-keys.new
       - name: Stop Tokyo on replay failure
         if: failure()
         run: gcloud compute instances stop "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
