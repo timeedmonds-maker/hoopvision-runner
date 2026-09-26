@@ -1,0 +1,49 @@
+name: Retrieve Toronto Semantic Anchor Failure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/retrieve-toronto-semantic-anchor-failure.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  RUN_ID: public-36202716389-1-c7637a7c34a2
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  retrieve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Retrieve durable worker logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir evidence
+          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/**" | sort > evidence/log_files.txt
+          : > evidence/worker.log
+          while read -r obj; do
+            gcloud storage cat "$obj" >> evidence/worker.log
+          done < evidence/log_files.txt
+          echo '=== WORKER LOG TAIL ==='
+          tail -n 250 evidence/worker.log
+          echo '=== SEMANTIC ANCHOR TRACE HITS ==='
+          grep -n -E 'semantic|Traceback|Exception|Error|Assertion|KeyError|ValueError|RuntimeError' evidence/worker.log | tail -n 120 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: toronto-semantic-anchor-failure
+          path: evidence/
+          retention-days: 30
