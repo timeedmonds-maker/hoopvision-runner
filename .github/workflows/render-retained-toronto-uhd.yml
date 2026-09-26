@@ -15,7 +15,7 @@ env:
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
   RUN_ID: public-36202716389-1-c7637a7c34a2
-  CANDIDATE_SHA: 6a43f11e3883ccb6c70065d162a189468309ac2a
+  CANDIDATE_SHA: 6529139774fcde5f3d9975cfad1bd53a4318aa05
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -47,7 +47,9 @@ jobs:
           python -m py_compile \
             src/screen_tracker_nextgen/render_global_identity_safe.py \
             src/screen_tracker_nextgen/render_all_player_labels.py \
-            src/screen_tracker_nextgen/summarize_render_timeline.py
+            src/screen_tracker_nextgen/backfill_identified_player_paths.py \
+            src/screen_tracker_nextgen/summarize_render_timeline.py \
+            src/tools/render_deterministic_master.py
           python src/tools/validate_governing_delivery_policy.py
 
       - uses: google-github-actions/auth@v2
@@ -131,42 +133,57 @@ jobs:
 
             COMMON="-v /tmp/retained-render-code:/opt/hoopvision:ro -v $R:/run/hoopvision -e PYTHONUNBUFFERED=1 -e PYTHONPATH=/opt/hoopvision --workdir /opt/hoopvision --entrypoint python"
 
-            NORMAL="$(sudo find "$OUT/normal" -maxdepth 1 -type f -name "*_UHD.mp4" -print -quit 2>/dev/null || true)"
+            # Visual-QA correction run: never reuse the prior sparse/single-pass
+            # outputs. Rebuild from the exact solved 5/5 identity state.
+            sudo rm -rf "$OUT"
+            sudo mkdir -p "$OUT"
+
+            sudo docker run --rm --pull=never $COMMON "$BASE" \
+              /opt/hoopvision/screen_tracker_nextgen/render_global_identity_safe.py \
+              --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
+              --tracks /run/hoopvision/artifacts/nextgen_mask/tracks.csv \
+              --config /run/hoopvision/replay-d3b56542/global_identity/resolved_config.json \
+              --identity-qa /run/hoopvision/replay-d3b56542/global_identity/global_identity_qa.json \
+              --require-sam31 \
+              --out /run/hoopvision/replay-d3b56542/final_5of5/normal
+
+            NORMAL="$(sudo find "$OUT/normal" -maxdepth 1 -type f -name "*_UHD.mp4" -print -quit)"
+            test -n "$NORMAL"
+
+            sudo docker run --rm --pull=never $COMMON "$BASE" \
+              /opt/hoopvision/screen_tracker_nextgen/backfill_identified_player_paths.py \
+              --assignments /run/hoopvision/replay-d3b56542/global_identity/identity_assignments.csv \
+              --out /run/hoopvision/replay-d3b56542/final_5of5/identified_player_assignments.csv \
+              --qa /run/hoopvision/replay-d3b56542/final_5of5/identified_player_backfill_qa.json
+
+            sudo python3 - "$OUT/identified_player_backfill_qa.json" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q.get("identified_player_count")==3, q
+          names=sorted(x["player_name"] for x in q["players"].values())
+          assert names==["Gradey Dick","Kevin Durant","Steven Adams"], names
+          for rec in q["players"].values():
+              assert rec["trusted_anchor_rows"]>0, rec
+              assert rec["first_time_s"]<=5.55, rec
+              assert rec["max_sample_gap_s"]<=0.21, rec
+          print("TORONTO_IDENTIFIED_PLAYER_CONTINUITY_BACKFILL_OK", names)
+          PY
+
+            sudo docker run --rm --pull=never $COMMON "$BASE" \
+              /opt/hoopvision/screen_tracker_nextgen/render_all_player_labels.py \
+              --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
+              --assignments /run/hoopvision/replay-d3b56542/final_5of5/identified_player_assignments.csv \
+              --out /run/hoopvision/replay-d3b56542/final_5of5/toronto_all_player_UHD.mp4 \
+              --start-s 5.5 --end-s 15.5 --uhd \
+              --max-interp-gap 0.21 --ring-max-interp-gap 0.21 \
+              --frame-ledger /run/hoopvision/replay-d3b56542/final_5of5/all_player_ledger.csv
+
+            sudo docker run --rm --pull=never $COMMON "$BASE" \
+              /opt/hoopvision/screen_tracker_nextgen/summarize_render_timeline.py \
+              --ledger /run/hoopvision/replay-d3b56542/final_5of5/all_player_ledger.csv \
+              --out /run/hoopvision/replay-d3b56542/final_5of5/all_player_qa.json
+
             ALL="$OUT/toronto_all_player_UHD.mp4"
-
-            if test -n "$NORMAL" && sudo test -s "$NORMAL" && sudo test -s "$ALL" \
-              && sudo test -s "$OUT/all_player_ledger.csv" && sudo test -s "$OUT/all_player_qa.json"; then
-              echo "REUSING_EXISTING_5OF5_UHD_OUTPUTS"
-            else
-              sudo rm -rf "$OUT"
-              sudo mkdir -p "$OUT"
-
-              sudo docker run --rm --pull=never $COMMON "$BASE" \
-                /opt/hoopvision/screen_tracker_nextgen/render_global_identity_safe.py \
-                --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
-                --tracks /run/hoopvision/artifacts/nextgen_mask/tracks.csv \
-                --config /run/hoopvision/replay-d3b56542/global_identity/resolved_config.json \
-                --identity-qa /run/hoopvision/replay-d3b56542/global_identity/global_identity_qa.json \
-                --require-sam31 \
-                --out /run/hoopvision/replay-d3b56542/final_5of5/normal
-
-              NORMAL="$(sudo find "$OUT/normal" -maxdepth 1 -type f -name "*_UHD.mp4" -print -quit)"
-              test -n "$NORMAL"
-
-              sudo docker run --rm --pull=never $COMMON "$BASE" \
-                /opt/hoopvision/screen_tracker_nextgen/render_all_player_labels.py \
-                --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
-                --assignments /run/hoopvision/replay-d3b56542/global_identity/identity_assignments.csv \
-                --out /run/hoopvision/replay-d3b56542/final_5of5/toronto_all_player_UHD.mp4 \
-                --start-s 5.5 --end-s 15.5 --uhd \
-                --frame-ledger /run/hoopvision/replay-d3b56542/final_5of5/all_player_ledger.csv
-
-              sudo docker run --rm --pull=never $COMMON "$BASE" \
-                /opt/hoopvision/screen_tracker_nextgen/summarize_render_timeline.py \
-                --ledger /run/hoopvision/replay-d3b56542/final_5of5/all_player_ledger.csv \
-                --out /run/hoopvision/replay-d3b56542/final_5of5/all_player_qa.json
-            fi
-
             sudo test -s "$ALL"
             sudo test -s "$OUT/all_player_ledger.csv"
             sudo test -s "$OUT/all_player_qa.json"
@@ -190,11 +207,13 @@ jobs:
             sudo cp "$ALL" /tmp/toronto_all_player_5of5_UHD.mp4
             sudo cp "$OUT/all_player_ledger.csv" /tmp/all_player_ledger.csv
             sudo cp "$OUT/all_player_qa.json" /tmp/all_player_qa.json
+            sudo cp "$OUT/identified_player_backfill_qa.json" /tmp/identified_player_backfill_qa.json
             sudo cp "$ORACLE" /tmp/visual_identity_oracle_qa.json
             sudo chown runner:runner \
               /tmp/toronto_normal_5of5_UHD.mp4 \
               /tmp/toronto_all_player_5of5_UHD.mp4 \
               /tmp/all_player_ledger.csv /tmp/all_player_qa.json \
+              /tmp/identified_player_backfill_qa.json \
               /tmp/visual_identity_oracle_qa.json \
               /tmp/normal_ffprobe.json /tmp/all_player_ffprobe.json
             sha256sum /tmp/toronto_normal_5of5_UHD.mp4 /tmp/toronto_all_player_5of5_UHD.mp4 \
@@ -205,7 +224,7 @@ jobs:
           for f in \
             toronto_normal_5of5_UHD.mp4 \
             toronto_all_player_5of5_UHD.mp4 \
-            all_player_ledger.csv all_player_qa.json \
+            all_player_ledger.csv all_player_qa.json identified_player_backfill_qa.json \
             visual_identity_oracle_qa.json \
             normal_ffprobe.json all_player_ffprobe.json \
             retained-render-sha256.txt; do
@@ -248,6 +267,7 @@ jobs:
             toronto_all_player_5of5_UHD.mp4
             all_player_ledger.csv
             all_player_qa.json
+            identified_player_backfill_qa.json
             visual_identity_oracle_qa.json
             normal_ffprobe.json
             all_player_ffprobe.json
