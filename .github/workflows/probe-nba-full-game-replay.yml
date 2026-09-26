@@ -1,0 +1,42 @@
+name: Probe NBA Full Game Replay Source
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-nba-full-game-replay.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Probe official NBA replay page
+        shell: bash
+        run: |
+          set -euo pipefail
+          URL='https://www.nba.com/nuggets/game/1522600011-rockets-vs-nuggets-las-vegas-nv-07-10-2026/game-charts'
+          python3 - <<'PY'
+          import urllib.request,re,html,json
+          url='https://www.nba.com/nuggets/game/1522600011-rockets-vs-nuggets-las-vegas-nv-07-10-2026/game-charts'
+          h={'User-Agent':'Mozilla/5.0','Accept':'text/html,*/*'}
+          txt=urllib.request.urlopen(urllib.request.Request(url,headers=h),timeout=30).read().decode('utf-8','ignore')
+          open('page.html','w').write(txt)
+          pats=[
+            r'https?[^"\\]+?\.m3u8[^"\\< ]*',
+            r'https?[^"\\]+?\.mp4[^"\\< ]*',
+            r'watchReplay[^,}]{0,1000}',
+            r'replay[^,}]{0,1000}',
+          ]
+          out=[]
+          for p in pats:
+            out += re.findall(p,txt,re.I)
+          for x in out[:100]: print(html.unescape(x)[:1200])
+          print('PAGE_BYTES',len(txt),'M3U8',txt.lower().count('.m3u8'),'MP4',txt.lower().count('.mp4'))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nba-full-replay-probe
+          path: page.html
+          retention-days: 2
