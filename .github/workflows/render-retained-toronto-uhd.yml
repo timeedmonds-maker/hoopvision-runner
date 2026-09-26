@@ -1,0 +1,145 @@
+name: Render Retained Toronto UHD QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/render-retained-toronto-uhd.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-northeast1-b
+  INSTANCE: hv-dev-l4-tokyo
+  RUN_ID: public-36202716389-1-c7637a7c34a2
+  CANDIDATE_SHA: d3b565425e7fc3ca800f3421a82dc2746bc4aa81
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install instance-scoped SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          if test "$STATUS" != RUNNING; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          fi
+          gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='get(metadata.items.ssh-keys)' > /tmp/orig-keys || true
+          rm -f /tmp/hv-key /tmp/hv-key.pub
+          ssh-keygen -q -t ed25519 -N '' -C 'hoopvision-retained-render' -f /tmp/hv-key
+          cp /tmp/orig-keys /tmp/new-keys
+          if test -s /tmp/new-keys; then printf '\n' >> /tmp/new-keys; fi
+          printf 'runner:%s\n' "$(cat /tmp/hv-key.pub)" >> /tmp/new-keys
+          gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --metadata-from-file ssh-keys=/tmp/new-keys --quiet
+          IP="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
+          echo "HV_IP=$IP" >> "$GITHUB_ENV"
+          for i in $(seq 1 60); do
+            if ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$IP" 'echo ok' >/dev/null 2>&1; then exit 0; fi
+            sleep 5
+          done
+          exit 3
+
+      - name: Stage exact renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C src -czf /tmp/render-code.tgz screen_tracker_nextgen screen_tracker_kickout3
+          scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null             /tmp/render-code.tgz "runner@$HV_IP:/tmp/"
+
+      - name: Render retained replay UHD
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$HV_IP" '
+            set -euxo pipefail
+            R="/srv/hoopvision/runs/'"$RUN_ID"'"
+            OUT="$R/replay-d3b56542/final"
+            sudo test -f "$R/artifacts/nextgen_mask/source_native.mp4"
+            sudo test -f "$R/artifacts/nextgen_mask/tracks.csv"
+            sudo test -f "$R/replay-d3b56542/global_identity/resolved_config.json"
+            sudo test -f "$R/replay-d3b56542/global_identity/global_identity_qa.json"
+
+            BASE="$(grep "^HOOPVISION_BASE_IMAGE=" /etc/hoopvision-dev.env | cut -d= -f2-)"
+            test -n "$BASE"
+
+            sudo rm -rf /tmp/retained-render-code
+            sudo mkdir -p /tmp/retained-render-code
+            sudo tar -C /tmp/retained-render-code -xzf /tmp/render-code.tgz
+            sudo rm -rf "$OUT"
+            sudo mkdir -p "$OUT"
+
+            sudo docker run --rm --pull=never               -v /tmp/retained-render-code:/opt/hoopvision:ro               -v "$R:/run/hoopvision"               -e PYTHONUNBUFFERED=1               -e PYTHONPATH=/opt/hoopvision               --workdir /opt/hoopvision               --entrypoint python "$BASE"               /opt/hoopvision/screen_tracker_nextgen/render_global_identity_safe.py               --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4               --tracks /run/hoopvision/artifacts/nextgen_mask/tracks.csv               --config /run/hoopvision/replay-d3b56542/global_identity/resolved_config.json               --identity-qa /run/hoopvision/replay-d3b56542/global_identity/global_identity_qa.json               --require-sam31               --out /run/hoopvision/replay-d3b56542/final
+
+            VIDEO="$(sudo find "$OUT" -maxdepth 1 -type f -name "*_UHD.mp4" -print -quit)"
+            test -n "$VIDEO"
+            W="$(sudo ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$VIDEO")"
+            H="$(sudo ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 "$VIDEO")"
+            test "$W" = 3840
+            test "$H" = 2160
+            sudo ffmpeg -v error -i "$VIDEO" -f null -
+            sudo cp "$VIDEO" /tmp/toronto_d3b56542_retained_UHD.mp4
+            sudo chown runner:runner /tmp/toronto_d3b56542_retained_UHD.mp4
+            sha256sum /tmp/toronto_d3b56542_retained_UHD.mp4 > /tmp/retained-render-sha256.txt
+            echo "RETAINED_UHD_RENDER_OK"
+          ' 2>&1 | tee render.log
+
+          scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null             "runner@$HV_IP:/tmp/toronto_d3b56542_retained_UHD.mp4" .
+          scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null             "runner@$HV_IP:/tmp/retained-render-sha256.txt" .
+
+      - name: Verify retrieved clip
+        shell: bash
+        run: |
+          set -euo pipefail
+          ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate,duration -of json             toronto_d3b56542_retained_UHD.mp4 | tee ffprobe.json
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 toronto_d3b56542_retained_UHD.mp4)" = "3840"
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 toronto_d3b56542_retained_UHD.mp4)" = "2160"
+          ffmpeg -v error -i toronto_d3b56542_retained_UHD.mp4 -f null -
+          sha256sum toronto_d3b56542_retained_UHD.mp4 | tee retrieved-sha256.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-toronto-retained-d3b56542-uhd
+          path: |
+            toronto_d3b56542_retained_UHD.mp4
+            ffprobe.json
+            retrieved-sha256.txt
+            retained-render-sha256.txt
+            render.log
+          retention-days: 30
+
+      - name: Restore instance SSH metadata
+        if: always()
+        shell: bash
+        run: |
+          if test -s /tmp/orig-keys; then
+            gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --metadata-from-file ssh-keys=/tmp/orig-keys --quiet || true
+          else
+            gcloud compute instances remove-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --keys=ssh-keys --quiet || true
+          fi
