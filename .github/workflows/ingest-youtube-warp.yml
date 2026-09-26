@@ -1,0 +1,172 @@
+name: Ingest YouTube via WARP
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ingest-youtube-warp.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  VIDEO_ID: w-Xa7phLRx0
+  SOURCE_URL: https://youtu.be/w-Xa7phLRx0
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  ingest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Cloudflare WARP and media tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg |
+            sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" |
+            sudo tee /etc/apt/sources.list.d/cloudflare-client.list >/dev/null
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cloudflare-warp ffmpeg jq >/dev/null
+          curl -fL --retry 4 --silent --show-error             https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux             -o /usr/local/bin/yt-dlp
+          sudo chmod 0755 /usr/local/bin/yt-dlp
+          yt-dlp --version
+          warp-cli --version
+
+      - name: Establish WARP local proxy
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo systemctl enable --now warp-svc.service || sudo systemctl restart warp-svc.service
+          for i in $(seq 1 30); do
+            if warp-cli --accept-tos status >/tmp/warp_status.txt 2>&1; then break; fi
+            sleep 1
+          done
+          cat /tmp/warp_status.txt || true
+
+          set +e
+          warp-cli --accept-tos registration new >/tmp/warp_register.txt 2>&1
+          RC=$?
+          set -e
+          cat /tmp/warp_register.txt
+          if [ "$RC" -ne 0 ]; then
+            # Registration may already exist on a reused runner image; verify before failing.
+            warp-cli --accept-tos registration show
+          fi
+
+          warp-cli --accept-tos tunnel protocol set MASQUE
+          warp-cli --accept-tos mode proxy
+          warp-cli --accept-tos proxy port 40000
+          warp-cli --accept-tos connect
+
+          ok=0
+          for i in $(seq 1 45); do
+            if curl -fsS --socks5-hostname 127.0.0.1:40000               https://www.cloudflare.com/cdn-cgi/trace > /tmp/warp_trace.txt 2>/dev/null; then
+              if grep -Eq '^warp=(on|plus)$' /tmp/warp_trace.txt; then
+                ok=1
+                break
+              fi
+            fi
+            sleep 1
+          done
+          cat /tmp/warp_trace.txt || true
+          warp-cli --accept-tos status || true
+          test "$ok" -eq 1
+
+      - name: Extract exact YouTube video through WARP
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ingest
+          cd ingest
+
+          PROXY='socks5://127.0.0.1:40000'
+          /usr/local/bin/yt-dlp             --proxy "$PROXY"             --js-runtimes node             --no-playlist             --write-info-json             --retries 8             --fragment-retries 8             --concurrent-fragments 6             --merge-output-format mp4             --remux-video mp4             -f 'bv*[height<=1080]+ba/b[height<=1080]/b'             -o 'source_native.%(ext)s'             "$SOURCE_URL"
+
+          test -s source_native.mp4
+          INFO="$(find . -maxdepth 1 -type f -name 'source_native.info.json' -print -quit)"
+          test -n "$INFO"
+          cp "$INFO" yt_dlp.info.json
+
+          ffprobe -v error             -show_entries format=duration,size,format_name,bit_rate:stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,pix_fmt             -of json source_native.mp4 > ffprobe.json
+          jq -e '[.streams[] | select(.codec_type=="video")] | length >= 1' ffprobe.json >/dev/null
+          DURATION="$(jq -r '.format.duration | tonumber' ffprobe.json)"
+          python3 - "$DURATION" <<'PY'
+          import sys
+          assert float(sys.argv[1]) > 1.0
+          PY
+          sha256sum source_native.mp4 | awk '{print $1}' > sha256.txt
+          wc -c < source_native.mp4 | tr -d ' ' > size_bytes.txt
+          cat ffprobe.json
+          echo "HOOPVISION_YT_SHA256=$(cat sha256.txt)"
+          echo "HOOPVISION_YT_SIZE=$(cat size_bytes.txt)"
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and publish immutable source fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ingest
+          export CONTENT_SHA256="$(cat sha256.txt)"
+          export SIZE_BYTES="$(cat size_bytes.txt)"
+          export GCS_URI="gs://$BUCKET/fixtures/youtube/$VIDEO_ID/$CONTENT_SHA256/source_native.mp4"
+          python3 - <<'PY'
+          import json, os, pathlib
+          info=json.load(open("yt_dlp.info.json"))
+          keep={k:info.get(k) for k in (
+              "id","title","uploader","channel","upload_date","duration",
+              "webpage_url","original_url","format_id","format","width","height","fps","vcodec","acodec"
+          )}
+          manifest={
+              "schema":"hoopvision.source_fixture.v1",
+              "source_kind":"youtube",
+              "video_id":os.environ["VIDEO_ID"],
+              "requested_url":os.environ["SOURCE_URL"],
+              "content_sha256":os.environ["CONTENT_SHA256"],
+              "size_bytes":int(os.environ["SIZE_BYTES"]),
+              "gcs_uri":os.environ["GCS_URI"],
+              "ffprobe":json.load(open("ffprobe.json")),
+              "yt_dlp":keep,
+              "acquisition":{"engine":"yt-dlp","network_origin":"cloudflare-warp-local-proxy","max_height":1080},
+              "runner_repository":os.environ["GITHUB_REPOSITORY"],
+              "runner_sha":os.environ["GITHUB_SHA"],
+              "runner_run_id":os.environ["GITHUB_RUN_ID"],
+          }
+          pathlib.Path("source_manifest.json").write_text(json.dumps(manifest,indent=2,sort_keys=True)+"\n")
+          print(json.dumps(manifest,indent=2,sort_keys=True))
+          PY
+
+          PREFIX="fixtures/youtube/$VIDEO_ID/$CONTENT_SHA256"
+          gcloud storage cp source_native.mp4 "gs://$BUCKET/$PREFIX/source_native.mp4"
+          gcloud storage cp ffprobe.json "gs://$BUCKET/$PREFIX/ffprobe.json"
+          gcloud storage cp yt_dlp.info.json "gs://$BUCKET/$PREFIX/yt_dlp.info.json"
+          gcloud storage cp source_manifest.json "gs://$BUCKET/$PREFIX/source_manifest.json"
+          gcloud storage ls -l "gs://$BUCKET/$PREFIX/**"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: youtube-w-Xa7phLRx0-warp-manifest
+          path: |
+            ingest/source_manifest.json
+            ingest/ffprobe.json
+            ingest/sha256.txt
+            ingest/size_bytes.txt
+          retention-days: 14
+
+      - name: Disconnect WARP
+        if: always()
+        run: warp-cli --accept-tos disconnect >/dev/null 2>&1 || true
