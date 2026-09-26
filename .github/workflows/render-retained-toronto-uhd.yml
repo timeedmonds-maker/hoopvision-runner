@@ -112,6 +112,33 @@ jobs:
           scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             /tmp/render-code.tgz "runner@$HV_IP:/tmp/"
 
+      - name: Restore retained Toronto replay evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          curl -fsSL -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/timeedmonds-maker/hoopvision-runner/actions/artifacts/10902980992/zip" \
+            -o /tmp/toronto-replay.zip
+          rm -rf /tmp/toronto-replay
+          mkdir -p /tmp/toronto-replay
+          unzip -q /tmp/toronto-replay.zip -d /tmp/toronto-replay
+          find /tmp/toronto-replay -maxdepth 4 -type f -print
+          tar -C /tmp/toronto-replay -czf /tmp/toronto-replay.tgz .
+          scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            /tmp/toronto-replay.tgz "runner@$HV_IP:/tmp/"
+          ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$HV_IP" '
+            set -euo pipefail
+            R="/srv/hoopvision/runs/'"$RUN_ID"'"
+            sudo mkdir -p "$R/replay-d3b56542"
+            sudo tar -C "$R/replay-d3b56542" -xzf /tmp/toronto-replay.tgz
+            sudo test -f "$R/replay-d3b56542/global_identity/resolved_config.json"
+            sudo test -f "$R/replay-d3b56542/global_identity/global_identity_qa.json"
+            sudo test -f "$R/replay-d3b56542/global_identity/visual_identity_oracle_qa.json"
+            sudo test -f "$R/replay-d3b56542/global_identity/identity_assignments.csv"
+          '
+
       - name: Render corrected normal and continuous-player UHD
         shell: bash
         run: |
