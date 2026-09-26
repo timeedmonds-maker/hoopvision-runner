@@ -124,6 +124,7 @@ jobs:
               -v \"\$WORK/src:/opt/hoopvision:ro\" \
               -v \"\$ROOT:/retained:ro\" \
               -v \"\$WORK/out:/out\" \
+              -v \"\$WORK/targeted_decision.json:/targeted_decision.json:ro\" \
               -v /srv/hoopvision/models/cache:/models:ro \
               --workdir /opt/hoopvision \
               --entrypoint python \
