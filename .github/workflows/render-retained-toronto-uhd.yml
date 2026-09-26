@@ -15,14 +15,14 @@ env:
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
   RUN_ID: public-36202716389-1-c7637a7c34a2
-  CANDIDATE_SHA: 6529139774fcde5f3d9975cfad1bd53a4318aa05
+  CANDIDATE_SHA: 075b54ffd1a9e13a9ce61337e43d927b348c8d68
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
 jobs:
   render:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
 
@@ -47,8 +47,10 @@ jobs:
           python -m py_compile \
             src/screen_tracker_nextgen/render_global_identity_safe.py \
             src/screen_tracker_nextgen/render_all_player_labels.py \
-            src/screen_tracker_nextgen/backfill_identified_player_paths.py \
+            src/screen_tracker_nextgen/materialize_sam31_player_paths.py \
+            src/screen_tracker_nextgen/build_continuous_role_render_bundle.py \
             src/screen_tracker_nextgen/summarize_render_timeline.py \
+            src/screen_tracker_kickout3/fetch_exact_angle_native.py \
             src/tools/render_deterministic_master.py
           python src/tools/validate_governing_delivery_policy.py
 
@@ -94,7 +96,7 @@ jobs:
           scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             /tmp/render-code.tgz "runner@$HV_IP:/tmp/"
 
-      - name: Render normal and all-player retained UHD
+      - name: Render corrected normal and continuous-player UHD
         shell: bash
         run: |
           set -euo pipefail
@@ -102,16 +104,17 @@ jobs:
             set -euxo pipefail
             R="/srv/hoopvision/runs/'"$RUN_ID"'"
             REPLAY="$R/replay-d3b56542"
-            OUT="$REPLAY/final_5of5"
+            OUT="$REPLAY/final_corrected"
             ORACLE="$REPLAY/global_identity/visual_identity_oracle_qa.json"
             ASSIGN="$REPLAY/global_identity/identity_assignments.csv"
+            DURABLE_SOURCE="$R/artifacts/nextgen_mask/source_native.mp4"
 
-            sudo test -f "$R/artifacts/nextgen_mask/source_native.mp4"
-            sudo test -f "$R/artifacts/nextgen_mask/tracks.csv"
+            sudo test -f "$DURABLE_SOURCE"
             sudo test -f "$REPLAY/global_identity/resolved_config.json"
             sudo test -f "$REPLAY/global_identity/global_identity_qa.json"
             sudo test -f "$ORACLE"
             sudo test -f "$ASSIGN"
+            sudo test -s /srv/hoopvision/models/cache/sam3.1_multiplex.pt
 
             sudo python3 - "$ORACLE" <<'PY'
           import json,sys
@@ -129,64 +132,138 @@ jobs:
             sudo rm -rf /tmp/retained-render-code
             sudo mkdir -p /tmp/retained-render-code
             sudo tar -C /tmp/retained-render-code -xzf /tmp/render-code.tgz
+            sudo rm -rf "$OUT"
             sudo mkdir -p "$OUT"
 
             COMMON="-v /tmp/retained-render-code:/opt/hoopvision:ro -v $R:/run/hoopvision -e PYTHONUNBUFFERED=1 -e PYTHONPATH=/opt/hoopvision --workdir /opt/hoopvision --entrypoint python"
 
-            # Visual-QA correction run: never reuse the prior sparse/single-pass
-            # outputs. Rebuild from the exact solved 5/5 identity state.
-            sudo rm -rf "$OUT"
-            sudo mkdir -p "$OUT"
+            # Normal NBA event clips top out at 960x540. Select the best official
+            # 960 rendition by bandwidth instead of relying on master-playlist order.
+            sudo docker run --rm --pull=never $COMMON "$BASE" \
+              /opt/hoopvision/screen_tracker_kickout3/fetch_exact_angle_native.py \
+              --game 0022500131 --event 585 --angle Broadcast --target-width 960 \
+              --out /run/hoopvision/replay-d3b56542/final_corrected/source_best_960.mp4 \
+              --meta /run/hoopvision/replay-d3b56542/final_corrected/source_selection.json
+
+            BEST_SOURCE="$OUT/source_best_960.mp4"
+            sudo test -s "$BEST_SOURCE"
+            sudo ffprobe -v error -show_entries stream=width,height,avg_frame_rate \
+              -show_entries format=duration,size,bit_rate -of json "$BEST_SOURCE" \
+              | sudo tee "$OUT/source_best_probe.json" >/dev/null
+            sudo ffprobe -v error -show_entries stream=width,height,avg_frame_rate \
+              -show_entries format=duration,size,bit_rate -of json "$DURABLE_SOURCE" \
+              | sudo tee "$OUT/source_durable_probe.json" >/dev/null
+
+            sudo python3 - "$OUT/source_best_probe.json" "$OUT/source_durable_probe.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1])); b=json.load(open(sys.argv[2]))
+          va=a["streams"][0]; vb=b["streams"][0]
+          assert int(va["width"])==960 and int(va["height"])==540, va
+          assert int(vb["width"])==960 and int(vb["height"])==540, vb
+          assert va["avg_frame_rate"]==vb["avg_frame_rate"], (va,vb)
+          da=float(a["format"]["duration"]); db=float(b["format"]["duration"])
+          assert abs(da-db)<0.08, (da,db)
+          print("TORONTO_BEST_960_SOURCE_METADATA_ALIGNED",a["format"].get("bit_rate"),b["format"].get("bit_rate"))
+          PY
+
+            # Ensure the refetched rendition is the same temporally aligned
+            # broadcast content before reusing solved 960x540 geometry.
+            set +e
+            sudo ffmpeg -nostdin -i "$DURABLE_SOURCE" -i "$BEST_SOURCE" \
+              -lavfi "[0:v][1:v]ssim" -f null - 2>&1 | sudo tee "$OUT/source_ssim.log"
+            SSIM_RC="${PIPESTATUS[0]}"
+            set -e
+            test "$SSIM_RC" = 0
+            sudo python3 - "$OUT/source_ssim.log" <<'PY'
+          import re,sys
+          s=open(sys.argv[1],errors="ignore").read()
+          vals=re.findall(r"All:([0-9.]+)",s)
+          assert vals, s[-2000:]
+          score=float(vals[-1])
+          assert score>=0.95, score
+          print("TORONTO_BEST_960_SOURCE_VISUALLY_ALIGNED",score)
+          PY
+
+            # Seed only from identities already authorized safe by the solved
+            # 5/5 state, then propagate their physical bodies bidirectionally
+            # through the entire visible render window with SAM3.1 multiplex.
+            sudo docker run --rm --pull=never --gpus all \
+              -v /srv/hoopvision/models/cache:/models:ro $COMMON "$BASE" \
+              /opt/hoopvision/screen_tracker_nextgen/materialize_sam31_player_paths.py \
+              --source /run/hoopvision/replay-d3b56542/final_corrected/source_best_960.mp4 \
+              --assignments /run/hoopvision/replay-d3b56542/global_identity/identity_assignments.csv \
+              --out-csv /run/hoopvision/replay-d3b56542/final_corrected/continuous_player_paths.csv \
+              --out-qa /run/hoopvision/replay-d3b56542/final_corrected/continuous_player_paths_qa.json \
+              --checkpoint /models/sam3.1_multiplex.pt \
+              --start-s 5.5 --end-s 15.5 --required-player-count 0 \
+              --require-full-window-coverage
+
+            sudo python3 - "$OUT/continuous_player_paths_qa.json" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q.get("safe_only") is True, q
+          assert q.get("player_count")==3, q
+          names=sorted(x["player_name"] for x in q["players"].values())
+          assert names==["Gradey Dick","Kevin Durant","Steven Adams"], names
+          assert not q.get("coverage_failures"), q
+          for rec in q["players"].values():
+              assert rec["covers_render_window_start"] is True, rec
+              assert rec["covers_render_window_end"] is True, rec
+              assert int(rec["max_materialized_gap_frames"])==0, rec
+          print("TORONTO_THREE_SAFE_PLAYERS_CONTINUOUS_SAM31_OK",names)
+          PY
+
+            # Convert the same validated continuous player paths into v100 role
+            # tracks, so the commercial clip and QA clip share one geometry truth.
+            sudo docker run --rm --pull=never $COMMON "$BASE" \
+              /opt/hoopvision/screen_tracker_nextgen/build_continuous_role_render_bundle.py \
+              --config /run/hoopvision/replay-d3b56542/global_identity/resolved_config.json \
+              --paths /run/hoopvision/replay-d3b56542/final_corrected/continuous_player_paths.csv \
+              --out-config /run/hoopvision/replay-d3b56542/final_corrected/continuous_resolved_config.json \
+              --out-tracks /run/hoopvision/replay-d3b56542/final_corrected/continuous_role_tracks.csv \
+              --out-qa /run/hoopvision/replay-d3b56542/final_corrected/continuous_role_bundle_qa.json
 
             sudo docker run --rm --pull=never $COMMON "$BASE" \
               /opt/hoopvision/screen_tracker_nextgen/render_global_identity_safe.py \
-              --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
-              --tracks /run/hoopvision/artifacts/nextgen_mask/tracks.csv \
-              --config /run/hoopvision/replay-d3b56542/global_identity/resolved_config.json \
+              --source /run/hoopvision/replay-d3b56542/final_corrected/source_best_960.mp4 \
+              --tracks /run/hoopvision/replay-d3b56542/final_corrected/continuous_role_tracks.csv \
+              --config /run/hoopvision/replay-d3b56542/final_corrected/continuous_resolved_config.json \
               --identity-qa /run/hoopvision/replay-d3b56542/global_identity/global_identity_qa.json \
               --require-sam31 \
-              --out /run/hoopvision/replay-d3b56542/final_5of5/normal
+              --out /run/hoopvision/replay-d3b56542/final_corrected/normal
 
             NORMAL="$(sudo find "$OUT/normal" -maxdepth 1 -type f -name "*_UHD.mp4" -print -quit)"
             test -n "$NORMAL"
 
             sudo docker run --rm --pull=never $COMMON "$BASE" \
-              /opt/hoopvision/screen_tracker_nextgen/backfill_identified_player_paths.py \
-              --assignments /run/hoopvision/replay-d3b56542/global_identity/identity_assignments.csv \
-              --out /run/hoopvision/replay-d3b56542/final_5of5/identified_player_assignments.csv \
-              --qa /run/hoopvision/replay-d3b56542/final_5of5/identified_player_backfill_qa.json
-
-            sudo python3 - "$OUT/identified_player_backfill_qa.json" <<'PY'
-          import json,sys
-          q=json.load(open(sys.argv[1]))
-          assert q.get("identified_player_count")==3, q
-          names=sorted(x["player_name"] for x in q["players"].values())
-          assert names==["Gradey Dick","Kevin Durant","Steven Adams"], names
-          for rec in q["players"].values():
-              assert rec["trusted_anchor_rows"]>0, rec
-              assert rec["first_time_s"]<=5.55, rec
-              assert rec["max_sample_gap_s"]<=0.21, rec
-          print("TORONTO_IDENTIFIED_PLAYER_CONTINUITY_BACKFILL_OK", names)
-          PY
-
-            sudo docker run --rm --pull=never $COMMON "$BASE" \
               /opt/hoopvision/screen_tracker_nextgen/render_all_player_labels.py \
-              --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
-              --assignments /run/hoopvision/replay-d3b56542/final_5of5/identified_player_assignments.csv \
-              --out /run/hoopvision/replay-d3b56542/final_5of5/toronto_all_player_UHD.mp4 \
+              --source /run/hoopvision/replay-d3b56542/final_corrected/source_best_960.mp4 \
+              --assignments /run/hoopvision/replay-d3b56542/global_identity/identity_assignments.csv \
+              --paths /run/hoopvision/replay-d3b56542/final_corrected/continuous_player_paths.csv \
+              --out /run/hoopvision/replay-d3b56542/final_corrected/toronto_all_player_UHD.mp4 \
               --start-s 5.5 --end-s 15.5 --uhd \
-              --max-interp-gap 0.21 --ring-max-interp-gap 0.21 \
-              --frame-ledger /run/hoopvision/replay-d3b56542/final_5of5/all_player_ledger.csv
+              --frame-ledger /run/hoopvision/replay-d3b56542/final_corrected/all_player_ledger.csv
 
             sudo docker run --rm --pull=never $COMMON "$BASE" \
               /opt/hoopvision/screen_tracker_nextgen/summarize_render_timeline.py \
-              --ledger /run/hoopvision/replay-d3b56542/final_5of5/all_player_ledger.csv \
-              --out /run/hoopvision/replay-d3b56542/final_5of5/all_player_qa.json
+              --ledger /run/hoopvision/replay-d3b56542/final_corrected/all_player_ledger.csv \
+              --out /run/hoopvision/replay-d3b56542/final_corrected/all_player_qa.json
+
+            sudo python3 - "$OUT/all_player_qa.json" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q.get("structural_pass") is True, q
+          assert q.get("player_count")==3, q
+          assert q.get("safely_identified_player_count")==3, q
+          for rec in q["players"]:
+              assert rec["complete_overlay_frames"]==rec["render_window_frames"], rec
+              assert rec["name_visible_frames"]==rec["render_window_frames"], rec
+              assert rec["ring_visible_frames"]==rec["render_window_frames"], rec
+          print("TORONTO_CONTINUOUS_OVERLAY_300_OF_300_PER_PLAYER")
+          PY
 
             ALL="$OUT/toronto_all_player_UHD.mp4"
             sudo test -s "$ALL"
-            sudo test -s "$OUT/all_player_ledger.csv"
-            sudo test -s "$OUT/all_player_qa.json"
 
             for VIDEO in "$NORMAL" "$ALL"; do
               W="$(sudo ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "$VIDEO")"
@@ -198,33 +275,43 @@ jobs:
 
             sudo ffprobe -v error -count_frames -select_streams v:0 \
               -show_entries stream=width,height,r_frame_rate,nb_read_frames \
-              -show_entries format=duration -of json "$NORMAL" > /tmp/normal_ffprobe.json
+              -show_entries format=duration -of json "$NORMAL" \
+              | sudo tee /tmp/normal_ffprobe.json >/dev/null
             sudo ffprobe -v error -count_frames -select_streams v:0 \
               -show_entries stream=width,height,r_frame_rate,nb_read_frames \
-              -show_entries format=duration -of json "$ALL" > /tmp/all_player_ffprobe.json
+              -show_entries format=duration -of json "$ALL" \
+              | sudo tee /tmp/all_player_ffprobe.json >/dev/null
 
             sudo cp "$NORMAL" /tmp/toronto_normal_5of5_UHD.mp4
             sudo cp "$ALL" /tmp/toronto_all_player_5of5_UHD.mp4
             sudo cp "$OUT/all_player_ledger.csv" /tmp/all_player_ledger.csv
             sudo cp "$OUT/all_player_qa.json" /tmp/all_player_qa.json
-            sudo cp "$OUT/identified_player_backfill_qa.json" /tmp/identified_player_backfill_qa.json
+            sudo cp "$OUT/continuous_player_paths_qa.json" /tmp/continuous_player_paths_qa.json
+            sudo cp "$OUT/continuous_role_bundle_qa.json" /tmp/continuous_role_bundle_qa.json
+            sudo cp "$OUT/source_selection.json" /tmp/source_selection.json
+            sudo cp "$OUT/source_best_probe.json" /tmp/source_best_probe.json
+            sudo cp "$OUT/source_durable_probe.json" /tmp/source_durable_probe.json
+            sudo cp "$OUT/source_ssim.log" /tmp/source_ssim.log
             sudo cp "$ORACLE" /tmp/visual_identity_oracle_qa.json
             sudo chown runner:runner \
               /tmp/toronto_normal_5of5_UHD.mp4 \
               /tmp/toronto_all_player_5of5_UHD.mp4 \
               /tmp/all_player_ledger.csv /tmp/all_player_qa.json \
-              /tmp/identified_player_backfill_qa.json \
-              /tmp/visual_identity_oracle_qa.json \
+              /tmp/continuous_player_paths_qa.json /tmp/continuous_role_bundle_qa.json \
+              /tmp/source_selection.json /tmp/source_best_probe.json /tmp/source_durable_probe.json \
+              /tmp/source_ssim.log /tmp/visual_identity_oracle_qa.json \
               /tmp/normal_ffprobe.json /tmp/all_player_ffprobe.json
             sha256sum /tmp/toronto_normal_5of5_UHD.mp4 /tmp/toronto_all_player_5of5_UHD.mp4 \
               > /tmp/retained-render-sha256.txt
-            echo "TORONTO_5OF5_NORMAL_AND_ALL_PLAYER_UHD_RENDER_OK"
+            echo "TORONTO_CORRECTED_CONTINUOUS_UHD_RENDER_OK"
           ' 2>&1 | tee render.log
 
           for f in \
             toronto_normal_5of5_UHD.mp4 \
             toronto_all_player_5of5_UHD.mp4 \
-            all_player_ledger.csv all_player_qa.json identified_player_backfill_qa.json \
+            all_player_ledger.csv all_player_qa.json \
+            continuous_player_paths_qa.json continuous_role_bundle_qa.json \
+            source_selection.json source_best_probe.json source_durable_probe.json source_ssim.log \
             visual_identity_oracle_qa.json \
             normal_ffprobe.json all_player_ffprobe.json \
             retained-render-sha256.txt; do
@@ -255,19 +342,29 @@ jobs:
           assert all(x.get("pass") is True for x in q["checks"])
           a=json.load(open("all_player_qa.json"))
           assert a.get("structural_pass") is True, a
-          print("RETRIEVED_UHD_AND_ORACLE_VALIDATION_OK")
+          assert a.get("player_count")==3 and a.get("safely_identified_player_count")==3, a
+          for rec in a["players"]:
+              assert rec["complete_overlay_frames"]==rec["render_window_frames"], rec
+          p=json.load(open("continuous_player_paths_qa.json"))
+          assert p.get("player_count")==3 and not p.get("coverage_failures"), p
+          print("RETRIEVED_UHD_CONTINUITY_AND_ORACLE_VALIDATION_OK")
           PY
           sha256sum toronto_normal_5of5_UHD.mp4 toronto_all_player_5of5_UHD.mp4 | tee retrieved-sha256.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: hoopvision-toronto-5of5-uhd-visual-qa
+          name: hoopvision-toronto-corrected-continuous-uhd-visual-qa
           path: |
             toronto_normal_5of5_UHD.mp4
             toronto_all_player_5of5_UHD.mp4
             all_player_ledger.csv
             all_player_qa.json
-            identified_player_backfill_qa.json
+            continuous_player_paths_qa.json
+            continuous_role_bundle_qa.json
+            source_selection.json
+            source_best_probe.json
+            source_durable_probe.json
+            source_ssim.log
             visual_identity_oracle_qa.json
             normal_ffprobe.json
             all_player_ffprobe.json
