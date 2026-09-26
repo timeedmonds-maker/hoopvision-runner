@@ -16,6 +16,7 @@ env:
   BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   VIDEO_ID: w-Xa7phLRx0
   SOURCE_URL: https://youtu.be/w-Xa7phLRx0
+  ZONE: asia-southeast1-b
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -33,131 +34,184 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Install local validation tools
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg >/dev/null
-
-      - name: Extract from fresh GCP CPU origin
+      - name: Launch outbound-only YouTube extractor
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p ingest
           VM="hv-yt-${GITHUB_RUN_ID}"
-          ZONES=(asia-southeast1-b asia-southeast1-a asia-southeast1-c)
-          ACTIVE_ZONE=""
+          STATUS_OBJ="gs://$BUCKET/runs/youtube-ingest/${GITHUB_RUN_ID}/status.json"
 
           cleanup() {
-            if [ -n "$ACTIVE_ZONE" ]; then
-              gcloud compute instances delete "$VM" \
-                --project="$PROJECT_ID" --zone="$ACTIVE_ZONE" --quiet >/dev/null 2>&1 || true
-            fi
+            gcloud compute instances delete "$VM" \
+              --project="$PROJECT_ID" --zone="$ZONE" --quiet >/dev/null 2>&1 || true
           }
           trap cleanup EXIT
 
-          success=0
-          for ZONE in "${ZONES[@]}"; do
-            echo "=== CREATING FRESH CPU EXTRACTION ORIGIN IN $ZONE ==="
-            ACTIVE_ZONE="$ZONE"
-            set +e
-            gcloud compute instances create "$VM" \
-              --project="$PROJECT_ID" \
-              --zone="$ZONE" \
-              --machine-type=e2-micro \
-              --image-family=ubuntu-2404-lts-amd64 \
-              --image-project=ubuntu-os-cloud \
-              --boot-disk-size=10GB \
-              --boot-disk-type=pd-balanced \
-              --network=default \
-              --no-service-account \
-              --no-scopes \
-              --quiet
-            CREATE_RC=$?
-            set -e
-            if [ "$CREATE_RC" -ne 0 ]; then
-              echo "VM creation failed in $ZONE rc=$CREATE_RC"
-              ACTIVE_ZONE=""
-              continue
+          gcloud storage rm "$STATUS_OBJ" >/dev/null 2>&1 || true
+          ACCESS_TOKEN="$(gcloud auth print-access-token)"
+
+          cat > /tmp/yt-startup.sh <<EOF
+          #!/usr/bin/env bash
+          set -uo pipefail
+          ACCESS_TOKEN='$ACCESS_TOKEN'
+          BUCKET='$BUCKET'
+          VIDEO_ID='$VIDEO_ID'
+          SOURCE_URL='$SOURCE_URL'
+          RUN_ID='${GITHUB_RUN_ID}'
+          WORK=/var/tmp/hoopvision-youtube
+          STATUS_PATH="runs/youtube-ingest/$RUN_ID/status.json"
+          SUCCESS=0
+
+          gcs_put() {
+            local FILE="$1"
+            local OBJ="$2"
+            local TYPE="${3:-application/octet-stream}"
+            curl --fail --silent --show-error \
+              --retry 4 --retry-delay 2 --retry-all-errors \
+              -X PUT \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
+              -H "Content-Type: $TYPE" \
+              --upload-file "$FILE" \
+              "https://storage.googleapis.com/$BUCKET/$OBJ"
+          }
+
+          report_failure() {
+            local RC="$1"
+            mkdir -p "$WORK"
+            python3 - "$RC" <<'PY'
+          import json, os, sys
+          p=os.path.join("/var/tmp/hoopvision-youtube","status.json")
+          json.dump({
+              "status":"failure",
+              "exit_code":int(sys.argv[1]),
+              "video_id":"w-Xa7phLRx0",
+              "run_id":os.environ.get("RUN_ID",""),
+          }, open(p,"w"), indent=2, sort_keys=True)
+          PY
+            gcs_put "$WORK/status.json" "$STATUS_PATH" "application/json" || true
+          }
+
+          finish() {
+            RC=$?
+            if [ "$SUCCESS" -ne 1 ]; then
+              report_failure "$RC"
             fi
+            exit "$RC"
+          }
+          trap finish EXIT
 
-            ready=0
-            for i in $(seq 1 36); do
-              if gcloud compute ssh "$VM" \
-                --project="$PROJECT_ID" --zone="$ZONE" --quiet \
-                --command='echo SSH_READY' >/tmp/ssh-ready.txt 2>/tmp/ssh-ready.err; then
-                cat /tmp/ssh-ready.txt
-                ready=1
-                break
-              fi
-              sleep 5
-            done
-            if [ "$ready" -ne 1 ]; then
-              cat /tmp/ssh-ready.err || true
-              gcloud compute instances delete "$VM" --project="$PROJECT_ID" --zone="$ZONE" --quiet || true
-              ACTIVE_ZONE=""
-              continue
-            fi
+          export RUN_ID
+          set -e
+          rm -rf "$WORK"
+          mkdir -p "$WORK"
+          cd "$WORK"
 
-            set +e
-            gcloud compute ssh "$VM" \
-              --project="$PROJECT_ID" --zone="$ZONE" --quiet \
-              --command="set -euo pipefail
-                sudo apt-get update -qq
-                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg curl nodejs >/dev/null
-                sudo curl -fL --retry 3 --silent --show-error \
-                  https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
-                  -o /usr/local/bin/yt-dlp
-                sudo chmod 0755 /usr/local/bin/yt-dlp
-                rm -rf /tmp/hoopvision-youtube
-                mkdir -p /tmp/hoopvision-youtube
-                cd /tmp/hoopvision-youtube
-                ok=0
-                for CLIENT in tv android_vr web_embedded; do
-                  rm -f source_native.*
-                  echo ==== GCP CLIENT: \$CLIENT ====
-                  if /usr/local/bin/yt-dlp --verbose --js-runtimes node \
-                    --extractor-args youtube:player_client=\$CLIENT \
-                    --no-playlist --write-info-json \
-                    --retries 3 --fragment-retries 3 --concurrent-fragments 4 \
-                    --merge-output-format mp4 --remux-video mp4 \
-                    -f 'bv*+ba/b' -o 'source_native.%(ext)s' '$SOURCE_URL'; then
-                    test -s source_native.mp4
-                    ok=1
-                    break
-                  fi
-                done
-                test \$ok -eq 1"
-            REMOTE_RC=$?
-            set -e
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg curl nodejs ca-certificates >/dev/null
+          curl -fL --retry 4 --silent --show-error \
+            https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
+            -o /usr/local/bin/yt-dlp
+          chmod 0755 /usr/local/bin/yt-dlp
 
-            if [ "$REMOTE_RC" -eq 0 ]; then
-              gcloud compute scp "$VM:/tmp/hoopvision-youtube/source_native.mp4" ingest/source_native.mp4 \
-                --project="$PROJECT_ID" --zone="$ZONE" --quiet
-              gcloud compute scp "$VM:/tmp/hoopvision-youtube/source_native.info.json" ingest/yt_dlp.info.json \
-                --project="$PROJECT_ID" --zone="$ZONE" --quiet
-              success=1
+          OK=0
+          for CLIENT in tv android_vr web_embedded; do
+            rm -f source_native.*
+            echo "HOOPVISION_YT_CLIENT=$CLIENT"
+            if /usr/local/bin/yt-dlp --verbose --js-runtimes node \
+              --extractor-args "youtube:player_client=$CLIENT" \
+              --no-playlist --write-info-json \
+              --retries 4 --fragment-retries 4 --concurrent-fragments 4 \
+              --merge-output-format mp4 --remux-video mp4 \
+              -f 'bv*+ba/b' -o 'source_native.%(ext)s' "$SOURCE_URL"; then
+              test -s source_native.mp4
+              OK=1
               break
             fi
-
-            echo "Extraction failed from fresh origin in $ZONE rc=$REMOTE_RC"
-            gcloud compute instances delete "$VM" --project="$PROJECT_ID" --zone="$ZONE" --quiet || true
-            ACTIVE_ZONE=""
           done
+          test "$OK" -eq 1
 
-          test "$success" -eq 1
-          test -s ingest/source_native.mp4
-          test -s ingest/yt_dlp.info.json
-
+          cp source_native.info.json yt_dlp.info.json
           ffprobe -v error \
             -show_entries format=duration,size,format_name,bit_rate:stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,pix_fmt \
-            -of json ingest/source_native.mp4 > ingest/ffprobe.json
-          sha256sum ingest/source_native.mp4 | awk '{print $1}' > ingest/sha256.txt
-          wc -c < ingest/source_native.mp4 | tr -d ' ' > ingest/size_bytes.txt
-          cat ingest/ffprobe.json
-          echo "sha256=$(cat ingest/sha256.txt)"
-          echo "size_bytes=$(cat ingest/size_bytes.txt)"
+            -of json source_native.mp4 > ffprobe.json
+          SHA="$(sha256sum source_native.mp4 | awk '{print $1}')"
+          SIZE="$(wc -c < source_native.mp4 | tr -d ' ')"
+          PREFIX="fixtures/youtube/$VIDEO_ID/$SHA"
+          MEDIA_OBJ="$PREFIX/source_native.mp4"
+
+          echo "HOOPVISION_YT_SHA256=$SHA"
+          echo "HOOPVISION_YT_SIZE=$SIZE"
+
+          gcs_put source_native.mp4 "$MEDIA_OBJ" "video/mp4"
+          gcs_put yt_dlp.info.json "$PREFIX/yt_dlp.info.json" "application/json"
+          gcs_put ffprobe.json "$PREFIX/ffprobe.json" "application/json"
+
+          export SHA SIZE MEDIA_OBJ
+          python3 - <<'PY'
+          import json, os
+          json.dump({
+              "status":"success",
+              "video_id":os.environ["VIDEO_ID"],
+              "run_id":os.environ["RUN_ID"],
+              "content_sha256":os.environ["SHA"],
+              "size_bytes":int(os.environ["SIZE"]),
+              "gcs_uri":"gs://"+os.environ["BUCKET"]+"/"+os.environ["MEDIA_OBJ"],
+          }, open("status.json","w"), indent=2, sort_keys=True)
+          PY
+          gcs_put status.json "$STATUS_PATH" "application/json"
+          SUCCESS=1
+          trap - EXIT
+          exit 0
+          EOF
+          chmod 0700 /tmp/yt-startup.sh
+
+          gcloud compute instances create "$VM" \
+            --project="$PROJECT_ID" \
+            --zone="$ZONE" \
+            --machine-type=e2-micro \
+            --image-family=ubuntu-2404-lts-amd64 \
+            --image-project=ubuntu-os-cloud \
+            --boot-disk-size=30GB \
+            --boot-disk-type=pd-balanced \
+            --network=default \
+            --no-service-account \
+            --no-scopes \
+            --metadata-from-file=startup-script=/tmp/yt-startup.sh \
+            --quiet
+
+          found=0
+          for i in $(seq 1 180); do
+            if gcloud storage cat "$STATUS_OBJ" > ingest/status.json 2>/dev/null; then
+              found=1
+              break
+            fi
+            sleep 5
+          done
+
+          if [ "$found" -ne 1 ]; then
+            echo "Extractor did not publish terminal status" >&2
+            gcloud compute instances get-serial-port-output "$VM" \
+              --project="$PROJECT_ID" --zone="$ZONE" --port=1 2>/dev/null | tail -n 250 || true
+            exit 1
+          fi
+
+          cat ingest/status.json
+          STATUS="$(python3 -c 'import json; print(json.load(open("ingest/status.json"))["status"])')"
+          if [ "$STATUS" != "success" ]; then
+            echo "Extractor reported failure" >&2
+            gcloud compute instances get-serial-port-output "$VM" \
+              --project="$PROJECT_ID" --zone="$ZONE" --port=1 2>/dev/null | tail -n 350 || true
+            exit 1
+          fi
+
+          SHA="$(python3 -c 'import json; print(json.load(open("ingest/status.json"))["content_sha256"])')"
+          SIZE="$(python3 -c 'import json; print(json.load(open("ingest/status.json"))["size_bytes"])')"
+          PREFIX="gs://$BUCKET/fixtures/youtube/$VIDEO_ID/$SHA"
+          gcloud storage cp "$PREFIX/yt_dlp.info.json" ingest/yt_dlp.info.json
+          gcloud storage cp "$PREFIX/ffprobe.json" ingest/ffprobe.json
+          printf '%s\n' "$SHA" > ingest/sha256.txt
+          printf '%s\n' "$SIZE" > ingest/size_bytes.txt
 
       - name: Build immutable source manifest
         shell: bash
@@ -201,27 +255,24 @@ jobs:
           print(json.dumps(manifest, indent=2, sort_keys=True))
           PY
 
-      - name: Publish immutable source fixture
+      - name: Publish manifest beside immutable source
         shell: bash
         run: |
           set -euo pipefail
           cd ingest
           SHA="$(cat sha256.txt)"
           PREFIX="fixtures/youtube/$VIDEO_ID/$SHA"
-          gcloud storage cp source_native.mp4 "gs://$BUCKET/$PREFIX/source_native.mp4"
-          gcloud storage cp ffprobe.json "gs://$BUCKET/$PREFIX/ffprobe.json"
-          gcloud storage cp yt_dlp.info.json "gs://$BUCKET/$PREFIX/yt_dlp.info.json"
           gcloud storage cp source_manifest.json "gs://$BUCKET/$PREFIX/source_manifest.json"
           gcloud storage ls -l "gs://$BUCKET/$PREFIX/**"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: youtube-w-Xa7phLRx0-source
+          name: youtube-w-Xa7phLRx0-source-manifest
           path: |
-            ingest/source_native.mp4
             ingest/source_manifest.json
+            ingest/status.json
             ingest/ffprobe.json
             ingest/yt_dlp.info.json
             ingest/sha256.txt
           compression-level: 0
-          retention-days: 7
+          retention-days: 14
