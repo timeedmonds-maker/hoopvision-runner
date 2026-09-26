@@ -1,0 +1,77 @@
+name: Inspect Active Toronto Durable State
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-active-toronto.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  AUTH_RUN: public-36208332185-1-d3b565425e7f
+  OPP_RUN: public-36208246425-1-d3b565425e7f
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect durable events and latest logs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -q --disable-pip-version-check google-cloud-storage==3.4.0
+          mkdir -p state
+          python - <<'PY' | tee state/active-toronto.txt
+          import json, os
+          from google.cloud import storage
+          client=storage.Client(project=os.environ['PROJECT_ID'])
+          bucket=client.bucket(os.environ['BUCKET'])
+          for run in [os.environ['AUTH_RUN'],os.environ['OPP_RUN']]:
+              print(f'=== {run} ===')
+              ev=[]
+              for b in client.list_blobs(os.environ['BUCKET'],prefix=f'runs/{run}/events/'):
+                  try:
+                      ev.append((b.name,json.loads(b.download_as_text())))
+                  except Exception as e:
+                      ev.append((b.name,{'error':str(e)}))
+              for name,p in sorted(ev):
+                  print(name, json.dumps(p,sort_keys=True))
+              rb=bucket.blob(f'runs/{run}/result.json')
+              if rb.exists(client):
+                  print('RESULT',rb.download_as_text().strip())
+              logs=sorted(client.list_blobs(os.environ['BUCKET'],prefix=f'runs/{run}/logs/'),key=lambda x:x.name)
+              print('LOG_CHUNKS',len(logs))
+              data=b''
+              for b in logs[-12:]:
+                  try: data+=b.download_as_bytes()
+                  except Exception: pass
+              txt=data.decode('utf-8','replace')
+              interesting=[]
+              for line in txt.splitlines():
+                  if any(k in line for k in ['HOOPVISION_STAGE','HOOPVISION_TORONTO','Traceback','RuntimeError','ERROR','sam31','semantic','global_identity','visual_identity','render','publish']):
+                      interesting.append(line)
+              print('--- INTERESTING TAIL ---')
+              for line in interesting[-160:]:
+                  print(line)
+              print('--- RAW TAIL ---')
+              print('\n'.join(txt.splitlines()[-120:]))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: active-toronto-durable-state
+          path: state/
+          retention-days: 7
