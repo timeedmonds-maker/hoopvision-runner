@@ -51,14 +51,15 @@ jobs:
           gcloud storage rm "$STATUS_OBJ" >/dev/null 2>&1 || true
           ACCESS_TOKEN="$(gcloud auth print-access-token)"
 
-          cat > /tmp/yt-startup.sh <<EOF
-          #!/usr/bin/env bash
+          {
+            printf '%s\n' '#!/usr/bin/env bash'
+            printf 'ACCESS_TOKEN=%q\n' "$ACCESS_TOKEN"
+            printf 'BUCKET=%q\n' "$BUCKET"
+            printf 'VIDEO_ID=%q\n' "$VIDEO_ID"
+            printf 'SOURCE_URL=%q\n' "$SOURCE_URL"
+            printf 'RUN_ID=%q\n' "$GITHUB_RUN_ID"
+            cat <<'EOF'
           set -uo pipefail
-          ACCESS_TOKEN='$ACCESS_TOKEN'
-          BUCKET='$BUCKET'
-          VIDEO_ID='$VIDEO_ID'
-          SOURCE_URL='$SOURCE_URL'
-          RUN_ID='${GITHUB_RUN_ID}'
           WORK=/var/tmp/hoopvision-youtube
           STATUS_PATH="runs/youtube-ingest/$RUN_ID/status.json"
           SUCCESS=0
@@ -101,7 +102,7 @@ jobs:
           }
           trap finish EXIT
 
-          export RUN_ID
+          export RUN_ID VIDEO_ID BUCKET
           set -e
           rm -rf "$WORK"
           mkdir -p "$WORK"
@@ -164,6 +165,7 @@ jobs:
           trap - EXIT
           exit 0
           EOF
+          } > /tmp/yt-startup.sh
           chmod 0700 /tmp/yt-startup.sh
 
           gcloud compute instances create "$VM" \
