@@ -1,0 +1,37 @@
+name: Stop Stuck YouTube Extractor
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/stop-stuck-youtube-extractor.yml'
+permissions:
+  contents: read
+  actions: write
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  stop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Cancel stuck ingest run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST repos/timeedmonds-maker/hoopvision-runner/actions/runs/36206611396/cancel || true
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Delete disposable extractor
+        shell: bash
+        run: |
+          set -euo pipefail
+          for ZONE in asia-southeast1-b asia-southeast1-a asia-southeast1-c; do
+            gcloud compute instances delete hv-yt-36206611396 \
+              --project="$PROJECT_ID" --zone="$ZONE" --quiet >/dev/null 2>&1 || true
+          done
