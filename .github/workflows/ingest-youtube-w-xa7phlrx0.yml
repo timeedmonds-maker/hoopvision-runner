@@ -33,66 +33,129 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Install extraction tools
+      - name: Install local validation tools
         shell: bash
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg xvfb >/dev/null
-          python3 -m pip install --disable-pip-version-check -q --upgrade yt-dlp yt-dlp-getpot-wpc
-          BROWSER="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
-          test -n "$BROWSER"
-          "$BROWSER" --version
-          echo "YT_BROWSER=$BROWSER" >> "$GITHUB_ENV"
+          sudo apt-get install -y -qq ffmpeg >/dev/null
 
-      - name: Extract highest-quality source
+      - name: Extract from fresh GCP CPU origin
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p ingest
-          cd ingest
+          VM="hv-yt-${GITHUB_RUN_ID}"
+          ZONES=(asia-southeast1-b asia-southeast1-a asia-southeast1-c)
+          ACTIVE_ZONE=""
+
+          cleanup() {
+            if [ -n "$ACTIVE_ZONE" ]; then
+              gcloud compute instances delete "$VM" \
+                --project="$PROJECT_ID" --zone="$ACTIVE_ZONE" --quiet >/dev/null 2>&1 || true
+            fi
+          }
+          trap cleanup EXIT
 
           success=0
-          for CLIENT in tv android_vr web_embedded mweb; do
-            rm -f source_native.* yt_dlp.info.json
-            echo "=== TRYING YOUTUBE CLIENT: $CLIENT ==="
-            EXTRA=(--verbose --js-runtimes node --extractor-args "youtube:player_client=$CLIENT")
-            if [ "$CLIENT" = "mweb" ]; then
-              EXTRA+=(--extractor-args "youtubepot-wpc:browser_path=$YT_BROWSER")
-            fi
+          for ZONE in "${ZONES[@]}"; do
+            echo "=== CREATING FRESH CPU EXTRACTION ORIGIN IN $ZONE ==="
+            ACTIVE_ZONE="$ZONE"
             set +e
-            xvfb-run -a yt-dlp "${EXTRA[@]}" \
-              --no-playlist \
-              --write-info-json \
-              --retries 3 \
-              --fragment-retries 3 \
-              --concurrent-fragments 4 \
-              --merge-output-format mp4 \
-              --remux-video mp4 \
-              -f 'bv*+ba/b' \
-              -o 'source_native.%(ext)s' \
-              "$SOURCE_URL"
-            RC=$?
+            gcloud compute instances create "$VM" \
+              --project="$PROJECT_ID" \
+              --zone="$ZONE" \
+              --machine-type=e2-micro \
+              --image-family=ubuntu-2404-lts-amd64 \
+              --image-project=ubuntu-os-cloud \
+              --boot-disk-size=10GB \
+              --boot-disk-type=pd-balanced \
+              --network=default \
+              --quiet
+            CREATE_RC=$?
             set -e
-            if [ "$RC" -eq 0 ] && [ -s source_native.mp4 ]; then
-              echo "YOUTUBE_CLIENT_SELECTED=$CLIENT"
+            if [ "$CREATE_RC" -ne 0 ]; then
+              echo "VM creation failed in $ZONE rc=$CREATE_RC"
+              ACTIVE_ZONE=""
+              continue
+            fi
+
+            ready=0
+            for i in $(seq 1 36); do
+              if gcloud compute ssh "$VM" \
+                --project="$PROJECT_ID" --zone="$ZONE" --quiet \
+                --command='echo SSH_READY' >/tmp/ssh-ready.txt 2>/tmp/ssh-ready.err; then
+                cat /tmp/ssh-ready.txt
+                ready=1
+                break
+              fi
+              sleep 5
+            done
+            if [ "$ready" -ne 1 ]; then
+              cat /tmp/ssh-ready.err || true
+              gcloud compute instances delete "$VM" --project="$PROJECT_ID" --zone="$ZONE" --quiet || true
+              ACTIVE_ZONE=""
+              continue
+            fi
+
+            set +e
+            gcloud compute ssh "$VM" \
+              --project="$PROJECT_ID" --zone="$ZONE" --quiet \
+              --command="set -euo pipefail
+                sudo apt-get update -qq
+                sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg curl nodejs >/dev/null
+                sudo curl -fL --retry 3 --silent --show-error \
+                  https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
+                  -o /usr/local/bin/yt-dlp
+                sudo chmod 0755 /usr/local/bin/yt-dlp
+                rm -rf /tmp/hoopvision-youtube
+                mkdir -p /tmp/hoopvision-youtube
+                cd /tmp/hoopvision-youtube
+                ok=0
+                for CLIENT in tv android_vr web_embedded; do
+                  rm -f source_native.*
+                  echo ==== GCP CLIENT: \$CLIENT ====
+                  if /usr/local/bin/yt-dlp --verbose --js-runtimes node \
+                    --extractor-args youtube:player_client=\$CLIENT \
+                    --no-playlist --write-info-json \
+                    --retries 3 --fragment-retries 3 --concurrent-fragments 4 \
+                    --merge-output-format mp4 --remux-video mp4 \
+                    -f 'bv*+ba/b' -o 'source_native.%(ext)s' '$SOURCE_URL'; then
+                    test -s source_native.mp4
+                    ok=1
+                    break
+                  fi
+                done
+                test \$ok -eq 1"
+            REMOTE_RC=$?
+            set -e
+
+            if [ "$REMOTE_RC" -eq 0 ]; then
+              gcloud compute scp "$VM:/tmp/hoopvision-youtube/source_native.mp4" ingest/source_native.mp4 \
+                --project="$PROJECT_ID" --zone="$ZONE" --quiet
+              gcloud compute scp "$VM:/tmp/hoopvision-youtube/source_native.info.json" ingest/yt_dlp.info.json \
+                --project="$PROJECT_ID" --zone="$ZONE" --quiet
               success=1
               break
             fi
-            echo "Client $CLIENT failed rc=$RC"
+
+            echo "Extraction failed from fresh origin in $ZONE rc=$REMOTE_RC"
+            gcloud compute instances delete "$VM" --project="$PROJECT_ID" --zone="$ZONE" --quiet || true
+            ACTIVE_ZONE=""
           done
+
           test "$success" -eq 1
-          INFO="$(find . -maxdepth 1 -type f -name 'source_native.info.json' -print -quit)"
-          test -n "$INFO"
-          cp "$INFO" yt_dlp.info.json
+          test -s ingest/source_native.mp4
+          test -s ingest/yt_dlp.info.json
+
           ffprobe -v error \
             -show_entries format=duration,size,format_name,bit_rate:stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,pix_fmt \
-            -of json source_native.mp4 > ffprobe.json
-          sha256sum source_native.mp4 | awk '{print $1}' > sha256.txt
-          wc -c < source_native.mp4 | tr -d ' ' > size_bytes.txt
-          cat ffprobe.json
-          echo "sha256=$(cat sha256.txt)"
-          echo "size_bytes=$(cat size_bytes.txt)"
+            -of json ingest/source_native.mp4 > ingest/ffprobe.json
+          sha256sum ingest/source_native.mp4 | awk '{print $1}' > ingest/sha256.txt
+          wc -c < ingest/source_native.mp4 | tr -d ' ' > ingest/size_bytes.txt
+          cat ingest/ffprobe.json
+          echo "sha256=$(cat ingest/sha256.txt)"
+          echo "size_bytes=$(cat ingest/size_bytes.txt)"
 
       - name: Build immutable source manifest
         shell: bash
