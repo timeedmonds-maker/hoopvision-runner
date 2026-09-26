@@ -125,14 +125,14 @@ jobs:
           mkdir -p /tmp/toronto-replay
           unzip -q /tmp/toronto-replay.zip -d /tmp/toronto-replay
           find /tmp/toronto-replay -maxdepth 4 -type f -print
-          tar -C /tmp/toronto-replay -czf /tmp/toronto-replay.tgz .
+          # The successful replay workflow already produced the canonical tar with\n          # replay-d3b56542 CONTENTS at archive root. Reuse it verbatim.\n          test -s /tmp/toronto-replay/replay/toronto-replay-d3b56542.tgz\n          cp /tmp/toronto-replay/replay/toronto-replay-d3b56542.tgz /tmp/toronto-replay.tgz
           scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             /tmp/toronto-replay.tgz "runner@$HV_IP:/tmp/"
           ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$HV_IP" '
             set -euo pipefail
             R="/srv/hoopvision/runs/'"$RUN_ID"'"
             sudo mkdir -p "$R/replay-d3b56542"
-            sudo tar -C "$R/replay-d3b56542" --strip-components=1 -xzf /tmp/toronto-replay.tgz replay
+            sudo rm -rf "$R/replay-d3b56542"\n            sudo mkdir -p "$R/replay-d3b56542"\n            sudo tar -C "$R/replay-d3b56542" -xzf /tmp/toronto-replay.tgz
             sudo test -f "$R/replay-d3b56542/global_identity/resolved_config.json"
             sudo test -f "$R/replay-d3b56542/global_identity/global_identity_qa.json"
             sudo test -f "$R/replay-d3b56542/global_identity/visual_identity_oracle_qa.json"
