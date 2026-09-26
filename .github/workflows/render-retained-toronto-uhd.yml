@@ -121,7 +121,7 @@ jobs:
           print("TORONTO_RETAINED_ORACLE_5_OF_5")
           PY
 
-            BASE="$(grep "^HOOPVISION_BASE_IMAGE=" /etc/hoopvision-dev.env | cut -d= -f2-)"
+            BASE="$(sudo grep "^HOOPVISION_BASE_IMAGE=" /etc/hoopvision-dev.env | cut -d= -f2-)"
             test -n "$BASE"
 
             sudo rm -rf /tmp/retained-render-code
