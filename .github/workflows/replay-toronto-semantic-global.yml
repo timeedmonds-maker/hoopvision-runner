@@ -121,13 +121,13 @@ jobs:
             "$HV_SSH_USER@$HV_SSH_IP" "
             set -euo pipefail
             R=/srv/hoopvision/runs/$RUN_ID
-            test -d \"\$R/artifacts\"
+            sudo test -d \"\$R/artifacts\"
             BASE=\$(sudo sh -c \"grep '^HOOPVISION_BASE_IMAGE=' /etc/hoopvision-dev.env | cut -d= -f2-\")
             MODELS=\$(sudo sh -c \"grep '^HOOPVISION_MODEL_CACHE_HOST=' /etc/hoopvision-dev.env | cut -d= -f2-\")
             test -n \"\$BASE\"
             test -n \"\$MODELS\"
-            rm -rf \"\$R/replay-d248ff72\"
-            mkdir -p \"\$R/replay-d248ff72/global_identity\"
+            sudo rm -rf \"\$R/replay-d248ff72\"
+            sudo mkdir -p \"\$R/replay-d248ff72/global_identity\"
             sudo docker run --rm --pull=never --gpus all \
               -v /tmp/toronto-replay-code:/opt/hoopvision:ro \
               -v \"\$MODELS:/models:ro\" \
