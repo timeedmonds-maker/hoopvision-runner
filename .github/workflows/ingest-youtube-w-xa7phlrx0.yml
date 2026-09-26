@@ -71,6 +71,8 @@ jobs:
               --boot-disk-size=10GB \
               --boot-disk-type=pd-balanced \
               --network=default \
+              --no-service-account \
+              --no-scopes \
               --quiet
             CREATE_RC=$?
             set -e
