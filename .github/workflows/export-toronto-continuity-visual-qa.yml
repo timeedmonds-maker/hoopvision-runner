@@ -47,10 +47,12 @@ jobs:
           done
           mkdir -p visual-qa
           ROOT="/srv/hoopvision/runs/$RUN_ID/replay-d3b56542"
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo cp '$ROOT/final_corrected/source_best_960.mp4' /tmp/source_best_960.mp4 && sudo cp '$ROOT/final_corrected/continuous_player_paths.csv' /tmp/continuous_player_paths.csv && sudo cp '$ROOT/final_corrected/continuous_player_paths_qa.json' /tmp/continuous_player_paths_qa.json && sudo chmod 644 /tmp/source_best_960.mp4 /tmp/continuous_player_paths.csv /tmp/continuous_player_paths_qa.json"
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo cp '$ROOT/final_corrected/source_best_960.mp4' /tmp/source_best_960.mp4 && sudo cp '$ROOT/final_corrected/continuous_player_paths.csv' /tmp/continuous_player_paths.csv && sudo cp '$ROOT/final_corrected/continuous_player_paths_qa.json' /tmp/continuous_player_paths_qa.json && sudo cp '$ROOT/global_identity/identity_assignments.csv' /tmp/identity_assignments.csv && sudo cp '$ROOT/global_identity/global_identity_qa.json' /tmp/global_identity_qa.json && sudo chmod 644 /tmp/source_best_960.mp4 /tmp/continuous_player_paths.csv /tmp/continuous_player_paths_qa.json /tmp/identity_assignments.csv /tmp/global_identity_qa.json"
           gcloud compute scp "$INSTANCE:/tmp/source_best_960.mp4" visual-qa/source_best_960.mp4 --zone "$ZONE" --project "$PROJECT_ID" --quiet
           gcloud compute scp "$INSTANCE:/tmp/continuous_player_paths.csv" visual-qa/continuous_player_paths.csv --zone "$ZONE" --project "$PROJECT_ID" --quiet
           gcloud compute scp "$INSTANCE:/tmp/continuous_player_paths_qa.json" visual-qa/continuous_player_paths_qa.json --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute scp "$INSTANCE:/tmp/identity_assignments.csv" visual-qa/identity_assignments.csv --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute scp "$INSTANCE:/tmp/global_identity_qa.json" visual-qa/global_identity_qa.json --zone "$ZONE" --project "$PROJECT_ID" --quiet
       - uses: actions/upload-artifact@v4
         with:
           name: toronto-continuity-visual-qa
