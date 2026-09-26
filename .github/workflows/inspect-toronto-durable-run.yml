@@ -1,4 +1,4 @@
-name: Inspect Toronto Durable Run
+name: Recover Toronto Backward SAM Evidence
 
 on:
   push:
@@ -11,53 +11,54 @@ permissions:
 
 env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
-  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
-  RUN_ID: public-36102119528-1-8cce8f74deff
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
-  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
 jobs:
-  inspect:
+  recover:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.DEV_PUBLISH_SA }}
+          service_account: ${{ env.CONTROL_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: Inspect durable events and prepared host
+      - name: Recover exact retained SAM evidence
         shell: bash
         run: |
           set -euo pipefail
-          echo "=== durable events ==="
-          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/events/**" || true
-          for x in $(gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/events/**" 2>/dev/null || true); do
-            echo "--- $x"; gcloud storage cat "$x" || true
-          done
-          echo "=== current session ==="
-          gcloud storage cat "gs://$BUCKET/sessions/hv-dev-l4.json" || true
-          echo "=== supervisor ==="
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='
-            set +e
-            systemctl status hoopvision-dev-supervisor.service --no-pager
-            echo "--- recent supervisor log ---"
-            journalctl -u hoopvision-dev-supervisor.service -n 180 --no-pager
-            echo "--- processes ---"
-            ps aux | grep -E "boot.py|run_toronto|interactive_service|docker" | grep -v grep
-            echo "--- run dirs ---"
-            find /srv/hoopvision/runs -maxdepth 3 -type f -printf "%TY-%Tm-%Td %TH:%TM:%TS %p\n" 2>/dev/null | tail -120
-            echo "--- target run files ---"
-            find /srv/hoopvision/runs/public-36102119528-1-8cce8f74deff -maxdepth 3 -type f -print -exec sh -c 'echo "### $1"; tail -n 220 "$1" 2>/dev/null || true' sh {} \; 2>/dev/null || true
-            echo "--- docker all ---"
-            sudo docker ps -a --no-trunc --format '{{.ID}} {{.Image}} {{.Names}} {{.Status}}' | head -40
-            C="$(sudo docker ps -a --filter name=hvdev-5f30b89ef214945f7051 --format '{{.ID}}' | head -1)"
-            if test -n "$C"; then
-              echo "--- failed container inspect ---"
-              sudo docker inspect "$C" || true
-              echo "--- failed container logs ---"
-              sudo docker logs --tail 400 "$C" 2>&1 || true
+          ok=0
+          for i in $(seq 1 60); do
+            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='echo SSH_OK' >/tmp/recover.out 2>/tmp/recover.err; then
+              cat /tmp/recover.out
+              ok=1
+              break
             fi
-          ' || true
+            sleep 5
+          done
+          test "$ok" = 1 || { cat /tmp/recover.err; exit 3; }
+          mkdir -p recovered
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='
+            set -euo pipefail
+            W=/tmp/hv-toronto-sam-observe
+            test -d "$W/out"
+            tar -C "$W" -czf /tmp/toronto-backward-sam-recovery.tgz out sam31_exit_code.txt wall_s.txt
+          '
+          gcloud compute scp "$INSTANCE:/tmp/toronto-backward-sam-recovery.tgz" recovered/ --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          tar -xzf recovered/toronto-backward-sam-recovery.tgz -C recovered
+          echo '=== QA ==='
+          cat recovered/out/sam31_qa.json
+          echo '=== LINKS ==='
+          cat recovered/out/continuity_links.csv
+          echo '=== PLAN ==='
+          cat recovered/out/sam31_plan.json
+          echo '=== GROUPS ==='
+          cat recovered/out/continuity_groups.csv
+      - uses: actions/upload-artifact@v4
+        with:
+          name: toronto-backward-sam-recovery
+          path: recovered/
+          retention-days: 30
