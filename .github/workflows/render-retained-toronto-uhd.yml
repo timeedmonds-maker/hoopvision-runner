@@ -252,6 +252,18 @@ jobs:
           print("TORONTO_BEST_960_SOURCE_VISUALLY_ALIGNED",score)
           PY
 
+            # Diagnose the sole remaining Gradey 161->162 rendered jump before another GPU pass.
+            sudo python3 - "$ASSIGN" <<'PY'
+          import pandas as pd,sys
+          d=pd.read_csv(sys.argv[1])
+          g=d[(d.player_id.astype(str)=="1641711") | (d.player_name.astype(str)=="Gradey Dick")].copy()
+          fps=29.97002997002997
+          g["source_frame"]=(g.time_s.astype(float)*fps).round().astype(int)
+          cols=[c for c in ["source_frame","time_s","x1","y1","x2","y2","conf","ambiguous","safe","clip_global_authorized"] if c in g.columns]
+          print("GRADEY_BOUNDARY_DIAGNOSTIC")
+          print(g[g.source_frame.between(320,332)][cols].sort_values(["source_frame","time_s"]).to_string(index=False))
+          PY
+
             # Seed only from identities already authorized safe by the solved
             # 5/5 state, then propagate their physical bodies bidirectionally
             # through the entire visible render window with SAM3.1 multiplex.
