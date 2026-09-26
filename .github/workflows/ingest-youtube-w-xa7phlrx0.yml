@@ -1,0 +1,125 @@
+name: Ingest YouTube w-Xa7phLRx0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ingest-youtube-w-xa7phlrx0.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  VIDEO_ID: w-Xa7phLRx0
+  SOURCE_URL: https://youtu.be/w-Xa7phLRx0
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  ingest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install extraction tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg >/dev/null
+          python3 -m pip install --disable-pip-version-check -q --upgrade yt-dlp
+
+      - name: Extract highest-quality source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ingest
+          cd ingest
+          yt-dlp --no-playlist --dump-single-json "$SOURCE_URL" > yt_dlp.info.json
+          yt-dlp             --no-playlist             --retries 5             --fragment-retries 5             --concurrent-fragments 4             --merge-output-format mp4             --remux-video mp4             -f 'bv*+ba/b'             -o 'source_native.%(ext)s'             "$SOURCE_URL"
+          test -s source_native.mp4
+          ffprobe -v error             -show_entries format=duration,size,format_name,bit_rate:stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,pix_fmt             -of json source_native.mp4 > ffprobe.json
+          sha256sum source_native.mp4 | awk '{print $1}' > sha256.txt
+          wc -c < source_native.mp4 | tr -d ' ' > size_bytes.txt
+          cat ffprobe.json
+          echo "sha256=$(cat sha256.txt)"
+          echo "size_bytes=$(cat size_bytes.txt)"
+
+      - name: Build immutable source manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ingest
+          export CONTENT_SHA256="$(cat sha256.txt)"
+          export SIZE_BYTES="$(cat size_bytes.txt)"
+          export GCS_URI="gs://$BUCKET/fixtures/youtube/$VIDEO_ID/$CONTENT_SHA256/source_native.mp4"
+          python3 - <<'PY'
+          import json, os, pathlib
+          info = json.load(open("yt_dlp.info.json"))
+          probe = json.load(open("ffprobe.json"))
+          keep = {
+              "id": info.get("id"),
+              "title": info.get("title"),
+              "uploader": info.get("uploader"),
+              "channel": info.get("channel"),
+              "upload_date": info.get("upload_date"),
+              "duration": info.get("duration"),
+              "webpage_url": info.get("webpage_url"),
+              "original_url": info.get("original_url"),
+          }
+          manifest = {
+              "schema": "hoopvision.source_fixture.v1",
+              "source_kind": "youtube",
+              "video_id": os.environ["VIDEO_ID"],
+              "requested_url": os.environ["SOURCE_URL"],
+              "content_sha256": os.environ["CONTENT_SHA256"],
+              "size_bytes": int(os.environ["SIZE_BYTES"]),
+              "gcs_uri": os.environ["GCS_URI"],
+              "yt_dlp": keep,
+              "ffprobe": probe,
+              "runner_repository": os.environ["GITHUB_REPOSITORY"],
+              "runner_sha": os.environ["GITHUB_SHA"],
+              "runner_run_id": os.environ["GITHUB_RUN_ID"],
+          }
+          pathlib.Path("source_manifest.json").write_text(
+              json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+          )
+          print(json.dumps(manifest, indent=2, sort_keys=True))
+          PY
+
+      - name: Publish immutable source fixture
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ingest
+          SHA="$(cat sha256.txt)"
+          PREFIX="fixtures/youtube/$VIDEO_ID/$SHA"
+          gcloud storage cp source_native.mp4 "gs://$BUCKET/$PREFIX/source_native.mp4"
+          gcloud storage cp ffprobe.json "gs://$BUCKET/$PREFIX/ffprobe.json"
+          gcloud storage cp yt_dlp.info.json "gs://$BUCKET/$PREFIX/yt_dlp.info.json"
+          gcloud storage cp source_manifest.json "gs://$BUCKET/$PREFIX/source_manifest.json"
+          gcloud storage ls -l "gs://$BUCKET/$PREFIX/**"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: youtube-w-Xa7phLRx0-source
+          path: |
+            ingest/source_native.mp4
+            ingest/source_manifest.json
+            ingest/ffprobe.json
+            ingest/yt_dlp.info.json
+            ingest/sha256.txt
+          compression-level: 0
+          retention-days: 7
