@@ -15,7 +15,7 @@ env:
   ZONE: asia-southeast1-c
   INSTANCE: hv-dev-l4
   RUN_ID: public-36202716389-1-c7637a7c34a2
-  CANDIDATE_SHA: ebb9cbcca8327596958d15734fdaa039efb26e2d
+  CANDIDATE_SHA: 8e66cdd39d8a58c1f99cb507d16a46338a018bfe
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -412,10 +412,20 @@ jobs:
           assert a.get("structural_pass") is True, a
           assert a.get("player_count")==3 and a.get("safely_identified_player_count")==3, a
           for rec in a["players"]:
-              assert rec["complete_overlay_frames"]==rec["render_window_frames"], rec
+              assert rec["complete_overlay_frames"]==rec["name_visible_frames"], rec
+              assert rec["ring_visible_frames"]<=rec["name_visible_frames"], rec
           p=json.load(open("continuous_player_paths_qa.json"))
           assert p.get("player_count")==3 and not p.get("coverage_failures"), p
-          print("RETRIEVED_UHD_CONTINUITY_AND_ORACLE_VALIDATION_OK")
+          assert all(x["covers_first_identity_observation"] and x["covers_last_identity_observation"]
+                     for x in p["players"].values()), p
+          b=json.load(open("continuous_role_bundle_qa.json"))
+          rules=b.get("rules") or {}
+          assert rules.get("visible_roles_render_only_on_supported_geometry") is True, b
+          assert rules.get("unsupported_geometry_renders_blank") is True, b
+          for rec in b["roles"].values():
+              if rec.get("visible"):
+                  assert rec["first_time_s"] <= rec["last_time_s"], rec
+          print("RETRIEVED_UHD_VISIBILITY_AWARE_CONTINUITY_AND_ORACLE_VALIDATION_OK")
           PY
           sha256sum toronto_normal_5of5_UHD.mp4 toronto_all_player_5of5_UHD.mp4 | tee retrieved-sha256.txt
 
