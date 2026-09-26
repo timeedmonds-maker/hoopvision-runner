@@ -14,8 +14,8 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
-  CANDIDATE_SHA: 1acf43ac64f1195128e5fbdb09a9aee138bcb947
-  RETAINED_RUN_ID: public-36185446517-1-0b1290c674a3
+  CANDIDATE_SHA: ad68dca4b971b4b0d3b2c3bd74272cc56e558731
+  RETAINED_RUN_ID: public-36202716389-1-c7637a7c34a2
   IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
@@ -43,7 +43,22 @@ jobs:
           python src/tools/validate_governing_delivery_policy.py
           tar -C src -czf /tmp/candidate.tgz screen_tracker_nextgen hoopvision/core
           echo "$CANDIDATE_SHA" > /tmp/candidate.sha
-          sha256sum /tmp/candidate.tgz
+          cat > /tmp/targeted_decision.json <<'JSON'
+          {
+            "schema": "hoopvision.targeted-competitive-physical-decision.v1",
+            "decision_count": 1,
+            "decisions": [
+              {
+                "decision_id": 650102,
+                "from_segment_id": 65,
+                "to_segment_id": 102,
+                "candidate_to_segment_ids": [102, 69, 85, 66, 67, 68, 101, 4],
+                "resolver_reason": "retained_toronto_adams_competitive_handoff"
+              }
+            ]
+          }
+          JSON
+          sha256sum /tmp/candidate.tgz /tmp/targeted_decision.json
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
@@ -76,7 +91,7 @@ jobs:
         run: |
           set -euo pipefail
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo rm -rf /tmp/hv-toronto-sam-observe && sudo mkdir -p /tmp/hv-toronto-sam-observe/src /tmp/hv-toronto-sam-observe/out && sudo chown -R $(id -u):$(id -g) /tmp/hv-toronto-sam-observe"
-          gcloud compute scp /tmp/candidate.tgz /tmp/candidate.sha "$INSTANCE:/tmp/hv-toronto-sam-observe/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute scp /tmp/candidate.tgz /tmp/candidate.sha /tmp/targeted_decision.json "$INSTANCE:/tmp/hv-toronto-sam-observe/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
             set -euo pipefail
             cd /tmp/hv-toronto-sam-observe
@@ -116,7 +131,7 @@ jobs:
               -m screen_tracker_nextgen.sam31_ambiguity_continuity \
               --source /retained/nextgen_mask/source_native.mp4 \
               --observations /retained/identity_segments/uniform_observations.csv \
-              --windows /retained/sam31/ambiguity_windows.json \
+              --windows /targeted_decision.json \
               --out-dir /out \
               --checkpoint /models/sam3.1_multiplex.pt
             RC=\$?
