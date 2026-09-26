@@ -39,7 +39,7 @@ jobs:
       - name: Run focused CPU regressions
         run: |
           set -euo pipefail
-          python -m pip install -q --disable-pip-version-check numpy pandas pytest
+          python -m pip install -q --disable-pip-version-check numpy pandas pytest opencv-python-headless
           set +e
           PYTHONPATH=src python -m pytest -q \
             src/screen_tracker_nextgen/test_soft_uniform_team_mapping.py \
