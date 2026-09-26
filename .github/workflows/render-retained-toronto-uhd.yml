@@ -125,6 +125,11 @@ jobs:
             ASSIGN="$REPLAY/global_identity/identity_assignments.csv"
             DURABLE_SOURCE="$R/artifacts/nextgen_mask/source_native.mp4"
 
+            # Extract the staged candidate before any source rehydration uses its fetcher.
+            sudo rm -rf /tmp/retained-render-code
+            sudo mkdir -p /tmp/retained-render-code
+            sudo tar -C /tmp/retained-render-code -xzf /tmp/render-code.tgz
+
             # Singapore failover hosts may not retain the historical Toronto source.
             # Re-fetch the exact official Broadcast rendition when the durable copy is absent.
             if ! sudo test -f "$DURABLE_SOURCE"; then
@@ -153,9 +158,6 @@ jobs:
             BASE="$(sudo grep "^HOOPVISION_BASE_IMAGE=" /etc/hoopvision-dev.env | cut -d= -f2-)"
             test -n "$BASE"
 
-            sudo rm -rf /tmp/retained-render-code
-            sudo mkdir -p /tmp/retained-render-code
-            sudo tar -C /tmp/retained-render-code -xzf /tmp/render-code.tgz
             sudo rm -rf "$OUT"
             sudo mkdir -p "$OUT"
 
