@@ -46,15 +46,31 @@ jobs:
           cat > /tmp/targeted_decision.json <<'JSON'
           {
             "schema": "hoopvision.targeted-competitive-physical-decision.v1",
-            "decision_count": 1,
+            "decision_count": 3,
             "decisions": [
               {
                 "decision_id": 650102,
                 "from_segment_id": 65,
                 "to_segment_id": 102,
-                "candidate_to_segment_ids": [102, 69, 85, 66, 67, 68, 101, 4],
-                "seed_time_s": 9.5040,
-                "resolver_reason": "retained_toronto_adams_competitive_handoff"
+                "candidate_to_segment_ids": [102, 69, 85],
+                "seed_time_s": 9.7042,
+                "resolver_reason": "retained_toronto_adams_three_object_handoff"
+              },
+              {
+                "decision_id": 840085,
+                "from_segment_id": 84,
+                "to_segment_id": 85,
+                "candidate_to_segment_ids": [85, 69, 102],
+                "seed_time_s": 9.7042,
+                "resolver_reason": "retained_toronto_competitor_three_object_handoff"
+              },
+              {
+                "decision_id": 100069,
+                "from_segment_id": 100,
+                "to_segment_id": 69,
+                "candidate_to_segment_ids": [69, 85, 102],
+                "seed_time_s": 9.7042,
+                "resolver_reason": "retained_toronto_competitor_three_object_handoff"
               }
             ]
           }
