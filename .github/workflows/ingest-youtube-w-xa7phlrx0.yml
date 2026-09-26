@@ -51,19 +51,37 @@ jobs:
           set -euo pipefail
           mkdir -p ingest
           cd ingest
-          YT_ARGS=(--verbose --js-runtimes node --extractor-args "youtube:player_client=mweb" --extractor-args "youtubepot-wpc:browser_path=$YT_BROWSER")
-          xvfb-run -a yt-dlp "${YT_ARGS[@]}" \
-            --no-playlist \
-            --write-info-json \
-            --retries 5 \
-            --fragment-retries 5 \
-            --concurrent-fragments 4 \
-            --merge-output-format mp4 \
-            --remux-video mp4 \
-            -f 'bv*+ba/b' \
-            -o 'source_native.%(ext)s' \
-            "$SOURCE_URL"
-          test -s source_native.mp4
+
+          success=0
+          for CLIENT in tv android_vr web_embedded mweb; do
+            rm -f source_native.* yt_dlp.info.json
+            echo "=== TRYING YOUTUBE CLIENT: $CLIENT ==="
+            EXTRA=(--verbose --js-runtimes node --extractor-args "youtube:player_client=$CLIENT")
+            if [ "$CLIENT" = "mweb" ]; then
+              EXTRA+=(--extractor-args "youtubepot-wpc:browser_path=$YT_BROWSER")
+            fi
+            set +e
+            xvfb-run -a yt-dlp "${EXTRA[@]}" \
+              --no-playlist \
+              --write-info-json \
+              --retries 3 \
+              --fragment-retries 3 \
+              --concurrent-fragments 4 \
+              --merge-output-format mp4 \
+              --remux-video mp4 \
+              -f 'bv*+ba/b' \
+              -o 'source_native.%(ext)s' \
+              "$SOURCE_URL"
+            RC=$?
+            set -e
+            if [ "$RC" -eq 0 ] && [ -s source_native.mp4 ]; then
+              echo "YOUTUBE_CLIENT_SELECTED=$CLIENT"
+              success=1
+              break
+            fi
+            echo "Client $CLIENT failed rc=$RC"
+          done
+          test "$success" -eq 1
           INFO="$(find . -maxdepth 1 -type f -name 'source_native.info.json' -print -quit)"
           test -n "$INFO"
           cp "$INFO" yt_dlp.info.json
