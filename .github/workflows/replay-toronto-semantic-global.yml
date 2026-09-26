@@ -40,12 +40,16 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install -q --disable-pip-version-check numpy pandas pytest
+          set +e
           PYTHONPATH=src python -m pytest -q \
             src/screen_tracker_nextgen/test_soft_uniform_team_mapping.py \
             src/screen_tracker_nextgen/test_identity_ambiguity.py \
-            src/screen_tracker_nextgen/test_global_identity_solver.py
-          python src/tools/validate_governing_delivery_policy.py
-          git -C src diff --check
+            src/screen_tracker_nextgen/test_global_identity_solver.py 2>&1 | tee cpu-tests.log
+          RC=${PIPESTATUS[0]}
+          set -e
+          python src/tools/validate_governing_delivery_policy.py 2>&1 | tee -a cpu-tests.log
+          git -C src diff --check 2>&1 | tee -a cpu-tests.log
+          test "$RC" -eq 0
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
@@ -147,7 +151,10 @@ jobs:
         if: always()
         with:
           name: toronto-semantic-global-replay-b8ccc526
-          path: replay/
+          path: |
+            replay/
+            cpu-tests.log
+          if-no-files-found: warn
           retention-days: 30
       - name: Stop Tokyo on replay failure
         if: failure()
