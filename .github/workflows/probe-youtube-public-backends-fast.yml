@@ -1,0 +1,76 @@
+name: Probe YouTube Public Backends Fast
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-youtube-public-backends-fast.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe backends concurrently
+        shell: bash
+        env:
+          VIDEO_ID: w-Xa7phLRx0
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import concurrent.futures, json, os, subprocess
+          vid=os.environ["VIDEO_ID"]
+          targets=[
+            ("piped","https://pipedapi.kavin.rocks",f"https://pipedapi.kavin.rocks/streams/{vid}"),
+            ("piped","https://pipedapi-libre.kavin.rocks",f"https://pipedapi-libre.kavin.rocks/streams/{vid}"),
+            ("piped","https://pipedapi.leptons.xyz",f"https://pipedapi.leptons.xyz/streams/{vid}"),
+            ("piped","https://piped-api.privacy.com.de",f"https://piped-api.privacy.com.de/streams/{vid}"),
+            ("piped","https://pipedapi.adminforge.de",f"https://pipedapi.adminforge.de/streams/{vid}"),
+            ("piped","https://api.piped.yt",f"https://api.piped.yt/streams/{vid}"),
+            ("piped","https://pipedapi.drgns.space",f"https://pipedapi.drgns.space/streams/{vid}"),
+            ("piped","https://pipedapi.owo.si",f"https://pipedapi.owo.si/streams/{vid}"),
+            ("piped","https://pipedapi.ducks.party",f"https://pipedapi.ducks.party/streams/{vid}"),
+            ("piped","https://piped-api.codespace.cz",f"https://piped-api.codespace.cz/streams/{vid}"),
+            ("piped","https://pipedapi.reallyaweso.me",f"https://pipedapi.reallyaweso.me/streams/{vid}"),
+            ("piped","https://api.piped.private.coffee",f"https://api.piped.private.coffee/streams/{vid}"),
+            ("piped","https://pipedapi.darkness.services",f"https://pipedapi.darkness.services/streams/{vid}"),
+            ("piped","https://pipedapi.orangenet.cc",f"https://pipedapi.orangenet.cc/streams/{vid}"),
+            ("invidious","https://inv.nadeko.net",f"https://inv.nadeko.net/api/v1/videos/{vid}?local=true"),
+            ("invidious","https://invidious.nerdvpn.de",f"https://invidious.nerdvpn.de/api/v1/videos/{vid}?local=true"),
+            ("invidious","https://yt.chocolatemoo53.com",f"https://yt.chocolatemoo53.com/api/v1/videos/{vid}?local=true"),
+            ("invidious","https://invidious.tiekoetter.com",f"https://invidious.tiekoetter.com/api/v1/videos/{vid}?local=true"),
+          ]
+          def one(t):
+              provider,base,url=t
+              p=subprocess.run([
+                "curl","-L","-A","Mozilla/5.0 HoopVision/1.0",
+                "--connect-timeout","4","--max-time","10",
+                "-sS","-w","\n__HTTP__%{http_code}",url
+              ],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+              body=p.stdout; code="000"
+              if "\n__HTTP__" in body:
+                  body,code=body.rsplit("\n__HTTP__",1); code=code.strip()
+              valid=False; title=None; detail=None
+              if code=="200":
+                  try:
+                      d=json.loads(body)
+                      title=d.get("title")
+                      if provider=="piped":
+                          valid=bool(title and d.get("videoStreams") and d.get("audioStreams"))
+                          detail={"videoStreams":len(d.get("videoStreams") or []),"audioStreams":len(d.get("audioStreams") or [])}
+                      else:
+                          valid=bool(d.get("videoId")==vid and title and (d.get("adaptiveFormats") or d.get("formatStreams")))
+                          detail={"adaptiveFormats":len(d.get("adaptiveFormats") or []),"formatStreams":len(d.get("formatStreams") or [])}
+                  except Exception as e:
+                      detail={"json_error":str(e)}
+              return {"provider":provider,"base":base,"http":code,"curl_rc":p.returncode,"valid":valid,"title":title,"detail":detail,"stderr":p.stderr[-160:]}
+          with concurrent.futures.ThreadPoolExecutor(max_workers=len(targets)) as ex:
+              results=list(ex.map(one,targets))
+          for r in results:
+              print(json.dumps(r,sort_keys=True))
+          winners=[r for r in results if r["valid"]]
+          print("WINNERS="+json.dumps(winners,sort_keys=True))
+          if not winners:
+              raise SystemExit(2)
+          PY
