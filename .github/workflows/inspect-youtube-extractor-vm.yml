@@ -1,0 +1,36 @@
+name: Inspect YouTube Extractor VM
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-youtube-extractor-vm.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.DEV_PUBLISH_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Inspect disposable extractor
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "=== INSTANCES ==="
+          gcloud compute instances list --project="$PROJECT_ID" \
+            --filter="name~'^hv-yt-'" \
+            --format="table(name,zone.basename(),status,machineType.basename(),networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP,creationTimestamp)"
+          echo "=== FIREWALL SSH RULES ==="
+          gcloud compute firewall-rules list --project="$PROJECT_ID" \
+            --filter="allowed.tcp:22" \
+            --format="table(name,network.basename(),direction,disabled,sourceRanges.list(),targetTags.list())" || true
