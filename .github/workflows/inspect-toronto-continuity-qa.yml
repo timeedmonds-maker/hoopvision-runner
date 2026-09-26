@@ -29,65 +29,23 @@ jobs:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.CONTROL_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: Read retained continuity evidence
+      - name: Ensure host is running
         shell: bash
         run: |
           set -euo pipefail
           STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
-          echo "STATUS=$STATUS"
-          if test "$STATUS" != RUNNING; then
+          echo "STATUS_BEFORE=$STATUS"
+          if test "$STATUS" != "RUNNING"; then
             gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
           fi
-          gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='get(metadata.items.ssh-keys)' > /tmp/orig-keys || true
-          rm -f /tmp/hv-key /tmp/hv-key.pub
-          ssh-keygen -q -t ed25519 -N '' -C 'hoopvision-continuity-inspect' -f /tmp/hv-key
-          cp /tmp/orig-keys /tmp/new-keys
-          if test -s /tmp/new-keys; then printf '\n' >> /tmp/new-keys; fi
-          printf 'runner:%s\n' "$(cat /tmp/hv-key.pub)" >> /tmp/new-keys
-          gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --metadata-from-file ssh-keys=/tmp/new-keys --quiet
-          IP="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
-          for i in $(seq 1 30); do
-            if ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$IP" 'echo ok' >/dev/null 2>&1; then break; fi
-            sleep 3
-          done
-          ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$IP" "
-            set -euo pipefail
-            R=/srv/hoopvision/runs/$RUN_ID/replay-d3b56542
-            echo '=== CONTINUOUS PLAYER QA ==='
-            sudo cat \"\$R/final_corrected/continuous_player_paths_qa.json\" || true
-            echo '=== ASSIGNMENT COVERAGE BY PLAYER ==='
-            sudo python3 - \"\$R/global_identity/identity_assignments.csv\" <<'PY'
-import pandas as pd,sys
-p=sys.argv[1]
-d=pd.read_csv(p)
-d=d[d.player_id.notna() & d.player_name.notna()].copy()
-if 'clip_global_authorized' in d:
-    d=d[d.safe.fillna(False).astype(bool) | d.clip_global_authorized.fillna(False).astype(bool)]
-else:
-    d=d[d.safe.fillna(False).astype(bool)]
-for pid,g in d.groupby(d.player_id.astype(int)):
-    print(pid, g.player_name.iloc[0], 'min', float(g.time_s.min()), 'max', float(g.time_s.max()), 'rows', len(g),
-          'safe', int(g.safe.fillna(False).astype(bool).sum()),
-          'clip_global', int(g.get('clip_global_authorized',False).fillna(False).astype(bool).sum()) if 'clip_global_authorized' in g else 0)
-PY
-            echo '=== PATH COVERAGE BY PLAYER ==='
-            sudo python3 - \"\$R/final_corrected/continuous_player_paths.csv\" <<'PY'
-import pandas as pd,sys,os
-p=sys.argv[1]
-if not os.path.exists(p):
-    print('NO_PATH_CSV')
-    raise SystemExit
-d=pd.read_csv(p)
-for pid,g in d.groupby(d.player_id.astype(int)):
-    print(pid, g.player_name.iloc[0], 'first', int(g.frame_index.min()), 'last', int(g.frame_index.max()),
-          'nframes', int(g.frame_index.nunique()), 'sources', g.path_source.value_counts().to_dict())
-PY
-          "
-      - name: Restore SSH metadata
-        if: always()
+      - name: Read continuity QA
         shell: bash
         run: |
-          if test -s /tmp/orig-keys; then
-            gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --metadata-from-file ssh-keys=/tmp/orig-keys --quiet || true
-          fi
-          rm -f /tmp/hv-key /tmp/hv-key.pub /tmp/new-keys
+          set -euo pipefail
+          ROOT="/srv/hoopvision/runs/$RUN_ID/replay-d3b56542/final_corrected"
+          for i in $(seq 1 40); do
+            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="echo SSH_OK" >/dev/null 2>&1; then break; fi
+            test "$i" != 40 || exit 3
+            sleep 3
+          done
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo cat '$ROOT/continuous_player_paths_qa.json'; echo ===PATH_CSV_HEAD===; sudo head -n 8 '$ROOT/continuous_player_paths.csv'"
