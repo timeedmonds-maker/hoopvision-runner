@@ -39,7 +39,18 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg >/dev/null
-          python3 -m pip install --disable-pip-version-check -q --upgrade yt-dlp
+          python3 -m pip install --disable-pip-version-check -q --upgrade yt-dlp bgutil-ytdlp-pot-provider
+          node --version
+          docker run --rm -d --name bgutil-provider \
+            -p 127.0.0.1:4416:4416 \
+            brainicism/bgutil-ytdlp-pot-provider:latest
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:4416 >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          docker ps --filter name=bgutil-provider
 
       - name: Extract highest-quality source
         shell: bash
