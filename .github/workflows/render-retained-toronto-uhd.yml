@@ -124,15 +124,30 @@ jobs:
           rm -rf /tmp/toronto-replay
           mkdir -p /tmp/toronto-replay
           unzip -q /tmp/toronto-replay.zip -d /tmp/toronto-replay
-          find /tmp/toronto-replay -maxdepth 4 -type f -print
-          # GitHub artifact extraction yields replay-d3b56542 contents under replay/.\n          # Package those contents directly at archive root, matching the original replay tar contract.\n          test -f /tmp/toronto-replay/replay/global_identity/resolved_config.json\n          test -f /tmp/toronto-replay/replay/global_identity/global_identity_qa.json\n          test -f /tmp/toronto-replay/replay/global_identity/visual_identity_oracle_qa.json\n          test -f /tmp/toronto-replay/replay/global_identity/identity_assignments.csv\n          tar -C /tmp/toronto-replay/replay -czf /tmp/toronto-replay.tgz .\n          test -s /tmp/toronto-replay.tgz
+
+          # Artifact 10902980992 expands replay-d3b56542 contents under replay/.
+          # Verify the retained identity evidence before packaging anything.
+          test -f /tmp/toronto-replay/replay/global_identity/resolved_config.json
+          test -f /tmp/toronto-replay/replay/global_identity/global_identity_qa.json
+          test -f /tmp/toronto-replay/replay/global_identity/visual_identity_oracle_qa.json
+          test -f /tmp/toronto-replay/replay/global_identity/identity_assignments.csv
+
+          # Put replay-d3b56542 contents at archive root, matching the remote target.
+          rm -f /tmp/toronto-replay.tgz
+          tar -C /tmp/toronto-replay/replay -czf /tmp/toronto-replay.tgz .
+          test -s /tmp/toronto-replay.tgz
+          tar -tzf /tmp/toronto-replay.tgz | grep -Fx './global_identity/resolved_config.json'
+          tar -tzf /tmp/toronto-replay.tgz | grep -Fx './global_identity/identity_assignments.csv'
+
           scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             /tmp/toronto-replay.tgz "runner@$HV_IP:/tmp/"
+
           ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null "runner@$HV_IP" '
             set -euo pipefail
             R="/srv/hoopvision/runs/'"$RUN_ID"'"
+            sudo rm -rf "$R/replay-d3b56542"
             sudo mkdir -p "$R/replay-d3b56542"
-            sudo rm -rf "$R/replay-d3b56542"\n            sudo mkdir -p "$R/replay-d3b56542"\n            sudo tar -C "$R/replay-d3b56542" -xzf /tmp/toronto-replay.tgz
+            sudo tar -C "$R/replay-d3b56542" -xzf /tmp/toronto-replay.tgz
             sudo test -f "$R/replay-d3b56542/global_identity/resolved_config.json"
             sudo test -f "$R/replay-d3b56542/global_identity/global_identity_qa.json"
             sudo test -f "$R/replay-d3b56542/global_identity/visual_identity_oracle_qa.json"
