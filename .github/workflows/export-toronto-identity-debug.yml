@@ -14,7 +14,7 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
-  PREFIX: gs://project-d88c48c6-7f48-4c33-928-hoopvision-dev/runs/toronto-nextgen/manual-b7e13fa6968c
+  PREFIX: gs://project-d88c48c6-7f48-4c33-928-hoopvision-dev/runs/toronto-nextgen/manual-8235a17d5aa2
 
 jobs:
   export:
@@ -40,6 +40,11 @@ jobs:
           gcloud storage cp "$PREFIX/identity_ocr/track_identity.csv" debug/identity_ocr/
           gcloud storage cp "$PREFIX/identity_ocr/ocr_evidence.json" debug/identity_ocr/
           gcloud storage cp "$PREFIX/identity_ocr/qa.json" debug/identity_ocr/
+          mkdir -p debug/sam31
+          gcloud storage cp "$PREFIX/sam31/sam31_qa.json" debug/sam31/
+          gcloud storage cp "$PREFIX/sam31/sam31_plan.json" debug/sam31/
+          gcloud storage cp "$PREFIX/sam31/continuity_links.csv" debug/sam31/
+          gcloud storage cp "$PREFIX/sam31/continuity_groups.csv" debug/sam31/
           gcloud storage cp "$PREFIX/exact_lineup_roster.json" debug/
           gcloud storage cp "$PREFIX/latency_qa.json" debug/
           find debug -type f -maxdepth 3 -print
