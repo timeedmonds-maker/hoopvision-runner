@@ -1,0 +1,78 @@
+name: Inspect Toronto Continuity Coverage Failure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-toronto-continuity-coverage.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-northeast1-b
+  INSTANCE: hv-dev-l4-tokyo
+  RUN_ID: public-36202716389-1-c7637a7c34a2
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Ensure host and inspect exact failed continuity outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          echo "STATUS_BEFORE=$STATUS"
+          if test "$STATUS" != "RUNNING"; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+            echo "HV_STARTED=1" >> "$GITHUB_ENV"
+          else
+            echo "HV_STARTED=0" >> "$GITHUB_ENV"
+          fi
+          for i in $(seq 1 60); do
+            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='echo SSH_OK' >/dev/null 2>&1; then break; fi
+            test "$i" != 60 || exit 3
+            sleep 5
+          done
+          ROOT="/srv/hoopvision/runs/$RUN_ID/replay-d3b56542/final_corrected"
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo python3 - <<'PY'
+import json, pathlib, pandas as pd
+root=pathlib.Path('$ROOT')
+q=root/'continuous_player_paths_qa.json'
+print('QA_EXISTS',q.exists())
+if q.exists():
+    data=json.loads(q.read_text())
+    print('=== CONTINUITY_QA ===')
+    print(json.dumps(data,indent=2,sort_keys=True))
+p=root/'continuous_player_paths.csv'
+print('PATHS_EXISTS',p.exists())
+if p.exists():
+    d=pd.read_csv(p)
+    print('PATH_ROWS',len(d))
+    for pid,g in d.groupby('player_id'):
+        frames=sorted(set(int(x) for x in g.frame_index))
+        gaps=[(a,b,b-a-1) for a,b in zip(frames,frames[1:]) if b-a>1]
+        print('PLAYER',pid,g.player_name.iloc[0],
+              'FIRST',frames[0],'LAST',frames[-1],
+              'N',len(frames),'GAPS',gaps[:30],
+              'SOURCES',g.path_source.value_counts().to_dict())
+PY"
+      - name: Stop host if this diagnostic started it
+        if: always()
+        shell: bash
+        run: |
+          if test "${HV_STARTED:-0}" = "1"; then
+            gcloud compute instances stop "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          fi
