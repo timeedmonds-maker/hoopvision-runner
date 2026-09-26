@@ -15,7 +15,7 @@ env:
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
   RUN_ID: public-36202716389-1-c7637a7c34a2
-  CANDIDATE_SHA: 1ac1e7751e6aff33e70ced841461a813bb4058fa
+  CANDIDATE_SHA: 90cd5d4cc0d052c96502d3e9462e1074d0b6b218
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -108,7 +108,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar -C src -czf /tmp/render-code.tgz screen_tracker_nextgen screen_tracker_kickout3 tools hoopvision/__init__.py hoopvision/core
+          tar -C src -czf /tmp/render-code.tgz screen_tracker_nextgen screen_tracker_kickout3 tools hoopvision/core
           scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             /tmp/render-code.tgz "runner@$HV_IP:/tmp/"
 
