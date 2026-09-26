@@ -1,0 +1,32 @@
+name: Resolve Mega Michigan Full Game Source
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/resolve-mega-michigan-source.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  resolve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Resolve public Mega Basket upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q -U yt-dlp
+          yt-dlp --no-playlist --skip-download --dump-single-json \
+            'ytsearch10:Mega Superbet Michigan full game August 27 2026' > candidates.json
+          python3 - <<'PY'
+          import json
+          j=json.load(open("candidates.json"))
+          for e in j.get("entries",[]):
+              print(e.get("id"), e.get("channel"), e.get("title"), e.get("duration"), e.get("webpage_url"))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mega-michigan-source-candidates
+          path: candidates.json
+          retention-days: 2
