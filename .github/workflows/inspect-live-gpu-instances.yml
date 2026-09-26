@@ -16,6 +16,7 @@ permissions:
   id-token: write
 
 env:
+  INSPECT_NONCE: '20260927-find-l4-quota'
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   DEV_PUBLISH_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
