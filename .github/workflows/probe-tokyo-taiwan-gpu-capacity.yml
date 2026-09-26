@@ -15,7 +15,7 @@ env:
   RUNTIME_SA: hoopvision-worker@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
-  PROBE_NONCE: '20260927-capacity-reprobe'
+  PROBE_NONCE: '20260927-singapore-g4'
 
 jobs:
   probe:
@@ -78,6 +78,7 @@ jobs:
             return 0
           }
 
+          probe SINGAPORE_G4 g4-standard-48 "asia-southeast1-a asia-southeast1-b asia-southeast1-c" hv-probe-singapore-g4
           probe TOKYO_L4 g2-standard-8 "asia-northeast1-a asia-northeast1-b asia-northeast1-c" hv-probe-tokyo-l4
           probe TOKYO_G4 g4-standard-48 "asia-northeast1-a asia-northeast1-b asia-northeast1-c" hv-probe-tokyo-g4
           probe TAIWAN_G4 g4-standard-48 "asia-east1-a asia-east1-b asia-east1-c" hv-probe-taiwan-g4
