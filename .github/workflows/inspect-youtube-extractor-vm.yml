@@ -30,6 +30,9 @@ jobs:
           gcloud compute instances list --project="$PROJECT_ID" \
             --filter="name~'^hv-yt-'" \
             --format="table(name,zone.basename(),status,machineType.basename(),networkInterfaces[0].networkIP,networkInterfaces[0].accessConfigs[0].natIP,creationTimestamp)"
+          echo "=== SERIAL: CURRENT RUN 36207171128 ==="
+          gcloud compute instances get-serial-port-output hv-yt-36207171128 \
+            --project="$PROJECT_ID" --zone=asia-southeast1-b --port=1 2>/dev/null | tail -n 400 || true
           echo "=== FIREWALL SSH RULES ==="
           gcloud compute firewall-rules list --project="$PROJECT_ID" \
             --filter="allowed.tcp:22" \
