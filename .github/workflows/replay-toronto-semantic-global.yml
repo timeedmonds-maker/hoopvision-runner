@@ -20,6 +20,7 @@ env:
   SAM_CHAIN_A_ARTIFACT_ID: '10899279286'
   SAM_CHAIN_B_ARTIFACT_ID: '10899218405'
   SAM_CHAIN_C_ARTIFACT_ID: '10899922899'
+  SAM_DICK_ARTIFACT_ID: '10900741227'
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -53,7 +54,8 @@ jobs:
           for spec in \
             "a:$SAM_CHAIN_A_ARTIFACT_ID" \
             "b:$SAM_CHAIN_B_ARTIFACT_ID" \
-            "c:$SAM_CHAIN_C_ARTIFACT_ID"; do
+            "c:$SAM_CHAIN_C_ARTIFACT_ID" \
+            "d:$SAM_DICK_ARTIFACT_ID"; do
             key="${spec%%:*}"
             aid="${spec##*:}"
             curl -fL --retry 4 --retry-delay 2 \
@@ -144,6 +146,11 @@ jobs:
             --source "$O/sam_sources/a/out" \
             --source "$O/sam_sources/b/out" \
             --source "$O/sam_sources/c/out" \
+            --source "$O/sam_sources/d/out" \
+            --source "$A/sam31" \
+            --edge 35:37 \
+            --edge 43:44 \
+            --edge 59:105 \
             --edge 65:69 \
             --edge 69:71 \
             --edge 71:107 \
@@ -207,10 +214,11 @@ jobs:
 
           rm -rf "$R/replay-d3b56542"
           mkdir -p "$R/replay-d3b56542/global_identity"
-          mkdir -p "$R/replay-d3b56542/sam_sources/a" "$R/replay-d3b56542/sam_sources/b" "$R/replay-d3b56542/sam_sources/c"
+          mkdir -p "$R/replay-d3b56542/sam_sources/a" "$R/replay-d3b56542/sam_sources/b" "$R/replay-d3b56542/sam_sources/c" "$R/replay-d3b56542/sam_sources/d"
           python3 -m zipfile -e /tmp/sam-chain-a.zip "$R/replay-d3b56542/sam_sources/a"
           python3 -m zipfile -e /tmp/sam-chain-b.zip "$R/replay-d3b56542/sam_sources/b"
           python3 -m zipfile -e /tmp/sam-chain-c.zip "$R/replay-d3b56542/sam_sources/c"
+          python3 -m zipfile -e /tmp/sam-chain-d.zip "$R/replay-d3b56542/sam_sources/d"
 
           rm -rf /tmp/toronto-replay-code
           mkdir -p /tmp/toronto-replay-code
@@ -244,7 +252,7 @@ jobs:
           scp -i "$HV_SSH_KEY" \
             -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             /tmp/toronto-replay-code.tgz /tmp/container-replay.sh /tmp/host-replay.sh \
-            /tmp/sam-chain-a.zip /tmp/sam-chain-b.zip /tmp/sam-chain-c.zip \
+            /tmp/sam-chain-a.zip /tmp/sam-chain-b.zip /tmp/sam-chain-c.zip /tmp/sam-chain-d.zip \
             "$HV_SSH_USER@$HV_SSH_IP:/tmp/"
 
       - name: Replay semantic anchors global identity and oracle
