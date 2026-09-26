@@ -22,7 +22,7 @@ env:
 jobs:
   ingest:
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@v4
@@ -41,133 +41,195 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg jq curl >/dev/null
 
-      - name: Resolve exact video through public Piped backends
+      - name: Resolve exact requested video across public extraction backends
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p ingest
-          INSTANCES=(
-            "https://pipedapi.kavin.rocks"
-            "https://pipedapi.leptons.xyz"
-            "https://pipedapi.nosebs.ru"
-            "https://piped-api.privacy.com.de"
-            "https://pipedapi.adminforge.de"
-            "https://api.piped.yt"
-            "https://pipedapi.drgns.space"
-            "https://pipedapi.owo.si"
-            "https://pipedapi.ducks.party"
-            "https://piped-api.codespace.cz"
-            "https://pipedapi.reallyaweso.me"
-            "https://api.piped.private.coffee"
-            "https://pipedapi.darkness.services"
-            "https://pipedapi.orangenet.cc"
-          )
-
-          : > ingest/probe.log
-          FOUND=""
-          for BASE in "${INSTANCES[@]}"; do
-            echo "PROBE $BASE" | tee -a ingest/probe.log
-            rm -f ingest/candidate.json
-            CODE="$(curl -A 'Mozilla/5.0 HoopVision/1.0'               --connect-timeout 7 --max-time 20               -sS -o ingest/candidate.json -w '%{http_code}'               "$BASE/streams/$VIDEO_ID" || true)"
-            echo "HTTP $CODE" | tee -a ingest/probe.log
-            if [ "$CODE" != "200" ]; then
-              continue
-            fi
-            if jq -e '
-              (.title | type == "string" and length > 0) and
-              (.videoStreams | type == "array" and length > 0) and
-              (.audioStreams | type == "array" and length > 0)
-            ' ingest/candidate.json >/dev/null 2>&1; then
-              FOUND="$BASE"
-              cp ingest/candidate.json ingest/piped_streams.json
-              printf '%s\n' "$FOUND" > ingest/piped_instance.txt
-              echo "SELECTED $FOUND" | tee -a ingest/probe.log
-              break
-            fi
-          done
-
-          if [ -z "$FOUND" ]; then
-            echo "No Piped backend resolved $VIDEO_ID" >&2
-            cat ingest/probe.log >&2
-            exit 2
-          fi
-
           python3 - <<'PY'
-          import json, re
-          d=json.load(open("ingest/piped_streams.json"))
+          import json, os, re, subprocess, urllib.parse
 
-          vids=d.get("videoStreams") or []
-          auds=d.get("audioStreams") or []
+          video_id=os.environ["VIDEO_ID"]
+          probe=[]
+
+          piped=[
+            "https://pipedapi.kavin.rocks",
+            "https://pipedapi-libre.kavin.rocks",
+            "https://pipedapi.leptons.xyz",
+            "https://piped-api.privacy.com.de",
+            "https://pipedapi.adminforge.de",
+            "https://api.piped.yt",
+            "https://pipedapi.drgns.space",
+            "https://pipedapi.owo.si",
+            "https://pipedapi.ducks.party",
+            "https://piped-api.codespace.cz",
+            "https://pipedapi.reallyaweso.me",
+            "https://api.piped.private.coffee",
+            "https://pipedapi.darkness.services",
+            "https://pipedapi.orangenet.cc",
+          ]
+          invidious=[
+            "https://inv.nadeko.net",
+            "https://invidious.nerdvpn.de",
+            "https://yt.chocolatemoo53.com",
+            "https://invidious.tiekoetter.com",
+          ]
+
+          def curl_json(url):
+              p=subprocess.run([
+                  "curl","-L","-A","Mozilla/5.0 HoopVision/1.0",
+                  "--connect-timeout","7","--max-time","25",
+                  "-sS","-w","\\n__HTTP__%{http_code}",
+                  url
+              ],stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+              out=p.stdout
+              code="000"
+              body=out
+              if "\n__HTTP__" in out:
+                  body,code=out.rsplit("\n__HTTP__",1)
+                  code=code.strip()
+              return p.returncode,code,body,p.stderr.strip()
 
           def height(v):
-              h=v.get("height")
-              if isinstance(h,(int,float)): return int(h)
-              q=str(v.get("quality",""))
-              m=re.search(r"(\d{3,4})",q)
-              return int(m.group(1)) if m else 0
+              x=v.get("height")
+              if isinstance(x,(int,float)): return int(x)
+              for key in ("quality","qualityLabel","resolution"):
+                  m=re.search(r"(\\d{3,4})",str(v.get(key,"")))
+                  if m: return int(m.group(1))
+              return 0
 
           def fps(v):
               try: return int(v.get("fps") or 0)
               except: return 0
 
+          def bitrate(v):
+              try: return int(v.get("bitrate") or 0)
+              except: return 0
+
           def is_h264(v):
-              s=(" ".join(str(v.get(k,"")) for k in ("codec","format","mimeType"))).lower()
-              return any(x in s for x in ("h264","avc1","mpeg_4","mp4"))
+              s=" ".join(str(v.get(k,"")) for k in ("codec","format","mimeType","type","container","encoding")).lower()
+              return any(x in s for x in ("h264","avc1","video/mp4","mp4"))
 
-          def is_mp4a(a):
-              s=(" ".join(str(a.get(k,"")) for k in ("codec","format","mimeType"))).lower()
-              return any(x in s for x in ("mp4a","m4a","mpeg_4","mp4"))
+          def is_mp4_audio(a):
+              s=" ".join(str(a.get(k,"")) for k in ("codec","format","mimeType","type","container","encoding")).lower()
+              return any(x in s for x in ("mp4a","audio/mp4","m4a","mp4"))
 
-          vpool=[v for v in vids if v.get("url")]
-          h264=[v for v in vpool if is_h264(v)]
-          if h264: vpool=h264
-          v=max(vpool,key=lambda x:(height(x),fps(x),int(x.get("bitrate") or 0)))
+          plan=None
 
-          apool=[a for a in auds if a.get("url")]
-          m4a=[a for a in apool if is_mp4a(a)]
-          if m4a: apool=m4a
-          a=max(apool,key=lambda x:int(x.get("bitrate") or 0))
+          for base in piped:
+              rc,code,body,err=curl_json(f"{base}/streams/{video_id}")
+              probe.append({"provider":"piped","base":base,"http":code,"curl_rc":rc,"stderr":err[-300:]})
+              if rc or code!="200":
+                  continue
+              try: d=json.loads(body)
+              except: continue
+              vids=[v for v in (d.get("videoStreams") or []) if v.get("url")]
+              auds=[a for a in (d.get("audioStreams") or []) if a.get("url")]
+              if not d.get("title") or not vids or not auds:
+                  continue
+              preferred=[v for v in vids if is_h264(v)]
+              v=max(preferred or vids,key=lambda x:(height(x),fps(x),bitrate(x)))
+              preferred_a=[a for a in auds if is_mp4_audio(a)]
+              a=max(preferred_a or auds,key=bitrate)
+              plan={
+                  "provider":"piped","base":base,"mode":"merge",
+                  "title":d.get("title"),"duration":d.get("duration"),"uploader":d.get("uploader"),
+                  "video_url":v["url"],"audio_url":a["url"],
+                  "video_meta":{k:v.get(k) for k in ("quality","format","codec","height","width","fps","bitrate","videoOnly")},
+                  "audio_meta":{k:a.get(k) for k in ("quality","format","codec","bitrate","audioTrackId","audioTrackName","audioTrackLocale")},
+              }
+              open("ingest/provider_response.json","w").write(json.dumps(d))
+              break
 
-          open("ingest/video_url.txt","w").write(v["url"])
-          open("ingest/audio_url.txt","w").write(a["url"])
-          selection={
-              "title":d.get("title"),
-              "duration":d.get("duration"),
-              "uploader":d.get("uploader"),
-              "video":{k:v.get(k) for k in ("quality","format","codec","height","width","fps","bitrate","videoOnly")},
-              "audio":{k:a.get(k) for k in ("quality","format","codec","bitrate","audioTrackId","audioTrackName","audioTrackLocale")},
-          }
-          open("ingest/selection.json","w").write(json.dumps(selection,indent=2,sort_keys=True)+"\n")
-          print(json.dumps(selection,indent=2,sort_keys=True))
+          if plan is None:
+              for base in invidious:
+                  url=f"{base}/api/v1/videos/{video_id}?local=true"
+                  rc,code,body,err=curl_json(url)
+                  probe.append({"provider":"invidious","base":base,"http":code,"curl_rc":rc,"stderr":err[-300:]})
+                  if rc or code!="200":
+                      continue
+                  try: d=json.loads(body)
+                  except: continue
+                  if d.get("videoId") != video_id or not d.get("title"):
+                      continue
+
+                  adaptive=[x for x in (d.get("adaptiveFormats") or []) if x.get("url")]
+                  vids=[x for x in adaptive if str(x.get("type","")).lower().startswith("video/")]
+                  auds=[x for x in adaptive if str(x.get("type","")).lower().startswith("audio/")]
+                  if vids and auds:
+                      preferred=[v for v in vids if is_h264(v)]
+                      v=max(preferred or vids,key=lambda x:(height(x),fps(x),bitrate(x)))
+                      preferred_a=[a for a in auds if is_mp4_audio(a)]
+                      a=max(preferred_a or auds,key=bitrate)
+                      plan={
+                          "provider":"invidious","base":base,"mode":"merge",
+                          "title":d.get("title"),"duration":d.get("lengthSeconds"),"uploader":d.get("author"),
+                          "video_url":urllib.parse.urljoin(base,v["url"]),
+                          "audio_url":urllib.parse.urljoin(base,a["url"]),
+                          "video_meta":{k:v.get(k) for k in ("qualityLabel","resolution","container","encoding","fps","bitrate","itag","type")},
+                          "audio_meta":{k:a.get(k) for k in ("audioQuality","audioSampleRate","audioChannels","container","encoding","bitrate","itag","type")},
+                      }
+                  else:
+                      combined=[x for x in (d.get("formatStreams") or []) if x.get("url")]
+                      mp4=[x for x in combined if "mp4" in (" ".join(str(x.get(k,"")) for k in ("type","container","encoding"))).lower()]
+                      if combined:
+                          v=max(mp4 or combined,key=lambda x:(height(x),bitrate(x)))
+                          plan={
+                              "provider":"invidious","base":base,"mode":"single",
+                              "title":d.get("title"),"duration":d.get("lengthSeconds"),"uploader":d.get("author"),
+                              "single_url":urllib.parse.urljoin(base,v["url"]),
+                              "video_meta":{k:v.get(k) for k in ("quality","qualityLabel","resolution","container","encoding","bitrate","itag","type")},
+                          }
+                  if plan:
+                      open("ingest/provider_response.json","w").write(json.dumps(d))
+                      break
+
+          open("ingest/probe.json","w").write(json.dumps(probe,indent=2,sort_keys=True)+"\n")
+          if plan is None:
+              print(json.dumps(probe,indent=2))
+              raise SystemExit("no public backend resolved exact requested video")
+
+          open("ingest/download_plan.json","w").write(json.dumps(plan,indent=2,sort_keys=True)+"\n")
+          safe={k:v for k,v in plan.items() if not k.endswith("_url")}
+          print("RESOLVED",json.dumps(safe,indent=2,sort_keys=True))
           PY
 
-      - name: Download and merge selected streams
+      - name: Download candidate and require decodable media
         shell: bash
         run: |
           set -euo pipefail
-          VURL="$(cat ingest/video_url.txt)"
-          AURL="$(cat ingest/audio_url.txt)"
+          MODE="$(jq -r '.mode' ingest/download_plan.json)"
+          PROVIDER="$(jq -r '.provider' ingest/download_plan.json)"
+          BASE="$(jq -r '.base' ingest/download_plan.json)"
+          echo "DOWNLOADING provider=$PROVIDER base=$BASE mode=$MODE"
 
-          curl --fail --location             --connect-timeout 10 --max-time 900             --retry 5 --retry-delay 2 --retry-all-errors             -A 'Mozilla/5.0 HoopVision/1.0'             "$VURL" -o ingest/video.part
-
-          curl --fail --location             --connect-timeout 10 --max-time 900             --retry 5 --retry-delay 2 --retry-all-errors             -A 'Mozilla/5.0 HoopVision/1.0'             "$AURL" -o ingest/audio.part
-
-          test -s ingest/video.part
-          test -s ingest/audio.part
-
-          ffmpeg -y -v error             -i ingest/video.part -i ingest/audio.part             -map 0:v:0 -map 1:a:0             -c copy -movflags +faststart ingest/source_native.mp4
+          if [ "$MODE" = "merge" ]; then
+            VURL="$(jq -r '.video_url' ingest/download_plan.json)"
+            AURL="$(jq -r '.audio_url' ingest/download_plan.json)"
+            curl -L --fail --connect-timeout 10 --max-time 1200               --retry 5 --retry-delay 2 --retry-all-errors               -A 'Mozilla/5.0 HoopVision/1.0' "$VURL" -o ingest/video.part
+            curl -L --fail --connect-timeout 10 --max-time 1200               --retry 5 --retry-delay 2 --retry-all-errors               -A 'Mozilla/5.0 HoopVision/1.0' "$AURL" -o ingest/audio.part
+            test -s ingest/video.part
+            test -s ingest/audio.part
+            ffmpeg -y -v error -i ingest/video.part -i ingest/audio.part               -map 0:v:0 -map 1:a:0? -c copy -movflags +faststart ingest/source_native.mp4
+          else
+            URL="$(jq -r '.single_url' ingest/download_plan.json)"
+            curl -L --fail --connect-timeout 10 --max-time 1200               --retry 5 --retry-delay 2 --retry-all-errors               -A 'Mozilla/5.0 HoopVision/1.0' "$URL" -o ingest/source_download
+            ffmpeg -y -v error -i ingest/source_download               -map 0:v:0 -map 0:a:0? -c copy -movflags +faststart ingest/source_native.mp4
+          fi
 
           test -s ingest/source_native.mp4
           ffprobe -v error             -show_entries format=duration,size,format_name,bit_rate:stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,pix_fmt             -of json ingest/source_native.mp4 > ingest/ffprobe.json
 
-          VIDEO_COUNT="$(jq '[.streams[] | select(.codec_type=="video")] | length' ingest/ffprobe.json)"
-          AUDIO_COUNT="$(jq '[.streams[] | select(.codec_type=="audio")] | length' ingest/ffprobe.json)"
-          test "$VIDEO_COUNT" -ge 1
-          test "$AUDIO_COUNT" -ge 1
+          jq -e '[.streams[] | select(.codec_type=="video")] | length >= 1' ingest/ffprobe.json >/dev/null
+          DURATION="$(jq -r '.format.duration | tonumber' ingest/ffprobe.json)"
+          python3 - "$DURATION" <<'PY'
+          import sys
+          d=float(sys.argv[1])
+          assert d > 1.0, d
+          PY
 
           sha256sum ingest/source_native.mp4 | awk '{print $1}' > ingest/sha256.txt
           wc -c < ingest/source_native.mp4 | tr -d ' ' > ingest/size_bytes.txt
-
           cat ingest/ffprobe.json
           echo "HOOPVISION_YT_SHA256=$(cat ingest/sha256.txt)"
           echo "HOOPVISION_YT_SIZE=$(cat ingest/size_bytes.txt)"
@@ -178,33 +240,29 @@ jobs:
           set -euo pipefail
           export CONTENT_SHA256="$(cat ingest/sha256.txt)"
           export SIZE_BYTES="$(cat ingest/size_bytes.txt)"
-          export PIPED_INSTANCE="$(cat ingest/piped_instance.txt)"
           export GCS_URI="gs://$BUCKET/fixtures/youtube/$VIDEO_ID/$CONTENT_SHA256/source_native.mp4"
           python3 - <<'PY'
           import json, os, pathlib
-          manifest = {
-              "schema": "hoopvision.source_fixture.v1",
-              "source_kind": "youtube",
-              "video_id": os.environ["VIDEO_ID"],
-              "requested_url": os.environ["SOURCE_URL"],
-              "content_sha256": os.environ["CONTENT_SHA256"],
-              "size_bytes": int(os.environ["SIZE_BYTES"]),
-              "gcs_uri": os.environ["GCS_URI"],
-              "ffprobe": json.load(open("ingest/ffprobe.json")),
-              "selection": json.load(open("ingest/selection.json")),
-              "acquisition": {
-                  "engine": "piped-public-backend",
-                  "instance": os.environ["PIPED_INSTANCE"],
-                  "endpoint": "/streams/" + os.environ["VIDEO_ID"],
-              },
-              "runner_repository": os.environ["GITHUB_REPOSITORY"],
-              "runner_sha": os.environ["GITHUB_SHA"],
-              "runner_run_id": os.environ["GITHUB_RUN_ID"],
+          plan=json.load(open("ingest/download_plan.json"))
+          safe_plan={k:v for k,v in plan.items() if not k.endswith("_url")}
+          manifest={
+              "schema":"hoopvision.source_fixture.v1",
+              "source_kind":"youtube",
+              "video_id":os.environ["VIDEO_ID"],
+              "requested_url":os.environ["SOURCE_URL"],
+              "content_sha256":os.environ["CONTENT_SHA256"],
+              "size_bytes":int(os.environ["SIZE_BYTES"]),
+              "gcs_uri":os.environ["GCS_URI"],
+              "ffprobe":json.load(open("ingest/ffprobe.json")),
+              "acquisition":safe_plan,
+              "runner_repository":os.environ["GITHUB_REPOSITORY"],
+              "runner_sha":os.environ["GITHUB_SHA"],
+              "runner_run_id":os.environ["GITHUB_RUN_ID"],
           }
           pathlib.Path("ingest/source_manifest.json").write_text(
-              json.dumps(manifest, indent=2, sort_keys=True) + "\n"
+              json.dumps(manifest,indent=2,sort_keys=True)+"\n"
           )
-          print(json.dumps(manifest, indent=2, sort_keys=True))
+          print(json.dumps(manifest,indent=2,sort_keys=True))
           PY
 
       - name: Publish immutable fixture
@@ -215,8 +273,8 @@ jobs:
           PREFIX="fixtures/youtube/$VIDEO_ID/$SHA"
           gcloud storage cp ingest/source_native.mp4 "gs://$BUCKET/$PREFIX/source_native.mp4"
           gcloud storage cp ingest/ffprobe.json "gs://$BUCKET/$PREFIX/ffprobe.json"
-          gcloud storage cp ingest/piped_streams.json "gs://$BUCKET/$PREFIX/piped_streams.json"
-          gcloud storage cp ingest/selection.json "gs://$BUCKET/$PREFIX/selection.json"
+          gcloud storage cp ingest/download_plan.json "gs://$BUCKET/$PREFIX/download_plan.json"
+          gcloud storage cp ingest/probe.json "gs://$BUCKET/$PREFIX/probe.json"
           gcloud storage cp ingest/source_manifest.json "gs://$BUCKET/$PREFIX/source_manifest.json"
           gcloud storage ls -l "gs://$BUCKET/$PREFIX/**"
 
@@ -225,10 +283,9 @@ jobs:
           name: youtube-w-Xa7phLRx0-source-manifest
           path: |
             ingest/source_manifest.json
-            ingest/selection.json
+            ingest/download_plan.json
+            ingest/probe.json
             ingest/ffprobe.json
             ingest/sha256.txt
             ingest/size_bytes.txt
-            ingest/piped_instance.txt
-            ingest/probe.log
           retention-days: 14
