@@ -161,9 +161,10 @@ jobs:
           R="/srv/hoopvision/runs/$RUN_ID"
           test -d "$R/artifacts"
           BASE="$(grep '^HOOPVISION_BASE_IMAGE=' /etc/hoopvision-dev.env | cut -d= -f2-)"
-          MODELS="$(grep '^HOOPVISION_MODEL_CACHE_HOST=' /etc/hoopvision-dev.env | cut -d= -f2-)"
+          MODELS="$(grep '^HOOPVISION_MODEL_CACHE_HOST=' /etc/hoopvision-dev.env | cut -d= -f2- || true)"
+          if test -z "$MODELS"; then MODELS=/srv/hoopvision/models/cache; fi
           test -n "$BASE"
-          test -n "$MODELS"
+          test -d "$MODELS"
 
           rm -rf "$R/replay-d248ff72"
           mkdir -p "$R/replay-d248ff72/global_identity"
