@@ -14,7 +14,7 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
-  CANDIDATE_SHA: 172e6cb573cc4094591c722be8029db3cf8e1003
+  CANDIDATE_SHA: 8a03f5949b0f73edc2608870b73857e228a58035
   RETAINED_RUN_ID: public-36202716389-1-c7637a7c34a2
   IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
@@ -41,28 +41,23 @@ jobs:
           set -euo pipefail
           python -m py_compile src/hoopvision/core/progress.py src/screen_tracker_nextgen/sam31_ambiguity_continuity.py
           python src/tools/validate_governing_delivery_policy.py
+          python -m pip install -q pandas pytest
+          PYTHONPATH=src python -m pytest -q             src/hoopvision/tests/test_sam31_competitive_physical_decision.py             src/hoopvision/tests/test_sam31_multiplex_batching.py             src/screen_tracker_nextgen/test_sam31_same_lane_split.py
           tar -C src -czf /tmp/candidate.tgz screen_tracker_nextgen hoopvision/core
           echo "$CANDIDATE_SHA" > /tmp/candidate.sha
           cat > /tmp/targeted_decision.json <<'JSON'
           {
             "schema": "hoopvision.targeted-competitive-physical-decision.v1",
-            "decision_count": 2,
+            "decision_count": 1,
             "decisions": [
               {
-                "decision_id": 690071,
-                "from_segment_id": 69,
-                "to_segment_id": 71,
-                "candidate_to_segment_ids": [71, 15, 29, 52, 116, 121],
-                "seed_time_s": 10.7719,
-                "resolver_reason": "retained_toronto_adams_same_team_reacquire"
-              },
-              {
-                "decision_id": 710107,
+                "decision_id": 107071,
                 "from_segment_id": 71,
                 "to_segment_id": 107,
-                "candidate_to_segment_ids": [107, 16, 30, 56, 117, 123],
-                "seed_time_s": 11.2391,
-                "resolver_reason": "retained_toronto_adams_boxout_handoff_team_filtered"
+                "candidate_from_segment_ids": [71, 15, 29, 37, 56, 116],
+                "propagation_direction": "backward",
+                "seed_time_s": 11.9064,
+                "resolver_reason": "retained_toronto_adams_boxout_backward_recovery"
               }
             ]
           }
