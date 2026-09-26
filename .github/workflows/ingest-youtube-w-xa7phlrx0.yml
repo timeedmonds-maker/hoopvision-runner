@@ -38,19 +38,12 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg >/dev/null
-          python3 -m pip install --disable-pip-version-check -q --upgrade yt-dlp bgutil-ytdlp-pot-provider
-          node --version
-          docker run --rm -d --name bgutil-provider \
-            -p 127.0.0.1:4416:4416 \
-            brainicism/bgutil-ytdlp-pot-provider:latest
-          for i in {1..30}; do
-            if curl -fsS http://127.0.0.1:4416 >/dev/null 2>&1; then
-              break
-            fi
-            sleep 1
-          done
-          docker ps --filter name=bgutil-provider
+          sudo apt-get install -y -qq ffmpeg xvfb >/dev/null
+          python3 -m pip install --disable-pip-version-check -q --upgrade yt-dlp yt-dlp-getpot-wpc
+          BROWSER="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          test -n "$BROWSER"
+          "$BROWSER" --version
+          echo "YT_BROWSER=$BROWSER" >> "$GITHUB_ENV"
 
       - name: Extract highest-quality source
         shell: bash
@@ -58,9 +51,9 @@ jobs:
           set -euo pipefail
           mkdir -p ingest
           cd ingest
-          YT_ARGS=(--js-runtimes node --extractor-args "youtube:player_client=mweb")
-          yt-dlp "${YT_ARGS[@]}" --no-playlist --dump-single-json "$SOURCE_URL" > yt_dlp.info.json
-          yt-dlp "${YT_ARGS[@]}" \
+          YT_ARGS=(--js-runtimes node --extractor-args "youtube:player_client=mweb" --extractor-args "youtubepot-wpc:browser_path=$YT_BROWSER")
+          xvfb-run -a yt-dlp "${YT_ARGS[@]}" --no-playlist --dump-single-json "$SOURCE_URL" > yt_dlp.info.json
+          xvfb-run -a yt-dlp "${YT_ARGS[@]}" \
             --no-playlist \
             --retries 5 \
             --fragment-retries 5 \
