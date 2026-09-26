@@ -1,0 +1,123 @@
+name: Retrieve Toronto UHD Visual QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/retrieve-toronto-uhd.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  CANDIDATE_SHA: d3b565425e7fc3ca800f3421a82dc2746bc4aa81
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  retrieve:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Install retrieval clients
+        run: |
+          set -euo pipefail
+          python -m pip install -q --disable-pip-version-check google-cloud-storage==3.4.0
+
+      - name: Wait for matching verified Toronto result and download UHD
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, time
+          from pathlib import Path
+          from google.cloud import storage
+
+          bucket_name=os.environ['BUCKET']
+          candidate=os.environ['CANDIDATE_SHA']
+          client=storage.Client(project=os.environ['PROJECT_ID'])
+          bucket=client.bucket(bucket_name)
+          deadline=time.time()+1200
+          found=None
+
+          while time.time()<deadline:
+              matches=[]
+              for blob in client.list_blobs(bucket_name,prefix='runs/toronto-nextgen/'):
+                  if not blob.name.endswith('/result.json'):
+                      continue
+                  try:
+                      payload=json.loads(blob.download_as_text())
+                  except Exception:
+                      continue
+                  if payload.get('ok') is not True:
+                      continue
+                  if payload.get('git_sha') != candidate:
+                      continue
+                  video=payload.get('final_video','')
+                  if not video.endswith('_UHD.mp4'):
+                      continue
+                  matches.append((blob.updated,blob.name,payload))
+              if matches:
+                  matches.sort(key=lambda x:x[0],reverse=True)
+                  found=matches[0]
+                  break
+              time.sleep(10)
+
+          if not found:
+              raise SystemExit(f'no verified Toronto result for {candidate} before timeout')
+
+          _,result_blob,payload=found
+          Path('qa').mkdir(exist_ok=True)
+          Path('qa/result.json').write_text(json.dumps(payload,indent=2))
+          Path('qa/result_blob.txt').write_text(result_blob+'\n')
+
+          uri=payload['final_video']
+          prefix=f'gs://{bucket_name}/'
+          if not uri.startswith(prefix):
+              raise SystemExit(f'unexpected final_video URI: {uri}')
+          video_blob=uri[len(prefix):]
+          out=Path('qa/toronto_d3b56542_UHD.mp4')
+          bucket.blob(video_blob).download_to_filename(out)
+
+          ffprobe_uri=uri.rsplit('/',1)[0]+'/ffprobe.json'
+          ffprobe_blob=ffprobe_uri[len(prefix):]
+          if bucket.blob(ffprobe_blob).exists(client):
+              bucket.blob(ffprobe_blob).download_to_filename('qa/ffprobe_worker.json')
+
+          oracle_uri=uri.rsplit('/final/',1)[0]+'/global_identity/visual_identity_oracle_qa.json'
+          oracle_blob=oracle_uri[len(prefix):]
+          if bucket.blob(oracle_blob).exists(client):
+              bucket.blob(oracle_blob).download_to_filename('qa/visual_identity_oracle_qa.json')
+
+          print(json.dumps(payload,indent=2))
+          PY
+
+      - name: Independently verify UHD and full decode
+        shell: bash
+        run: |
+          set -euo pipefail
+          ffprobe -v error -select_streams v:0 \
+            -show_entries stream=width,height,r_frame_rate,duration \
+            -of json qa/toronto_d3b56542_UHD.mp4 | tee qa/ffprobe_retrieval.json
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 qa/toronto_d3b56542_UHD.mp4)" = "3840"
+          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 qa/toronto_d3b56542_UHD.mp4)" = "2160"
+          ffmpeg -v error -i qa/toronto_d3b56542_UHD.mp4 -f null -
+          sha256sum qa/toronto_d3b56542_UHD.mp4 | tee qa/sha256.txt
+          echo HOOPVISION_TORONTO_UHD_RETRIEVAL_VERIFIED
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hoopvision-toronto-d3b56542-uhd-visual-qa
+          path: qa/
+          retention-days: 30
