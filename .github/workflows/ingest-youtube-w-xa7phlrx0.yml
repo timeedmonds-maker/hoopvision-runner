@@ -58,8 +58,18 @@ jobs:
           set -euo pipefail
           mkdir -p ingest
           cd ingest
-          yt-dlp --no-playlist --dump-single-json "$SOURCE_URL" > yt_dlp.info.json
-          yt-dlp             --no-playlist             --retries 5             --fragment-retries 5             --concurrent-fragments 4             --merge-output-format mp4             --remux-video mp4             -f 'bv*+ba/b'             -o 'source_native.%(ext)s'             "$SOURCE_URL"
+          YT_ARGS=(--js-runtimes node --extractor-args "youtube:player_client=mweb")
+          yt-dlp "${YT_ARGS[@]}" --no-playlist --dump-single-json "$SOURCE_URL" > yt_dlp.info.json
+          yt-dlp "${YT_ARGS[@]}" \
+            --no-playlist \
+            --retries 5 \
+            --fragment-retries 5 \
+            --concurrent-fragments 4 \
+            --merge-output-format mp4 \
+            --remux-video mp4 \
+            -f 'bv*+ba/b' \
+            -o 'source_native.%(ext)s' \
+            "$SOURCE_URL"
           test -s source_native.mp4
           ffprobe -v error             -show_entries format=duration,size,format_name,bit_rate:stream=index,codec_type,codec_name,width,height,r_frame_rate,avg_frame_rate,pix_fmt             -of json source_native.mp4 > ffprobe.json
           sha256sum source_native.mp4 | awk '{print $1}' > sha256.txt
