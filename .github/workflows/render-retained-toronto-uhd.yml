@@ -12,8 +12,8 @@ permissions:
 
 env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
-  ZONE: asia-northeast1-b
-  INSTANCE: hv-dev-l4-tokyo
+  ZONE: asia-southeast1-a
+  INSTANCE: hv-dev-l4-failover
   RUN_ID: public-36202716389-1-c7637a7c34a2
   CANDIDATE_SHA: ebb9cbcca8327596958d15734fdaa039efb26e2d
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
