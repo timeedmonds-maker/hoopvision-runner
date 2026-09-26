@@ -132,7 +132,7 @@ jobs:
             set -euo pipefail
             R="/srv/hoopvision/runs/'"$RUN_ID"'"
             sudo mkdir -p "$R/replay-d3b56542"
-            sudo tar -C "$R/replay-d3b56542" -xzf /tmp/toronto-replay.tgz
+            sudo tar -C "$R/replay-d3b56542" --strip-components=1 -xzf /tmp/toronto-replay.tgz replay
             sudo test -f "$R/replay-d3b56542/global_identity/resolved_config.json"
             sudo test -f "$R/replay-d3b56542/global_identity/global_identity_qa.json"
             sudo test -f "$R/replay-d3b56542/global_identity/visual_identity_oracle_qa.json"
