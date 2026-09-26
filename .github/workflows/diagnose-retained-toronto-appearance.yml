@@ -1,0 +1,163 @@
+name: Diagnose Retained Toronto Appearance
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-retained-toronto-appearance.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-northeast1-b
+  INSTANCE: hv-dev-l4-tokyo
+  RUN_ID: public-36202716389-1-c7637a7c34a2
+  CANDIDATE_SHA: 3cb2b33c62d5c3a47798ffc448bd29089dcf67d8
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          repository: timeedmonds-maker/104
+          ref: ${{ env.CANDIDATE_SHA }}
+          token: ${{ secrets.HOOPVISION_104_READ_TOKEN }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Ensure host and install instance-scoped SSH key
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          if test "$STATUS" != RUNNING; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          fi
+
+          gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
+            --format='get(metadata.items.ssh-keys)' > /tmp/orig-keys || true
+
+          rm -f /tmp/hv-key /tmp/hv-key.pub
+          ssh-keygen -q -t ed25519 -N '' -C 'hoopvision-appearance-diagnostic' -f /tmp/hv-key
+          cp /tmp/orig-keys /tmp/new-keys
+          if test -s /tmp/new-keys; then printf '\n' >> /tmp/new-keys; fi
+          printf 'runner:%s\n' "$(cat /tmp/hv-key.pub)" >> /tmp/new-keys
+
+          gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
+            --metadata-from-file ssh-keys=/tmp/new-keys --quiet
+
+          IP="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
+            --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
+          echo "HV_IP=$IP" >> "$GITHUB_ENV"
+
+          for i in $(seq 1 60); do
+            if ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+              "runner@$IP" 'echo SSH_OK' >/dev/null 2>&1; then exit 0; fi
+            sleep 5
+          done
+          exit 3
+
+      - name: Stage exact appearance diagnostic
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C src -czf /tmp/appearance-code.tgz \
+            screen_tracker_nextgen/physical_appearance_continuity.py
+          scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            /tmp/appearance-code.tgz "runner@$HV_IP:/tmp/"
+
+      - name: Run retained appearance diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "runner@$HV_IP" "sudo bash -s -- '$RUN_ID'" <<'HOST' 2>&1 | tee appearance.log
+          set -euxo pipefail
+          RUN_ID="$1"
+          R="/srv/hoopvision/runs/$RUN_ID"
+          SRC="$R/artifacts/nextgen_mask/source_native.mp4"
+          ASSIGN="$R/replay-d3b56542/global_identity/identity_assignments.csv"
+          BASE="$(grep '^HOOPVISION_BASE_IMAGE=' /etc/hoopvision-dev.env | cut -d= -f2-)"
+
+          test -f "$SRC"
+          test -f "$ASSIGN"
+          test -n "$BASE"
+
+          rm -rf /tmp/hv-appearance-code /tmp/hv-appearance-out
+          mkdir -p /tmp/hv-appearance-code /tmp/hv-appearance-out
+          tar -C /tmp/hv-appearance-code -xzf /tmp/appearance-code.tgz
+
+          docker run --rm --pull=never \
+            -v /tmp/hv-appearance-code:/opt/hoopvision:ro \
+            -v "$R:/run/hoopvision:ro" \
+            -v /tmp/hv-appearance-out:/out \
+            -e PYTHONPATH=/opt/hoopvision \
+            --workdir /opt/hoopvision \
+            --entrypoint python "$BASE" \
+            /opt/hoopvision/screen_tracker_nextgen/physical_appearance_continuity.py \
+            --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
+            --assignments /run/hoopvision/replay-d3b56542/global_identity/identity_assignments.csv \
+            --pre-component 6:4 \
+            --out /out/adams_6_4.json
+
+          docker run --rm --pull=never \
+            -v /tmp/hv-appearance-code:/opt/hoopvision:ro \
+            -v "$R:/run/hoopvision:ro" \
+            -v /tmp/hv-appearance-out:/out \
+            -e PYTHONPATH=/opt/hoopvision \
+            --workdir /opt/hoopvision \
+            --entrypoint python "$BASE" \
+            /opt/hoopvision/screen_tracker_nextgen/physical_appearance_continuity.py \
+            --source /run/hoopvision/artifacts/nextgen_mask/source_native.mp4 \
+            --assignments /run/hoopvision/replay-d3b56542/global_identity/identity_assignments.csv \
+            --pre-component 3:0 \
+            --out /out/dick_3_0.json
+
+          chown -R runner:runner /tmp/hv-appearance-out
+          HOST
+
+          mkdir -p appearance
+          scp -i /tmp/hv-key -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            "runner@$HV_IP:/tmp/hv-appearance-out/*.json" appearance/
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retained-toronto-appearance-3cb2b33c
+          path: |
+            appearance/
+            appearance.log
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Restore instance SSH metadata
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if test -s /tmp/orig-keys; then
+            gcloud compute instances add-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
+              --metadata-from-file ssh-keys=/tmp/orig-keys --quiet || true
+          else
+            gcloud compute instances remove-metadata "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" \
+              --keys=ssh-keys --quiet || true
+          fi
+          rm -f /tmp/hv-key /tmp/hv-key.pub /tmp/new-keys
