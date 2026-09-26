@@ -208,9 +208,9 @@ jobs:
           rm -rf "$R/replay-d3b56542"
           mkdir -p "$R/replay-d3b56542/global_identity"
           mkdir -p "$R/replay-d3b56542/sam_sources/a" "$R/replay-d3b56542/sam_sources/b" "$R/replay-d3b56542/sam_sources/c"
-          unzip -q /tmp/sam-chain-a.zip -d "$R/replay-d3b56542/sam_sources/a"
-          unzip -q /tmp/sam-chain-b.zip -d "$R/replay-d3b56542/sam_sources/b"
-          unzip -q /tmp/sam-chain-c.zip -d "$R/replay-d3b56542/sam_sources/c"
+          python3 -m zipfile -e /tmp/sam-chain-a.zip "$R/replay-d3b56542/sam_sources/a"
+          python3 -m zipfile -e /tmp/sam-chain-b.zip "$R/replay-d3b56542/sam_sources/b"
+          python3 -m zipfile -e /tmp/sam-chain-c.zip "$R/replay-d3b56542/sam_sources/c"
 
           rm -rf /tmp/toronto-replay-code
           mkdir -p /tmp/toronto-replay-code
