@@ -14,7 +14,7 @@ env:
   PROJECT_ID: project-d88c48c6-7f48-4c33-928
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
-  CANDIDATE_SHA: b590e48405da7a9a2d030ee56dad2eed9f5370ad
+  CANDIDATE_SHA: 9ed6224022130c1f319e15f4b5fcd7798f2fe0aa
   RETAINED_RUN_ID: public-36202716389-1-c7637a7c34a2
   IMAGE: asia-southeast1-docker.pkg.dev/project-d88c48c6-7f48-4c33-928/hoopvision-containers/hoopvision-nextgen@sha256:d4eb6ac02af990bb40d1aa56fbf57ce9c9787f7f1e7eb722f511dc52f0c7c74c
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
@@ -94,11 +94,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo rm -rf /tmp/hv-toronto-sam-observe && sudo mkdir -p /tmp/hv-toronto-sam-observe/src /tmp/hv-toronto-sam-observe/out && sudo chown -R $(id -u):$(id -g) /tmp/hv-toronto-sam-observe"
-          gcloud compute scp /tmp/candidate.tgz /tmp/candidate.sha /tmp/targeted_decision.json "$INSTANCE:/tmp/hv-toronto-sam-observe/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo rm -rf /srv/hoopvision/recovery/toronto-backward-sam && sudo mkdir -p /srv/hoopvision/recovery/toronto-backward-sam/src /srv/hoopvision/recovery/toronto-backward-sam/out && sudo chown -R $(id -u):$(id -g) /srv/hoopvision/recovery/toronto-backward-sam"
+          gcloud compute scp /tmp/candidate.tgz /tmp/candidate.sha /tmp/targeted_decision.json "$INSTANCE:/srv/hoopvision/recovery/toronto-backward-sam/" --zone "$ZONE" --project "$PROJECT_ID" --quiet
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
             set -euo pipefail
-            cd /tmp/hv-toronto-sam-observe
+            cd /srv/hoopvision/recovery/toronto-backward-sam
             tar -C src -xzf candidate.tgz
             test \"\$(cat candidate.sha)\" = '$CANDIDATE_SHA'
           "
@@ -109,7 +109,7 @@ jobs:
           gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
             set -euo pipefail
             ROOT=/srv/hoopvision/runs/$RETAINED_RUN_ID/artifacts
-            WORK=/tmp/hv-toronto-sam-observe
+            WORK=/srv/hoopvision/recovery/toronto-backward-sam
             echo ===PRECHECKS===
             sudo test -s \"\$ROOT/nextgen_mask/source_native.mp4\" && echo SOURCE_OK
             sudo test -s \"\$ROOT/identity_segments/uniform_observations.csv\" && echo OBSERVATIONS_OK
@@ -156,9 +156,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p result
-          gcloud compute scp --recurse "$INSTANCE:/tmp/hv-toronto-sam-observe/out" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
-          gcloud compute scp "$INSTANCE:/tmp/hv-toronto-sam-observe/sam31_exit_code.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
-          gcloud compute scp "$INSTANCE:/tmp/hv-toronto-sam-observe/wall_s.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          gcloud compute scp --recurse "$INSTANCE:/srv/hoopvision/recovery/toronto-backward-sam/out" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          gcloud compute scp "$INSTANCE:/srv/hoopvision/recovery/toronto-backward-sam/sam31_exit_code.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          gcloud compute scp "$INSTANCE:/srv/hoopvision/recovery/toronto-backward-sam/wall_s.txt" result/ --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
           echo CANDIDATE_SHA="$CANDIDATE_SHA" > result/tuple.txt
           echo RETAINED_RUN_ID="$RETAINED_RUN_ID" >> result/tuple.txt
           find result -maxdepth 3 -type f -printf '%P %s bytes\n' | sort
