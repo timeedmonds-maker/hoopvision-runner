@@ -85,8 +85,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          set +e
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
+          : > replay-remote.log
+          RC=1
+          for ATTEMPT in 1 2 3 4 5 6; do
+            echo "SSH_ATTEMPT=$ATTEMPT" | tee -a replay-remote.log
+            : > replay-attempt.log
+            set +e
+            gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="
             set -euo pipefail
             R=/srv/hoopvision/runs/$RUN_ID
             test -d \"\$R/artifacts\"
@@ -144,9 +149,19 @@ jobs:
               '
             sudo tar -C \"\$R/replay-d248ff72\" -czf /tmp/toronto-replay-d248ff72.tgz .
             sudo chown \$(id -u):\$(id -g) /tmp/toronto-replay-d248ff72.tgz
-          " 2>&1 | tee replay-remote.log
-          RC=${PIPESTATUS[0]}
-          set -e
+          " 2>&1 | tee replay-attempt.log
+            RC=${PIPESTATUS[0]}
+            set -e
+            cat replay-attempt.log >> replay-remote.log
+            if test "$RC" -eq 0; then
+              break
+            fi
+            if grep -q 'Updating project ssh metadata' replay-attempt.log; then
+              sleep 5
+              continue
+            fi
+            break
+          done
           if test -f replay-remote.log; then
             tail -n 300 replay-remote.log
           fi
