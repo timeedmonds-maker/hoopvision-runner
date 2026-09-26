@@ -125,7 +125,15 @@ jobs:
             ASSIGN="$REPLAY/global_identity/identity_assignments.csv"
             DURABLE_SOURCE="$R/artifacts/nextgen_mask/source_native.mp4"
 
-            sudo test -f "$DURABLE_SOURCE"
+            # Singapore failover hosts may not retain the historical Toronto source.
+            # Re-fetch the exact official Broadcast rendition when the durable copy is absent.
+            if ! sudo test -f "$DURABLE_SOURCE"; then
+              sudo mkdir -p "$(dirname "$DURABLE_SOURCE")"
+              BASE="$(sudo grep "^HOOPVISION_BASE_IMAGE=" /etc/hoopvision-dev.env | cut -d= -f2-)"
+              test -n "$BASE"
+              sudo docker run --rm --pull=never                 -v /tmp/retained-render-code:/opt/hoopvision:ro                 -v "$R:/run/hoopvision"                 -e PYTHONUNBUFFERED=1 -e PYTHONPATH=/opt/hoopvision                 --workdir /opt/hoopvision --entrypoint python "$BASE"                 /opt/hoopvision/screen_tracker_kickout3/fetch_exact_angle_native.py                 --game 0022500131 --event 585 --angle Broadcast --target-width 960                 --out /run/hoopvision/artifacts/nextgen_mask/source_native.mp4                 --meta /run/hoopvision/artifacts/nextgen_mask/source_native_selection.json
+            fi
+            sudo test -s "$DURABLE_SOURCE"
             sudo test -f "$REPLAY/global_identity/resolved_config.json"
             sudo test -f "$REPLAY/global_identity/global_identity_qa.json"
             sudo test -f "$ORACLE"
