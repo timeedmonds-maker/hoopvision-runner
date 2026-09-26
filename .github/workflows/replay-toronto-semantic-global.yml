@@ -15,7 +15,7 @@ env:
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
   RUN_ID: public-36202716389-1-c7637a7c34a2
-  CANDIDATE_SHA: b8ccc526d6d8e4a28a3af66aba33d353d2adb0fd
+  CANDIDATE_SHA: d248ff7295082eb3972bb30a1b6a7c65c5e432fb
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -93,8 +93,8 @@ jobs:
             MODELS=\$(sudo sh -c \"grep '^HOOPVISION_MODEL_CACHE_HOST=' /etc/hoopvision-dev.env | cut -d= -f2-\")
             test -n \"\$BASE\"
             test -n \"\$MODELS\"
-            rm -rf \"\$R/replay-b8ccc526\"
-            mkdir -p \"\$R/replay-b8ccc526/global_identity\"
+            rm -rf \"\$R/replay-d248ff72\"
+            mkdir -p \"\$R/replay-d248ff72/global_identity\"
             sudo docker run --rm --pull=never --gpus all \
               -v /tmp/toronto-replay-code:/opt/hoopvision:ro \
               -v \"\$MODELS:/models:ro\" \
@@ -105,7 +105,7 @@ jobs:
               --entrypoint bash \"\$BASE\" -lc '
                 set -euo pipefail
                 A=/run/hoopvision/artifacts
-                O=/run/hoopvision/replay-b8ccc526
+                O=/run/hoopvision/replay-d248ff72
                 python /opt/hoopvision/screen_tracker_nextgen/build_kickout_semantic_anchors.py \
                   --source \$A/nextgen_mask/source_native.mp4 \
                   --observations \$A/identity_segments/uniform_observations.csv \
@@ -141,16 +141,16 @@ jobs:
                 echo ===ORACLE_QA===
                 cat \$O/global_identity/visual_identity_oracle_qa.json
               '
-            sudo tar -C \"\$R/replay-b8ccc526\" -czf /tmp/toronto-replay-b8ccc526.tgz .
-            sudo chown \$(id -u):\$(id -g) /tmp/toronto-replay-b8ccc526.tgz
+            sudo tar -C \"\$R/replay-d248ff72\" -czf /tmp/toronto-replay-d248ff72.tgz .
+            sudo chown \$(id -u):\$(id -g) /tmp/toronto-replay-d248ff72.tgz
           "
-          gcloud compute scp "$INSTANCE:/tmp/toronto-replay-b8ccc526.tgz" . --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute scp "$INSTANCE:/tmp/toronto-replay-d248ff72.tgz" . --zone "$ZONE" --project "$PROJECT_ID" --quiet
           mkdir replay
-          tar -xzf toronto-replay-b8ccc526.tgz -C replay
+          tar -xzf toronto-replay-d248ff72.tgz -C replay
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: toronto-semantic-global-replay-b8ccc526
+          name: toronto-semantic-global-replay-d248ff72
           path: |
             replay/
             cpu-tests.log
