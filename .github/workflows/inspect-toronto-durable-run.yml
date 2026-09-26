@@ -19,14 +19,14 @@ env:
 jobs:
   recover:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.WIF_PROVIDER }}
           service_account: ${{ env.CONTROL_SA }}
       - uses: google-github-actions/setup-gcloud@v2
-      - name: Recover exact retained SAM evidence
+      - name: Recover exact retained SAM evidence in one SSH session
         shell: bash
         run: |
           set -euo pipefail
@@ -35,34 +35,38 @@ jobs:
           if test "$STATUS" != "RUNNING"; then
             gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
           fi
+          mkdir -p recovered
           ok=0
           for i in $(seq 1 90); do
-            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='echo SSH_OK' >/tmp/recover.out 2>/tmp/recover.err; then
-              cat /tmp/recover.out
+            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='
+              set -euo pipefail
+              W=/tmp/hv-toronto-sam-observe
+              test -d "$W/out"
+              echo "=== QA ==="
+              cat "$W/out/sam31_qa.json"
+              echo "=== LINKS ==="
+              cat "$W/out/continuity_links.csv"
+              echo "=== PLAN ==="
+              cat "$W/out/sam31_plan.json"
+              echo "=== GROUPS ==="
+              cat "$W/out/continuity_groups.csv"
+              echo "=== PROGRESS ==="
+              cat "$W/out/sam31_progress.jsonl"
+              echo "=== EXIT ==="
+              cat "$W/sam31_exit_code.txt" 2>/dev/null || true
+              echo "=== WALL ==="
+              cat "$W/wall_s.txt" 2>/dev/null || true
+            ' > recovered/evidence.txt 2>/tmp/recover.err; then
+              cat recovered/evidence.txt
               ok=1
               break
             fi
+            cat /tmp/recover.err || true
             sleep 5
           done
           test "$ok" = 1 || { cat /tmp/recover.err; exit 3; }
-          mkdir -p recovered
-          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='
-            set -euo pipefail
-            W=/tmp/hv-toronto-sam-observe
-            test -d "$W/out"
-            tar -C "$W" -czf /tmp/toronto-backward-sam-recovery.tgz out sam31_exit_code.txt wall_s.txt
-          '
-          gcloud compute scp "$INSTANCE:/tmp/toronto-backward-sam-recovery.tgz" recovered/ --zone "$ZONE" --project "$PROJECT_ID" --quiet
-          tar -xzf recovered/toronto-backward-sam-recovery.tgz -C recovered
-          echo '=== QA ==='
-          cat recovered/out/sam31_qa.json
-          echo '=== LINKS ==='
-          cat recovered/out/continuity_links.csv
-          echo '=== PLAN ==='
-          cat recovered/out/sam31_plan.json
-          echo '=== GROUPS ==='
-          cat recovered/out/continuity_groups.csv
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: toronto-backward-sam-recovery
           path: recovered/
