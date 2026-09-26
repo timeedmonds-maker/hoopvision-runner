@@ -15,7 +15,7 @@ env:
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
   RUN_ID: public-36202716389-1-c7637a7c34a2
-  CANDIDATE_SHA: 075b54ffd1a9e13a9ce61337e43d927b348c8d68
+  CANDIDATE_SHA: d9e72249e48ab45f926026372f298533f988d802
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -35,6 +35,29 @@ jobs:
           path: src
           fetch-depth: 1
           persist-credentials: false
+
+      - name: Assert no legacy UHD sharpening
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import sys
+          sys.path.insert(0, "src/tools")
+          from render_deterministic_master import FILTER_BASE
+          expected = "scale={w}:{h}:flags=lanczos+accurate_rnd+full_chroma_int,fps=30"
+          assert FILTER_BASE == expected, FILTER_BASE
+          lowered = FILTER_BASE.lower()
+          assert "cas=" not in lowered
+          assert "unsharp" not in lowered
+          assert "hqdn3d" not in lowered
+          kick = Path("src/screen_tracker_kickout3/render_kickout3.py").read_text()
+          assert 'UHD_UPSCALE_POLICY = "lanczos-no-sharpen-v1"' in kick
+          assert '"-vf", UHD_UPSCALE_FILTER' in kick
+          assert "cas=0.22" not in kick
+          assert "hqdn3d=0.6" not in kick
+          print("HOOPVISION_UHD_NO_LEGACY_SHARPENING_OK", FILTER_BASE)
+          PY
 
       - uses: actions/setup-python@v5
         with:
@@ -353,7 +376,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: hoopvision-toronto-corrected-continuous-uhd-visual-qa
+          name: hoopvision-toronto-corrected-continuous-uhd-nosharpen-v1
           path: |
             toronto_normal_5of5_UHD.mp4
             toronto_all_player_5of5_UHD.mp4
