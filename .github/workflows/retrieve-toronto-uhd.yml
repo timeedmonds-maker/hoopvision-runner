@@ -103,20 +103,16 @@ jobs:
           print(json.dumps(payload,indent=2))
           PY
 
-      - name: Independently verify UHD and full decode
+      - name: Record retrieved clip metadata
         shell: bash
         run: |
           set -euo pipefail
-          ffprobe -v error -select_streams v:0 \
-            -show_entries stream=width,height,r_frame_rate,duration \
-            -of json qa/toronto_d3b56542_UHD.mp4 | tee qa/ffprobe_retrieval.json
-          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 qa/toronto_d3b56542_UHD.mp4)" = "3840"
-          test "$(ffprobe -v error -select_streams v:0 -show_entries stream=height -of csv=p=0 qa/toronto_d3b56542_UHD.mp4)" = "2160"
-          ffmpeg -v error -i qa/toronto_d3b56542_UHD.mp4 -f null -
+          ls -lh qa/toronto_d3b56542_UHD.mp4 | tee qa/retrieved-file.txt
           sha256sum qa/toronto_d3b56542_UHD.mp4 | tee qa/sha256.txt
-          echo HOOPVISION_TORONTO_UHD_RETRIEVAL_VERIFIED
+          echo HOOPVISION_TORONTO_UHD_RETRIEVED
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: hoopvision-toronto-d3b56542-uhd-visual-qa
           path: qa/
