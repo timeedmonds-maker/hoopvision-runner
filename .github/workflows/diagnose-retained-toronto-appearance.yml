@@ -15,7 +15,7 @@ env:
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
   RUN_ID: public-36202716389-1-c7637a7c34a2
-  CANDIDATE_SHA: 3cb2b33c62d5c3a47798ffc448bd29089dcf67d8
+  CANDIDATE_SHA: 085eae24130edb9d74073f30d0e0dd2b1520c3d6
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
