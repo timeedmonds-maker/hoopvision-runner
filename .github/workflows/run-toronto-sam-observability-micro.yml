@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           python -m py_compile src/hoopvision/core/progress.py src/screen_tracker_nextgen/sam31_ambiguity_continuity.py
           python src/tools/validate_governing_delivery_policy.py
-          python -m pip install -q pandas pytest
+          python -m pip install -q 'numpy<2' pandas pytest opencv-python-headless
           PYTHONPATH=src python -m pytest -q             src/hoopvision/tests/test_sam31_competitive_physical_decision.py             src/hoopvision/tests/test_sam31_multiplex_batching.py             src/screen_tracker_nextgen/test_sam31_same_lane_split.py
           tar -C src -czf /tmp/candidate.tgz screen_tracker_nextgen hoopvision/core
           echo "$CANDIDATE_SHA" > /tmp/candidate.sha
