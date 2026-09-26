@@ -33,10 +33,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir evidence
-          gcloud storage ls "gs://$BUCKET/runs/$RUN_ID/logs/**" | sort > evidence/log_files.txt
+          mkdir -p evidence/logs
+          gcloud storage cp --recursive "gs://$BUCKET/runs/$RUN_ID/logs/" evidence/logs/
+          find evidence/logs -type f -name '*.bin' | sort > evidence/log_files.txt
           : > evidence/worker.log
           while read -r obj; do
-            gcloud storage cat "$obj" >> evidence/worker.log
+            cat "$obj" >> evidence/worker.log
           done < evidence/log_files.txt
           echo '=== WORKER LOG TAIL ==='
           tail -n 250 evidence/worker.log
