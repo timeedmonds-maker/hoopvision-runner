@@ -15,7 +15,7 @@ env:
   ZONE: asia-northeast1-b
   INSTANCE: hv-dev-l4-tokyo
   RUN_ID: public-36202716389-1-c7637a7c34a2
-  CANDIDATE_SHA: d248ff7295082eb3972bb30a1b6a7c65c5e432fb
+  CANDIDATE_SHA: d3b565425e7fc3ca800f3421a82dc2746bc4aa81
   WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -111,7 +111,7 @@ jobs:
           #!/usr/bin/env bash
           set -euxo pipefail
           A=/run/hoopvision/artifacts
-          O=/run/hoopvision/replay-d248ff72
+          O=/run/hoopvision/replay-d3b56542
 
           echo HV_REPLAY_STAGE=semantic_anchors
           python /opt/hoopvision/screen_tracker_nextgen/build_kickout_semantic_anchors.py \
@@ -166,8 +166,8 @@ jobs:
           test -n "$BASE"
           test -d "$MODELS"
 
-          rm -rf "$R/replay-d248ff72"
-          mkdir -p "$R/replay-d248ff72/global_identity"
+          rm -rf "$R/replay-d3b56542"
+          mkdir -p "$R/replay-d3b56542/global_identity"
 
           rm -rf /tmp/toronto-replay-code
           mkdir -p /tmp/toronto-replay-code
@@ -183,8 +183,8 @@ jobs:
             --workdir /opt/hoopvision \
             --entrypoint bash "$BASE" /opt/hoopvision/run-container-replay.sh
 
-          tar -C "$R/replay-d248ff72" -czf /tmp/toronto-replay-d248ff72.tgz .
-          chown runner:runner /tmp/toronto-replay-d248ff72.tgz
+          tar -C "$R/replay-d3b56542" -czf /tmp/toronto-replay-d3b56542.tgz .
+          chown runner:runner /tmp/toronto-replay-d3b56542.tgz
           HOST
           chmod +x /tmp/host-replay.sh
 
@@ -213,16 +213,16 @@ jobs:
           if test "$RC" -eq 0; then
             scp -i "$HV_SSH_KEY" \
               -o BatchMode=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-              "$HV_SSH_USER@$HV_SSH_IP:/tmp/toronto-replay-d248ff72.tgz" .
+              "$HV_SSH_USER@$HV_SSH_IP:/tmp/toronto-replay-d3b56542.tgz" .
             mkdir replay
-            tar -xzf toronto-replay-d248ff72.tgz -C replay
+            tar -xzf toronto-replay-d3b56542.tgz -C replay
           fi
           exit "$RC"
 
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: toronto-semantic-global-replay-d248ff72
+          name: toronto-semantic-global-replay-d3b56542
           path: |
             replay/
             cpu-tests.log
