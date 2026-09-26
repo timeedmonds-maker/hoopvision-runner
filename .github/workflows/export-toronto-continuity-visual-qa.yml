@@ -1,0 +1,65 @@
+name: Export Toronto Continuity Visual QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/export-toronto-continuity-visual-qa.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  ZONE: asia-northeast1-b
+  INSTANCE: hv-dev-l4-tokyo
+  RUN_ID: public-36202716389-1-c7637a7c34a2
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
+jobs:
+  export:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Retrieve source and continuity evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          STATUS="$(gcloud compute instances describe "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --format='value(status)')"
+          if test "$STATUS" != "RUNNING"; then
+            gcloud compute instances start "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet
+            echo "HV_STARTED=1" >> "$GITHUB_ENV"
+          else
+            echo "HV_STARTED=0" >> "$GITHUB_ENV"
+          fi
+          for i in $(seq 1 60); do
+            if gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command='echo SSH_OK' >/dev/null 2>&1; then break; fi
+            test "$i" != 60 || exit 3
+            sleep 5
+          done
+          mkdir -p visual-qa
+          ROOT="/srv/hoopvision/runs/$RUN_ID/replay-d3b56542"
+          gcloud compute ssh "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet --command="sudo cp '$ROOT/final_corrected/source_best_960.mp4' /tmp/source_best_960.mp4 && sudo cp '$ROOT/final_corrected/continuous_player_paths.csv' /tmp/continuous_player_paths.csv && sudo cp '$ROOT/final_corrected/continuous_player_paths_qa.json' /tmp/continuous_player_paths_qa.json && sudo chmod 644 /tmp/source_best_960.mp4 /tmp/continuous_player_paths.csv /tmp/continuous_player_paths_qa.json"
+          gcloud compute scp "$INSTANCE:/tmp/source_best_960.mp4" visual-qa/source_best_960.mp4 --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute scp "$INSTANCE:/tmp/continuous_player_paths.csv" visual-qa/continuous_player_paths.csv --zone "$ZONE" --project "$PROJECT_ID" --quiet
+          gcloud compute scp "$INSTANCE:/tmp/continuous_player_paths_qa.json" visual-qa/continuous_player_paths_qa.json --zone "$ZONE" --project "$PROJECT_ID" --quiet
+      - uses: actions/upload-artifact@v4
+        with:
+          name: toronto-continuity-visual-qa
+          path: visual-qa/
+          retention-days: 7
+      - name: Stop host if this export started it
+        if: always()
+        shell: bash
+        run: |
+          if test "${HV_STARTED:-0}" = "1"; then
+            gcloud compute instances stop "$INSTANCE" --zone "$ZONE" --project "$PROJECT_ID" --quiet || true
+          fi
