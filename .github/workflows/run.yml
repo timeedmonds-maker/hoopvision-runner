@@ -50,7 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           MESSAGE_ID="$(
-            gcloud pubsub topics publish "$HV_JOB_TOPIC"               --project "$HV_PROJECT_ID"               --message "{\"request_id\":\"$REQUEST_ID\",\"origin\":\"github-public-runner\",\"github_run_id\":\"$GITHUB_RUN_ID\"}"               --format='value(messageIds[0])'
+            gcloud pubsub topics publish "$HV_JOB_TOPIC"               --project "$HV_PROJECT_ID"               --message "{\"schema\":\"hoopvision.public-request.v1\",\"request_id\":\"$REQUEST_ID\"}"               --format='value(messageIds[0])'
           )"
           test -n "$MESSAGE_ID"
           echo "HoopVision request accepted."
