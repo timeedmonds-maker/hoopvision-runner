@@ -16,6 +16,12 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  HV_PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  HV_JOB_TOPIC: hv-dev-jobs
+  HV_WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  HV_CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+
 concurrency:
   group: hoopvision-request-bridge
   cancel-in-progress: false
@@ -47,8 +53,8 @@ jobs:
       - name: Authenticate to private control plane
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.HV_WIF_PROVIDER }}
-          service_account: ${{ secrets.HV_CONTROL_SA }}
+          workload_identity_provider: ${{ env.HV_WIF_PROVIDER }}
+          service_account: ${{ env.HV_CONTROL_SA }}
 
       - name: Set up Google Cloud CLI
         uses: google-github-actions/setup-gcloud@v2
@@ -57,8 +63,8 @@ jobs:
         shell: bash
         env:
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
-          HV_PROJECT_ID: ${{ secrets.HV_PROJECT_ID }}
-          HV_JOB_TOPIC: ${{ secrets.HV_JOB_TOPIC }}
+          HV_PROJECT_ID: ${{ env.HV_PROJECT_ID }}
+          HV_JOB_TOPIC: ${{ env.HV_JOB_TOPIC }}
         run: |
           set -euo pipefail
           MESSAGE_ID="$(
