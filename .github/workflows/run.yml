@@ -1,0 +1,56 @@
+name: HoopVision Request Bridge
+
+on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Opaque HoopVision request identifier
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: hoopvision-request-${{ inputs.request_id }}
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Validate opaque request identifier
+        shell: bash
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          set -euo pipefail
+          [[ "$REQUEST_ID" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || {
+            echo "Invalid request identifier" >&2
+            exit 2
+          }
+
+      - name: Authenticate to private control plane
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.HV_WIF_PROVIDER }}
+          service_account: ${{ secrets.HV_CONTROL_SA }}
+
+      - name: Set up Google Cloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Submit opaque request
+        shell: bash
+        env:
+          REQUEST_ID: ${{ inputs.request_id }}
+          HV_PROJECT_ID: ${{ secrets.HV_PROJECT_ID }}
+          HV_JOB_TOPIC: ${{ secrets.HV_JOB_TOPIC }}
+        run: |
+          set -euo pipefail
+          MESSAGE_ID="$(
+            gcloud pubsub topics publish "$HV_JOB_TOPIC"               --project "$HV_PROJECT_ID"               --message "{\"request_id\":\"$REQUEST_ID\",\"origin\":\"github-public-runner\",\"github_run_id\":\"$GITHUB_RUN_ID\"}"               --format='value(messageIds[0])'
+          )"
+          test -n "$MESSAGE_ID"
+          echo "HoopVision request accepted."
