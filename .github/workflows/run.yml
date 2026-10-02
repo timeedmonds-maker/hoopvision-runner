@@ -18,7 +18,8 @@ permissions:
 
 env:
   HV_PROJECT_ID: project-d88c48c6-7f48-4c33-928
-  HV_JOB_TOPIC: hv-dev-jobs
+  HV_REGION: asia-southeast1
+  HV_RESOLVER_JOB: hoopvision-request-resolver
   HV_WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   HV_CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -59,16 +60,19 @@ jobs:
       - name: Set up Google Cloud CLI
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Submit opaque request
+      - name: Submit opaque request to private CPU resolver
         shell: bash
         env:
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
           HV_PROJECT_ID: ${{ env.HV_PROJECT_ID }}
-          HV_JOB_TOPIC: ${{ env.HV_JOB_TOPIC }}
+          HV_REGION: ${{ env.HV_REGION }}
+          HV_RESOLVER_JOB: ${{ env.HV_RESOLVER_JOB }}
         run: |
           set -euo pipefail
-          MESSAGE_ID="$(
-            gcloud pubsub topics publish "$HV_JOB_TOPIC"               --project "$HV_PROJECT_ID"               --message "{\"schema\":\"hoopvision.public-request.v1\",\"request_id\":\"$REQUEST_ID\"}"               --format='value(messageIds[0])'
-          )"
-          test -n "$MESSAGE_ID"
-          echo "HoopVision request accepted."
+          gcloud run jobs execute "$HV_RESOLVER_JOB" \
+            --project "$HV_PROJECT_ID" \
+            --region "$HV_REGION" \
+            --update-env-vars "HOOPVISION_REQUEST_ID=$REQUEST_ID" \
+            --wait \
+            --quiet
+          echo "HoopVision opaque request resolved and accepted."
