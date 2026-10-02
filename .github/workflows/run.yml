@@ -1,4 +1,4 @@
-name: HoopVision Request Bridge
+name: HoopVision CPU Request Bridge
 
 on:
   workflow_dispatch:
@@ -20,6 +20,7 @@ env:
   HV_PROJECT_ID: project-d88c48c6-7f48-4c33-928
   HV_REGION: asia-southeast1
   HV_RESOLVER_JOB: hoopvision-request-resolver
+  HV_EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   HV_WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   HV_CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
@@ -28,11 +29,29 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  dispatch:
+  dispatch-and-observe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
+
+      - name: Enforce public CPU-only boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p=json.load(open("runner_policy.json"))
+          assert p["schema"]=="hoopvision.public-runner-policy.v1"
+          assert p["compute"]=="github_hosted_cpu"
+          assert p["gpu_allowed"] is False
+          assert p["direct_gpu_dispatch_allowed"] is False
+          assert p["private_source_checkout_allowed"] is False
+          assert p["pat_allowed"] is False
+          assert p["dispatch_target"]=="private_cpu_request_resolver"
+          assert p["public_payload"]["fields"]==["schema","request_id"]
+          print("HOOPVISION_PUBLIC_CPU_BOUNDARY_OK")
+          PY
 
       - name: Resolve opaque request identifier
         id: request
@@ -51,28 +70,42 @@ jobs:
           }
           echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Authenticate to private control plane
+      - name: Authenticate keylessly to private CPU resolver
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.HV_WIF_PROVIDER }}
           service_account: ${{ env.HV_CONTROL_SA }}
 
-      - name: Set up Google Cloud CLI
-        uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Submit opaque request to private CPU resolver
+      - name: Execute private CPU resolver
         shell: bash
         env:
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
-          HV_PROJECT_ID: ${{ env.HV_PROJECT_ID }}
-          HV_REGION: ${{ env.HV_REGION }}
-          HV_RESOLVER_JOB: ${{ env.HV_RESOLVER_JOB }}
         run: |
           set -euo pipefail
-          gcloud run jobs execute "$HV_RESOLVER_JOB" \
-            --project "$HV_PROJECT_ID" \
-            --region "$HV_REGION" \
-            --update-env-vars "HOOPVISION_REQUEST_ID=$REQUEST_ID" \
-            --wait \
-            --quiet
-          echo "HoopVision opaque request resolved and accepted."
+          gcloud run jobs execute "$HV_RESOLVER_JOB"             --project="$HV_PROJECT_ID"             --region="$HV_REGION"             --update-env-vars="HOOPVISION_REQUEST_ID=$REQUEST_ID"             --wait             --quiet
+          echo "Private CPU resolver accepted opaque request."
+
+      - name: Observe terminal private execution state on CPU
+        shell: bash
+        env:
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+        run: |
+          set -euo pipefail
+          RESULT="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/blackwell_control_result.json"
+          FAILURE="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/blackwell_control_failure.json"
+          DEADLINE=$((SECONDS + 4200))
+          while (( SECONDS < DEADLINE )); do
+            if gcloud storage ls "$RESULT" >/dev/null 2>&1; then
+              echo "HoopVision private execution completed."
+              exit 0
+            fi
+            if gcloud storage ls "$FAILURE" >/dev/null 2>&1; then
+              echo "HoopVision private execution failed." >&2
+              exit 1
+            fi
+            sleep 15
+          done
+          echo "Timed out waiting for private terminal state." >&2
+          exit 1
