@@ -20,6 +20,7 @@ env:
   HV_PROJECT_ID: project-d88c48c6-7f48-4c33-928
   HV_REGION: asia-southeast1
   HV_RESOLVER_JOB: hoopvision-request-resolver
+  HV_BLACKWELL_JOB: hoopvision-blackwell-release-worker
   HV_EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   HV_WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   HV_CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
@@ -29,7 +30,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  dispatch-and-observe:
+  authorize-trigger-observe:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     steps:
@@ -45,10 +46,13 @@ jobs:
           assert p["schema"]=="hoopvision.public-runner-policy.v1"
           assert p["compute"]=="github_hosted_cpu"
           assert p["gpu_allowed"] is False
-          assert p["direct_gpu_dispatch_allowed"] is False
+          assert p["gpu_capacity_owned_by_runner"] is False
+          assert p["gpu_authorization_allowed"] is False
+          assert p["blackwell_transport_trigger_after_private_authorization_allowed"] is True
           assert p["private_source_checkout_allowed"] is False
           assert p["pat_allowed"] is False
-          assert p["dispatch_target"]=="private_cpu_request_resolver"
+          assert p["dispatch_target"]=="private_cpu_authorization_then_blackwell_transport"
+          assert p["private_authorization"]["required_before_gpu_trigger"] is True
           assert p["public_payload"]["fields"]==["schema","request_id"]
           print("HOOPVISION_PUBLIC_CPU_BOUNDARY_OK")
           PY
@@ -70,7 +74,7 @@ jobs:
           }
           echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Authenticate keylessly to private CPU resolver
+      - name: Authenticate keylessly to GCP control plane
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ env.HV_WIF_PROVIDER }}
@@ -78,24 +82,40 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Execute private CPU resolver
+      - name: Execute private CPU authorization resolver
         shell: bash
         env:
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
         run: |
           set -euo pipefail
           gcloud run jobs execute "$HV_RESOLVER_JOB"             --project="$HV_PROJECT_ID"             --region="$HV_REGION"             --update-env-vars="HOOPVISION_REQUEST_ID=$REQUEST_ID"             --wait             --quiet
-          echo "Private CPU resolver accepted opaque request."
+          AUTH="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/resolver_result.json"
+          gcloud storage ls "$AUTH" >/dev/null
+          echo "Private CPU resolver authorized request."
+
+      - name: Transport authorized request to Blackwell
+        id: blackwell
+        shell: bash
+        env:
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+        run: |
+          set +e
+          gcloud run jobs execute "$HV_BLACKWELL_JOB"             --project="$HV_PROJECT_ID"             --region="$HV_REGION"             --update-env-vars="HOOPVISION_REQUEST_ID=$REQUEST_ID"             --wait             --quiet
+          RC=$?
+          set -e
+          echo "rc=$RC" >> "$GITHUB_OUTPUT"
+          echo "Blackwell transport returned rc=$RC."
 
       - name: Observe terminal private execution state on CPU
         shell: bash
         env:
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
+          BLACKWELL_RC: ${{ steps.blackwell.outputs.rc }}
         run: |
           set -euo pipefail
           RESULT="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/blackwell_control_result.json"
           FAILURE="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/blackwell_control_failure.json"
-          DEADLINE=$((SECONDS + 4200))
+          DEADLINE=$((SECONDS + 300))
           while (( SECONDS < DEADLINE )); do
             if gcloud storage ls "$RESULT" >/dev/null 2>&1; then
               echo "HoopVision private execution completed."
@@ -105,7 +125,7 @@ jobs:
               echo "HoopVision private execution failed." >&2
               exit 1
             fi
-            sleep 15
+            sleep 10
           done
-          echo "Timed out waiting for private terminal state." >&2
+          echo "No private terminal record observed; Blackwell transport rc=$BLACKWELL_RC." >&2
           exit 1
