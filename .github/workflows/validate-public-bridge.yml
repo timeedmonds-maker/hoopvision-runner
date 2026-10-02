@@ -7,6 +7,7 @@ on:
       - '.github/workflows/run.yml'
       - '.github/workflows/validate-public-bridge.yml'
       - 'README.md'
+      - 'runner_policy.json'
   workflow_dispatch:
 
 permissions:
@@ -18,7 +19,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Assert opaque CPU-resolver boundary
+      - name: Assert opaque authorization/transport boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -26,6 +27,8 @@ jobs:
           from pathlib import Path
           p=Path('.github/workflows/run.yml').read_text()
           assert 'hoopvision-request-resolver' in p
+          assert 'hoopvision-blackwell-release-worker' in p
+          assert 'resolver_result.json' in p
           assert 'HOOPVISION_REQUEST_ID=$REQUEST_ID' in p
           assert 'hv-dev-jobs' not in p
           assert 'pubsub topics publish' not in p
@@ -33,6 +36,9 @@ jobs:
           assert 'HOOPVISION_104_READ_TOKEN' not in p
           assert 'nvidia-rtx-pro-6000' not in p
           assert '--gpu' not in p
-          assert 'gcloud run jobs execute' in p
+          a=p.index('Execute private CPU authorization resolver')
+          b=p.index('Transport authorized request to Blackwell')
+          assert a < b
+          assert p.count('gcloud run jobs execute') == 2
           print('HOOPVISION_PUBLIC_BRIDGE_BOUNDARY_OK')
           PY
