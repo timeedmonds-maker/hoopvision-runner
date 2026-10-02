@@ -20,7 +20,6 @@ env:
   HV_PROJECT_ID: project-d88c48c6-7f48-4c33-928
   HV_REGION: asia-southeast1
   HV_RESOLVER_JOB: hoopvision-request-resolver
-  HV_BLACKWELL_JOB: hoopvision-blackwell-release-worker
   HV_EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
   HV_WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   HV_CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
@@ -30,7 +29,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  authorize-trigger-observe:
+  authorize-observe:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     steps:
@@ -48,11 +47,13 @@ jobs:
           assert p["gpu_allowed"] is False
           assert p["gpu_capacity_owned_by_runner"] is False
           assert p["gpu_authorization_allowed"] is False
-          assert p["blackwell_transport_trigger_after_private_authorization_allowed"] is True
+          assert p["blackwell_transport_trigger_after_private_authorization_allowed"] is False
           assert p["private_source_checkout_allowed"] is False
           assert p["pat_allowed"] is False
-          assert p["dispatch_target"]=="private_cpu_authorization_then_blackwell_transport"
-          assert p["private_authorization"]["required_before_gpu_trigger"] is True
+          assert p["dispatch_target"]=="private_cpu_request_resolver"
+          assert p["private_authorization"]["required_before_gpu_dispatch"] is True
+          assert p["private_authorization"]["gpu_dispatch_authority"]=="private_cpu_resolver_only"
+          assert p["public_observation"]["gpu_dispatch_allowed"] is False
           assert p["public_payload"]["fields"]==["schema","request_id"]
           print("HOOPVISION_PUBLIC_CPU_BOUNDARY_OK")
           PY
@@ -82,50 +83,58 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Execute private CPU authorization resolver
+      - name: Execute private CPU resolver
+        id: resolver
         shell: bash
         env:
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
         run: |
           set -euo pipefail
-          gcloud run jobs execute "$HV_RESOLVER_JOB"             --project="$HV_PROJECT_ID"             --region="$HV_REGION"             --update-env-vars="HOOPVISION_REQUEST_ID=$REQUEST_ID"             --wait             --quiet
+          gcloud run jobs execute "$HV_RESOLVER_JOB" \
+            --project="$HV_PROJECT_ID" \
+            --region="$HV_REGION" \
+            --update-env-vars="HOOPVISION_REQUEST_ID=$REQUEST_ID" \
+            --wait \
+            --quiet
+
           AUTH="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/resolver_result.json"
-          gcloud storage ls "$AUTH" >/dev/null
-          echo "Private CPU resolver authorized request."
+          gcloud storage cp "$AUTH" /tmp/resolver-result.json >/dev/null
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/resolver-result.json'))
+          state=d.get('state')
+          assert state in {'VALIDATED_ONLY','DISPATCHED'}, d
+          if state=='VALIDATED_ONLY':
+              assert d.get('gpu_dispatched') is False, d
+          print('HOOPVISION_PUBLIC_RESOLVER_STATE',state)
+          open('/tmp/resolver-state','w').write(state)
+          PY
+          echo "state=$(cat /tmp/resolver-state)" >> "$GITHUB_OUTPUT"
 
-      - name: Transport authorized request to Blackwell
-        id: blackwell
+      - name: Observe private terminal state after resolver dispatch
+        if: steps.resolver.outputs.state == 'DISPATCHED'
         shell: bash
         env:
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
-        run: |
-          set +e
-          gcloud run jobs execute "$HV_BLACKWELL_JOB"             --project="$HV_PROJECT_ID"             --region="$HV_REGION"             --update-env-vars="HOOPVISION_REQUEST_ID=$REQUEST_ID"             --wait             --quiet
-          RC=$?
-          set -e
-          echo "rc=$RC" >> "$GITHUB_OUTPUT"
-          echo "Blackwell transport returned rc=$RC."
-
-      - name: Observe terminal private execution state on CPU
-        shell: bash
-        env:
-          REQUEST_ID: ${{ steps.request.outputs.request_id }}
-          BLACKWELL_RC: ${{ steps.blackwell.outputs.rc }}
         run: |
           set -euo pipefail
           RESULT="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/blackwell_control_result.json"
           FAILURE="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/blackwell_control_failure.json"
-          DEADLINE=$((SECONDS + 300))
+          DEADLINE=$((SECONDS + 3600))
           while (( SECONDS < DEADLINE )); do
             if gcloud storage ls "$RESULT" >/dev/null 2>&1; then
-              echo "HoopVision private execution completed."
+              echo "HoopVision private Blackwell execution completed."
               exit 0
             fi
             if gcloud storage ls "$FAILURE" >/dev/null 2>&1; then
-              echo "HoopVision private execution failed." >&2
+              echo "HoopVision private Blackwell execution failed." >&2
               exit 1
             fi
             sleep 10
           done
-          echo "No private terminal record observed; Blackwell transport rc=$BLACKWELL_RC." >&2
+          echo "No private terminal Blackwell record observed before timeout." >&2
           exit 1
+
+      - name: Confirm validation-only smoke completed without GPU
+        if: steps.resolver.outputs.state == 'VALIDATED_ONLY'
+        run: echo "Public bridge validated opaque request without GPU dispatch."
