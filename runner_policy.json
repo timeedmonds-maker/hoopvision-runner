@@ -3,14 +3,23 @@
   "version": "2026-10-02",
   "compute": "github_hosted_cpu",
   "gpu_allowed": false,
-  "direct_gpu_dispatch_allowed": false,
   "private_source_checkout_allowed": false,
   "pat_allowed": false,
   "service_account_key_allowed": false,
   "authentication": "github_oidc_to_gcp_workload_identity_federation",
-  "dispatch_target": "private_cpu_request_resolver",
+  "dispatch_target": "private_cpu_authorization_then_blackwell_transport",
   "public_payload": {
     "schema": "hoopvision.public-request.v1",
-    "fields": ["schema", "request_id"]
+    "fields": [
+      "schema",
+      "request_id"
+    ]
+  },
+  "gpu_capacity_owned_by_runner": false,
+  "gpu_authorization_allowed": false,
+  "blackwell_transport_trigger_after_private_authorization_allowed": true,
+  "private_authorization": {
+    "job": "hoopvision-request-resolver",
+    "required_before_gpu_trigger": true
   }
 }
