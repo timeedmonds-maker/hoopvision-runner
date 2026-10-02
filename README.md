@@ -1,35 +1,29 @@
 # HoopVision Runner
 
-Minimal public execution bridge for CourtCoder / HoopVision.
+Minimal public CPU execution bridge.
 
-## Contract
+## Boundary
 
-This repository is public and intentionally contains no private HoopVision
-application source, player/roster data, benchmark details, release manifests, or
-GPU implementation.
+This repository accepts only an opaque request identifier. It does not contain
+or checkout private HoopVision source, models, fixtures, algorithms, roster
+data, tactical logic, or private evidence.
 
-The only public request payload is an opaque `request_id`.
+The runner:
 
-Execution flow:
+1. validates the opaque request ID on a GitHub-hosted CPU runner;
+2. authenticates to Google Cloud with GitHub OIDC / Workload Identity
+   Federation;
+3. invokes the private scale-to-zero CPU request resolver;
+4. observes only minimal terminal status.
 
-```
-public request_id
-  -> GitHub OIDC / GCP Workload Identity Federation
-  -> CPU-only Cloud Run Job: hoopvision-request-resolver
-  -> private GCS request registry: requests/{request_id}.json
-  -> canonical Blackwell Cloud Run Job only after private validation
-```
+It does **not** own GPU capacity and it does **not** invoke the GPU worker
+directly.
 
-The public bridge:
+## Credential rule
 
-- never checks out `timeedmonds-maker/104`
-- never requires a PAT or private-repository token
-- never runs GPU code itself
-- never exposes the private source SHA, benchmark, roster, fixture, or analytics
-  request in this repository
-- uses the fixed Google Cloud resolver job and passes only
-  `HOOPVISION_REQUEST_ID`
+- no fine-grained GitHub PAT;
+- no private-repository checkout token;
+- no service-account key;
+- OIDC/WIF only.
 
-The canonical private source remains `timeedmonds-maker/104`.
-The production GPU default is the scale-to-zero Cloud Run Blackwell job using
-`nvidia-rtx-pro-6000`. L4 is not an implicit fallback.
+See `runner_policy.json` for the machine-readable public boundary.
