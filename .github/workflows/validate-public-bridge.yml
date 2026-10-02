@@ -1,0 +1,38 @@
+name: Validate public bridge boundary
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/run.yml'
+      - '.github/workflows/validate-public-bridge.yml'
+      - 'README.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assert opaque CPU-resolver boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('.github/workflows/run.yml').read_text()
+          assert 'hoopvision-request-resolver' in p
+          assert 'HOOPVISION_REQUEST_ID=$REQUEST_ID' in p
+          assert 'hv-dev-jobs' not in p
+          assert 'pubsub topics publish' not in p
+          assert 'timeedmonds-maker/104' not in p
+          assert 'HOOPVISION_104_READ_TOKEN' not in p
+          assert 'nvidia-rtx-pro-6000' not in p
+          assert '--gpu' not in p
+          assert 'gcloud run jobs execute' in p
+          print('HOOPVISION_PUBLIC_BRIDGE_BOUNDARY_OK')
+          PY
