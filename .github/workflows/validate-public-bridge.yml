@@ -19,26 +19,22 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Assert opaque authorization/transport boundary
+      - name: Assert opaque outbox boundary
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           from pathlib import Path
           p=Path('.github/workflows/run.yml').read_text()
-          assert 'hoopvision-request-resolver' in p
-          assert 'hoopvision-blackwell-release-worker' in p
-          assert 'resolver_result.json' in p
-          assert 'HOOPVISION_REQUEST_ID=$REQUEST_ID' in p
-          assert 'hv-dev-jobs' not in p
-          assert 'pubsub topics publish' not in p
+          assert 'bridge_outbox/latest.json' in p
+          assert 'request_id' in p
           assert 'timeedmonds-maker/104' not in p
           assert 'HOOPVISION_104_READ_TOKEN' not in p
+          assert 'google-github-actions/auth' not in p
+          assert 'gcloud ' not in p
+          assert 'iam.gserviceaccount.com' not in p
           assert 'nvidia-rtx-pro-6000' not in p
           assert '--gpu' not in p
-          a=p.index('Execute private CPU authorization resolver')
-          b=p.index('Transport authorized request to Blackwell')
-          assert a < b
-          assert p.count('gcloud run jobs execute') == 2
+          assert 'contents: write' in p
           print('HOOPVISION_PUBLIC_BRIDGE_BOUNDARY_OK')
           PY
