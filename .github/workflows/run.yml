@@ -14,29 +14,22 @@ on:
       - .github/workflows/run.yml
 
 permissions:
-  contents: read
-  id-token: write
-
-env:
-  HV_PROJECT_ID: project-d88c48c6-7f48-4c33-928
-  HV_REGION: asia-southeast1
-  HV_RESOLVER_JOB: hoopvision-request-resolver
-  HV_EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
-  HV_WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-104
-  HV_CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  contents: write
 
 concurrency:
   group: hoopvision-request-bridge
   cancel-in-progress: false
 
 jobs:
-  authorize-observe:
+  queue-private-resolution:
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Enforce public CPU-only boundary
+      - name: Enforce public opaque-only boundary
         shell: bash
         run: |
           set -euo pipefail
@@ -48,13 +41,11 @@ jobs:
           assert p["gpu_allowed"] is False
           assert p["gpu_capacity_owned_by_runner"] is False
           assert p["gpu_authorization_allowed"] is False
-          assert p["blackwell_transport_trigger_after_private_authorization_allowed"] is False
           assert p["private_source_checkout_allowed"] is False
           assert p["pat_allowed"] is False
+          assert p["service_account_key_allowed"] is False
           assert p["dispatch_target"]=="private_cpu_request_resolver"
-          assert p["private_authorization"]["required_before_gpu_dispatch"] is True
-          assert p["private_authorization"]["gpu_dispatch_authority"]=="private_cpu_resolver_only"
-          assert p["public_observation"]["gpu_dispatch_allowed"] is False
+          assert p["transport"]=="public_outbox_private_pull"
           assert p["public_payload"]["fields"]==["schema","request_id"]
           print("HOOPVISION_PUBLIC_CPU_BOUNDARY_OK")
           PY
@@ -76,66 +67,29 @@ jobs:
           }
           echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Authenticate keylessly to GCP control plane
-        uses: google-github-actions/auth@v2
-        with:
-          workload_identity_provider: ${{ env.HV_WIF_PROVIDER }}
-          service_account: ${{ env.HV_CONTROL_SA }}
-
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - name: Execute private CPU resolver
-        id: resolver
-        shell: bash
+      - name: Publish opaque request to public outbox
         env:
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
+        shell: bash
         run: |
           set -euo pipefail
-          gcloud run jobs execute "$HV_RESOLVER_JOB" \
-            --project="$HV_PROJECT_ID" \
-            --region="$HV_REGION" \
-            --update-env-vars="HOOPVISION_REQUEST_ID=$REQUEST_ID" \
-            --wait \
-            --quiet
-
-          AUTH="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/resolver_result.json"
-          gcloud storage cp "$AUTH" /tmp/resolver-result.json >/dev/null
+          mkdir -p bridge_outbox
           python - <<'PY'
-          import json
-          d=json.load(open('/tmp/resolver-result.json'))
-          state=d.get('state')
-          assert state in {'VALIDATED_ONLY','DISPATCHED'}, d
-          if state=='VALIDATED_ONLY':
-              assert d.get('gpu_dispatched') is False, d
-          print('HOOPVISION_PUBLIC_RESOLVER_STATE',state)
-          open('/tmp/resolver-state','w').write(state)
+          import json,os,datetime
+          payload={
+            "schema":"hoopvision.public-bridge-outbox.v1",
+            "request_id":os.environ["REQUEST_ID"],
+            "public_run_id":os.environ["GITHUB_RUN_ID"],
+            "queued_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+          }
+          open("bridge_outbox/latest.json","w").write(json.dumps(payload,indent=2)+"\n")
           PY
-          echo "state=$(cat /tmp/resolver-state)" >> "$GITHUB_OUTPUT"
-
-      - name: Observe private terminal state after resolver dispatch
-        if: steps.resolver.outputs.state == 'DISPATCHED'
-        shell: bash
-        env:
-          REQUEST_ID: ${{ steps.request.outputs.request_id }}
-        run: |
-          set -euo pipefail
-          RESULT="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/blackwell_control_result.json"
-          FAILURE="gs://$HV_EVIDENCE_BUCKET/runs/$REQUEST_ID/blackwell_control_failure.json"
-          DEADLINE=$((SECONDS + 3600))
-          while (( SECONDS < DEADLINE )); do
-            if gcloud storage ls "$RESULT" >/dev/null 2>&1; then
-              echo "HoopVision private Blackwell execution completed."
-              exit 0
-            fi
-            if gcloud storage ls "$FAILURE" >/dev/null 2>&1; then
-              echo "HoopVision private Blackwell execution failed." >&2
-              exit 1
-            fi
-            sleep 10
-          done
-          echo "No private terminal Blackwell record observed before timeout." >&2
-          exit 1
-
-      - name: Confirm validation-only smoke completed without GPU
-        if: steps.resolver.outputs.state == 'VALIDATED_ONLY'
-        run: echo "Public bridge validated opaque request without GPU dispatch."
+          git config user.name "hoopvision-public-bridge"
+          git config user.email "hoopvision-public-bridge@users.noreply.github.com"
+          git add bridge_outbox/latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Queue opaque HoopVision request $REQUEST_ID [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+          echo "HOOPVISION_PUBLIC_REQUEST_QUEUED=$REQUEST_ID"
