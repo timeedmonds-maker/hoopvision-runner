@@ -2,6 +2,7 @@ name: Validate Public Runner Boundary
 
 on:
   push:
+    branches: [main]
     paths:
       - 'README.md'
       - 'runner_policy.json'
@@ -31,28 +32,25 @@ jobs:
           assert p["gpu_allowed"] is False
           assert p["gpu_capacity_owned_by_runner"] is False
           assert p["gpu_authorization_allowed"] is False
-          assert p["blackwell_transport_trigger_after_private_authorization_allowed"] is True
           assert p["private_source_checkout_allowed"] is False
           assert p["pat_allowed"] is False
-          assert p["dispatch_target"]=="private_cpu_authorization_then_blackwell_transport"
-          assert p["private_authorization"]["required_before_gpu_trigger"] is True
+          assert p["service_account_key_allowed"] is False
+          assert p["transport"]=="public_outbox_private_pull"
+          assert p["dispatch_target"]=="private_cpu_request_resolver"
+          assert p["private_authorization"]["required_before_gpu_dispatch"] is True
           assert p["public_payload"]["fields"]==["schema","request_id"]
           forbidden=[
               "HOOPVISION_104_READ_TOKEN",
-              "repository: timeedmonds-maker/104",
-              "hv-dev-jobs",
+              "timeedmonds-maker/104",
+              "google-github-actions/auth",
+              "gcloud ",
+              "iam.gserviceaccount.com",
               "nvidia-rtx-pro-6000",
-              "--gpu=",
-              "--gpu-type",
+              "--gpu",
           ]
           for needle in forbidden:
               assert needle not in w, needle
-          resolver=w.index("Execute private CPU authorization resolver")
-          blackwell=w.index("Transport authorized request to Blackwell")
-          assert resolver < blackwell
-          assert "resolver_result.json" in w[resolver:blackwell]
-          assert "hoopvision-request-resolver" in w
-          assert "hoopvision-blackwell-release-worker" in w
-          assert "id-token: write" in w
+          assert "bridge_outbox/latest.json" in w
+          assert "contents: write" in w
           print("HOOPVISION_PUBLIC_BOUNDARY_OK")
           PY
