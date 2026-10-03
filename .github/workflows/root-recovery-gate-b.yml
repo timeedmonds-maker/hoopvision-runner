@@ -22,7 +22,7 @@ env:
   REGION: asia-southeast1
   RESOLVER_JOB: hoopvision-request-resolver
   EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
-  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-104
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
   REQUEST_ID: cpu-shadow-root-recovery-gateb-631f33-v1
   SOURCE_SHA: 34cc5af128ac4169c38dac70235d871f8cb41b2e
