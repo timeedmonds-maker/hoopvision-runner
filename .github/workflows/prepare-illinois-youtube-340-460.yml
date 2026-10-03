@@ -21,7 +21,20 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
-          python -m pip install --disable-pip-version-check yt-dlp
+          python -m pip install --disable-pip-version-check yt-dlp bgutil-ytdlp-pot-provider
+          git clone --depth 1 --branch 2.0.1 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /tmp/bgutil
+          cd /tmp/bgutil/server
+          npm ci
+          npx tsc
+          node build/main.js >/tmp/bgutil.log 2>&1 &
+          echo $! >/tmp/bgutil.pid
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:4416/ping >/dev/null 2>&1 && break || true
+            sleep 1
+          done
+          cd "$GITHUB_WORKSPACE"
+          yt-dlp -v 'https://www.youtube.com/watch?v=R-CJIR4seAY' --simulate --extractor-args 'youtube:player-client=mweb,tv,web_safari' 2>&1 | tee /tmp/ytdlp-preflight.log || true
+          grep -q 'PO Token Providers:.*bgutil' /tmp/ytdlp-preflight.log || { cat /tmp/bgutil.log; echo 'bgutil provider not loaded' >&2; exit 2; }
       - name: Download exact reviewed interval
         shell: bash
         run: |
@@ -29,6 +42,7 @@ jobs:
           mkdir -p prepared
           yt-dlp \
             --no-playlist \
+            --extractor-args 'youtube:player-client=mweb,tv,web_safari' \
             --download-sections '*00:05:40-00:07:40' \
             --force-keyframes-at-cuts \
             -f 'bv*[height<=1080]+ba/b[height<=1080]' \
