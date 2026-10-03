@@ -5,7 +5,6 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/prepare-illinois-youtube-340-460.yml'
-      - 'source_requests/illinois-houston-youtube-340-460.json'
   workflow_dispatch:
 
 permissions:
@@ -14,46 +13,76 @@ permissions:
 jobs:
   prepare:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
-      - name: Install source tools
+
+      - name: Install Cloudflare WARP and yt-dlp
+        shell: bash
         run: |
+          set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
-          python -m pip install --disable-pip-version-check yt-dlp bgutil-ytdlp-pot-provider
-          git clone --depth 1 --branch 2.0.1 https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /tmp/bgutil
-          cd /tmp/bgutil/server
-          npm ci
-          npx tsc
-          node build/main.js >/tmp/bgutil.log 2>&1 &
-          echo $! >/tmp/bgutil.pid
-          for i in {1..30}; do
-            curl -fsS http://127.0.0.1:4416/ping >/dev/null 2>&1 && break || true
+          sudo apt-get install -y -qq curl gnupg lsb-release ffmpeg
+          curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | sudo gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/cloudflare-client.list
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cloudflare-warp
+          python -m pip install --disable-pip-version-check --upgrade yt-dlp
+
+      - name: Start WARP local proxy
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo systemctl start warp-svc || true
+          for i in $(seq 1 20); do
+            warp-cli --accept-tos status >/dev/null 2>&1 && break
             sleep 1
           done
-          cd "$GITHUB_WORKSPACE"
-          yt-dlp -v 'https://www.youtube.com/watch?v=R-CJIR4seAY' --simulate --extractor-args 'youtube:player-client=mweb,tv,web_safari' 2>&1 | tee /tmp/ytdlp-preflight.log || true
-          grep -q 'PO Token Providers:.*bgutil' /tmp/ytdlp-preflight.log || { cat /tmp/bgutil.log; echo 'bgutil provider not loaded' >&2; exit 2; }
-      - name: Download exact reviewed interval
+          warp-cli --accept-tos registration new || true
+          warp-cli --accept-tos mode proxy
+          warp-cli --accept-tos proxy port 40000
+          warp-cli --accept-tos connect
+          ok=0
+          for i in $(seq 1 30); do
+            if curl -fsS --max-time 10 --proxy socks5h://127.0.0.1:40000 https://www.cloudflare.com/cdn-cgi/trace | tee /tmp/warp-trace.txt | grep -Eq '^warp=(on|plus)$'; then
+              ok=1; break
+            fi
+            sleep 1
+          done
+          test "$ok" = 1
+          cat /tmp/warp-trace.txt
+
+      - name: Download source through WARP
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p prepared
           yt-dlp \
+            --proxy socks5://127.0.0.1:40000 \
+            --extractor-args 'youtube:player_client=web_embedded,default' \
             --no-playlist \
-            --extractor-args 'youtube:player-client=mweb,tv,web_safari' \
-            --download-sections '*00:05:40-00:07:40' \
-            --force-keyframes-at-cuts \
             -f 'bv*[height<=1080]+ba/b[height<=1080]' \
             --merge-output-format mp4 \
-            -o 'prepared/raw.%(ext)s' \
+            -o 'prepared/full.%(ext)s' \
             'https://www.youtube.com/watch?v=R-CJIR4seAY'
-          src="$(find prepared -maxdepth 1 -type f -name 'raw.*' | head -n1)"
+          src="$(find prepared -maxdepth 1 -type f -name 'full.*' | head -n1)"
           test -n "$src"
-          ffmpeg -hide_banner -loglevel error -y -i "$src" -t 120 \
-            -map 0:v:0 -map 0:a? -c copy prepared/illinois_houston_youtube_340_460.mp4
-      - name: Verify and hash
+          echo "FULL_SOURCE=$src"
+
+      - name: Trim reviewed 5m40s to 7m40s locally
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="$(find prepared -maxdepth 1 -type f -name 'full.*' | head -n1)"
+          ffmpeg -hide_banner -loglevel error -y \
+            -ss 340 -i "$src" -t 120 \
+            -map 0:v:0 -map 0:a? \
+            -c:v libx264 -preset fast -crf 15 -pix_fmt yuv420p \
+            -c:a aac -b:a 192k -movflags +faststart \
+            prepared/illinois_houston_youtube_340_460.mp4
+          rm -f "$src"
+
+      - name: Verify exact child and write manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -64,14 +93,15 @@ jobs:
           probe=json.loads(subprocess.check_output([
               'ffprobe','-v','error','-show_streams','-show_format','-of','json',str(p)
           ],text=True))
-          h=hashlib.sha256(p.read_bytes()).hexdigest()
           v=next(x for x in probe['streams'] if x.get('codec_type')=='video')
-          a=[x for x in probe['streams'] if x.get('codec_type')=='audio']
           duration=float(probe['format']['duration'])
-          if not (119.0 <= duration <= 121.0):
+          if not 119.5 <= duration <= 120.5:
               raise SystemExit(f'unexpected duration {duration}')
+          h=hashlib.sha256()
+          with p.open('rb') as fh:
+              for b in iter(lambda:fh.read(4*1024*1024),b''): h.update(b)
           meta={
-            'schema':'courtcoder.public-source-prep.v1',
+            'schema':'courtcoder.public-source-prep.v2',
             'fixture_id':'illinois-houston-youtube-340-460',
             'source_url':'https://www.youtube.com/watch?v=R-CJIR4seAY',
             'source_video_start_s':340,
@@ -81,14 +111,16 @@ jobs:
             'height':int(v['height']),
             'avg_frame_rate':v.get('avg_frame_rate'),
             'video_codec':v.get('codec_name'),
-            'audio_stream_count':len(a),
             'size_bytes':p.stat().st_size,
-            'sha256':h,
-            'review_note':'Product-owner selected uninterrupted possessions; short replay at end intentionally retained.',
+            'sha256':h.hexdigest(),
+            'transport':'cloudflare_warp_local_proxy',
+            'youtube_client':'web_embedded,default',
+            'review_note':'Product-owner selected uninterrupted possessions; short replay at end intentionally retained.'
           }
           Path('prepared/source_manifest.json').write_text(json.dumps(meta,indent=2)+'\n')
           print(json.dumps(meta,indent=2))
           PY
+
       - uses: actions/upload-artifact@v4
         with:
           name: illinois-houston-youtube-340-460
