@@ -1,0 +1,97 @@
+{
+  "schema": "courtcoder.public-targeted-ocr-opportunity.v1",
+  "fixture_id": "illinois-houston-0-120",
+  "control_candidate_sha": "631f33d1097c11df8756765841599f5aa37a6270",
+  "retained_diagnostic_sha": "218a2fa69354d1fec99f5387db61deb4b19b358c",
+  "identity_authorizing": false,
+  "independent_crop_truth_status": "PENDING",
+  "rules": {
+    "research_hypothesis_is_not_ground_truth": true,
+    "residual_exact_five_is_not_independent_root": true,
+    "ocr_model_output_alone_cannot_authorize_identity": true,
+    "zero_and_double_zero_remain_distinct": true
+  },
+  "paths": [
+    {
+      "physical_path_id": "ILL:38",
+      "unresolved_rows": 105,
+      "start_s": 55.055,
+      "end_s": 62.195,
+      "research_hypothesis_jersey": "15",
+      "strict_residual_runs": [
+        {
+          "segment_id": 869,
+          "start_s": 55.455,
+          "end_s": 55.722,
+          "support_samples": 5,
+          "dual_exact_ten_all_samples": false
+        },
+        {
+          "segment_id": 870,
+          "start_s": 56.123,
+          "end_s": 56.39,
+          "support_samples": 5,
+          "dual_exact_ten_all_samples": false
+        },
+        {
+          "segment_id": 871,
+          "start_s": 57.19,
+          "end_s": 57.457,
+          "support_samples": 5,
+          "dual_exact_ten_all_samples": false
+        },
+        {
+          "segment_id": 872,
+          "start_s": 58.592,
+          "end_s": 58.859,
+          "support_samples": 5,
+          "dual_exact_ten_all_samples": true
+        },
+        {
+          "segment_id": 873,
+          "start_s": 59.726,
+          "end_s": 60.26,
+          "support_samples": 9,
+          "dual_exact_ten_all_samples": true
+        },
+        {
+          "segment_id": 874,
+          "start_s": 60.727,
+          "end_s": 61.395,
+          "support_samples": 11,
+          "dual_exact_ten_all_samples": false
+        },
+        {
+          "segment_id": 875,
+          "start_s": 61.795,
+          "end_s": 62.195,
+          "support_samples": 7,
+          "dual_exact_ten_all_samples": false
+        }
+      ]
+    },
+    {
+      "physical_path_id": "ILL:31",
+      "unresolved_rows": 68,
+      "start_s": 48.849,
+      "end_s": 53.921,
+      "research_hypothesis_jersey": "4",
+      "strict_residual_runs": [
+        {
+          "segment_id": 804,
+          "start_s": 51.251,
+          "end_s": 51.585,
+          "support_samples": 6,
+          "dual_exact_ten_all_samples": true
+        },
+        {
+          "segment_id": 810,
+          "start_s": 52.92,
+          "end_s": 53.453,
+          "support_samples": 9,
+          "dual_exact_ten_all_samples": true
+        }
+      ]
+    }
+  ]
+}
