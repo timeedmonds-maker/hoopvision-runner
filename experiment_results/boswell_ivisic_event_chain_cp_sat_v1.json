@@ -1,0 +1,95 @@
+{
+  "backend": "OR_TOOLS_CP_SAT",
+  "candidate_generation_diagnostics": [
+    {
+      "event_id": "P1-19:24-BOSWELL-MISS",
+      "finding": "event_generator_included_independent_exact_owner",
+      "top_rank_was_correct_owner": false
+    },
+    {
+      "event_id": "P1-19:20-TIVISIC-OREB",
+      "finding": "event_generator_omitted_independent_exact_owner",
+      "top_rank_was_correct_owner": false
+    },
+    {
+      "event_id": "P1-19:20-TIVISIC-TIP",
+      "finding": "event_generator_omitted_independent_exact_owner",
+      "top_rank_was_correct_owner": false
+    }
+  ],
+  "control_candidate_sha": "631f33d1097c11df8756765841599f5aa37a6270",
+  "counterfactuals": [
+    {
+      "alternative_events": [],
+      "alternative_status": "INFEASIBLE",
+      "event_id": "P1-19:24-BOSWELL-MISS",
+      "forbidden_choice": "ILL:24:541"
+    },
+    {
+      "alternative_events": [],
+      "alternative_status": "INFEASIBLE",
+      "event_id": "P1-19:20-TIVISIC-OREB",
+      "forbidden_choice": "HOU:74:595"
+    },
+    {
+      "alternative_events": [],
+      "alternative_status": "INFEASIBLE",
+      "event_id": "P1-19:20-TIVISIC-TIP",
+      "forbidden_choice": "HOU:74:595"
+    }
+  ],
+  "fixture_id": "illinois-houston-0-120",
+  "identity_authorizing": false,
+  "schema": "courtcoder.public-bounded-event-chain-cpsat-shadow.v1",
+  "solve": {
+    "elapsed_s": 0.001618780000001152,
+    "events": [
+      {
+        "actor_player_id": 110004,
+        "chosen": "ILL:24:541",
+        "event_generator_top_rank_token": "ILL:27:EVENT_LOCAL",
+        "event_id": "P1-19:24-BOSWELL-MISS",
+        "hard_actor_owner_token": "ILL:24:541",
+        "hard_owner_was_event_generator_candidate": true,
+        "identity_authorizing": false,
+        "player_name": "Kylan Boswell"
+      },
+      {
+        "actor_player_id": 110013,
+        "chosen": "HOU:74:595",
+        "event_generator_top_rank_token": "ILL:30:EVENT_LOCAL_PRE_782",
+        "event_id": "P1-19:20-TIVISIC-OREB",
+        "hard_actor_owner_token": "HOU:74:595",
+        "hard_owner_was_event_generator_candidate": false,
+        "identity_authorizing": false,
+        "player_name": "Tomislav Ivisic"
+      },
+      {
+        "actor_player_id": 110013,
+        "chosen": "HOU:74:595",
+        "event_generator_top_rank_token": "ILL:30:EVENT_LOCAL_PRE_782",
+        "event_id": "P1-19:20-TIVISIC-TIP",
+        "hard_actor_owner_token": "HOU:74:595",
+        "hard_owner_was_event_generator_candidate": false,
+        "identity_authorizing": false,
+        "player_name": "Tomislav Ivisic"
+      }
+    ],
+    "hard_owner_forced": [
+      {
+        "event_id": "P1-19:24-BOSWELL-MISS",
+        "token": "ILL:24:541"
+      },
+      {
+        "event_id": "P1-19:20-TIVISIC-OREB",
+        "token": "HOU:74:595"
+      },
+      {
+        "event_id": "P1-19:20-TIVISIC-TIP",
+        "token": "HOU:74:595"
+      }
+    ],
+    "objective": -123.0,
+    "status": "OPTIMAL"
+  }
+}
