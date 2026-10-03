@@ -1,0 +1,53 @@
+{
+  "backend": "OR_TOOLS_CP_SAT",
+  "control_candidate_sha": "631f33d1097c11df8756765841599f5aa37a6270",
+  "fixture_id": "illinois-houston-0-120",
+  "identity_authorizing": false,
+  "results": [
+    {
+      "actor_player_id": 110000,
+      "base": {
+        "chosen": "__UNOBSERVED__",
+        "elapsed_s": 0.0015621469999942406,
+        "objective": 0.0,
+        "status": "OPTIMAL"
+      },
+      "blocked_candidates": [
+        {
+          "existing_segment_owner_ids": [
+            110023
+          ],
+          "identity_segment_id": 1139,
+          "physical_path_id": "ILL:59",
+          "reason": "existing_exact_segment_owner_conflicts_with_event_actor"
+        },
+        {
+          "existing_segment_owner_ids": [
+            110004
+          ],
+          "identity_segment_id": 1438,
+          "physical_path_id": "ILL:52",
+          "reason": "existing_exact_segment_owner_conflicts_with_event_actor"
+        },
+        {
+          "existing_segment_owner_ids": [
+            110015
+          ],
+          "identity_segment_id": 1197,
+          "physical_path_id": "ILL:67",
+          "reason": "existing_exact_segment_owner_conflicts_with_event_actor"
+        }
+      ],
+      "counterfactual": {
+        "chosen": null,
+        "elapsed_s": 8.438799999765934e-05,
+        "objective": null,
+        "status": "INFEASIBLE"
+      },
+      "event_id": "P1-18:27-MIRKOVIC-DREB",
+      "identity_authorizing": false,
+      "player_name": "David Mirkovic"
+    }
+  ],
+  "schema": "courtcoder.public-bounded-cpsat-shadow.v1"
+}
