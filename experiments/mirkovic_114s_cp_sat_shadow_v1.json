@@ -1,0 +1,76 @@
+{
+  "schema": "courtcoder.public-bounded-event-evidence.v1",
+  "fixture_id": "illinois-houston-0-120",
+  "control_candidate_sha": "631f33d1097c11df8756765841599f5aa37a6270",
+  "note": "Distilled non-authorizing evidence packet for public-runner CP-SAT verification. Event/body scores are not probabilities.",
+  "events": [
+    {
+      "event_id": "P1-18:27-MIRKOVIC-DREB",
+      "source_time_s": 114,
+      "actor_player_id": 110000,
+      "player_name": "David Mirkovic",
+      "evidence_strength": 0.8740923836363637,
+      "lineup_player_ids": [
+        110000,
+        110023,
+        110013,
+        110004,
+        110015
+      ],
+      "candidates": [
+        {
+          "physical_path_id": "ILL:59",
+          "identity_segment_id": 1139,
+          "rank": 1,
+          "score": 1.0736984121799469,
+          "existing_segment_owner_ids": [
+            110023
+          ],
+          "existing_owner_name": "Keaton Wagler",
+          "owner_evidence_windows": [
+            [
+              114.27949866666667,
+              114.34890133333333
+            ],
+            [
+              114.35290533333333,
+              114.80936133333334
+            ]
+          ]
+        },
+        {
+          "physical_path_id": "ILL:52",
+          "identity_segment_id": 1438,
+          "rank": 2,
+          "score": 0.2680208463190611,
+          "existing_segment_owner_ids": [
+            110004
+          ],
+          "existing_owner_name": "Kylan Boswell",
+          "owner_evidence_windows": [
+            [
+              113.41863866666668,
+              114.40896133333332
+            ]
+          ]
+        },
+        {
+          "physical_path_id": "ILL:67",
+          "identity_segment_id": 1197,
+          "rank": 4,
+          "score": 0.11535639442503447,
+          "existing_segment_owner_ids": [
+            110015
+          ],
+          "existing_owner_name": "Jake Davis",
+          "owner_evidence_windows": [
+            [
+              113.418639,
+              114.408961
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}
