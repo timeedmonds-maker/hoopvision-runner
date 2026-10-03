@@ -1,0 +1,69 @@
+name: HoopVision Public WIF v3.2-dev Probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/public-wif-v32-probe.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  HV_PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  HV_REGION: asia-southeast1
+  HV_RELEASE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  HV_WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  HV_CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  TARGET_SHA: 547c5b7fbde711fdbc7228730725f44f5ce95906
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate public runner keylessly
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.HV_WIF_PROVIDER }}
+          service_account: ${{ env.HV_CONTROL_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify public-runner GCP identity and locate exact request
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "PUBLIC_WIF_AUTH_OK"
+          gcloud auth list --filter=status:ACTIVE --format='value(account)'
+          gcloud storage ls "gs://$HV_RELEASE_BUCKET/requests/" > /tmp/requests.txt
+          tail -n 300 /tmp/requests.txt > /tmp/recent.txt
+          found=0
+          while IFS= read -r uri; do
+            [ -n "$uri" ] || continue
+            tmp="/tmp/request-$(basename "$uri")"
+            if ! gcloud storage cp "$uri" "$tmp" >/dev/null 2>&1; then
+              continue
+            fi
+            if grep -q "$TARGET_SHA" "$tmp" || grep -q '"engine_version"[[:space:]]*:[[:space:]]*"3.2-dev"' "$tmp"; then
+              python - "$tmp" <<'PY'
+          import json,sys,os
+          p=sys.argv[1]
+          d=json.load(open(p))
+          print("MATCH", json.dumps({
+            "request_id": d.get("public_request_id") or d.get("run_id") or os.path.basename(p),
+            "run_id": d.get("run_id"),
+            "engine_version": d.get("engine_version"),
+            "git_sha": d.get("git_sha"),
+            "benchmark": d.get("benchmark"),
+            "release_object": d.get("release_object"),
+            "release_sha256": d.get("release_sha256"),
+          }, sort_keys=True))
+          PY
+              found=1
+            fi
+          done < /tmp/recent.txt
+          echo "MATCH_FOUND=$found"
