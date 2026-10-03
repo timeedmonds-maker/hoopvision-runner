@@ -1,0 +1,37 @@
+{
+  "candidate_path_count": 2,
+  "control_candidate_sha": "631f33d1097c11df8756765841599f5aa37a6270",
+  "fixture_id": "illinois-houston-0-120",
+  "identity_authorizing": false,
+  "independent_crop_truth_status": "PENDING",
+  "interpretation": "These rows are an OCR opportunity upper bound, not recoverable coverage. Research jersey hypotheses and residual exact-five evidence cannot authorize identity.",
+  "paths": [
+    {
+      "dual_exact_ten_all_run_count": 2,
+      "dual_exact_ten_all_support_samples": 14,
+      "independent_crop_truth_ready": false,
+      "next_action": "INDEPENDENT_CROP_TRUTH_AND_SPECIALIST_OCR_COMPARISON",
+      "ocr_authorization_ready": false,
+      "physical_path_id": "ILL:38",
+      "research_hypothesis_jersey": "15",
+      "strict_residual_run_count": 7,
+      "strict_residual_support_samples": 47,
+      "unresolved_rows": 105
+    },
+    {
+      "dual_exact_ten_all_run_count": 2,
+      "dual_exact_ten_all_support_samples": 15,
+      "independent_crop_truth_ready": false,
+      "next_action": "INDEPENDENT_CROP_TRUTH_AND_SPECIALIST_OCR_COMPARISON",
+      "ocr_authorization_ready": false,
+      "physical_path_id": "ILL:31",
+      "research_hypothesis_jersey": "4",
+      "strict_residual_run_count": 2,
+      "strict_residual_support_samples": 15,
+      "unresolved_rows": 68
+    }
+  ],
+  "promotion_blocked_until_independent_crop_truth": true,
+  "schema": "courtcoder.public-targeted-ocr-opportunity-result.v1",
+  "unique_unresolved_rows_in_scope": 173
+}
