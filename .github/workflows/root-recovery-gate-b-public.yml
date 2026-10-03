@@ -1,0 +1,46 @@
+name: CourtCoder Gate B public retained screening
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - experiments/root_recovery_gate_b_distilled_v1.json
+      - tools/root_recovery_gate_b_screen.py
+      - .github/workflows/root-recovery-gate-b-public.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: courtcoder-root-recovery-gate-b-public
+  cancel-in-progress: false
+
+jobs:
+  screen:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run retained Gate B screening
+        run: |
+          set -euo pipefail
+          python tools/root_recovery_gate_b_screen.py \
+            --input experiments/root_recovery_gate_b_distilled_v1.json \
+            --out experiment_results/root_recovery_gate_b_distilled_v1.json
+      - name: Persist measured result
+        run: |
+          set -euo pipefail
+          git config user.name hoopvision-public-runner
+          git config user.email hoopvision-public-runner@users.noreply.github.com
+          git add experiment_results/root_recovery_gate_b_distilled_v1.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Record Gate B public retained screening result"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
