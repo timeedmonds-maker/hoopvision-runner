@@ -1,0 +1,85 @@
+name: Prepare Illinois YouTube 340-460 source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/prepare-illinois-youtube-340-460.yml'
+      - 'source_requests/illinois-houston-youtube-340-460.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install source tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --disable-pip-version-check yt-dlp
+      - name: Download exact reviewed interval
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p prepared
+          yt-dlp \
+            --no-playlist \
+            --download-sections '*00:05:40-00:07:40' \
+            --force-keyframes-at-cuts \
+            -f 'bv*[height<=1080]+ba/b[height<=1080]' \
+            --merge-output-format mp4 \
+            -o 'prepared/raw.%(ext)s' \
+            'https://www.youtube.com/watch?v=R-CJIR4seAY'
+          src="$(find prepared -maxdepth 1 -type f -name 'raw.*' | head -n1)"
+          test -n "$src"
+          ffmpeg -hide_banner -loglevel error -y -i "$src" -t 120 \
+            -map 0:v:0 -map 0:a? -c copy prepared/illinois_houston_youtube_340_460.mp4
+      - name: Verify and hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, json, subprocess
+          from pathlib import Path
+          p=Path('prepared/illinois_houston_youtube_340_460.mp4')
+          probe=json.loads(subprocess.check_output([
+              'ffprobe','-v','error','-show_streams','-show_format','-of','json',str(p)
+          ],text=True))
+          h=hashlib.sha256(p.read_bytes()).hexdigest()
+          v=next(x for x in probe['streams'] if x.get('codec_type')=='video')
+          a=[x for x in probe['streams'] if x.get('codec_type')=='audio']
+          duration=float(probe['format']['duration'])
+          if not (119.0 <= duration <= 121.0):
+              raise SystemExit(f'unexpected duration {duration}')
+          meta={
+            'schema':'courtcoder.public-source-prep.v1',
+            'fixture_id':'illinois-houston-youtube-340-460',
+            'source_url':'https://www.youtube.com/watch?v=R-CJIR4seAY',
+            'source_video_start_s':340,
+            'source_video_end_s':460,
+            'duration_s':duration,
+            'width':int(v['width']),
+            'height':int(v['height']),
+            'avg_frame_rate':v.get('avg_frame_rate'),
+            'video_codec':v.get('codec_name'),
+            'audio_stream_count':len(a),
+            'size_bytes':p.stat().st_size,
+            'sha256':h,
+            'review_note':'Product-owner selected uninterrupted possessions; short replay at end intentionally retained.',
+          }
+          Path('prepared/source_manifest.json').write_text(json.dumps(meta,indent=2)+'\n')
+          print(json.dumps(meta,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: illinois-houston-youtube-340-460
+          path: |
+            prepared/illinois_houston_youtube_340_460.mp4
+            prepared/source_manifest.json
+          if-no-files-found: error
+          retention-days: 7
