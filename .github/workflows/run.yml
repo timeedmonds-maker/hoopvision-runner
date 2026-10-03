@@ -1,39 +1,31 @@
-name: HoopVision Public Proven-Path Control Probe
+name: HoopVision Public Cross-Repo Checkout Probe
 
 on:
   push:
     branches: [main]
     paths:
       - '.github/workflows/run.yml'
-  workflow_dispatch:
 
 permissions:
   contents: read
-  id-token: write
 
 jobs:
   probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 10
+    timeout-minutes: 5
     steps:
-      - name: Authenticate with existing proven public-runner WIF secrets
-        uses: google-github-actions/auth@v2
+      - name: Checkout exact private v3.2-dev source with caller token
+        uses: actions/checkout@v4
         with:
-          workload_identity_provider: ${{ secrets.HV_WIF_PROVIDER }}
-          service_account: ${{ secrets.HV_CONTROL_SA }}
-
-      - uses: google-github-actions/setup-gcloud@v2
-
-      - name: Verify existing control-plane access without exposing credentials
-        shell: bash
-        env:
-          HV_PROJECT_ID: ${{ secrets.HV_PROJECT_ID }}
+          repository: timeedmonds-maker/104
+          ref: 547c5b7fbde711fdbc7228730725f44f5ce95906
+          token: ${{ github.token }}
+          path: src
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Verify exact v3.2-dev source
         run: |
           set -euo pipefail
-          test -n "$HV_PROJECT_ID"
-          gcloud config set project "$HV_PROJECT_ID" >/dev/null
-          echo "PUBLIC_PROVEN_WIF_OK"
-          gcloud auth list --filter=status:ACTIVE --format='value(account)'
-          gcloud run jobs describe hoopvision-request-resolver --region=asia-southeast1 --project="$HV_PROJECT_ID" --format='value(metadata.name)'
-          gcloud run jobs describe hoopvision-blackwell-release-worker --region=asia-southeast1 --project="$HV_PROJECT_ID" --format='value(metadata.name)'
-          echo "CONTROL_PLANE_REACHABLE"
+          test "$(git -C src rev-parse HEAD)" = "547c5b7fbde711fdbc7228730725f44f5ce95906"
+          test "$(tr -d '[:space:]' < src/courtcoder/ENGINE_VERSION)" = "3.2-dev"
+          echo "PUBLIC_CROSS_REPO_CHECKOUT_OK"
