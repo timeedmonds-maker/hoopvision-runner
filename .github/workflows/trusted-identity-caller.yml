@@ -1,0 +1,14 @@
+name: HoopVision trusted identity caller
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/trusted-identity-caller.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  call:
+    uses: timeedmonds-maker/hoopvision-runner-internal/.github/workflows/public-trusted-identity-probe.yml@main
