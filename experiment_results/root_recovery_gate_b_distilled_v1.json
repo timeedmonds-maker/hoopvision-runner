@@ -1,0 +1,110 @@
+{
+  "control_candidate_sha": "631f33d1097c11df8756765841599f5aa37a6270",
+  "events": [
+    {
+      "accepted_anchor": true,
+      "actor_player_id": 220005,
+      "decision_reason": "accepted_shot_body_anchor",
+      "event_id": "P1-19:03-CENAC-MISS",
+      "event_time_owner_ids": [],
+      "event_type": "SHOT_ATTEMPT",
+      "evidence_strength": 0.9487714684210529,
+      "identity_authorizing": false,
+      "player_name": "Chris Cenac Jr.",
+      "rank1": {
+        "path_id": "HOU:95",
+        "rank": 1,
+        "score": 0.761089,
+        "unresolved_rows": 12
+      },
+      "safe_new_root_candidate": false,
+      "screening_status": "BLOCKED_SIMULTANEOUS_DUPLICATE_IDENTITY",
+      "simultaneous_same_player_other_paths": [
+        {
+          "end_s": 64.02529466666667,
+          "identity_segment_id": 769,
+          "path_id": "HOU:75",
+          "player_id": 220005,
+          "provenance": "temporal_repeated_jersey_source_track_root",
+          "start_s": 62.96823866666667
+        }
+      ],
+      "source_time_s": 64,
+      "team": "HOU",
+      "unique_unknown_rows_recoverable_if_independently_certified": 0
+    },
+    {
+      "accepted_anchor": true,
+      "actor_player_id": 220005,
+      "decision_reason": "accepted_rebound_body_anchor",
+      "event_id": "P1-18:35-CENAC-DREB",
+      "event_time_owner_ids": [
+        220005
+      ],
+      "event_type": "REBOUND",
+      "evidence_strength": 0.8830274400000002,
+      "identity_authorizing": false,
+      "player_name": "Chris Cenac Jr.",
+      "rank1": {
+        "path_id": "HOU:152",
+        "rank": 1,
+        "score": 1.3186472499370574,
+        "unresolved_rows": 33
+      },
+      "safe_new_root_candidate": false,
+      "screening_status": "CORROBORATES_EXISTING_OWNER",
+      "simultaneous_same_player_other_paths": [],
+      "source_time_s": 106,
+      "team": "HOU",
+      "unique_unknown_rows_recoverable_if_independently_certified": 0
+    },
+    {
+      "accepted_anchor": true,
+      "actor_player_id": 110000,
+      "decision_reason": "accepted_rebound_body_anchor",
+      "event_id": "P1-18:27-MIRKOVIC-DREB",
+      "event_time_owner_ids": [],
+      "event_type": "REBOUND",
+      "evidence_strength": 0.8740923836363637,
+      "identity_authorizing": false,
+      "player_name": "David Mirkovic",
+      "rank1": {
+        "path_id": "ILL:59",
+        "rank": 1,
+        "score": 1.0736984121799469,
+        "unresolved_rows": 67
+      },
+      "safe_new_root_candidate": false,
+      "screening_status": "BLOCKED_SIMULTANEOUS_DUPLICATE_IDENTITY",
+      "simultaneous_same_player_other_paths": [
+        {
+          "end_s": 114.142028,
+          "identity_segment_id": 1488,
+          "path_id": "ILL:69",
+          "player_id": 110000,
+          "provenance": "temporal_repeated_jersey_source_track_root",
+          "start_s": 113.35190533333332
+        }
+      ],
+      "source_time_s": 114,
+      "team": "ILL",
+      "unique_unknown_rows_recoverable_if_independently_certified": 0
+    }
+  ],
+  "fixture_id": "illinois-houston-0-120",
+  "identity_authorizing": false,
+  "interpretation": "No event root is promoted; this is a shadow screening result only.",
+  "retained_diagnostic_sha": "218a2fa69354d1fec99f5387db61deb4b19b358c",
+  "safe_new_root_groups": 0,
+  "safe_unique_unknown_rows_recoverable": 0,
+  "schema": "courtcoder.public-root-recovery-gate-b-result.v1",
+  "screening_gate": {
+    "duplicate_conflict_gate_pass": true,
+    "pass": false,
+    "required_new_root_groups": 3,
+    "required_unique_rows": 100,
+    "root_group_gate_pass": false,
+    "unique_row_gate_pass": false,
+    "zero_duplicate_conflicts_required": true
+  }
+}
