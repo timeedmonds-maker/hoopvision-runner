@@ -1,0 +1,25 @@
+name: Probe CourtCoder live fixture exposure
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/probe-courtcoder-live-fixtures.yml'
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Probe public service
+        shell: bash
+        run: |
+          set -euo pipefail
+          base='https://courtcoder-prototype-3yvacctabq-as.a.run.app'
+          echo '=== provenance ==='
+          curl -i -sS --max-time 20 "$base/api/provenance" || true
+          echo
+          echo '=== fixtures ==='
+          curl -i -sS --max-time 20 "$base/api/fixtures" || true
+          echo
+          echo '=== first120 video head ==='
+          curl -I -sS --max-time 20 "$base/api/fixtures/illinois-houston-0-120/video" || true
