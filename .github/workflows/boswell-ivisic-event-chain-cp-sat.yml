@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'tools/bounded_event_chain_cp_sat.py'
-      - 'experiments/boswell_ivisic_event_chain_cp_sat_v1.json'
+      - 'experiments/boswell_ivisic_event_chain_cp_sat_v2.json'
       - '.github/workflows/boswell-ivisic-event-chain-cp-sat.yml'
   workflow_dispatch:
 
@@ -35,7 +35,7 @@ jobs:
           set -euo pipefail
           python tools/bounded_event_chain_cp_sat.py \
             --input experiments/boswell_ivisic_event_chain_cp_sat_v1.json \
-            --out experiment_results/boswell_ivisic_event_chain_cp_sat_v1.json
+            --out experiment_results/boswell_ivisic_event_chain_cp_sat_v2.json
 
       - name: Persist measured result
         shell: bash
