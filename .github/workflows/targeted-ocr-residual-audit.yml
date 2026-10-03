@@ -1,0 +1,46 @@
+name: CourtCoder targeted OCR residual audit
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - experiments/targeted_ocr_residual_audit_v1.json
+      - tools/targeted_ocr_residual_audit.py
+      - .github/workflows/targeted-ocr-residual-audit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: courtcoder-targeted-ocr-residual-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Audit targeted OCR residual opportunity
+        run: |
+          set -euo pipefail
+          python tools/targeted_ocr_residual_audit.py \
+            --input experiments/targeted_ocr_residual_audit_v1.json \
+            --out experiment_results/targeted_ocr_residual_audit_v1.json
+      - name: Persist measured result
+        run: |
+          set -euo pipefail
+          git config user.name hoopvision-public-runner
+          git config user.email hoopvision-public-runner@users.noreply.github.com
+          git add experiment_results/targeted_ocr_residual_audit_v1.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Record targeted OCR residual audit result"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
