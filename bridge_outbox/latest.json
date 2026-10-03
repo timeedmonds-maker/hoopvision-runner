@@ -1,6 +1,6 @@
 {
   "schema": "hoopvision.public-bridge-outbox.v1",
-  "request_id": "bridge-smoke-36945888471-1",
-  "public_run_id": "37103986175",
-  "queued_at": "2026-10-03T06:43:42.147529+00:00"
+  "request_id": "cpu-shadow-boswell-ivisic-postcorr-20261004-0715",
+  "public_run_id": "37143964810",
+  "queued_at": "2026-10-03T18:22:54.335472+00:00"
 }
