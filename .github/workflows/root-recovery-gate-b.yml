@@ -1,0 +1,170 @@
+name: CourtCoder Gate B retained root-recovery shadow
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - experiments/root_recovery_gate_b_v1.json
+      - .github/workflows/root-recovery-gate-b.yml
+      - runner_policy.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: courtcoder-root-recovery-gate-b
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  REGION: asia-southeast1
+  RESOLVER_JOB: hoopvision-request-resolver
+  EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-104
+  CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  REQUEST_ID: cpu-shadow-root-recovery-gateb-631f33-v1
+  SOURCE_SHA: 34cc5af128ac4169c38dac70235d871f8cb41b2e
+
+jobs:
+  register-run-persist:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce public CPU-only WIF policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          p=json.load(open('runner_policy.json'))
+          assert p['schema']=='hoopvision.public-runner-policy.v1'
+          assert p['gpu_allowed'] is False
+          assert p['private_source_checkout_allowed'] is False
+          assert p['service_account_key_allowed'] is False
+          assert p['authentication']=='github_oidc_to_gcp_workload_identity_federation'
+          assert p['transport']=='public_runner_wif_private_cpu_resolver'
+          assert p['cpu_request_registration_allowed'] is True
+          assert p['public_observation']['cpu_shadow_result_allowed'] is True
+          print('HOOPVISION_PUBLIC_GATE_B_POLICY_OK')
+          PY
+
+      - name: Authenticate keylessly to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF_PROVIDER }}
+          service_account: ${{ env.CONTROL_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install immutable registration client
+        run: python -m pip install --disable-pip-version-check --no-cache-dir google-cloud-storage==3.4.0
+
+      - name: Register immutable CPU shadow request
+        shell: bash
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ env.PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          from google.api_core.exceptions import PreconditionFailed
+          from google.cloud import storage
+
+          request_id=os.environ['REQUEST_ID']
+          source_sha=os.environ['SOURCE_SHA']
+          bucket_name=os.environ['EVIDENCE_BUCKET']
+          job=json.load(open('experiments/root_recovery_gate_b_v1.json'))
+          assert job['schema']=='hoopvision.identity-shadow-job.v1'
+          assert job['identity_authorizing'] is False
+          request={
+            'schema':'hoopvision.cpu-shadow-identity.v1',
+            'request_id':request_id,
+            'public_request_id':request_id,
+            'run_id':request_id,
+            'execution_target':'cpu_resolver',
+            'gpu_type':None,
+            'source_sha':source_sha,
+            'job':job,
+          }
+          raw=(json.dumps(request,sort_keys=True,separators=(',',':'))+'\n').encode()
+          client=storage.Client(project=os.environ['GOOGLE_CLOUD_PROJECT'])
+          blob=client.bucket(bucket_name).blob(f'requests/{request_id}.json')
+          try:
+              blob.upload_from_string(raw,content_type='application/json',if_generation_match=0)
+              print('HOOPVISION_GATE_B_REQUEST_REGISTERED')
+          except PreconditionFailed:
+              existing=blob.download_as_bytes()
+              assert existing==raw, 'immutable Gate-B request conflict'
+              print('HOOPVISION_GATE_B_REQUEST_REUSED_IDENTICALLY')
+          PY
+
+      - name: Execute private CPU resolver from public Actions
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud run jobs execute "$RESOLVER_JOB" \
+            --project="$PROJECT_ID" \
+            --region="$REGION" \
+            --update-env-vars="HOOPVISION_REQUEST_ID=$REQUEST_ID" \
+            --wait \
+            --quiet
+
+      - name: Fetch and validate measured result
+        shell: bash
+        run: |
+          set -euo pipefail
+          gcloud storage cp "gs://$EVIDENCE_BUCKET/runs/$REQUEST_ID/resolver_result.json" /tmp/resolver.json >/dev/null
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/resolver.json'))
+          assert d.get('state')=='CPU_COMPLETED', d
+          assert d.get('gpu_dispatched') is False, d
+          obj=d.get('result_object')
+          assert obj, d
+          open('/tmp/result-object','w').write(obj)
+          print('HOOPVISION_GATE_B_RESOLVER_OK',json.dumps(d,sort_keys=True))
+          PY
+          gcloud storage cp "gs://$EVIDENCE_BUCKET/$(cat /tmp/result-object)" /tmp/gate-b-result.json >/dev/null
+          python - <<'PY'
+          import json
+          d=json.load(open('/tmp/gate-b-result.json'))
+          assert d.get('production_authorized') is False, d
+          assert d.get('identity_authorizing') is False, d
+          assert (d.get('solve') or {}).get('status') in {'OPTIMAL','FEASIBLE'}, d
+          expected={
+            'P1-19:03-CENAC-MISS',
+            'P1-18:35-CENAC-DREB',
+            'P1-18:27-MIRKOVIC-DREB',
+          }
+          assert set(d.get('target_event_ids') or [])==expected, d.get('target_event_ids')
+          print('HOOPVISION_GATE_B_RESULT_OK',json.dumps({
+            'status':(d.get('solve') or {}).get('status'),
+            'direct_unknown_rows_upper_bound':d.get('direct_unknown_rows_upper_bound_if_all_chosen_roots_were_independently_certified'),
+            'events':(d.get('solve') or {}).get('events'),
+          },sort_keys=True))
+          PY
+
+      - name: Persist measured public-runner result
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p experiment_results
+          cp /tmp/gate-b-result.json experiment_results/root_recovery_gate_b_v1.json
+          git config user.name hoopvision-public-runner
+          git config user.email hoopvision-public-runner@users.noreply.github.com
+          git add experiment_results/root_recovery_gate_b_v1.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Record Gate B retained root-recovery shadow result"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
