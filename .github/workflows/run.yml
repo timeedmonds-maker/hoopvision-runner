@@ -1,95 +1,131 @@
-name: HoopVision CPU Request Bridge
+name: HoopVision Public v3.2-dev Blackwell Launch
 
 on:
-  workflow_dispatch:
-    inputs:
-      request_id:
-        description: Opaque HoopVision request identifier
-        required: false
-        type: string
   push:
     branches: [main]
     paths:
-      - REQUEST_ID
-      - .github/workflows/run.yml
+      - '.github/workflows/run.yml'
+  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
+  id-token: write
 
-concurrency:
-  group: hoopvision-request-bridge
-  cancel-in-progress: false
+env:
+  HV_PROJECT_ID: project-d88c48c6-7f48-4c33-928
+  HV_REGION: asia-southeast1
+  HV_RELEASE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
+  HV_RESOLVER_JOB: hoopvision-request-resolver
+  HV_BLACKWELL_JOB: hoopvision-blackwell-release-worker
+  HV_WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
+  HV_CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+  TARGET_SHA: 547c5b7fbde711fdbc7228730725f44f5ce95906
+  TARGET_VERSION: 3.2-dev
 
 jobs:
-  queue-private-resolution:
+  launch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
+      - name: Authenticate canonical public runner
+        uses: google-github-actions/auth@v2
         with:
-          fetch-depth: 0
+          workload_identity_provider: ${{ env.HV_WIF_PROVIDER }}
+          service_account: ${{ env.HV_CONTROL_SA }}
 
-      - name: Enforce public opaque-only boundary
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Locate exact immutable v3.2-dev request
+        id: locate
         shell: bash
         run: |
           set -euo pipefail
-          python - <<'PY'
+          echo "PUBLIC_RUNNER_WIF_AUTH_OK"
+          gcloud config set project "$HV_PROJECT_ID" >/dev/null
+          gcloud storage ls "gs://$HV_RELEASE_BUCKET/requests/" > /tmp/request-uris.txt
+          : > /tmp/matches.txt
+          while IFS= read -r uri; do
+            [ -n "$uri" ] || continue
+            req="/tmp/req-$(basename "$uri")"
+            gcloud storage cp "$uri" "$req" >/dev/null 2>&1 || continue
+            release_object="$(python - "$req" <<'PY'
+          import json,sys
+          try:
+              d=json.load(open(sys.argv[1]))
+          except Exception:
+              print(""); raise SystemExit
+          print(d.get("release_object") or "")
+          PY
+            )"
+            direct="$(python - "$req" "$TARGET_SHA" "$TARGET_VERSION" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          target=sys.argv[2]; version=sys.argv[3]
+          sha=str(d.get("git_sha") or d.get("source_sha") or "")
+          ev=str(d.get("engine_version") or "")
+          print("1" if sha==target and ev==version else "0")
+          PY
+            )"
+            matched="$direct"
+            if [ "$matched" != "1" ] && [ -n "$release_object" ]; then
+              rel="/tmp/rel-$(basename "$uri")"
+              gcloud storage cp "gs://$HV_RELEASE_BUCKET/$release_object" "$rel" >/dev/null 2>&1 || true
+              if [ -s "$rel" ]; then
+                matched="$(python - "$req" "$rel" "$TARGET_SHA" "$TARGET_VERSION" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1])); r=json.load(open(sys.argv[2]))
+          target=sys.argv[3]; version=sys.argv[4]
+          sha=str(r.get("git_sha") or q.get("git_sha") or q.get("source_sha") or "")
+          ev=str(q.get("engine_version") or r.get("engine_version") or "")
+          print("1" if sha==target and ev==version else "0")
+          PY
+                )"
+              fi
+            fi
+            if [ "$matched" = "1" ]; then
+              rid="$(python - "$req" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          print(d.get("public_request_id") or d.get("run_id") or "")
+          PY
+              )"
+              [ -n "$rid" ] && printf '%s\n' "$rid" >> /tmp/matches.txt
+            fi
+          done < /tmp/request-uris.txt
+          sort -u /tmp/matches.txt -o /tmp/matches.txt
+          count="$(wc -l < /tmp/matches.txt | tr -d ' ')"
+          echo "EXACT_REQUEST_MATCH_COUNT=$count"
+          cat /tmp/matches.txt || true
+          if [ "$count" -ne 1 ]; then
+            echo "Expected exactly one immutable request for $TARGET_SHA / $TARGET_VERSION; found $count" >&2
+            exit 42
+          fi
+          rid="$(cat /tmp/matches.txt)"
+          echo "request_id=$rid" >> "$GITHUB_OUTPUT"
+          echo "EXACT_REQUEST_ID=$rid"
+
+      - name: Resolve privately and start Blackwell only after authorization
+        id: start
+        env:
+          REQUEST_ID: ${{ steps.locate.outputs.request_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          result_uri="gs://$HV_RELEASE_BUCKET/runs/$REQUEST_ID/resolver_result.json"
+          if ! gcloud storage ls "$result_uri" >/dev/null 2>&1; then
+            gcloud run jobs execute "$HV_RESOLVER_JOB"               --project="$HV_PROJECT_ID"               --region="$HV_REGION"               --update-env-vars="HOOPVISION_REQUEST_ID=$REQUEST_ID"               --wait               --quiet
+          fi
+          gcloud storage cp "$result_uri" /tmp/resolver.json >/dev/null
+          cat /tmp/resolver.json
+          state="$(python - <<'PY'
           import json
-          p=json.load(open("runner_policy.json"))
-          assert p["schema"]=="hoopvision.public-runner-policy.v1"
-          assert p["compute"]=="github_hosted_cpu"
-          assert p["gpu_allowed"] is False
-          assert p["gpu_capacity_owned_by_runner"] is False
-          assert p["gpu_authorization_allowed"] is False
-          assert p["private_source_checkout_allowed"] is False
-          assert p["pat_allowed"] is False
-          assert p["service_account_key_allowed"] is False
-          assert p["dispatch_target"]=="private_cpu_request_resolver"
-          assert p["transport"]=="public_outbox_private_pull"
-          assert p["public_payload"]["fields"]==["schema","request_id"]
-          print("HOOPVISION_PUBLIC_CPU_BOUNDARY_OK")
+          d=json.load(open('/tmp/resolver.json'))
+          print(d.get('state') or '')
           PY
-
-      - name: Resolve opaque request identifier
-        id: request
-        shell: bash
-        env:
-          INPUT_REQUEST_ID: ${{ inputs.request_id }}
-        run: |
-          set -euo pipefail
-          REQUEST_ID="${INPUT_REQUEST_ID:-}"
-          if [ -z "$REQUEST_ID" ] && [ -f REQUEST_ID ]; then
-            REQUEST_ID="$(tr -d '[:space:]' < REQUEST_ID)"
-          fi
-          [[ "$REQUEST_ID" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || {
-            echo "Invalid request identifier" >&2
-            exit 2
-          }
-          echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
-
-      - name: Publish opaque request to public outbox
-        env:
-          REQUEST_ID: ${{ steps.request.outputs.request_id }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p bridge_outbox
-          python - <<'PY'
-          import json,os,datetime
-          payload={
-            "schema":"hoopvision.public-bridge-outbox.v1",
-            "request_id":os.environ["REQUEST_ID"],
-            "public_run_id":os.environ["GITHUB_RUN_ID"],
-            "queued_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
-          }
-          open("bridge_outbox/latest.json","w").write(json.dumps(payload,indent=2)+"\n")
-          PY
-          git config user.name "hoopvision-public-bridge"
-          git config user.email "hoopvision-public-bridge@users.noreply.github.com"
-          git add bridge_outbox/latest.json
-          if ! git diff --cached --quiet; then
-            git commit -m "Queue opaque HoopVision request $REQUEST_ID [skip ci]"
-            git pull --rebase origin main
-            git push origin HEAD:main
-          fi
-          echo "HOOPVISION_PUBLIC_REQUEST_QUEUED=$REQUEST_ID"
+          )"
+          test "$state" = "AUTHORIZED"
+          echo "PRIVATE_RESOLVER_AUTHORIZED=$REQUEST_ID"
+          gcloud run jobs execute "$HV_BLACKWELL_JOB"             --project="$HV_PROJECT_ID"             --region="$HV_REGION"             --update-env-vars="HOOPVISION_REQUEST_ID=$REQUEST_ID"             --async             --format='value(metadata.name)' | tee /tmp/execution.txt
+          echo "BLACKWELL_EXECUTION_STARTED=$(cat /tmp/execution.txt)"
