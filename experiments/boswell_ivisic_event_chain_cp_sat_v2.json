@@ -1,0 +1,179 @@
+{
+  "schema": "courtcoder.public-bounded-event-chain-evidence.v2",
+  "fixture_id": "illinois-houston-0-120",
+  "control_candidate_sha": "631f33d1097c11df8756765841599f5aa37a6270",
+  "retained_evidence_source": "hoopvision/status/full-root-diagnostic/d0c005b7a352edcc00d1d8ddb928b7ea91bc271b",
+  "note": "Post-Gate-A replay: exact-event-time independent owner corroboration repairs candidate recall without changing geometry/ball ranks, authorizing identity, or counting existing roots as new coverage.",
+  "events": [
+    {
+      "event_id": "P1-19:24-BOSWELL-MISS",
+      "source_time_s": 43,
+      "actor_player_id": 110004,
+      "player_name": "Kylan Boswell",
+      "hard_actor_owner_token": "ILL:24:541",
+      "hard_actor_owner_provenance": "temporal_repeated_jersey_source_track_root",
+      "hard_actor_owner_window": [
+        42.013972,
+        43.071028
+      ],
+      "event_generator_candidate_tokens": [
+        "ILL:27:EVENT_LOCAL",
+        "ILL:26:256",
+        "ILL:6:189",
+        "ILL:24:541",
+        "ILL:28:EVENT_LOCAL"
+      ],
+      "candidates": [
+        {
+          "token": "ILL:27:EVENT_LOCAL",
+          "physical_path_id": "ILL:27",
+          "identity_segment_id": "EVENT_LOCAL_UNROOTED",
+          "rank": 1,
+          "score": 0.15256,
+          "existing_segment_owner_ids": [],
+          "source": "event_generator"
+        },
+        {
+          "token": "ILL:26:256",
+          "physical_path_id": "ILL:26",
+          "identity_segment_id": 256,
+          "rank": 2,
+          "score": 0.127501,
+          "existing_segment_owner_ids": [
+            110000
+          ],
+          "existing_owner_name": "David Mirkovic",
+          "source": "event_generator"
+        },
+        {
+          "token": "ILL:6:189",
+          "physical_path_id": "ILL:6",
+          "identity_segment_id": 189,
+          "rank": 3,
+          "score": -0.093168,
+          "existing_segment_owner_ids": [
+            110023
+          ],
+          "existing_owner_name": "Keaton Wagler",
+          "source": "event_generator"
+        },
+        {
+          "token": "ILL:24:541",
+          "physical_path_id": "ILL:24",
+          "identity_segment_id": 541,
+          "rank": 4,
+          "score": -0.123011,
+          "existing_segment_owner_ids": [
+            110004
+          ],
+          "existing_owner_name": "Kylan Boswell",
+          "source": "event_generator+independent_exact_owner"
+        },
+        {
+          "token": "ILL:28:EVENT_LOCAL",
+          "physical_path_id": "ILL:28",
+          "identity_segment_id": "EVENT_LOCAL_UNRESOLVED",
+          "rank": 5,
+          "score": -0.189208,
+          "existing_segment_owner_ids": [],
+          "source": "event_generator"
+        }
+      ]
+    },
+    {
+      "event_id": "P1-19:20-TIVISIC-OREB",
+      "source_time_s": 47,
+      "actor_player_id": 110013,
+      "player_name": "Tomislav Ivisic",
+      "hard_actor_owner_token": "HOU:74:595",
+      "hard_actor_owner_provenance": "temporal_repeated_jersey_source_track_root",
+      "hard_actor_owner_window": [
+        46.68530533333333,
+        47.742361333333335
+      ],
+      "event_generator_candidate_tokens": [
+        "ILL:30:EVENT_LOCAL_PRE_782",
+        "HOU:74:595"
+      ],
+      "candidates": [
+        {
+          "token": "ILL:30:EVENT_LOCAL_PRE_782",
+          "physical_path_id": "ILL:30",
+          "identity_segment_id": "EVENT_LOCAL_PRE_782",
+          "rank": 1,
+          "score": -0.004577,
+          "existing_segment_owner_ids": [],
+          "source": "event_generator"
+        },
+        {
+          "token": "HOU:74:595",
+          "physical_path_id": "HOU:74",
+          "identity_segment_id": 595,
+          "rank": 99,
+          "score": 0,
+          "existing_segment_owner_ids": [
+            110013
+          ],
+          "existing_owner_name": "Tomislav Ivisic",
+          "source": "event_generator+independent_exact_owner_corroboration"
+        }
+      ]
+    },
+    {
+      "event_id": "P1-19:20-TIVISIC-TIP",
+      "source_time_s": 47.2,
+      "actor_player_id": 110013,
+      "player_name": "Tomislav Ivisic",
+      "hard_actor_owner_token": "HOU:74:595",
+      "hard_actor_owner_provenance": "temporal_repeated_jersey_source_track_root",
+      "hard_actor_owner_window": [
+        46.68530533333333,
+        47.742361333333335
+      ],
+      "event_generator_candidate_tokens": [
+        "ILL:30:EVENT_LOCAL_PRE_782",
+        "HOU:74:595"
+      ],
+      "candidates": [
+        {
+          "token": "ILL:30:EVENT_LOCAL_PRE_782",
+          "physical_path_id": "ILL:30",
+          "identity_segment_id": "EVENT_LOCAL_PRE_782",
+          "rank": 1,
+          "score": -0.013799,
+          "existing_segment_owner_ids": [],
+          "source": "event_generator"
+        },
+        {
+          "token": "HOU:74:595",
+          "physical_path_id": "HOU:74",
+          "identity_segment_id": 595,
+          "rank": 99,
+          "score": 0,
+          "existing_segment_owner_ids": [
+            110013
+          ],
+          "existing_owner_name": "Tomislav Ivisic",
+          "source": "event_generator+independent_exact_owner_corroboration"
+        }
+      ]
+    }
+  ],
+  "action_chains": [
+    {
+      "chain_id": "BOSWELL_MISS_IVISIC_OREB_TIP",
+      "event_ids": [
+        "P1-19:24-BOSWELL-MISS",
+        "P1-19:20-TIVISIC-OREB",
+        "P1-19:20-TIVISIC-TIP"
+      ],
+      "relation": "miss_then_offensive_rebound_then_tip_in",
+      "same_actor_body_groups": [
+        [
+          "P1-19:20-TIVISIC-OREB",
+          "P1-19:20-TIVISIC-TIP"
+        ]
+      ]
+    }
+  ]
+}
