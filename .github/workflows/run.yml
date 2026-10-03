@@ -1,31 +1,95 @@
-name: HoopVision Public Cross-Repo Checkout Probe
+name: HoopVision CPU Request Bridge
 
 on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Opaque HoopVision request identifier
+        required: false
+        type: string
   push:
     branches: [main]
     paths:
-      - '.github/workflows/run.yml'
+      - REQUEST_ID
+      - .github/workflows/run.yml
 
 permissions:
-  contents: read
+  contents: write
+
+concurrency:
+  group: hoopvision-request-bridge
+  cancel-in-progress: false
 
 jobs:
-  probe:
+  queue-private-resolution:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Checkout exact private v3.2-dev source with caller token
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          repository: timeedmonds-maker/104
-          ref: 547c5b7fbde711fdbc7228730725f44f5ce95906
-          token: ${{ github.token }}
-          path: src
-          fetch-depth: 1
-          persist-credentials: false
-      - name: Verify exact v3.2-dev source
+          fetch-depth: 0
+
+      - name: Enforce public opaque-only boundary
+        shell: bash
         run: |
           set -euo pipefail
-          test "$(git -C src rev-parse HEAD)" = "547c5b7fbde711fdbc7228730725f44f5ce95906"
-          test "$(tr -d '[:space:]' < src/courtcoder/ENGINE_VERSION)" = "3.2-dev"
-          echo "PUBLIC_CROSS_REPO_CHECKOUT_OK"
+          python - <<'PY'
+          import json
+          p=json.load(open("runner_policy.json"))
+          assert p["schema"]=="hoopvision.public-runner-policy.v1"
+          assert p["compute"]=="github_hosted_cpu"
+          assert p["gpu_allowed"] is False
+          assert p["gpu_capacity_owned_by_runner"] is False
+          assert p["gpu_authorization_allowed"] is False
+          assert p["private_source_checkout_allowed"] is False
+          assert p["pat_allowed"] is False
+          assert p["service_account_key_allowed"] is False
+          assert p["dispatch_target"]=="private_cpu_request_resolver"
+          assert p["transport"]=="public_outbox_private_pull"
+          assert p["public_payload"]["fields"]==["schema","request_id"]
+          print("HOOPVISION_PUBLIC_CPU_BOUNDARY_OK")
+          PY
+
+      - name: Resolve opaque request identifier
+        id: request
+        shell: bash
+        env:
+          INPUT_REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          set -euo pipefail
+          REQUEST_ID="${INPUT_REQUEST_ID:-}"
+          if [ -z "$REQUEST_ID" ] && [ -f REQUEST_ID ]; then
+            REQUEST_ID="$(tr -d '[:space:]' < REQUEST_ID)"
+          fi
+          [[ "$REQUEST_ID" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || {
+            echo "Invalid request identifier" >&2
+            exit 2
+          }
+          echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Publish opaque request to public outbox
+        env:
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p bridge_outbox
+          python - <<'PY'
+          import json,os,datetime
+          payload={
+            "schema":"hoopvision.public-bridge-outbox.v1",
+            "request_id":os.environ["REQUEST_ID"],
+            "public_run_id":os.environ["GITHUB_RUN_ID"],
+            "queued_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+          }
+          open("bridge_outbox/latest.json","w").write(json.dumps(payload,indent=2)+"\n")
+          PY
+          git config user.name "hoopvision-public-bridge"
+          git config user.email "hoopvision-public-bridge@users.noreply.github.com"
+          git add bridge_outbox/latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Queue opaque HoopVision request $REQUEST_ID [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+          echo "HOOPVISION_PUBLIC_REQUEST_QUEUED=$REQUEST_ID"
