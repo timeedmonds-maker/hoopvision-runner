@@ -34,7 +34,7 @@ jobs:
         run: |
           set -euo pipefail
           python tools/bounded_event_chain_cp_sat.py \
-            --input experiments/boswell_ivisic_event_chain_cp_sat_v1.json \
+            --input experiments/boswell_ivisic_event_chain_cp_sat_v2.json \
             --out experiment_results/boswell_ivisic_event_chain_cp_sat_v2.json
 
       - name: Persist measured result
@@ -43,7 +43,7 @@ jobs:
           set -euo pipefail
           git config user.name hoopvision-public-runner
           git config user.email hoopvision-public-runner@users.noreply.github.com
-          git add experiment_results/boswell_ivisic_event_chain_cp_sat_v1.json
+          git add experiment_results/boswell_ivisic_event_chain_cp_sat_v2.json
           if ! git diff --cached --quiet; then
             git commit -m "Record Boswell-Ivisic event-chain CP-SAT result"
             git push origin HEAD:main
