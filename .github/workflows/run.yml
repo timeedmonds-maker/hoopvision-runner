@@ -23,7 +23,7 @@ env:
   HV_REGION: asia-southeast1
   HV_RESOLVER_JOB: hoopvision-request-resolver
   HV_EVIDENCE_BUCKET: project-d88c48c6-7f48-4c33-928-hoopvision-dev
-  HV_WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-104
+  HV_WIF_PROVIDER: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-hoopvision-runner
   HV_CONTROL_SA: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
 
 concurrency:
