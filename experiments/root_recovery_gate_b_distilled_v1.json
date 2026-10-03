@@ -1,0 +1,92 @@
+{
+  "schema": "courtcoder.public-root-recovery-gate-b-evidence.v1",
+  "fixture_id": "illinois-houston-0-120",
+  "control_candidate_sha": "631f33d1097c11df8756765841599f5aa37a6270",
+  "retained_diagnostic_sha": "218a2fa69354d1fec99f5387db61deb4b19b358c",
+  "identity_authorizing": false,
+  "note": "Distilled retained evidence only. Accepted event/body anchor is not a root when a simultaneous same-player body or existing event-time owner makes a new root non-independent/duplicate.",
+  "events": [
+    {
+      "event_id": "P1-19:03-CENAC-MISS",
+      "event_type": "SHOT_ATTEMPT",
+      "source_time_s": 64,
+      "actor_player_id": 220005,
+      "player_name": "Chris Cenac Jr.",
+      "team": "HOU",
+      "accepted_anchor": true,
+      "evidence_strength": 0.9487714684210529,
+      "decision_reason": "accepted_shot_body_anchor",
+      "rank1": {
+        "path_id": "HOU:95",
+        "rank": 1,
+        "score": 0.761089,
+        "unresolved_rows": 12
+      },
+      "event_time_owner_ids": [],
+      "simultaneous_same_player_other_paths": [
+        {
+          "path_id": "HOU:75",
+          "identity_segment_id": 769,
+          "start_s": 62.96823866666667,
+          "end_s": 64.02529466666667,
+          "player_id": 220005,
+          "provenance": "temporal_repeated_jersey_source_track_root"
+        }
+      ]
+    },
+    {
+      "event_id": "P1-18:35-CENAC-DREB",
+      "event_type": "REBOUND",
+      "source_time_s": 106,
+      "actor_player_id": 220005,
+      "player_name": "Chris Cenac Jr.",
+      "team": "HOU",
+      "accepted_anchor": true,
+      "evidence_strength": 0.8830274400000002,
+      "decision_reason": "accepted_rebound_body_anchor",
+      "rank1": {
+        "path_id": "HOU:152",
+        "rank": 1,
+        "score": 1.3186472499370574,
+        "unresolved_rows": 33
+      },
+      "event_time_owner_ids": [
+        220005
+      ],
+      "simultaneous_same_player_other_paths": []
+    },
+    {
+      "event_id": "P1-18:27-MIRKOVIC-DREB",
+      "event_type": "REBOUND",
+      "source_time_s": 114,
+      "actor_player_id": 110000,
+      "player_name": "David Mirkovic",
+      "team": "ILL",
+      "accepted_anchor": true,
+      "evidence_strength": 0.8740923836363637,
+      "decision_reason": "accepted_rebound_body_anchor",
+      "rank1": {
+        "path_id": "ILL:59",
+        "rank": 1,
+        "score": 1.0736984121799469,
+        "unresolved_rows": 67
+      },
+      "event_time_owner_ids": [],
+      "simultaneous_same_player_other_paths": [
+        {
+          "path_id": "ILL:69",
+          "identity_segment_id": 1488,
+          "start_s": 113.35190533333332,
+          "end_s": 114.142028,
+          "player_id": 110000,
+          "provenance": "temporal_repeated_jersey_source_track_root"
+        }
+      ]
+    }
+  ],
+  "screening_gate": {
+    "required_new_root_groups": 3,
+    "required_unique_rows": 100,
+    "zero_duplicate_conflicts_required": true
+  }
+}
