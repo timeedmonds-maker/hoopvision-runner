@@ -35,3 +35,17 @@ opaque-only boundary.
 - no cloud credential in the public repository.
 
 See `runner_policy.json` for the machine-readable boundary.
+
+
+## Execution invariant
+
+**Do not use private `timeedmonds-maker/104` GitHub Actions as the default runner.**
+
+There are two distinct execution lanes:
+
+1. **CPU / distilled engineering experiments:** run directly on GitHub-hosted Actions in this public `hoopvision-runner` repository. Private retained evidence is reduced to the minimum non-sensitive packet needed for the experiment; no private source checkout is permitted. Measured results are committed back to this repository.
+2. **Private-runtime work that genuinely requires private GCS/source or authorized GPU execution:** submit only an opaque request through the public bridge. The private control plane may resolve that request, but the public runner remains the user-facing execution surface and private `104` Actions are not to be treated as the normal experiment runner.
+
+If a public experiment can be expressed from a distilled retained-evidence packet, **use lane 1**. Do not fall back to a private `104` Action merely because the underlying retained evidence originated there.
+
+This invariant is intended to prevent runner drift and is subordinate only to the credential/privacy boundary above.
