@@ -1,0 +1,18 @@
+{
+  "schema": "hoopvision.identity-shadow-job.v1",
+  "job_id": "illinois-houston-event-root-recovery-gate-b-v1",
+  "fixture_id": "illinois-houston-0-120",
+  "control_candidate_sha": "631f33d1097c11df8756765841599f5aa37a6270",
+  "physical_paths_uri": "gs://project-d88c48c6-7f48-4c33-928-hoopvision-dev/runs/generic-multicourt/illinois-houston-first120-v31-enhanced/illhou-v31-first120-36771272248/physical/physical_paths.csv",
+  "identity_map_uri": "gs://project-d88c48c6-7f48-4c33-928-hoopvision-dev/courtcoder/fixtures/illinois-houston/possession-aware/diagnostics/631f33d1097c11df8756765841599f5aa37a6270/identity_overlay.csv",
+  "pbp_evidence_uri": "gs://project-d88c48c6-7f48-4c33-928-hoopvision-dev/courtcoder/fixtures/illinois-houston/possession-aware/diagnostics/631f33d1097c11df8756765841599f5aa37a6270/pbp_identity_evidence.json",
+  "target_event_ids": [
+    "P1-19:03-CENAC-MISS",
+    "P1-18:35-CENAC-DREB",
+    "P1-18:27-MIRKOVIC-DREB"
+  ],
+  "max_segment_dt_s": 0.35,
+  "solver_max_time_s": 2,
+  "identity_authorizing": false,
+  "purpose": "Gate-B shadow: measure three direct event-root opportunities against authoritative 83.451% control. Existing roots add zero coverage; UNKNOWN/unobserved remain explicit; no production authorization."
+}
