@@ -1,0 +1,25 @@
+name: HoopVision github-104 WIF probe
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/github104-wif-probe.yml'
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-104
+          service_account: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v2
+      - run: |
+          gcloud auth list --filter=status:ACTIVE --format='value(account)'
+          echo GITHUB104_WIF_OK
