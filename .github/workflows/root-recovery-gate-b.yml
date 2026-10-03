@@ -57,8 +57,8 @@ jobs:
       - name: Authenticate keylessly to GCP
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ env.WIF_PROVIDER }}
-          service_account: ${{ env.CONTROL_SA }}
+          workload_identity_provider: ${{ secrets.HV_WIF_PROVIDER }}
+          service_account: ${{ secrets.HV_CONTROL_SA }}
 
       - uses: google-github-actions/setup-gcloud@v2
 
