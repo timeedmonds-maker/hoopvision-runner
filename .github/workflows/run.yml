@@ -1,39 +1,95 @@
-name: HoopVision Public OIDC Claim Diagnostic
+name: HoopVision CPU Request Bridge
 
 on:
+  workflow_dispatch:
+    inputs:
+      request_id:
+        description: Opaque HoopVision request identifier
+        required: false
+        type: string
   push:
     branches: [main]
     paths:
-      - '.github/workflows/run.yml'
-  workflow_dispatch:
+      - REQUEST_ID
+      - .github/workflows/run.yml
 
 permissions:
-  contents: read
-  id-token: write
+  contents: write
+
+concurrency:
+  group: hoopvision-request-bridge
+  cancel-in-progress: false
 
 jobs:
-  claims:
+  queue-private-resolution:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Print non-sensitive GitHub OIDC claims
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Enforce public opaque-only boundary
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}"
-          test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}"
-          response="$(curl -fsSL -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.googleapis.com")"
-          token="$(python -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$response")"
-          TOKEN="$token" python - <<'PY'
-          import os,json,base64
-          token=os.environ["TOKEN"]
-          payload=token.split(".")[1]
-          payload += "="*((4-len(payload)%4)%4)
-          d=json.loads(base64.urlsafe_b64decode(payload.encode()))
-          keys=[
-              "sub","aud","repository","repository_id","repository_owner","repository_owner_id",
-              "ref","ref_type","workflow","workflow_ref","job_workflow_ref",
-              "event_name","actor","actor_id","sha","runner_environment"
-          ]
-          print(json.dumps({k:d.get(k) for k in keys},indent=2,sort_keys=True))
+          python - <<'PY'
+          import json
+          p=json.load(open("runner_policy.json"))
+          assert p["schema"]=="hoopvision.public-runner-policy.v1"
+          assert p["compute"]=="github_hosted_cpu"
+          assert p["gpu_allowed"] is False
+          assert p["gpu_capacity_owned_by_runner"] is False
+          assert p["gpu_authorization_allowed"] is False
+          assert p["private_source_checkout_allowed"] is False
+          assert p["pat_allowed"] is False
+          assert p["service_account_key_allowed"] is False
+          assert p["dispatch_target"]=="private_cpu_request_resolver"
+          assert p["transport"]=="public_outbox_private_pull"
+          assert p["public_payload"]["fields"]==["schema","request_id"]
+          print("HOOPVISION_PUBLIC_CPU_BOUNDARY_OK")
           PY
+
+      - name: Resolve opaque request identifier
+        id: request
+        shell: bash
+        env:
+          INPUT_REQUEST_ID: ${{ inputs.request_id }}
+        run: |
+          set -euo pipefail
+          REQUEST_ID="${INPUT_REQUEST_ID:-}"
+          if [ -z "$REQUEST_ID" ] && [ -f REQUEST_ID ]; then
+            REQUEST_ID="$(tr -d '[:space:]' < REQUEST_ID)"
+          fi
+          [[ "$REQUEST_ID" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || {
+            echo "Invalid request identifier" >&2
+            exit 2
+          }
+          echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Publish opaque request to public outbox
+        env:
+          REQUEST_ID: ${{ steps.request.outputs.request_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p bridge_outbox
+          python - <<'PY'
+          import json,os,datetime
+          payload={
+            "schema":"hoopvision.public-bridge-outbox.v1",
+            "request_id":os.environ["REQUEST_ID"],
+            "public_run_id":os.environ["GITHUB_RUN_ID"],
+            "queued_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+          }
+          open("bridge_outbox/latest.json","w").write(json.dumps(payload,indent=2)+"\n")
+          PY
+          git config user.name "hoopvision-public-bridge"
+          git config user.email "hoopvision-public-bridge@users.noreply.github.com"
+          git add bridge_outbox/latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Queue opaque HoopVision request $REQUEST_ID [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
+          echo "HOOPVISION_PUBLIC_REQUEST_QUEUED=$REQUEST_ID"
