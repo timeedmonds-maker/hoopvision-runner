@@ -21,7 +21,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  queue-private-resolution:
+  queue-public-request:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -37,6 +37,9 @@ jobs:
           import json
           p=json.load(open("runner_policy.json"))
           assert p["schema"]=="hoopvision.public-runner-policy.v1"
+          assert p["execution_entrypoint"]=="timeedmonds-maker/hoopvision-runner@main"
+          assert p["all_execution_requests_must_enter_here"] is True
+          assert p["private_github_workflow_execution_allowed"] is False
           assert p["compute"]=="github_hosted_cpu"
           assert p["gpu_allowed"] is False
           assert p["gpu_capacity_owned_by_runner"] is False
@@ -44,8 +47,8 @@ jobs:
           assert p["private_source_checkout_allowed"] is False
           assert p["pat_allowed"] is False
           assert p["service_account_key_allowed"] is False
-          assert p["dispatch_target"]=="private_cpu_request_resolver"
-          assert p["transport"]=="public_outbox_private_pull"
+          assert p["dispatch_target"]=="hoopvision-request-resolver"
+          assert p["transport"]=="public_outbox_control_plane_pull"
           assert p["public_payload"]["fields"]==["schema","request_id"]
           print("HOOPVISION_PUBLIC_CPU_BOUNDARY_OK")
           PY
