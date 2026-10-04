@@ -1,0 +1,28 @@
+{
+  "schema": "courtcoder.public-root-recovery-gate-b-observability-recheck.v2",
+  "fixture_id": "illinois-houston-0-120",
+  "control_candidate_sha": "631f33d1097c11df8756765841599f5aa37a6270",
+  "retained_diagnostic_sha": "218a2fa69354d1fec99f5387db61deb4b19b358c",
+  "measurement_status": "INCONCLUSIVE",
+  "reason": "The retained public evidence records accepted event/body association but does not retain the private engine's stricter per-event direct-root eligibility decision. Accepted association is not sufficient to count direct-root headroom.",
+  "safe_new_root_groups": 0,
+  "safe_unique_unknown_rows_recoverable": 0,
+  "events": [
+    {
+      "event_id": "P1-19:03-CENAC-MISS",
+      "screening_status": "DIRECT_ROOT_ELIGIBILITY_NOT_RETAINED",
+      "previous_screening_status": "BLOCKED_SIMULTANEOUS_DUPLICATE_IDENTITY"
+    },
+    {
+      "event_id": "P1-18:35-CENAC-DREB",
+      "screening_status": "DIRECT_ROOT_ELIGIBILITY_NOT_RETAINED",
+      "previous_screening_status": "CORROBORATES_EXISTING_OWNER"
+    },
+    {
+      "event_id": "P1-18:27-MIRKOVIC-DREB",
+      "screening_status": "DIRECT_ROOT_ELIGIBILITY_NOT_RETAINED",
+      "previous_screening_status": "BLOCKED_SIMULTANEOUS_DUPLICATE_IDENTITY"
+    }
+  ],
+  "next_evidence_required": "Regenerate the distilled packet from a private v3.2-dev event-evidence artifact that retains per-event identity_authorizing, then rerun Gate B. Do not infer direct-root eligibility from accepted_anchor or evidence_strength."
+}
