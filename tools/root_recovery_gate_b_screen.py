@@ -8,10 +8,18 @@ def classify(e):
     owners={int(x) for x in (e.get("event_time_owner_ids") or [])}
     dup=[x for x in (e.get("simultaneous_same_player_other_paths") or []) if int(x.get("player_id",-1))==actor]
     accepted=bool(e.get("accepted_anchor",False))
+    direct_root_eligible=e.get("identity_authorizing")
     rows=int((e.get("rank1") or {}).get("unresolved_rows",0) or 0)
 
     if not accepted:
         status="EVENT_NOT_ACCEPTED"
+        new_rows=0
+    elif direct_root_eligible is not True:
+        status=(
+            "DIRECT_ROOT_ELIGIBILITY_NOT_RETAINED"
+            if direct_root_eligible is None
+            else "EVENT_ASSOCIATION_NOT_DIRECT_ROOT"
+        )
         new_rows=0
     elif owners:
         if owners=={actor}:
@@ -31,6 +39,7 @@ def classify(e):
         "screening_status":status,
         "safe_new_root_candidate":status=="SAFE_NEW_ROOT_CANDIDATE_SHADOW_ONLY",
         "unique_unknown_rows_recoverable_if_independently_certified":new_rows,
+        "source_direct_root_eligible":direct_root_eligible,
         "identity_authorizing":False,
     }
 
