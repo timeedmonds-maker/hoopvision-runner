@@ -1,14 +1,17 @@
 {
   "schema": "hoopvision.public-runner-policy.v1",
-  "version": "2026-10-02.2",
+  "version": "2026-10-04.1",
+  "execution_entrypoint": "timeedmonds-maker/hoopvision-runner@main",
+  "all_execution_requests_must_enter_here": true,
+  "private_github_workflow_execution_allowed": false,
   "compute": "github_hosted_cpu",
   "gpu_allowed": false,
   "private_source_checkout_allowed": false,
   "pat_allowed": false,
   "service_account_key_allowed": false,
   "authentication": "none_in_public_repo",
-  "transport": "public_outbox_private_pull",
-  "dispatch_target": "private_cpu_request_resolver",
+  "transport": "public_outbox_control_plane_pull",
+  "dispatch_target": "hoopvision-request-resolver",
   "public_payload": {
     "schema": "hoopvision.public-request.v1",
     "fields": [
@@ -18,15 +21,15 @@
   },
   "gpu_capacity_owned_by_runner": false,
   "gpu_authorization_allowed": false,
-  "blackwell_transport_trigger_after_private_authorization_allowed": false,
-  "private_authorization": {
+  "blackwell_transport_trigger_after_control_plane_authorization_allowed": false,
+  "downstream_authorization": {
     "job": "hoopvision-request-resolver",
     "required_before_gpu_dispatch": true,
-    "gpu_dispatch_authority": "private_cpu_resolver_only"
+    "gpu_dispatch_authority": "control_plane_resolver_only"
   },
   "public_observation": {
     "resolver_result_allowed": false,
-    "private_terminal_state_observation_allowed": false,
+    "terminal_state_observation_allowed": false,
     "gpu_dispatch_allowed": false
   }
 }
