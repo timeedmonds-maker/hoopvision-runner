@@ -1,10 +1,10 @@
-name: HoopVision CPU Request Bridge
+name: HoopVision Public Request Bridge
 
 on:
   workflow_dispatch:
     inputs:
       request_id:
-        description: Opaque HoopVision request identifier
+        description: Opaque request token
         required: false
         type: string
   push:
@@ -17,11 +17,11 @@ permissions:
   contents: write
 
 concurrency:
-  group: hoopvision-request-bridge
+  group: hoopvision-public-request-bridge
   cancel-in-progress: false
 
 jobs:
-  queue-public-request:
+  bridge:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -29,31 +29,30 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enforce public opaque-only boundary
+      - name: Enforce public privacy boundary
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import json
           p=json.load(open("runner_policy.json"))
-          assert p["schema"]=="hoopvision.public-runner-policy.v1"
+          assert p["schema"]=="hoopvision.public-runner-policy.v2"
           assert p["execution_entrypoint"]=="timeedmonds-maker/hoopvision-runner@main"
-          assert p["all_execution_requests_must_enter_here"] is True
-          assert p["private_github_workflow_execution_allowed"] is False
-          assert p["compute"]=="github_hosted_cpu"
-          assert p["gpu_allowed"] is False
-          assert p["gpu_capacity_owned_by_runner"] is False
-          assert p["gpu_authorization_allowed"] is False
-          assert p["private_source_checkout_allowed"] is False
-          assert p["pat_allowed"] is False
-          assert p["service_account_key_allowed"] is False
-          assert p["dispatch_target"]=="hoopvision-request-resolver"
-          assert p["transport"]=="public_outbox_control_plane_pull"
-          assert p["public_payload"]["fields"]==["schema","request_id"]
-          print("HOOPVISION_PUBLIC_CPU_BOUNDARY_OK")
+          assert p["opaque_request_only"] is True
+          for k in (
+              "commercial_ip_allowed",
+              "private_source_allowed",
+              "private_data_allowed",
+              "credentials_allowed",
+              "cloud_identifiers_allowed",
+              "internal_topology_allowed",
+          ):
+              assert p[k] is False
+          assert p["public_payload_fields"]==["request_id"]
+          print("PUBLIC_PRIVACY_BOUNDARY_OK")
           PY
 
-      - name: Resolve opaque request identifier
+      - name: Resolve opaque token
         id: request
         shell: bash
         env:
@@ -64,13 +63,13 @@ jobs:
           if [ -z "$REQUEST_ID" ] && [ -f REQUEST_ID ]; then
             REQUEST_ID="$(tr -d '[:space:]' < REQUEST_ID)"
           fi
-          [[ "$REQUEST_ID" =~ ^[A-Za-z0-9._:-]{1,128}$ ]] || {
-            echo "Invalid request identifier" >&2
+          [[ "$REQUEST_ID" =~ ^req-[A-Za-z0-9-]{8,64}$ ]] || {
+            echo "Invalid opaque request token" >&2
             exit 2
           }
           echo "request_id=$REQUEST_ID" >> "$GITHUB_OUTPUT"
 
-      - name: Publish opaque request to public outbox
+      - name: Publish opaque request
         env:
           REQUEST_ID: ${{ steps.request.outputs.request_id }}
         shell: bash
@@ -80,7 +79,7 @@ jobs:
           python - <<'PY'
           import json,os,datetime
           payload={
-            "schema":"hoopvision.public-bridge-outbox.v1",
+            "schema":"opaque-request.v1",
             "request_id":os.environ["REQUEST_ID"],
             "public_run_id":os.environ["GITHUB_RUN_ID"],
             "queued_at":datetime.datetime.now(datetime.timezone.utc).isoformat(),
@@ -91,8 +90,8 @@ jobs:
           git config user.email "hoopvision-public-bridge@users.noreply.github.com"
           git add bridge_outbox/latest.json
           if ! git diff --cached --quiet; then
-            git commit -m "Queue opaque HoopVision request $REQUEST_ID [skip ci]"
+            git commit -m "Queue opaque request $REQUEST_ID [skip ci]"
             git pull --rebase origin main
             git push origin HEAD:main
           fi
-          echo "HOOPVISION_PUBLIC_REQUEST_QUEUED=$REQUEST_ID"
+          echo "OPAQUE_REQUEST_QUEUED"
