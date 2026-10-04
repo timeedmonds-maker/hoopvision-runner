@@ -12,6 +12,8 @@ RUNTIME_SA="${RUNTIME_SA:-hoopvision-worker@${PROJECT_ID}.iam.gserviceaccount.co
 RELEASE_BUCKET="${RELEASE_BUCKET:-${PROJECT_ID}-hoopvision-dev}"
 RESOLVER_JOB="${RESOLVER_JOB:-hoopvision-request-resolver}"
 BLACKWELL_JOB="${BLACKWELL_JOB:-hoopvision-blackwell-release-worker}"
+CONNECTION_NAME="${CONNECTION_NAME:-CourtCoder-GCloud}"
+REPOSITORY_NAME="${REPOSITORY_NAME:-hoopvision-104}"
 CONTROL_TRIGGER="${CONTROL_TRIGGER:-hoopvision-control-plane}"
 REQUEST_TRIGGER="${REQUEST_TRIGGER:-hoopvision-blackwell-request}"
 
@@ -23,6 +25,8 @@ echo "CONTROL_SOURCE=$REPO_OWNER/$REPO_NAME:$CONTROL_BRANCH"
 echo "APPLICATION_SOURCE=$REPO_OWNER/$REPO_NAME:$REQUEST_BRANCH"
 echo "BUILD_IDENTITY=$CONTROL_SA"
 echo "RUNTIME_IDENTITY=$RUNTIME_SA"
+echo "CLOUD_BUILD_CONNECTION=$CONNECTION_NAME"
+echo "CLOUD_BUILD_REPOSITORY=$REPOSITORY_NAME"
 
 gcloud config set project "$PROJECT_ID" >/dev/null
 gcloud services enable \
@@ -31,6 +35,117 @@ gcloud services enable \
   artifactregistry.googleapis.com \
   storage.googleapis.com \
   --project="$PROJECT_ID"
+
+echo "Verifying enabled GitHub host connection..."
+gcloud builds connections describe "$CONNECTION_NAME" \
+  --region="$REGION" \
+  --project="$PROJECT_ID" \
+  --format="value(installationState.stage)" | grep -q '^COMPLETE
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:$CONTROL_SA" \
+  --role="roles/run.developer" \
+  --condition=None >/dev/null
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:$CONTROL_SA" \
+  --role="roles/artifactregistry.writer" \
+  --condition=None >/dev/null
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:$CONTROL_SA" \
+  --role="roles/logging.logWriter" \
+  --condition=None >/dev/null
+gcloud storage buckets add-iam-policy-binding "gs://$RELEASE_BUCKET" \
+  --member="serviceAccount:$CONTROL_SA" \
+  --role="roles/storage.objectAdmin" >/dev/null
+gcloud iam service-accounts add-iam-policy-binding "$RUNTIME_SA" \
+  --member="serviceAccount:$CONTROL_SA" \
+  --role="roles/iam.serviceAccountUser" \
+  --project="$PROJECT_ID" >/dev/null
+
+# Resolver runtime is the sole canonical Blackwell dispatch authority.
+gcloud run jobs add-iam-policy-binding "$BLACKWELL_JOB" \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --member="serviceAccount:$RUNTIME_SA" \
+  --role="roles/run.jobsExecutorWithOverrides" >/dev/null
+
+# Cloud Build invokes only the CPU resolver with an opaque request-id override.
+gcloud run jobs add-iam-policy-binding "$RESOLVER_JOB" \
+  --project="$PROJECT_ID" \
+  --region="$REGION" \
+  --member="serviceAccount:$CONTROL_SA" \
+  --role="roles/run.jobsExecutorWithOverrides" >/dev/null || true
+
+create_trigger() {
+  local name="$1"
+  local config="$2"
+  local included="$3"
+  local branch="$4"
+
+  if gcloud builds triggers describe "$name" \
+      --region="$REGION" --project="$PROJECT_ID" >/dev/null 2>&1; then
+    gcloud builds triggers delete "$name" \
+      --region="$REGION" --project="$PROJECT_ID" --quiet
+  fi
+
+  local source_args=()
+  if [[ -n "${CLOUD_BUILD_REPOSITORY:-}" ]]; then
+    source_args+=(--repository="$CLOUD_BUILD_REPOSITORY")
+  else
+    source_args+=(--repo-owner="$REPO_OWNER" --repo-name="$REPO_NAME")
+  fi
+
+  gcloud builds triggers create github \
+    --name="$name" \
+    --region="$REGION" \
+    "${source_args[@]}" \
+    --branch-pattern="^${branch}$" \
+    --build-config="$config" \
+    --service-account="$CONTROL_SA_RESOURCE" \
+    --included-files="$included" \
+    --include-logs-with-status \
+    --project="$PROJECT_ID"
+}
+
+create_trigger \
+  "$CONTROL_TRIGGER" \
+  "cloudbuild/hoopvision-control-plane.yaml" \
+  "cloudbuild/hoopvision-control-plane.yaml,hoopvision/worker/request_resolver.py,hoopvision/worker/blackwell_release_worker.py,hoopvision/Dockerfile.request-resolver,hoopvision/Dockerfile.blackwell-release-worker,hoopvision/config/execution_policy.json,tools/validate_execution_policy.py" \
+  "$CONTROL_BRANCH"
+
+create_trigger \
+  "$REQUEST_TRIGGER" \
+  "cloudbuild/hoopvision-blackwell-request.yaml" \
+  "hoopvision/worker/RUN_CLOUD_BUILD_REQUEST" \
+  "$REQUEST_BRANCH"
+
+echo "Running control-plane deployment at current $CONTROL_BRANCH head..."
+gcloud builds triggers run "$CONTROL_TRIGGER" \
+  --region="$REGION" \
+  --branch="$CONTROL_BRANCH" \
+  --project="$PROJECT_ID"
+
+echo "Registering and dispatching current integration request at $REQUEST_BRANCH head..."
+gcloud builds triggers run "$REQUEST_TRIGGER" \
+  --region="$REGION" \
+  --branch="$REQUEST_BRANCH" \
+  --project="$PROJECT_ID"
+
+echo "HOOPVISION_CLOUD_BUILD_MIGRATION_LAUNCHED"
+
+
+REPOSITORY_RESOURCE="projects/$PROJECT_ID/locations/$REGION/connections/$CONNECTION_NAME/repositories/$REPOSITORY_NAME"
+if ! gcloud builds repositories describe "$REPOSITORY_NAME" \
+    --connection="$CONNECTION_NAME" \
+    --region="$REGION" \
+    --project="$PROJECT_ID" >/dev/null 2>&1; then
+  echo "Linking private GitHub repository timeedmonds-maker/104..."
+  gcloud builds repositories create "$REPOSITORY_NAME" \
+    --remote-uri="https://github.com/timeedmonds-maker/104.git" \
+    --connection="$CONNECTION_NAME" \
+    --region="$REGION" \
+    --project="$PROJECT_ID"
+fi
+export CLOUD_BUILD_REPOSITORY="$REPOSITORY_RESOURCE"
 
 gcloud projects add-iam-policy-binding "$PROJECT_ID" \
   --member="serviceAccount:$CONTROL_SA" \
