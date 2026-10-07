@@ -43,13 +43,16 @@
   "pat_allowed": false,
   "service_account_key_allowed": false,
   "active_authentication": "none_in_public_repo",
-  "active_transport": "public_outbox_private_pull_transition",
-  "preferred_transport": "github_oidc_single_purpose_dispatch",
-  "oidc_migration_status": "STAGED_NOT_ACTIVE_UNTIL_PRIVATE_GATEWAY_VERIFIED",
+  "active_transport": "public_outbox_private_pull",
+  "preferred_transport": "public_outbox_private_pull",
+  "oidc_migration_status": "STAGED_ALTERNATIVE_NOT_ACTIVE_OR_CANONICAL",
   "private_execution": {
     "automatic_registration": true,
     "exactly_once_dispatch": true,
-    "private_source_and_evidence_only": true
+    "private_source_and_evidence_only": true,
+    "public_side_authorizes_workload": false,
+    "private_side_authorization_required": true,
+    "public_direct_gpu_dispatch_allowed": false
   },
   "public_observation": {
     "consumer_receipt_allowed": true,
