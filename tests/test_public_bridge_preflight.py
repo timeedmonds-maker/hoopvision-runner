@@ -51,6 +51,21 @@ def test_stale_heartbeat_blocks(tmp_path):
     assert got["status"] == "BLOCKED_CONSUMER_HEARTBEAT_STALE"
 
 
+def test_future_dated_heartbeat_blocks(tmp_path):
+    p = _write(
+        tmp_path,
+        {
+            "schema": "hoopvision.public-consumer-heartbeat.v1",
+            "consumer_contract": "public_outbox_private_pull.v1",
+            "status": "READY",
+            "observed_at_utc": "2099-01-01T00:00:00Z",
+        },
+    )
+    got = check(p, max_age_s=900, now=NOW)
+    assert got["ready"] is False
+    assert got["status"] == "BLOCKED_HEARTBEAT_TIMESTAMP_INVALID"
+
+
 def test_privacy_sensitive_fields_are_rejected(tmp_path):
     p = _write(
         tmp_path,
