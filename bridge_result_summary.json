@@ -1,8 +1,8 @@
 {
   "failed_step_exit_code": 1,
   "failed_step_index": 25,
-  "observed_at_utc": "2026-10-07T19:30:19Z",
-  "request_id": "req-4d2a9c8f6e1b4c7fa03591d2ae8f64b0",
+  "observed_at_utc": "2026-10-07T19:35:20Z",
+  "request_id": "req-91bc54d3e0f74cb6a2f8213d65e4a907",
   "result_available": false,
   "schema": "hoopvision.public-result-summary.v2",
   "status": "FAILURE",
