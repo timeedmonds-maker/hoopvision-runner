@@ -25,3 +25,10 @@ Use only `req-` plus 32 lowercase hex characters. The identifier carries no expe
 
 ## Historical material
 Deleting a file from `main` does not erase Git history. Anything already committed to a public repository must be treated as previously disclosed. Credentials must be rotated if they were ever exposed. A history rewrite is a separate operation and must not be confused with working-tree cleanup.
+
+## Execution/control boundary
+The public repository accepts and publishes only random opaque request IDs plus the explicitly allowlisted coarse receipt/status fields. It does not resolve private source, choose private experiments, hold cloud credentials, access private evidence, or directly authorize GPU execution.
+
+Private infrastructure pulls the opaque outbox, performs private registration/authorization and starts only the preconfigured workload. This preserves the public/privacy boundary while allowing autonomous routine execution.
+
+Direct OIDC dispatch is staged/not active and must not be described as canonical until separately verified and adopted.
