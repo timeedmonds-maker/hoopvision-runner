@@ -13,8 +13,8 @@ on:
     paths:
       - bridge_outbox/trigger.json
 
-# Transitional transport: contents:write is required only to publish the opaque
-# outbox. Remove it when the OIDC gateway becomes canonical.
+# Canonical public-outbox/private-pull transport: contents:write is required only
+# to publish the opaque outbox. The public workflow has no private/cloud authority.
 permissions:
   contents: write
 
