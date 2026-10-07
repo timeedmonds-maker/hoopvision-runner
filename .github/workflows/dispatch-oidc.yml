@@ -7,6 +7,11 @@ on:
         description: Optional pre-registered random opaque token (req- + 32 lowercase hex)
         required: false
         type: string
+  push:
+    branches:
+      - main
+    paths:
+      - bridge_outbox/oidc-trigger.json
 
 permissions:
   contents: read
@@ -40,10 +45,23 @@ jobs:
         shell: bash
         env:
           INPUT_REQUEST_ID: ${{ inputs.request_id }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           REQUEST_ID="${INPUT_REQUEST_ID:-}"
-          if [ -z "$REQUEST_ID" ]; then
+          if [ "$EVENT_NAME" = "push" ]; then
+            REQUEST_ID="$(python - <<'PY'
+          import json,re
+          d=json.load(open("bridge_outbox/oidc-trigger.json"))
+          if set(d)!={"schema","request_id"} or d.get("schema")!="hoopvision.public-trigger.v1":
+              raise SystemExit("invalid public trigger envelope")
+          rid=str(d.get("request_id") or "")
+          if not re.fullmatch(r"req-[0-9a-f]{32}",rid):
+              raise SystemExit("invalid opaque request id")
+          print(rid)
+          PY
+          )"
+          elif [ -z "$REQUEST_ID" ]; then
             REQUEST_ID="req-$(python - <<'PY'
           import secrets
           print(secrets.token_hex(16))
