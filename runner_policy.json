@@ -1,6 +1,6 @@
 {
   "schema": "hoopvision.public-runner-policy.v5",
-  "version": "2026-10-07",
+  "version": "2026-10-08",
   "execution_entrypoint": "timeedmonds-maker/hoopvision-runner@main",
   "purpose": "Public-safe execution bridge and non-confidential utility surface only.",
   "public_safe_code_allowed": true,
