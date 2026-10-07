@@ -92,7 +92,10 @@ def check(path: str | Path, *, max_age_s: int = 900, now: dt.datetime | None = N
 
     try:
         observed = _parse_time(doc.get("observed_at_utc"))
-        age = max(0.0, (now - observed).total_seconds())
+        signed_age = (now - observed).total_seconds()
+        if signed_age < -30.0:
+            raise ValueError("heartbeat timestamp is materially in the future")
+        age = max(0.0, signed_age)
     except Exception:
         observed = None
         age = None
