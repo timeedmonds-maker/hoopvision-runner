@@ -1,0 +1,30 @@
+name: Validate Public Bridge Boundary
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Enforce v5 public content boundary
+        run: python tools/public_content_guard.py
+      - name: Require GitHub noreply commit identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          bad=0
+          while IFS='|' read -r sha ae ce; do
+            case "$ae" in *@users.noreply.github.com) ;; *) echo "NON_NOREPLY_AUTHOR $sha"; bad=1;; esac
+            case "$ce" in *@users.noreply.github.com) ;; *) echo "NON_NOREPLY_COMMITTER $sha"; bad=1;; esac
+          done < <(git log --format='%H|%ae|%ce' --all)
+          exit "$bad"
