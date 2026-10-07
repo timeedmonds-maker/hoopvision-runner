@@ -24,13 +24,15 @@ The only workload input crossing the public boundary is a random opaque request 
 
 ## Transport
 
-The current transition path remains an opaque public outbox consumed by private infrastructure. It exists only until the private OIDC gateway is deployed and verified.
+The active canonical routine transport is:
 
-The target path is:
+`random opaque public request ID -> public outbox -> private pull consumer -> private registration/authorization -> private execution/evidence`
 
-`manual GitHub workflow -> short-lived GitHub OIDC token -> single-purpose private dispatch gateway -> private execution/evidence`
+The public repository is only the request/status control surface. It does not receive private source, private evidence, private fixture identity, credentials, cloud authentication or direct GPU authority.
 
-The OIDC workflow is intentionally unable to read private source or evidence.
+Routine CPU requests are consumed autonomously by private infrastructure. GPU work, when separately authorized, is also launched only from the private side; the public repository cannot authorize or directly dispatch GPU work.
+
+A direct GitHub OIDC dispatch gateway remains a staged alternative only. It is **not** the active or canonical route until its private gateway and least-privilege path are separately verified and explicitly adopted.
 
 ## Public results
 
