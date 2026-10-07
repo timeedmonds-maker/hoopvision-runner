@@ -1,6 +1,6 @@
 {
   "schema": "hoopvision.public-bridge-outbox.v1",
-  "request_id": "req-8f44d96d1f7a4cebb7f0d5c62e371a90",
-  "public_run_id": "37663095754",
-  "queued_at": "2026-10-07T17:57:33.758579+00:00"
+  "request_id": "req-7d41c2b596e54b0a9f97d48f6102ec75",
+  "public_run_id": "37664415174",
+  "queued_at": "2026-10-07T18:07:44.619979+00:00"
 }
