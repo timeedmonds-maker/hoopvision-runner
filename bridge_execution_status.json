@@ -1,6 +1,6 @@
 {
-  "observed_at_utc": "2026-10-08T17:25:50Z",
-  "request_id": "req-2b835b466ad62a6e1b0aba8c83c44e60",
+  "observed_at_utc": "2026-10-08T17:43:10Z",
+  "request_id": "req-696188c08407827897ec7adb7cbd3d6e",
   "result_available": false,
   "schema": "hoopvision.public-execution-status.v1",
   "status": "FAILURE"
