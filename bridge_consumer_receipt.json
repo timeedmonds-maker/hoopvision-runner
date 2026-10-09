@@ -1,6 +1,6 @@
 {
-  "observed_at_utc": "2026-10-09T10:35:26Z",
-  "request_id": "req-79e60a3344994241eadcb80ab3e6e3e5",
+  "observed_at_utc": "2026-10-09T11:32:28Z",
+  "request_id": "req-aef342fe5488027638c3c82d535a091e",
   "schema": "hoopvision.public-consumer-receipt.v1",
   "status": "CONSUMED"
 }
