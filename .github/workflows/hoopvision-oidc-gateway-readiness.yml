@@ -1,0 +1,32 @@
+name: HoopVision OIDC Gateway Readiness (public-safe)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/hoopvision-oidc-gateway-readiness.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    env:
+      GATEWAY_CONFIGURED: ${{ secrets.HOOPVISION_DISPATCH_URL != '' }}
+      AUDIENCE_CONFIGURED: ${{ secrets.HOOPVISION_DISPATCH_AUDIENCE != '' }}
+    steps:
+      - name: Confirm approved public OIDC gateway readiness without exposing private values
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GATEWAY_CONFIGURED" != "true" || "$AUDIENCE_CONFIGURED" != "true" ]]; then
+            echo "PUBLIC_OIDC_GATEWAY_NOT_CONFIGURED"
+            echo "No URL, audience, token, or private request was revealed or submitted."
+            exit 2
+          fi
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || { echo "PUBLIC_OIDC_ISSUER_UNAVAILABLE"; exit 3; }
+          test -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" || { echo "PUBLIC_OIDC_ISSUER_UNAVAILABLE"; exit 3; }
+          echo "PUBLIC_OIDC_GATEWAY_SECRETS_AND_ISSUER_PRESENT"
+          echo "READ_ONLY_PRECHECK_ONLY__NO_PRIVATE_REQUEST_OR_GPU_DISPATCH"
