@@ -1,8 +1,10 @@
 {
-  "observed_at_utc": "2026-10-09T22:23:15Z",
-  "request_id": "req-b7d4c90080aa910bc443c205fa1db9e5",
-  "result_available": true,
+  "failed_step_exit_code": 1,
+  "failed_step_index": 0,
+  "observed_at_utc": "2026-10-13T19:24:11Z",
+  "request_id": "req-d74e20eee8f29b111a1c9568606035ab",
+  "result_available": false,
   "schema": "hoopvision.public-result-summary.v2",
-  "status": "SUCCESS",
+  "status": "FAILURE",
   "workload_class": "COURTCODER_V4_CPU_DIAGNOSTIC"
 }
