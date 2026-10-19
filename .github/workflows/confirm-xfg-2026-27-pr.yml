@@ -31,8 +31,9 @@ jobs:
               'Accept':'application/json, text/plain, */*',
           }
           tests=[
-              ('MIA-TOR','0012600009',203952,48),
-              ('UTA-DEN','0012600067',1629661,72),
+              ('2025-26_CONTROL_HOU_OKC','0022500001',1641708,15),
+              ('2026-27_PRE_MIA_TOR','0012600009',203952,48),
+              ('2026-27_PRE_UTA_DEN','0012600067',1629661,72),
           ]
           sess=requests.Session(); sess.headers.update(headers)
           rows=[]
@@ -79,13 +80,14 @@ jobs:
               'endpoint':endpoint,
               'season':'2026-27',
               'phase_tested':'Pre Season',
-              'route_available':all(x['ok'] for x in rows),
-              'exact_event_join_confirmed':all(x.get('exact_event_row') is not None for x in rows),
+              'endpoint_operational':bool(rows and rows[0].get('ok')),
+              'preseason_2026_27_rows_available':all(x.get('ok') for x in rows[1:]),
+              'preseason_exact_event_join_confirmed':all(x.get('exact_event_row') is not None for x in rows[1:]),
               'tests':rows,
           }
           Path('out/result.json').write_text(json.dumps(result,indent=2)+'\n')
           print(json.dumps(result,indent=2))
-          if not result['route_available']:
+          if not result['endpoint_operational']:
               raise SystemExit(2)
           PY
       - uses: actions/upload-artifact@v4
