@@ -1,0 +1,96 @@
+name: Confirm 2026-27 shot-level xFG
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  confirm:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --quiet requests
+      - name: Query NBA shotqualityvideologs
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          python - <<'PY'
+          import json, requests
+          from pathlib import Path
+
+          endpoint='https://stats.gleague.nba.com/stats/shotqualityvideologs'
+          headers={
+              'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36',
+              'Referer':'https://www.nba.com/',
+              'Origin':'https://www.nba.com',
+              'Accept':'application/json, text/plain, */*',
+          }
+          tests=[
+              ('MIA-TOR','0012600009',203952,48),
+              ('UTA-DEN','0012600067',1629661,72),
+          ]
+          sess=requests.Session(); sess.headers.update(headers)
+          rows=[]
+          for label,gid,pid,expected_event in tests:
+              r=sess.get(endpoint,params={'GameID':gid,'PlayerID':pid},timeout=(8,45))
+              rec={'label':label,'game_id':gid,'player_id':pid,'expected_event':expected_event,
+                   'http_status':r.status_code,'response_bytes':len(r.content)}
+              try:
+                  r.raise_for_status()
+                  j=r.json()
+                  shots=j.get('shotList') or []
+                  rec['response_game_id']=str(j.get('gameId') or '').zfill(10)
+                  rec['shot_count']=len(shots)
+                  numeric=[]
+                  exact=None
+                  for s in shots:
+                      try:q=float(s.get('shotQuality'))
+                      except Exception:q=None
+                      if q is not None:numeric.append(q)
+                      try:ev=int(s.get('eventNum'))
+                      except Exception:ev=None
+                      if ev==expected_event:
+                          exact={
+                              'event_num':ev,
+                              'period':s.get('period'),
+                              'game_clock':s.get('gameClock'),
+                              'action_type':s.get('actionType'),
+                              'shot_type':s.get('shotType'),
+                              'success':s.get('success'),
+                              'shot_quality':q,
+                              'xfg_pct':100*q if q is not None and q<=1.5 else q,
+                              'loc_x':s.get('locX'),
+                              'loc_y':s.get('locY'),
+                          }
+                  rec['numeric_shot_quality_count']=len(numeric)
+                  rec['exact_event_row']=exact
+                  rec['ok']=(rec['response_game_id']==gid and len(shots)>0 and len(numeric)>0)
+              except Exception as e:
+                  rec['ok']=False
+                  rec['error']=repr(e)
+              rows.append(rec)
+
+          result={
+              'endpoint':endpoint,
+              'season':'2026-27',
+              'phase_tested':'Pre Season',
+              'route_available':all(x['ok'] for x in rows),
+              'exact_event_join_confirmed':all(x.get('exact_event_row') is not None for x in rows),
+              'tests':rows,
+          }
+          Path('out/result.json').write_text(json.dumps(result,indent=2)+'\n')
+          print(json.dumps(result,indent=2))
+          if not result['route_available']:
+              raise SystemExit(2)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: xfg-2026-27-confirm
+          path: out/result.json
+          retention-days: 2
