@@ -1,0 +1,135 @@
+name: Opening game 12-angle QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/opening-game-angle-qa.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install QA dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python -m pip install --quiet requests pillow
+      - name: Download and QA all official event angles
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib, html, json, re, subprocess, urllib.parse
+          from pathlib import Path
+          import requests
+          from PIL import Image, ImageChops, ImageStat
+
+          gid='0022600001'; ev=15
+          UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/153 Safari/537.36'
+          S=requests.Session(); S.headers.update({'User-Agent':UA,'Referer':'https://clips.nba.com/','Accept':'*/*'})
+          out=Path('out'); out.mkdir(exist_ok=True)
+          page=f'https://clips.nba.com/?gameNo={gid}&eventNum={ev}&source=grs'
+          r=S.get(page,timeout=45); r.raise_for_status()
+          title=''
+          tm=re.search(r'<title>(.*?)</title>',r.text,re.I|re.S)
+          if tm:title=html.unescape(tm.group(1).strip())
+          opts=[]
+          for m in re.finditer(r'<option\s+value=["\']([^"\']+)["\']([^>]*)>(.*?)</option>',r.text,re.I|re.S):
+              u=html.unescape(m.group(1).strip())
+              attrs=m.group(2)
+              label=re.sub(r'<[^>]+>','',html.unescape(m.group(3))).strip()
+              if '.m3u8' in u.lower():
+                  opts.append({'label':label or 'unlabelled','master':u,'selected':'selected' in attrs.lower()})
+          if not opts: raise SystemExit('NO_HLS_OPTIONS')
+
+          def signed_join(base,child):
+              j=urllib.parse.urljoin(base,child)
+              bp=urllib.parse.urlsplit(base); cp=urllib.parse.urlsplit(j)
+              if bp.query and not cp.query:
+                  j=urllib.parse.urlunsplit(cp._replace(query=bp.query))
+              return j
+
+          def best(master):
+              rr=S.get(master,timeout=30); rr.raise_for_status()
+              lines=[x.strip() for x in rr.text.splitlines() if x.strip()]
+              cand=[]
+              for i,line in enumerate(lines):
+                  if not line.startswith('#EXT-X-STREAM-INF'): continue
+                  bm=re.search(r'BANDWIDTH=(\d+)',line); bw=int(bm.group(1)) if bm else 0
+                  rm=re.search(r'RESOLUTION=(\d+)x(\d+)',line)
+                  wh=(int(rm.group(1)),int(rm.group(2))) if rm else (None,None)
+                  child=next((z for z in lines[i+1:i+5] if not z.startswith('#')),None)
+                  if child:cand.append((bw,wh,signed_join(master,child)))
+              if not cand:return master,None,None,None
+              bw,wh,u=max(cand,key=lambda x:x[0]); return u,bw,wh[0],wh[1]
+
+          headers=f'User-Agent: {UA}\r\nReferer: https://clips.nba.com/\r\n'
+          results=[]
+          for i,o in enumerate(opts,1):
+              media,bw,w,h=best(o['master'])
+              safe=re.sub(r'[^A-Za-z0-9]+','_',o['label']).strip('_') or f'angle{i}'
+              clip=out/f'{i:02d}_{safe}.mp4'
+              p=subprocess.run(['ffmpeg','-y','-v','error','-rw_timeout','30000000','-headers',headers,'-i',media,
+                                '-map','0:v:0','-map','0:a:0?','-c','copy','-movflags','+faststart',str(clip)],
+                               capture_output=True,text=True)
+              rec={'index':i,'label':o['label'],'selected':o['selected'],'bandwidth':bw,'width':w,'height':h,
+                   'download_ok':p.returncode==0 and clip.exists() and clip.stat().st_size>0}
+              if not rec['download_ok']:
+                  rec['error']=p.stderr[-1200:]
+                  results.append(rec); continue
+              sha=hashlib.sha256(clip.read_bytes()).hexdigest(); rec['sha256']=sha
+              probe=json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0',
+                '-show_entries','stream=width,height,avg_frame_rate:format=duration','-of','json',str(clip)],text=True))
+              stream=(probe.get('streams') or [{}])[0]; fmt=probe.get('format') or {}
+              dur=float(fmt.get('duration') or 0); rec['duration']=dur
+              rec['probe_width']=stream.get('width'); rec['probe_height']=stream.get('height'); rec['avg_frame_rate']=stream.get('avg_frame_rate')
+              frames=[]
+              for j,frac in enumerate((.25,.5,.75),1):
+                  jpg=out/f'{i:02d}_{safe}_{j}.jpg'
+                  t=max(.1,min(dur*frac,max(dur-.1,.1)))
+                  subprocess.run(['ffmpeg','-y','-v','error','-ss',f'{t:.3f}','-i',str(clip),'-frames:v','1','-q:v','2',str(jpg)],check=True)
+                  frames.append(Image.open(jpg).convert('RGB').resize((320,180)))
+              diffs=[]
+              for a,b in zip(frames,frames[1:]):
+                  d=ImageChops.difference(a,b)
+                  stat=ImageStat.Stat(d)
+                  diffs.append(sum(stat.mean)/3.0)
+              rec['frame_diff_mean']=sum(diffs)/len(diffs)
+              rec['static_card_like']=rec['frame_diff_mean']<1.0
+              rec['qa_ok']=rec['download_ok'] and not rec['static_card_like']
+              results.append(rec)
+
+          groups={}
+          for x in results:
+              if x.get('sha256'):groups.setdefault(x['sha256'],[]).append(x['label'])
+          duplicates=[v for v in groups.values() if len(v)>1]
+          summary={'game_id':gid,'event_num':ev,'title':title,'angle_count':len(results),
+                   'valid_moving_angle_count':sum(1 for x in results if x.get('qa_ok')),
+                   'labels':[x['label'] for x in results],'duplicate_file_groups':duplicates,'angles':results}
+          dest=Path('experiment_results/opening_game_event15_qa'); dest.mkdir(parents=True,exist_ok=True)
+          (dest/'latest.json').write_text(json.dumps(summary,indent=2)+'\n')
+          print(json.dumps(summary,indent=2))
+          PY
+      - name: Persist QA summary
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name hoopvision-public-probe
+          git config user.email hoopvision-public-probe@users.noreply.github.com
+          git add experiment_results/opening_game_event15_qa/latest.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Record opening game 12-angle QA [skip ci]"
+            git pull --rebase origin main
+            git push origin HEAD:main
+          fi
