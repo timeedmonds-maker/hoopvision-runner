@@ -1,0 +1,396 @@
+{
+  "game_id": "0022600001",
+  "event_num": 687,
+  "title": "BOS @ DET 2026/10/20 - Period:4, Clock:02:04.0, Jayson Tatum, Jumper -",
+  "clips_angle_count": 12,
+  "clips_angles": [
+    {
+      "label": "Other Broadcast",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632239_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=RwD2vEx1OaXWPaCGeAwIodFnYM_vz9I0VDAL-Ks9ALU=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632239_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=RwD2vEx1OaXWPaCGeAwIodFnYM_vz9I0VDAL-Ks9ALU=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 278,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2290542,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632239_1509kbps.mp4/chunklist_w407436905_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD1Sd0QydkV4MU9hWFdQYUNHZUF3SW9kRm5ZTV92ejlJMFZEQUwtS3M5QUxVPQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=RwD2vEx1OaXWPaCGeAwIodFnYM_vz9I0VDAL-Ks9ALU="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "Broadcast",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632238_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=SUGzjaHXNpNtqR6VuamSLw-EvV_vOdjOhvvQt1JiOKU=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632238_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=SUGzjaHXNpNtqR6VuamSLw-EvV_vOdjOhvvQt1JiOKU=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 278,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2377160,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632238_1509kbps.mp4/chunklist_w578909376_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD1TVUd6amFIWE5wTnRxUjZWdWFtU0x3LUV2Vl92T2RqT2h2dlF0MUppT0tVPQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=SUGzjaHXNpNtqR6VuamSLw-EvV_vOdjOhvvQt1JiOKU="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "High Tight",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632241_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=o8mq8CYwR_BkXVxwv4y9J-Mra5rU2G5Khi9saPgDJ2w=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632241_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=o8mq8CYwR_BkXVxwv4y9J-Mra5rU2G5Khi9saPgDJ2w=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 279,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2372448,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632241_1509kbps.mp4/chunklist_w1807293791_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD1vOG1xOENZd1JfQmtYVnh3djR5OUotTXJhNXJVMkc1S2hpOXNhUGdESjJ3PQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=o8mq8CYwR_BkXVxwv4y9J-Mra5rU2G5Khi9saPgDJ2w="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "In Arena",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632236_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=uNBKvytL29WpKgYSRFjhCPbOPKEsT9PwTDKKWchFEdM=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632236_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=uNBKvytL29WpKgYSRFjhCPbOPKEsT9PwTDKKWchFEdM=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 279,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2389499,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632236_1509kbps.mp4/chunklist_w1937699481_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD11TkJLdnl0TDI5V3BLZ1lTUkZqaENQYk9QS0VzVDlQd1RES0tXY2hGRWRNPQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=uNBKvytL29WpKgYSRFjhCPbOPKEsT9PwTDKKWchFEdM="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "Left Above Rim",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632233_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=_BL4G71Z9EWAe0NV46oodOvvtVGC3mEHn_54lS777Ew=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632233_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=_BL4G71Z9EWAe0NV46oodOvvtVGC3mEHn_54lS777Ew=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 279,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2348699,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632233_1509kbps.mp4/chunklist_w1488775104_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD1fQkw0RzcxWjlFV0FlME5WNDZvb2RPdnZ0VkdDM21FSG5fNTRsUzc3N0V3PQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=_BL4G71Z9EWAe0NV46oodOvvtVGC3mEHn_54lS777Ew="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "Left HandHeld",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632229_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=CRFyHapfmJeHCMHTjr4VK-9HPfCNrTpiW1Jq-hxL5qY=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632229_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=CRFyHapfmJeHCMHTjr4VK-9HPfCNrTpiW1Jq-hxL5qY=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 278,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2365914,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632229_1509kbps.mp4/chunklist_w757002367_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD1DUkZ5SGFwZm1KZUhDTUhUanI0VkstOUhQZkNOclRwaVcxSnEtaHhMNXFZPQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=CRFyHapfmJeHCMHTjr4VK-9HPfCNrTpiW1Jq-hxL5qY="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "Left Slash",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632231_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=_G27JTPZiapvMDH7NobifP7Kt0w-K2aX-xyFYclH6qs=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632231_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=_G27JTPZiapvMDH7NobifP7Kt0w-K2aX-xyFYclH6qs=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 279,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2352967,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632231_1509kbps.mp4/chunklist_w1608201751_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD1fRzI3SlRQWmlhcHZNREg3Tm9iaWZQN0t0MHctSzJhWC14eUZZY2xINnFzPQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=_G27JTPZiapvMDH7NobifP7Kt0w-K2aX-xyFYclH6qs="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "Mobile Broadcast",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632240_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=YBsvQlaWNqoZ6rb5QZAvDmqWJrNNJ8csUrRQ0o_sjj0=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632240_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=YBsvQlaWNqoZ6rb5QZAvDmqWJrNNJ8csUrRQ0o_sjj0=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 278,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2364470,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632240_1509kbps.mp4/chunklist_w477192933_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD1ZQnN2UWxhV05xb1o2cmI1UVpBdkRtcVdKck5OSjhjc1VyUlEwb19zamowPQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=YBsvQlaWNqoZ6rb5QZAvDmqWJrNNJ8csUrRQ0o_sjj0="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "Play by Play",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632235_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=D6xCqx_jKTbR3D9_DhVzUuxLMjt8pCf1gc7EKS0qmEg=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632235_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=D6xCqx_jKTbR3D9_DhVzUuxLMjt8pCf1gc7EKS0qmEg=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 278,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2398673,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632235_1509kbps.mp4/chunklist_w852258318_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD1ENnhDcXhfaktUYlIzRDlfRGhWelV1eExNanQ4cENmMWdjN0VLUzBxbUVnPQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=D6xCqx_jKTbR3D9_DhVzUuxLMjt8pCf1gc7EKS0qmEg="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "Right HandHeld",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632230_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=PJcW5KmiSglQTsZfXwHjMzwfGIPJEuW9eGPYZ3t6FuE=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632230_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=PJcW5KmiSglQTsZfXwHjMzwfGIPJEuW9eGPYZ3t6FuE=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 279,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2374683,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632230_1509kbps.mp4/chunklist_w1661744994_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD1QSmNXNUttaVNnbFFUc1pmWHdIak16d2ZHSVBKRXVXOWVHUFlaM3Q2RnVFPQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=PJcW5KmiSglQTsZfXwHjMzwfGIPJEuW9eGPYZ3t6FuE="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "Right Slash",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632232_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=j4isB7Ek8oyx5sV6WSvqgNmqV-zJVCnMTRT_u2TkXwA=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632232_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=j4isB7Ek8oyx5sV6WSvqgNmqV-zJVCnMTRT_u2TkXwA=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 278,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2363042,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632232_1509kbps.mp4/chunklist_w447396826_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD1qNGlzQjdFazhveXg1c1Y2V1N2cWdObXFWLXpKVkNuTVRSVF91MlRrWHdBPQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=j4isB7Ek8oyx5sV6WSvqgNmqV-zJVCnMTRT_u2TkXwA="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    },
+    {
+      "label": "Right Above Rim",
+      "master": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632234_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=-b6N8Xx6XlJuixazU17ghpDVwqJJuoXDHW2AbUlAVg8=",
+      "ladder": {
+        "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632234_1509kbps.mp4/playlist.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=-b6N8Xx6XlJuixazU17ghpDVwqJJuoXDHW2AbUlAVg8=",
+        "http_status": 200,
+        "content_type": "application/vnd.apple.mpegurl",
+        "bytes": 278,
+        "is_hls": true,
+        "variants": [
+          {
+            "bandwidth": 2382539,
+            "resolution": [
+              960,
+              540
+            ],
+            "url": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001632234_1509kbps.mp4/chunklist_w918274743_ps5431335_pd20000_tkd293emF0b2tlbmVuZHRpbWU9MTc5MjU2MDMyNiZ3b3d6YXRva2VuaGFzaD0tYjZOOFh4NlhsSnVpeGF6VTE3Z2hwRFZ3cUpKdW9YREhXMkFiVWxBVmc4PQ==.m3u8?wowzaplaystart=5431335&wowzaplayduration=20000&wowzatokenendtime=1792560326&wowzatokenhash=-b6N8Xx6XlJuixazU17ghpDVwqJJuoXDHW2AbUlAVg8="
+          }
+        ],
+        "max_resolution": [
+          960,
+          540
+        ]
+      }
+    }
+  ],
+  "clips_max_resolution": [
+    960,
+    540
+  ],
+  "xfg": {
+    "event_num": 687,
+    "game_clock": "2:07",
+    "shot_quality": 0.452,
+    "assets": {
+      "largeHls": "https://videos.nba.com/nba/pbp/media/2026/10/20/0022600001/687/a3f4a1b1-d1c0-cadb-7862-719b45d4ba66_hls_3500kbps_1280x720.m3u8",
+      "largeUrl": "https://videos.nba.com/nba/pbp/media/2026/10/20/0022600001/687/a3f4a1b1-d1c0-cadb-7862-719b45d4ba66_1280x720.mp4",
+      "largeThumbnail": "https://videos.nba.com/nba/pbp/media/2026/10/20/0022600001/687/a3f4a1b1-d1c0-cadb-7862-719b45d4ba66_1280x720.jpg",
+      "mediumUrl": "https://videos.nba.com/nba/pbp/media/2026/10/20/0022600001/687/a3f4a1b1-d1c0-cadb-7862-719b45d4ba66_960x540.mp4",
+      "mediumThumbnail": "https://videos.nba.com/nba/pbp/media/2026/10/20/0022600001/687/a3f4a1b1-d1c0-cadb-7862-719b45d4ba66_960x540.jpg",
+      "smallUrl": "https://videos.nba.com/nba/pbp/media/2026/10/20/0022600001/687/a3f4a1b1-d1c0-cadb-7862-719b45d4ba66_320x180.mp4",
+      "smallThumbnail": "https://videos.nba.com/nba/pbp/media/2026/10/20/0022600001/687/a3f4a1b1-d1c0-cadb-7862-719b45d4ba66_320x180.jpg"
+    }
+  },
+  "xfg_asset_probes": {
+    "largeHls": {
+      "url": "https://videos.nba.com/nba/pbp/media/2026/10/20/0022600001/687/a3f4a1b1-d1c0-cadb-7862-719b45d4ba66_hls_3500kbps_1280x720.m3u8",
+      "http_status": 200,
+      "content_type": "video/mp4",
+      "bytes": 869898,
+      "is_hls": false,
+      "variants": [],
+      "max_resolution": null,
+      "download_ok": true,
+      "ffprobe": {
+        "programs": [],
+        "streams": [
+          {
+            "width": 1280,
+            "height": 720,
+            "avg_frame_rate": "30000/1001",
+            "bit_rate": "460661"
+          }
+        ],
+        "format": {
+          "duration": "15.015000"
+        }
+      },
+      "frame_diff_mean": 11.517841435185185,
+      "moving": true
+    },
+    "largeUrl": {
+      "http_status": 206,
+      "content_type": "video/mp4",
+      "content_range": "bytes 0-869897/869898",
+      "content_length": "869898",
+      "bytes_received": 869898
+    },
+    "largeThumbnail": {
+      "http_status": 206,
+      "content_type": "video/mp4",
+      "content_range": "bytes 0-869897/869898",
+      "content_length": "869898",
+      "bytes_received": 869898
+    },
+    "mediumUrl": {
+      "http_status": 206,
+      "content_type": "video/mp4",
+      "content_range": "bytes 0-869897/869898",
+      "content_length": "869898",
+      "bytes_received": 869898
+    },
+    "mediumThumbnail": {
+      "http_status": 206,
+      "content_type": "video/mp4",
+      "content_range": "bytes 0-869897/869898",
+      "content_length": "869898",
+      "bytes_received": 869898
+    },
+    "smallUrl": {
+      "http_status": 206,
+      "content_type": "video/mp4",
+      "content_range": "bytes 0-869897/869898",
+      "content_length": "869898",
+      "bytes_received": 869898
+    },
+    "smallThumbnail": {
+      "http_status": 206,
+      "content_type": "video/mp4",
+      "content_range": "bytes 0-869897/869898",
+      "content_length": "869898",
+      "bytes_received": 869898
+    }
+  }
+}
