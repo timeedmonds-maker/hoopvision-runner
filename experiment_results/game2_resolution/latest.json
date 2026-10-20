@@ -1,0 +1,13 @@
+{
+  "game_id": "0022600002",
+  "scan_event_range": [
+    1,
+    120
+  ],
+  "hls_event_page_count": 0,
+  "distinct_labels": [],
+  "max_angle_count": 0,
+  "target_event": null,
+  "audited_angles": [],
+  "overall_max_resolution": null
+}
