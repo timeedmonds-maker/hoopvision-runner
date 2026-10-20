@@ -137,13 +137,30 @@ jobs:
               except Exception as e:
                   probes[k]={'error':repr(e)}
 
+          # Hash the nominal xFG assets. If format/size variants collapse to one blob,
+          # that is NBA fallback behavior rather than genuine separate renditions.
+          xfg_asset_hashes={}
+          for k,u in assets.items():
+              if not isinstance(u,str) or not u.startswith('http'): continue
+              try:
+                  rr=X.get(u,timeout=30)
+                  xfg_asset_hashes[k]={
+                      'status':rr.status_code,
+                      'content_type':rr.headers.get('content-type'),
+                      'bytes':len(rr.content),
+                      'sha256':hashlib.sha256(rr.content).hexdigest()
+                  }
+              except Exception as e:
+                  xfg_asset_hashes[k]={'error':repr(e)}
+
           result={
               'game_id':gid,'event_num':ev,'title':title,
               'clips_angle_count':len(angle_masters),
               'clips_angles':angle_masters,
               'clips_max_resolution':max((a['ladder'].get('max_resolution') for a in angle_masters if a['ladder'].get('max_resolution')),
                                          key=lambda x:x[0]*x[1],default=None),
-              'xfg':xfg,'xfg_asset_probes':probes
+              'xfg':xfg,'xfg_asset_probes':probes,
+              'xfg_asset_hashes':xfg_asset_hashes
           }
           dest=Path('experiment_results/event687_resolution'); dest.mkdir(parents=True,exist_ok=True)
           (dest/'latest.json').write_text(json.dumps(result,indent=2)+'\n')
