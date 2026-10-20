@@ -1,0 +1,437 @@
+{
+  "game_id": "0022600001",
+  "scanned_event_range": [
+    1,
+    240
+  ],
+  "hls_event_page_count": 143,
+  "distinct_camera_labels": [
+    "Broadcast",
+    "High Tight",
+    "In Arena",
+    "Left Above Rim",
+    "Left HandHeld",
+    "Left Slash",
+    "Mobile Broadcast",
+    "Other Broadcast",
+    "Play by Play",
+    "Right Above Rim",
+    "Right HandHeld",
+    "Right Slash"
+  ],
+  "max_angle_count_any_event": 12,
+  "max_angle_events": [
+    {
+      "event_num": 2,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:12:00.0,  , Start -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 4,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:12:00.0, Jalen Duren, Jumpball -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 7,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:11:48.0, Mitchell Robinson, Offensive -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 9,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:11:48.0, Mitchell Robinson, Offensive -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 10,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:11:32.0, John Collins, Jumper -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 11,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:11:32.0, Jordan Walsh, Rebound -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 12,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:11:24.0, Mitchell Robinson, Turnover -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 13,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:11:12.0, Duncan Robinson, Jumper -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 14,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:11:12.0, John Collins, Rebound -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 15,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:11:09.0, John Collins, Tip In -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 16,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:10:51.0, Derrick White, Turnover - Turnover: Bad Pass -(S) Robinson",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    },
+    {
+      "event_num": 18,
+      "title": "BOS @ DET 2026/10/20 - Period:1, Clock:10:47.0,  , Out of Bounds -",
+      "angle_count": 12,
+      "labels": [
+        "Other Broadcast",
+        "Broadcast",
+        "High Tight",
+        "In Arena",
+        "Left Above Rim",
+        "Left HandHeld",
+        "Left Slash",
+        "Mobile Broadcast",
+        "Play by Play",
+        "Right HandHeld",
+        "Right Slash",
+        "Right Above Rim"
+      ]
+    }
+  ],
+  "xfg": [
+    {
+      "player": "Jayson Tatum",
+      "player_id": 1628369,
+      "http_status": 200,
+      "response_bytes": 31748,
+      "response_game_id": "0022600001",
+      "shot_count": 22,
+      "numeric_xfg_count": 22,
+      "sample": [
+        {
+          "event_num": 21,
+          "period": 1,
+          "game_clock": "10:19",
+          "action_type": "Layup Shot",
+          "shot_type": "2PT Field Goal",
+          "success": 1,
+          "shot_quality": 0.462,
+          "xfg_pct": 46.2
+        },
+        {
+          "event_num": 40,
+          "period": 1,
+          "game_clock": "8:46",
+          "action_type": "Jump Shot",
+          "shot_type": "3PT Field Goal",
+          "success": 0,
+          "shot_quality": 0.365,
+          "xfg_pct": 36.5
+        },
+        {
+          "event_num": 71,
+          "period": 1,
+          "game_clock": "6:58",
+          "action_type": "Reverse Layup Shot",
+          "shot_type": "2PT Field Goal",
+          "success": 0,
+          "shot_quality": 0.806,
+          "xfg_pct": 80.60000000000001
+        },
+        {
+          "event_num": 93,
+          "period": 1,
+          "game_clock": "5:38",
+          "action_type": "Pullup Jump shot",
+          "shot_type": "2PT Field Goal",
+          "success": 0,
+          "shot_quality": 0.443,
+          "xfg_pct": 44.3
+        },
+        {
+          "event_num": 97,
+          "period": 1,
+          "game_clock": "5:15",
+          "action_type": "Pullup Jump shot",
+          "shot_type": "2PT Field Goal",
+          "success": 1,
+          "shot_quality": 0.522,
+          "xfg_pct": 52.2
+        },
+        {
+          "event_num": 111,
+          "period": 1,
+          "game_clock": "3:27",
+          "action_type": "Pullup Jump shot",
+          "shot_type": "3PT Field Goal",
+          "success": 0,
+          "shot_quality": 0.346,
+          "xfg_pct": 34.599999999999994
+        },
+        {
+          "event_num": 117,
+          "period": 1,
+          "game_clock": "2:54",
+          "action_type": "Tip Layup Shot",
+          "shot_type": "2PT Field Goal",
+          "success": 0,
+          "shot_quality": 0.593,
+          "xfg_pct": 59.3
+        },
+        {
+          "event_num": 167,
+          "period": 1,
+          "game_clock": "1.3",
+          "action_type": "Pullup Jump shot",
+          "shot_type": "2PT Field Goal",
+          "success": 1,
+          "shot_quality": 0.44,
+          "xfg_pct": 44.0
+        }
+      ]
+    },
+    {
+      "player": "Cade Cunningham",
+      "player_id": 1630595,
+      "http_status": 200,
+      "response_bytes": 24691,
+      "response_game_id": "0022600001",
+      "shot_count": 17,
+      "numeric_xfg_count": 17,
+      "sample": [
+        {
+          "event_num": 58,
+          "period": 1,
+          "game_clock": "7:45",
+          "action_type": "Jump Shot",
+          "shot_type": "3PT Field Goal",
+          "success": 0,
+          "shot_quality": 0.395,
+          "xfg_pct": 39.5
+        },
+        {
+          "event_num": 99,
+          "period": 1,
+          "game_clock": "5:01",
+          "action_type": "Driving Floating Jump Shot",
+          "shot_type": "2PT Field Goal",
+          "success": 1,
+          "shot_quality": 0.524,
+          "xfg_pct": 52.400000000000006
+        },
+        {
+          "event_num": 106,
+          "period": 1,
+          "game_clock": "4:05",
+          "action_type": "Pullup Jump shot",
+          "shot_type": "2PT Field Goal",
+          "success": 0,
+          "shot_quality": 0.422,
+          "xfg_pct": 42.199999999999996
+        },
+        {
+          "event_num": 110,
+          "period": 1,
+          "game_clock": "3:41",
+          "action_type": "Running Dunk Shot",
+          "shot_type": "2PT Field Goal",
+          "success": 1,
+          "shot_quality": 0.936,
+          "xfg_pct": 93.60000000000001
+        },
+        {
+          "event_num": 113,
+          "period": 1,
+          "game_clock": "3:08",
+          "action_type": "Turnaround Jump Shot",
+          "shot_type": "2PT Field Goal",
+          "success": 1,
+          "shot_quality": 0.465,
+          "xfg_pct": 46.5
+        },
+        {
+          "event_num": 330,
+          "period": 2,
+          "game_clock": "1:04",
+          "action_type": "Pullup Jump shot",
+          "shot_type": "3PT Field Goal",
+          "success": 0,
+          "shot_quality": 0.305,
+          "xfg_pct": 30.5
+        },
+        {
+          "event_num": 368,
+          "period": 3,
+          "game_clock": "11:14",
+          "action_type": "Jump Shot",
+          "shot_type": "3PT Field Goal",
+          "success": 0,
+          "shot_quality": 0.392,
+          "xfg_pct": 39.2
+        },
+        {
+          "event_num": 395,
+          "period": 3,
+          "game_clock": "8:22",
+          "action_type": "Pullup Jump shot",
+          "shot_type": "3PT Field Goal",
+          "success": 0,
+          "shot_quality": 0.342,
+          "xfg_pct": 34.2
+        }
+      ]
+    }
+  ]
+}
