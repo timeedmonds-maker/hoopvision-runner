@@ -23,6 +23,7 @@ ALLOWED_STATIC = {
     "tools/licensed_feed/index.html",
     "tools/licensed_feed/browser.js",
     "tools/licensed_feed/capture.mjs",
+    "tools/licensed_feed/capture.test.mjs",
     "tools/licensed_feed/orchestrate.py",
     "tests/test_opaque_lane.py",
     ".github/workflows/opaque-licensed-feed.yml",
