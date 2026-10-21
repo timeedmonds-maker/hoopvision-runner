@@ -4,7 +4,7 @@ import os
 import secrets
 import urllib.parse
 import urllib.request
-from .opaque_lane_contract import valid_request_id
+from opaque_lane_contract import valid_request_id
 
 AUDIENCE = "hoopvision-licensed-feed.v1"
 
