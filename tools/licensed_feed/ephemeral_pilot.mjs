@@ -5,31 +5,13 @@ import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
-const headers={
-  Accept:'application/json, text/plain, */*',
-  'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120 Safari/537.36',
-  Referer:'https://www.nba.com/'
-};
-const url='https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json';
-const result=await fetch(url,{headers,signal:AbortSignal.timeout(18000)});
-if(!result.ok)throw Error('official_schedule_unavailable');
-const schedule=await result.json();
-const ids=[];
-for(const d of schedule?.leagueSchedule?.gameDates||[]){
- for(const item of d.games||[]){
-  const id=String(item.gameId||'');
-  const ms=Date.parse(item.gameDateTimeUTC||'');
-  if(/^(002|003|004|005|006)26\d{5}$/.test(id)&&
-     String(item.gameStatus)==='3'&&Number.isFinite(ms)&&
-     ms<Date.now()-6*3600000)ids.push({id,ms});
- }
-}
-ids.sort((a,b)=>a.ms-b.ms);
-if(!ids.length)throw Error('no_completed_game_for_smoke');
-const first=ids[0];
+// One-off public NBA opening-game identifier: not private bridge metadata.
+// Do not print identifiers or retain any downloaded tracking rows.
+const publicHistoricalTest={id:'0022600002',ms:Date.parse('2026-10-20T23:00:00Z')};
 const job={
- game_id:first.id,account_id:'nba',program_id:'companion-'+first.id+'-positions',
- part:0,start_ms:Math.floor((first.ms-10*60000)/5000)*5000,count:300
+ game_id:publicHistoricalTest.id,account_id:'nba',
+ program_id:'companion-'+publicHistoricalTest.id+'-positions',
+ part:0,start_ms:Math.floor((publicHistoricalTest.ms-10*60000)/5000)*5000,count:300
 };
 const directory=mkdtempSync(join(tmpdir(),'licensed-ephemeral-smoke-'));
 try{
