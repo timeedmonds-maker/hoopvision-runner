@@ -1,7 +1,7 @@
 {
-  "observed_at_utc": "2026-10-21T02:02:29Z",
-  "request_id": "req-42e0a1ad5bb6e3f736a621090d7f87b5",
+  "observed_at_utc": "2026-10-21T04:07:21Z",
+  "request_id": "req-a1f7c2e948b34d60a6c29f8e15b4703d",
   "result_available": false,
   "schema": "hoopvision.public-execution-status.v1",
-  "status": "FAILURE"
+  "status": "INTERNAL_ERROR"
 }
