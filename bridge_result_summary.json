@@ -1,8 +1,8 @@
 {
-  "observed_at_utc": "2026-10-21T02:02:27Z",
-  "request_id": "req-42e0a1ad5bb6e3f736a621090d7f87b5",
+  "observed_at_utc": "2026-10-21T04:07:19Z",
+  "request_id": "req-a1f7c2e948b34d60a6c29f8e15b4703d",
   "result_available": false,
   "schema": "hoopvision.public-result-summary.v2",
-  "status": "FAILURE",
+  "status": "INTERNAL_ERROR",
   "workload_class": "FREEVIEW_ANY_SPLAT_RND"
 }
