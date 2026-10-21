@@ -41,3 +41,21 @@ The public repository accepts and publishes only random opaque request IDs plus 
 Private infrastructure pulls the opaque outbox, performs private registration/authorization and starts only the preconfigured workload. This preserves the public/privacy boundary while allowing autonomous routine execution.
 
 Direct OIDC dispatch is staged/not active and must not be described as canonical until separately verified and adopted.
+
+## GitHub-only private Release acceptance route (staged, manual)
+
+A separate, reviewed, manual-only licensed-feed workflow may use a secret-scoped
+GitHub token to upload a bounded SDK checkpoint **directly to a private
+repository Release**. This route avoids any cloud receiver. The token must be
+a fine-grained, short-lived credential authorised for one private destination
+only and installed as a GitHub Actions secret, never committed or printed.
+Secrets must be exposed only to a manually dispatched, branch-pinned job,
+never to pull requests, unreviewed branch pushes or dependency install steps.
+
+This exception permits transient runtime data processing and authenticated
+private Release upload ONLY. It does **not** allow public artifacts, public
+release uploads, caches of tracking data, private repository checkouts, GPU
+execution, public request payloads or disclosure of private engine evidence.
+The new lane is not a replacement for the original opaque engine-control
+bridge. It remains non-scheduled until independent GitHub SHA-256 readback has
+passed for a real 300-window checkpoint.
