@@ -1,8 +1,5 @@
-"""Single licensed SDK smoke with zero public persistence beyond runner-local temporary files.
-
-The game is selected from public NBA schedule JSON, never embedded into
-workflow configuration, printed, uploaded, or retained. No private source.
-"""
+/* Single licensed SDK smoke; zero public persistence beyond temporary runner files.
+   Game selected from public schedule, never logged, uploaded, or retained. */
 import {capture} from './capture.mjs';
 import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
