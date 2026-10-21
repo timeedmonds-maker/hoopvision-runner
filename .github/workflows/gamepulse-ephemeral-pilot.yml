@@ -1,10 +1,6 @@
 name: Licensed Game Pulse one-shot ephemeral public pilot
 on:
-  push:
-    branches: [agents/opaque-licensed-feed-20261022]
-    paths:
-      - .github/workflows/gamepulse-ephemeral-pilot.yml
-      - tools/licensed_feed/ephemeral_pilot.mjs
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -32,7 +28,7 @@ jobs:
       - name: Enforce no persisted public player data
         if: always()
         run: |
-          if [ -d /tmp/licensed-ephemeral-smoke- ]; then
+          if find /tmp -maxdepth 1 -type d -name 'licensed-ephemeral-smoke-*' | grep -q .; then
             echo EPHEMERAL_CLEANUP_INCOMPLETE
             exit 1
           fi
