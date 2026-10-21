@@ -4,6 +4,7 @@ on:
     branches: [agents/opaque-licensed-feed-20261022]
     paths:
       - .github/workflows/gamepulse-ephemeral-pilot.yml
+      - tools/licensed_feed/ephemeral_pilot.mjs
 permissions:
   contents: read
 concurrency:
