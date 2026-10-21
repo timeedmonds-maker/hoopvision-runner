@@ -27,6 +27,17 @@ jobs:
         run: |
           python3 -m unittest discover -s tests -p test_opaque_lane.py -v
           python3 tools/licensed_feed/orchestrate.py --self-test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install isolated browser test dependencies
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --fetch-retries=1 --fetch-timeout=20000 --silent
+      - name: Test synthetic JavaScript collector contract
+        working-directory: tools/licensed_feed
+        run: node --test capture.test.mjs
   live-feed:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     needs: security-preflight
