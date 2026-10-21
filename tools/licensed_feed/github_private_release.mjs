@@ -15,6 +15,7 @@ const PUBLIC_REPO='timeedmonds-maker/hoopvision-runner';
 const TEST_GAME='0022600002';
 const TEST_TIPOFF=Date.parse('2026-10-20T23:00:00Z');
 const LIMIT_BYTES=32*1024*1024;
+const PRIVATE_TOKEN=process.env.GH_TOKEN;
 const hash=path=>createHash('sha256').update(readFileSync(path)).digest('hex');
 
 export function pilotJob(){
@@ -36,7 +37,7 @@ export function privateTag(job){
 }
 export function shellGh(args){
  const result=spawnSync('gh',args,{encoding:'utf8',
-   env:process.env,stdio:['ignore','pipe','pipe'],timeout:120000,maxBuffer:1024*1024});
+   env:{...process.env,GH_TOKEN:PRIVATE_TOKEN},stdio:['ignore','pipe','pipe'],timeout:120000,maxBuffer:1024*1024});
  return {ok:result.status===0,stdout:result.stdout||''};
 }
 export function verifyAndStore(job,folder,execGh=shellGh){
@@ -85,7 +86,9 @@ export function verifyAndStore(job,folder,execGh=shellGh){
  return 'PRIVATE_GITHUB_SHA_READBACK_CERTIFIED';
 }
 export async function runPilot(){
- assertScopedContext(process.env);
+ assertScopedContext({...process.env,GH_TOKEN:PRIVATE_TOKEN});
+ // Do not pass the private GitHub write token to Chromium or SDK subprocesses.
+ delete process.env.GH_TOKEN;
  const job=pilotJob();
  const directory=mkdtempSync(join(tmpdir(),'gp-private-only-'));
  try{
