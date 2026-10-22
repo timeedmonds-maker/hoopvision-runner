@@ -35,6 +35,6 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN" || exit 3
-          gh api repos/timeedmonds-maker/104/contents/gamepulse/sdk-season/defender_distance_qa.py --jq .content | base64 -d > /tmp/shot_spacing_qa.py
-          python3 /tmp/shot_spacing_qa.py
-          rm -f /tmp/shot_spacing_qa.py
+          gh api repos/timeedmonds-maker/104/contents/gamepulse/sdk-season/defender_spacing_calc.py --jq .content | base64 -d > /tmp/shot_spacing_calc.py
+          python3 /tmp/shot_spacing_calc.py
+          rm -f /tmp/shot_spacing_calc.py
