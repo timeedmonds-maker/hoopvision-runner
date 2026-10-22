@@ -233,7 +233,7 @@ function pilotGame(){
 export function assertContext(env){
  if(env.GITHUB_REPOSITORY!==PUBLIC||env.GITHUB_REF!=='refs/heads/main'||
     !['workflow_dispatch','push','schedule'].includes(env.GITHUB_EVENT_NAME)||
-    (env.GITHUB_EVENT_NAME==='push'&&env.GAMEPULSE_FULLGAME_PILOT!=='true'&&env.GAMEPULSE_PRIORITY_FANOUT!=='true')||
+    (env.GITHUB_EVENT_NAME==='push'&&env.GAMEPULSE_FULLGAME_PILOT!=='true'&&env.GAMEPULSE_PRIORITY_FANOUT!=='true'&&env.GAMEPULSE_PRIORITY_FINALIZE!=='true')||
     (env.GITHUB_EVENT_NAME==='schedule'&&
      (env.GAMEPULSE_PRODUCTION_ENABLED!=='true'||
       (env.GAMEPULSE_FULLGAME_PILOT==='true'&&env.GAMEPULSE_PILOT_FINALIZE!=='true')))||
@@ -270,6 +270,19 @@ export async function run(){
    try{validatedPart(tag,job,dir);}finally{rmSync(dir,{recursive:true,force:true});}
   }else await capturePart(tag,job,capture);
   console.log('PRIVATE_PRIORITY_PART_SHA_READBACK_CERTIFIED');
+  return;
+ }
+ if(process.env.GAMEPULSE_PRIORITY_FINALIZE==='true'){
+  if(PILOT||process.env.GITHUB_EVENT_NAME!=='push')throw Error('priority_context_invalid');
+  const game={id:process.env.GAMEPULSE_PRIORITY_ID,
+   start:Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'')};
+  planGame(game);
+  if(Date.now()<game.start+315*60000)throw Error('priority_fullgame_not_ready');
+  if(Date.now()>game.start+24*3600000)throw Error('priority_assignment_expired');
+  const index=readIndex();
+  await archiveGame(game,index,capture);
+  if(index.games[game.id]?.status!=='complete')throw Error('priority_fullgame_incomplete');
+  console.log('PRIVATE_PRIORITY_FULLGAME_CERTIFIED');
   return;
  }
  await captureElapsedPriority(capture);
