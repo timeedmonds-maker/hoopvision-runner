@@ -76,3 +76,22 @@ jobs:
           python3 /tmp/pnr_review_features_v0.py --selftest
           python3 /tmp/pnr_review_features_v0.py
           rm -f /tmp/pnr_review_features_v0.py /tmp/pnr_detector_v0.py
+  private-pnr-xfg-video-join:
+    needs: private-pnr-features
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Match exact private Rockets xFG/PBP video source into private PNR review manifest
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" || exit 3
+          gh api repos/timeedmonds-maker/104/contents/gamepulse/coverage/pnr_detector_v0.py --jq .content | base64 -d > /tmp/pnr_detector_v0.py
+          gh api repos/timeedmonds-maker/104/contents/gamepulse/coverage/match_rockets_pnr_xfg_video.py --jq .content | base64 -d > /tmp/match_rockets_pnr_xfg_video.py
+          python3 -m py_compile /tmp/match_rockets_pnr_xfg_video.py
+          python3 /tmp/match_rockets_pnr_xfg_video.py --selftest
+          python3 /tmp/match_rockets_pnr_xfg_video.py
+          rm -f /tmp/pnr_detector_v0.py /tmp/match_rockets_pnr_xfg_video.py
