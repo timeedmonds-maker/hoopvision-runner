@@ -36,7 +36,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test tools/licensed_feed/season_core.test.mjs
+      - run: node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
   private-season:
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
     needs: preflight
