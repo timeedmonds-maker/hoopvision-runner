@@ -90,10 +90,19 @@ async function launchClient(job,received,pending){
   throw e;
  }
 }
+export async function initializeWithRetry(factory,wait=sleep){
+ for(let attempt=0;attempt<3;attempt++){
+  try{return await factory();}
+  catch(e){
+   if(e?.message!=='sdk_initialization_failed'||attempt===2)throw e;
+   await wait(1500*(attempt+1));
+  }
+ }
+}
 export async function capture(job,dir){
  checkJob(job);
  const received=new Map(),pending=new Set();
- const session=await launchClient(job,received,pending);
+ const session=await initializeWithRetry(()=>launchClient(job,received,pending));
  try{
   const windows=Array.from({length:job.count},(_,i)=>job.start_ms+i*WINDOW);
   const seek=ms=>session.page.evaluate(t=>window.ephemeralFeed.seek(t),ms);
