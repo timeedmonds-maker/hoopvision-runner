@@ -61,5 +61,6 @@ jobs:
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           GAMEPULSE_FULLGAME_PILOT: 'false'
           GAMEPULSE_PARTS_PER_RUN: '13'
+          GAMEPULSE_MAX_GAMES: '3'
           GAMEPULSE_PRODUCTION_ENABLED: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run) }}
         run: node season_private_release.mjs
