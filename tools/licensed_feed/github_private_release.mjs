@@ -11,7 +11,7 @@ import {createHash} from 'node:crypto';
 // Keep the licensed SDK and all third-party modules unloaded until the private
 // upload token has been removed from the process environment.
 function checkJob(j){
- if(!j||!/^(002|003|004|005|006)26\\d{5}$/.test(j.game_id)
+ if(!j||!/^(002|003|004|005|006)26\d{5}$/.test(j.game_id)
    ||j.account_id!=='nba'||j.program_id!=='companion-'+j.game_id+'-positions'
    ||!Number.isSafeInteger(j.start_ms)||j.start_ms%5000!==0
    ||!Number.isSafeInteger(j.count)||j.count<1||j.count>300
