@@ -121,17 +121,21 @@ jobs:
           python3 - <<'PY'
           import base64,json,os,subprocess
           from pathlib import Path
-          source=Path(os.environ["RUNNER_TEMP"])/"qualification/qa.json"
-          target="repos/timeedmonds-maker/104/contents/gamepulse/fusion/qualification_qa.json"
-          old=subprocess.run(["gh","api",target],capture_output=True,text=True)
-          payload={"message":"chore(2026): refresh evidence-gated source/clock/lineup QA in private",
-                   "branch":"main","content":base64.b64encode(source.read_bytes()).decode()}
-          if old.returncode==0:payload["sha"]=json.loads(old.stdout)["sha"]
-          elif not ("404" in old.stderr or "Not Found" in old.stderr):
-              raise RuntimeError("private_qa_lookup_failed")
-          result=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
-                                input=json.dumps(payload),capture_output=True,text=True)
-          if result.returncode:raise RuntimeError("private_qa_publishing_failed")
+          root=Path(os.environ["RUNNER_TEMP"])/"qualification"
+          for source,path in (
+              (root/"qa.json","gamepulse/fusion/qualification_qa.json"),
+              (root/"qualification.sqlite3.qualified_players.json",
+               "gamepulse/fusion/qualified_season_leaders_2026_27.json")):
+              target="repos/timeedmonds-maker/104/contents/"+path
+              old=subprocess.run(["gh","api",target],capture_output=True,text=True)
+              payload={"message":"chore(2026): update private qualified player season and timing QA",
+                       "branch":"main","content":base64.b64encode(source.read_bytes()).decode()}
+              if old.returncode==0:payload["sha"]=json.loads(old.stdout)["sha"]
+              elif not ("404" in old.stderr or "Not Found" in old.stderr):
+                  raise RuntimeError("private_qa_lookup_failed")
+              result=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                                    input=json.dumps(payload),capture_output=True,text=True)
+              if result.returncode:raise RuntimeError("private_qa_publishing_failed")
           print("PRIVATE_QUALIFICATION_QA_PUBLISHED")
           PY
       - name: No licensed data in public results
