@@ -79,3 +79,13 @@ test('bounded main-only fanout context rejects untrusted contexts',()=>{
  assert.throws(()=>assertContext({...env,GITHUB_REF:'refs/heads/untrusted'}));
  assert.throws(()=>assertContext({...env,GITHUB_EVENT_NAME:'pull_request'}));
 });
+
+test('full-game priority certification is authorised only on trusted main',()=>{
+ const trusted={GITHUB_REPOSITORY:'timeedmonds-maker/hoopvision-runner',
+  GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'push',
+  GAMEPULSE_PRIORITY_FINALIZE:'true',GH_TOKEN:'x'.repeat(35)};
+ assert.doesNotThrow(()=>assertContext(trusted));
+ assert.throws(()=>assertContext({...trusted,GITHUB_REF:'refs/heads/feature'}));
+ assert.throws(()=>assertContext({...trusted,GITHUB_EVENT_NAME:'pull_request'}));
+ assert.throws(()=>assertContext({...trusted,GH_TOKEN:''}));
+});
