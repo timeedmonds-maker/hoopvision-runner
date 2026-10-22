@@ -61,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$RUNNER_TEMP/onoff"
-          python3 "$ROOT/validate_official_onoff_2026.py" --root "$ROOT" --only 0022600091
+          python3 "$ROOT/validate_official_onoff_2026.py" --root "$ROOT"
           test -s "$ROOT/official_onoff_qa.json"
           test -s "$ROOT/official_onoff_matches.json"
       - name: Publish source provenance and match results solely into private 104
@@ -82,7 +82,7 @@ jobs:
           from pathlib import Path
           root=Path(os.environ["RUNNER_TEMP"])/"onoff"
           data=json.loads((root/"official_onoff_qa.json").read_text())
-          assert data["source_count"]>0
+          assert data["source_count"]==14
           target="repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_onoff_qa_2026_27.json"
           current=subprocess.run(["gh","api",target],capture_output=True,text=True)
           payload={"branch":"main","message":"chore(2026): independently validate Game Pulse on/off against NBA sources",
