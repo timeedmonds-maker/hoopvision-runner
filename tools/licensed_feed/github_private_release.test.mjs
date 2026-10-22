@@ -47,12 +47,14 @@ function fakeGithub(remote,record,corrupt=false){
    throw Error('unexpected_gh_action');
  };
 }
-test('fails closed outside main manual approval and missing secret',()=>{
+test('fails closed outside trusted main and missing secret',()=>{
  const env={GITHUB_REPOSITORY:'timeedmonds-maker/hoopvision-runner',
    GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GH_TOKEN:'x'.repeat(35)};
  assert.doesNotThrow(()=>assertScopedContext(env));
+ assert.doesNotThrow(()=>assertScopedContext({...env,GITHUB_EVENT_NAME:'push'}));
  for(const bad of [
    {...env,GITHUB_EVENT_NAME:'pull_request'},
+   {...env,GITHUB_EVENT_NAME:'push',GITHUB_REF:'refs/heads/untrusted'},
    {...env,GITHUB_REF:'refs/heads/malicious'},
    {...env,GITHUB_REPOSITORY:'other/repo'},
    {...env,GH_TOKEN:''}
