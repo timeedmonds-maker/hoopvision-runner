@@ -44,11 +44,12 @@ test('remote manifests must reconcile every assigned slot and remain observed',(
  assert.throws(()=>summarize(p.parts,[{...manifests[0],successful_windows:299},...manifests.slice(1)]));
  assert.throws(()=>summarize(p.parts,[{...manifests[0],imputed:true},...manifests.slice(1)]));
 });
-test('private token is usable only in a manual main-branch public runner',()=>{
+test('private token is usable only on trusted main, with isolated push pilot',()=>{
  const env={GITHUB_REPOSITORY:'timeedmonds-maker/hoopvision-runner',
   GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GH_TOKEN:'x'.repeat(35)};
  assert.doesNotThrow(()=>assertContext(env));
- for(const bad of [{...env,GH_TOKEN:''},{...env,GITHUB_REF:'refs/heads/untrusted'},
+ assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'push',GAMEPULSE_FULLGAME_PILOT:'true'}));
+ for(const bad of [{...env,GITHUB_EVENT_NAME:'push'},{...env,GH_TOKEN:''},{...env,GITHUB_REF:'refs/heads/untrusted'},
   {...env,GITHUB_EVENT_NAME:'pull_request'},{...env,GITHUB_REPOSITORY:'other/repo'}])
   assert.throws(()=>assertContext(bad));
 });
