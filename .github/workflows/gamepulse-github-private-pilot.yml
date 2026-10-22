@@ -1,7 +1,6 @@
 name: Game Pulse GitHub-only private Release pilot
 on:
-  push:
-    branches: [agents/opaque-licensed-feed-20261022]
+  pull_request:
     paths:
       - ".github/workflows/gamepulse-github-private-pilot.yml"
       - "tools/licensed_feed/github_private_release*"
