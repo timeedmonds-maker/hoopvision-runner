@@ -41,7 +41,7 @@ jobs:
           set -euo pipefail
           ROOT="$RUNNER_TEMP/triple-touch"
           mkdir -p "$ROOT/sdk"
-          for name in gamepulse_ball_control.py gamepulse_ball_dynamics.py native_touch_ppp_2026.py interaction_fusion_2026.py; do
+          for name in gamepulse_ball_control.py gamepulse_ball_dynamics.py native_touch_ppp_2026.py interaction_fusion_2026.py validate_native_lasttouch_events_2026.py; do
             gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$name?ref=main" --jq .content |
               base64 -d > "$ROOT/$name"
           done
@@ -89,6 +89,9 @@ jobs:
             --view game-view.json --query-players 201142,1627832,1630578 \
             --out interaction-fusion.json
           test -s interaction-fusion.json
+          python3 -u validate_native_lasttouch_events_2026.py --sdk-dir sdk --pbp formal-pbp.json \
+            --view game-view.json --out native-lasttouch-shot-controls.json
+          test -s native-lasttouch-shot-controls.json
       - name: Publish report and source hashes only in private canonical repository
         shell: bash
         run: |
@@ -135,6 +138,23 @@ jobs:
           assert hashlib.sha256(received).digest()==hashlib.sha256(fusion).digest()
           print('NATIVE_TOUCH_EVENT_PBP_BLUEPRINT_FUSION_PRIVATE_INDEX_PUBLISHED_AND_SHA_VERIFIED',
                 'runs',len(stats['possessions']))
+          controls=(root/'native-lasttouch-shot-controls.json').read_bytes()
+          qa=json.loads(controls)
+          assert qa['schema']=='gamepulse.native-lasttouch-official-shot-positive-control.v1'
+          assert qa['official_shot_actor_events']>=100
+          target='repos/timeedmonds-maker/104/contents/gamepulse/fusion/rockets_native_lasttouch_shot_qa.json'
+          old=subprocess.run(['gh','api',target],text=True,capture_output=True)
+          payload={'branch':'main','message':'qa(gamepulse): official NBA shot actor versus original Game Pulse lastTouch shifted controls',
+                   'content':base64.b64encode(controls).decode()}
+          if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
+          elif 'Not Found' not in old.stderr and '404' not in old.stderr:
+              raise RuntimeError('private_native_control_read_failed')
+          status=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],input=json.dumps(payload),
+                                 text=True,capture_output=True)
+          if status.returncode:raise RuntimeError('private_native_control_write_failed')
+          check=base64.b64decode(subprocess.check_output(['gh','api',target,'--jq','.content']))
+          assert hashlib.sha256(check).digest()==hashlib.sha256(controls).digest()
+          print('PRIVATE_LASTTOUCH_SOURCE_POSITIVE_CONTROL_STORED')
           PY
       - name: Private-only publication
         if: always()
