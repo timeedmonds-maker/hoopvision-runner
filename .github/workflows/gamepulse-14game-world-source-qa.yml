@@ -32,7 +32,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-          AUDIT_COMMIT: 1f532cea40f182fe4cf2e22731ef2e60af2b5983
+          AUDIT_COMMIT: 05424912c0c9b3ee6b4c17d0df84b3d1e360aa1c
         run: |
           set -euo pipefail
           test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_QA_CREDENTIAL_UNAVAILABLE'; exit 3; }
