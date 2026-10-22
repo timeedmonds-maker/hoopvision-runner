@@ -12,7 +12,7 @@ permissions:
   contents: read
 concurrency:
   group: rockets-pnr-provider-video-probe
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   public-preflight:
     runs-on: ubuntu-24.04
@@ -26,7 +26,7 @@ jobs:
     needs: public-preflight
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 13
     steps:
       - name: Test bounded provider HTTP headers/media signatures and persist private results
         env:
@@ -51,13 +51,11 @@ jobs:
           WORK="$(mktemp -d)"
           trap 'rm -rf "$WORK"' EXIT
           gh api repos/timeedmonds-maker/104/contents/gamepulse/fusion/rockets_video_clock_probe.py --jq .content | base64 -d > "$WORK/rockets_video_clock_probe.py"
-          if ! command -v ffprobe >/dev/null || ! command -v ffmpeg >/dev/null || ! command -v tesseract >/dev/null; then
-            sudo apt-get update -qq >/dev/null
-            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg tesseract-ocr >/dev/null
-          fi
-          python3 -m py_compile "$WORK/rockets_video_clock_probe.py"
-          python3 "$WORK/rockets_video_clock_probe.py" --selftest
-          python3 "$WORK/rockets_video_clock_probe.py"
+          python3 -m venv "$WORK/venv"
+          "$WORK/venv/bin/pip" install --disable-pip-version-check -q imageio-ffmpeg
+          "$WORK/venv/bin/python" -m py_compile "$WORK/rockets_video_clock_probe.py"
+          "$WORK/venv/bin/python" "$WORK/rockets_video_clock_probe.py" --selftest
+          "$WORK/venv/bin/python" "$WORK/rockets_video_clock_probe.py"
 
       - name: Inspect owner-supplied complete-game video metadata, no media download
         env:
