@@ -1,5 +1,5 @@
 name: Game Pulse gameplay cutoff verification (private result)
-# Retry independent verification with safe error classifications.
+# Retain private frame QA even when the official reference API denies access.
 on:
   push:
     branches: [main]
