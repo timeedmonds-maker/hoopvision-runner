@@ -43,7 +43,11 @@ jobs:
             base64 -d > "$ROOT/tests/test_fusion.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json?ref=main' --jq .content |
             base64 -d > "$ROOT/gamepulse-catalog.json"
-          python3 -m py_compile "$ROOT/build.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/materialize.py?ref=main' --jq .content |
+            base64 -d > "$ROOT/materialize.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_materialize.py?ref=main' --jq .content |
+            base64 -d > "$ROOT/tests/test_materialize.py"
+          python3 -m py_compile "$ROOT/build.py" "$ROOT/materialize.py"
           python3 -m unittest discover -v -s "$ROOT/tests"
       - name: Build private event xFG XYZ and x-man search warehouse
         shell: bash
@@ -95,6 +99,43 @@ jobs:
               assert digest=="sha256:"+hashlib.sha256((folder/name).read_bytes()).hexdigest(), \
                   "private_remote_sha_readback_discrepancy"
           print("PRIVATE_FUSION_RELEASE_SHA_VERIFIED")
+          PY
+      - name: Materialize private GitHub-native game and x-man search views
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/gamepulse-fusion"
+          python3 "$ROOT/materialize.py" --db "$ROOT/gamepulse-fusion.sqlite3" \
+            --out "$ROOT/search-views"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"gamepulse-fusion/search-views"
+          manifest=json.loads((root/"index.json").read_text())
+          assert manifest["schema"]=="gamepulse.blueprint-chat-search.v1"
+          assert len(manifest["games"])>=14
+          assert manifest["contains_raw_XYZ"] is False
+          files=[(root/(gid+".json"),entry["path"])
+                 for gid,entry in sorted(manifest["games"].items())]
+          files.append((root/"index.json","gamepulse/fusion/index/index.json"))
+          for src,path in files:
+              blob=src.read_bytes()
+              target="repos/timeedmonds-maker/104/contents/"+path
+              before=subprocess.run(["gh","api",target],capture_output=True,text=True)
+              data={"branch":"main","message":"chore(gamepulse): refresh private searchable Blueprint and x-man index"}
+              if before.returncode==0:
+                  old=json.loads(before.stdout)
+                  current=base64.b64decode(old["content"])
+                  if hashlib.sha256(current).digest()==hashlib.sha256(blob).digest():
+                      continue
+                  data["sha"]=old["sha"]
+              elif before.returncode!=1:
+                  raise RuntimeError("private_search_view_lookup_failed")
+              data["content"]=base64.b64encode(blob).decode()
+              res=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                                 input=json.dumps(data),text=True,capture_output=True)
+              if res.returncode: raise RuntimeError("private_search_view_write_failed")
+          print("PRIVATE_SEARCH_VIEWS_PUBLISHED_NO_RAW_XYZ")
           PY
       - name: Commit summary pointer to private 104 only
         shell: bash
