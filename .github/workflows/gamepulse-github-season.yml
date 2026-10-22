@@ -1,5 +1,7 @@
 name: Game Pulse public CPU season private Release worker
 on:
+  schedule:
+    - cron: '*/15 * * * *'
   push:
     branches: [main]
     paths:
@@ -35,7 +37,7 @@ jobs:
           node-version: '22'
       - run: node --test tools/licensed_feed/season_core.test.mjs
   private-season:
-    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
     needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 150
@@ -60,5 +62,6 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-          GAMEPULSE_FULLGAME_PILOT: ${{ github.event_name == 'push' }}
+          GAMEPULSE_FULLGAME_PILOT: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
+          GAMEPULSE_PARTS_PER_RUN: ${{ github.event_name == 'push' && '12' || '1' }}
         run: node season_private_release.mjs
