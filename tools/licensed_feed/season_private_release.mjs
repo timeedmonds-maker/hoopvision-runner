@@ -254,9 +254,17 @@ export async function run(){
   const plan=planGame(game),part=Number(process.env.GAMEPULSE_PRIORITY_PART);
   if(!Number.isSafeInteger(part)||part<0||part>12)throw Error('invalid_priority_part');
   const job=plan.parts[part];
-  const remaining=job.start_ms+job.count*5000+10*60000-Date.now();
-  if(remaining>40*60000)throw Error('priority_window_not_yet_observed');
-  if(remaining>0)await new Promise(done=>setTimeout(done,remaining));
+  // Once the official NBA schedule marks the game final, every future time
+  // window is postgame and can be queried immediately. Never infer empty slots:
+  // capture() still requires an actual successful SDK response for every slot.
+  if(process.env.GAMEPULSE_FINAL_FASTLANE==='true'){
+   const finalGames=await schedule();
+   if(!finalGames.some(g=>g.id===game.id))throw Error('official_final_not_verified');
+  }else{
+   const remaining=job.start_ms+job.count*5000+10*60000-Date.now();
+   if(remaining>40*60000)throw Error('priority_window_not_yet_observed');
+   if(remaining>0)await new Promise(done=>setTimeout(done,remaining));
+  }
   if(Date.now()>game.start+24*3600000)throw Error('priority_assignment_expired');
   const tag='gamepulse-sdk-'+game.id;
   ensure(tag);
@@ -277,7 +285,10 @@ export async function run(){
   const game={id:process.env.GAMEPULSE_PRIORITY_ID,
    start:Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'')};
   planGame(game);
-  if(Date.now()<game.start+315*60000)throw Error('priority_fullgame_not_ready');
+  if(process.env.GAMEPULSE_FINAL_FASTLANE==='true'){
+   const finalGames=await schedule();
+   if(!finalGames.some(g=>g.id===game.id))throw Error('official_final_not_verified');
+  }else if(Date.now()<game.start+315*60000)throw Error('priority_fullgame_not_ready');
   if(Date.now()>game.start+24*3600000)throw Error('priority_assignment_expired');
   const index=readIndex();
   await archiveGame(game,index,capture);
