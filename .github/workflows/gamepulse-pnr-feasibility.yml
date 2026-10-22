@@ -1,0 +1,41 @@
+name: Game Pulse Rockets PNR tracking feasibility (private results)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-pnr-feasibility.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/gamepulse-pnr-feasibility.yml'
+      - 'tools/public_content_guard.py'
+permissions:
+  contents: read
+concurrency:
+  group: gamepulse-rockets-pnr-private-qa
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 tools/public_content_guard.py
+  private-readiness-qa:
+    needs: preflight
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    steps:
+      - name: Retrieve code, verify 13 private archives, publish private summary only
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" || exit 3
+          gh api repos/timeedmonds-maker/104/contents/gamepulse/coverage/pnr_feasibility_qa.py --jq .content | base64 -d > /tmp/pnr_feasibility_qa.py
+          python3 -m py_compile /tmp/pnr_feasibility_qa.py
+          python3 /tmp/pnr_feasibility_qa.py
+          rm -f /tmp/pnr_feasibility_qa.py
