@@ -1,4 +1,5 @@
 name: Rockets Durant VanVleet Sengun source-touch probe
+# Diagnose raw Game Pulse positions object structure for independent touch geometry.
 # Scan nested native lastTouch shape, fail closed on missing source provenance.
 on:
   push:
