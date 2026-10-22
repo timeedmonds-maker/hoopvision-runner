@@ -33,6 +33,7 @@ test('complete games and cooldown are skipped while partial resumes',()=>{
  assert.deepEqual(selectDue(games,{games:{[id]:{status:'partial'},'0022600003':{
   status:'retry',retry_after:start+40000000}}},start+36000000),[games[0]]);
  assert.equal(selectDue(games,{games:{}},start+315*60000).length,0);
+ assert.equal(selectDue(games,{games:{}},start+36000000,3).length,2);
 });
 test('remote manifests must reconcile every assigned slot and remain observed',()=>{
  const p=planGame({id,start});
@@ -50,6 +51,7 @@ test('private token is usable only on trusted main, with isolated push pilot',()
  assert.doesNotThrow(()=>assertContext(env));
  assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'push',GAMEPULSE_FULLGAME_PILOT:'true'}));
  assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'schedule',GAMEPULSE_FULLGAME_PILOT:'true'}));
+ assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'schedule',DRY_RUN:'false',GAMEPULSE_PRODUCTION_ENABLED:'true'}));
  for(const bad of [{...env,DRY_RUN:'false'},{...env,GITHUB_EVENT_NAME:'push'},
   {...env,GITHUB_EVENT_NAME:'schedule'},{...env,GH_TOKEN:''},{...env,GITHUB_REF:'refs/heads/untrusted'},
   {...env,GITHUB_EVENT_NAME:'pull_request'},{...env,GITHUB_REPOSITORY:'other/repo'}])

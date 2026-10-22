@@ -211,7 +211,9 @@ function pilotGame(){
 export function assertContext(env){
  if(env.GITHUB_REPOSITORY!==PUBLIC||env.GITHUB_REF!=='refs/heads/main'||
     !['workflow_dispatch','push','schedule'].includes(env.GITHUB_EVENT_NAME)||
-    (env.GITHUB_EVENT_NAME!=='workflow_dispatch'&&env.GAMEPULSE_FULLGAME_PILOT!=='true')||
+    (env.GITHUB_EVENT_NAME==='push'&&env.GAMEPULSE_FULLGAME_PILOT!=='true')||
+    (env.GITHUB_EVENT_NAME==='schedule'&&env.GAMEPULSE_FULLGAME_PILOT!=='true'&&
+     env.GAMEPULSE_PRODUCTION_ENABLED!=='true')||
     (env.GITHUB_EVENT_NAME==='workflow_dispatch'&&env.DRY_RUN!=='true'&&
      env.GAMEPULSE_PRODUCTION_ENABLED!=='true')||
     typeof env.GH_TOKEN!=='string'||
@@ -226,7 +228,7 @@ export async function run(){
  const index=readIndex(),games=PILOT?[pilotGame()]:await schedule();
  if(PILOT&&index.games[games[0].id]?.status==='retry')
   index.games[games[0].id].retry_after=0;
- const due=selectDue(games,index,Date.now());
+ const due=selectDue(games,index,Date.now(),PILOT?1:Number(process.env.GAMEPULSE_MAX_GAMES||3));
  console.log('PRIVATE_SEASON_DUE_COUNT',due.length);
  if(process.env.DRY_RUN==='true')return;
  for(const game of due){
