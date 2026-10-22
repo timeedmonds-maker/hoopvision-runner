@@ -70,31 +70,46 @@ jobs:
               if hashlib.sha256(data).hexdigest()!=digest:
                   raise ValueError('source asset SHA mismatch')
           PY
-            python3 "$WORK/scripts/audit.py" --sdk-dir "$D" --out "$WORK/qa/$ID.json" >/dev/null
+            if python3 "$WORK/scripts/audit.py" --sdk-dir "$D" --out "$WORK/qa/$ID.json" >/dev/null 2>"$WORK/qa/$ID.error"; then
+              rm -f "$WORK/qa/$ID.error"
+              echo "SOURCE_QA_GAME_PASSED_$ID"
+            else
+              echo "$ID" >> "$WORK/quarantined_ids.txt"
+              echo "SOURCE_QA_GAME_QUARANTINED_$ID"
+            fi
             rm -rf "$D"
-            echo "SOURCE_QA_GAME_PASSED_$ID"
           done
           python3 - <<'PY'
           import json,os,sys
           from pathlib import Path
           work=Path(os.environ['WORK'])
           files=sorted((work/'qa').glob('*.json'))
-          if len(files)!=14: raise RuntimeError('not_14_qualified_source_reports')
           reports=[json.loads(f.read_text())['games'][0] for f in files]
+          quarantined=(work/'quarantined_ids.txt')
+          bad=quarantined.read_text().splitlines() if quarantined.exists() else []
+          if len(reports)+len(bad)!=14: raise RuntimeError('incomplete_14game_run')
           sys.path.insert(0,str(work/'scripts'))
           from audit import split_games
-          ids=[q['game_id'] for q in reports]
-          if len(set(ids))!=14: raise RuntimeError('duplicate_game_id')
+          allids=['0022600001','0022600002','0022600003','0022600004','0022600005',
+                  '0022600085','0022600086','0022600087','0022600088','0022600089',
+                  '0022600090','0022600091','0022600092','0022600093']
+          if set([q['game_id'] for q in reports]+bad)!=set(allids):
+              raise RuntimeError('duplicate_or_unknown_game_id')
+          errors={gid:(work/'qa'/(gid+'.error')).read_text().splitlines()[-1] for gid in bad}
           result={'schema':'courtcoder.gamepulse-14game-world-source-qualification.v1',
-                  'audited_source_game_count':len(reports),
+                  'release_count_inspected':len(allids),
+                  'deep_source_audits_passed':len(reports),
+                  'quarantined_game_ids':bad,
+                  'private_failure_reasons':errors,
+                  'qualification_state':'INTEGRITY_QUARANTINE' if bad else 'PRELIMINARY_SOURCE_QA_COMPLETE',
                   'video_supervised_labels_admitted':0,
                   'training_or_runtime_authorized':False,
                   'protected_evaluator_touched':False,
                   'frozen_world_engine_changed':False,
-                  'training_split':split_games(ids),
+                  'training_split':split_games(allids),
                   'games':reports,
                   'camera_video_PTS_sync':'NOT_ESTABLISHED',
-                  'next_gate':'INDEPENDENT_VIDEO_WORLD_SOURCE_NATIVE_ALIGNMENT_AND_ORACLE_ABLATION'}
+                  'next_gate':'REPAIR_SOURCE_MANIFESTS_AND_CERTIFY_INDEPENDENT_VIDEO_WORLD'}
           (work/'gamepulse-14game-qualification.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
           PY
           TAG='gamepulse-world-source-qa-20261022'
@@ -104,3 +119,7 @@ jobs:
           gh release upload "$TAG" "$WORK/gamepulse-14game-qualification.json" \
             --repo timeedmonds-maker/104 --clobber >/dev/null
           echo 'SOURCE_QA_14GAME_PRIVATE_RECEIPT_UPLOADED_NO_VIDEO_LABELS'
+          if [ -s "$WORK/quarantined_ids.txt" ]; then
+            echo 'SOURCE_QA_INTEGRITY_QUARANTINE__NOT_TRAINING_READY'
+            exit 2
+          fi
