@@ -231,7 +231,7 @@ export async function run(){
   if(PILOT||process.env.GITHUB_EVENT_NAME!=='push')throw Error('priority_context_invalid');
   const game={id:process.env.GAMEPULSE_PRIORITY_ID,start:Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'')};
   const plan=planGame(game),part=Number(process.env.GAMEPULSE_PRIORITY_PART);
-  if(!Number.isSafeInteger(part)||part<0||part>3)throw Error('invalid_priority_part');
+  if(!Number.isSafeInteger(part)||part<0||part>12)throw Error('invalid_priority_part');
   const job=plan.parts[part];
   if(Date.now()<job.start_ms+job.count*5000+10*60000)throw Error('priority_window_not_yet_observed');
   if(Date.now()>game.start+24*3600000)throw Error('priority_assignment_expired');
