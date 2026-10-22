@@ -5,6 +5,7 @@ import {join,basename} from 'node:path';
 import {tmpdir} from 'node:os';
 import {gzipSync} from 'node:zlib';
 import {spawnSync} from 'node:child_process';
+import {initializeWithRetry} from './capture.mjs';
 import {pilotJob,PRIVATE_REPO,privateTag,assertScopedContext,verifyAndStore} from './github_private_release.mjs';
 
 const fixture=()=>{
@@ -113,4 +114,16 @@ test('malformed archive is rejected before any private write',()=>{
   writeFileSync(join(dir,'checkpoint.tar.gz'),Buffer.from('not a checkpoint'));
   assert.throws(()=>verifyAndStore(job,dir,()=>{throw Error('network should not run')}),/checkpoint_invalid/);
  }finally{rmSync(dir,{force:true,recursive:true});}
+});
+
+test('SDK initialization retry is bounded and leaves other failures untouched',async()=>{
+ let attempts=0;
+ const result=await initializeWithRetry(async()=>{
+  attempts++;
+  if(attempts<3)throw Error('sdk_initialization_failed');
+  return 'ready';
+ },async()=>{});
+ assert.equal(result,'ready');
+ assert.equal(attempts,3);
+ await assert.rejects(()=>initializeWithRetry(async()=>{throw Error('uncovered_window')},async()=>{}),/uncovered_window/);
 });
