@@ -47,7 +47,11 @@ jobs:
             base64 -d > "$ROOT/materialize.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_materialize.py?ref=main' --jq .content |
             base64 -d > "$ROOT/tests/test_materialize.py"
-          python3 -m py_compile "$ROOT/build.py" "$ROOT/materialize.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/onoff_ppp.py?ref=main' --jq .content |
+            base64 -d > "$ROOT/onoff_ppp.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_onoff_ppp.py?ref=main' --jq .content |
+            base64 -d > "$ROOT/tests/test_onoff_ppp.py"
+          python3 -m py_compile "$ROOT/build.py" "$ROOT/materialize.py" "$ROOT/onoff_ppp.py"
           python3 -m unittest discover -v -s "$ROOT/tests"
       - name: Build private event xFG XYZ and x-man search warehouse
         shell: bash
@@ -142,6 +146,48 @@ jobs:
                                  input=json.dumps(data),text=True,capture_output=True)
               if res.returncode: raise RuntimeError("private_search_view_write_failed")
           print("PRIVATE_SEARCH_VIEWS_PUBLISHED_NO_RAW_XYZ")
+          PY
+      - name: Compute ON OFF WOWY and certified-possession PPP only from verified sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/gamepulse-fusion"
+          python3 "$ROOT/onoff_ppp.py" build --db "$ROOT/gamepulse-fusion.sqlite3" --out "$ROOT/onoff"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"gamepulse-fusion/onoff"
+          m=json.loads((root/"index.json").read_text())
+          assert m["schema"]=="gamepulse.2026-27-onoff-ppp.v1"
+          assert len(m["games"])==14
+          assert m["xman_onoff_rows"]==11104
+          assert m["native_5v5_samples"]==144442
+          assert m["no_fabrication"] is True
+          for gid,entry in m["games"].items():
+              view=json.loads((root/(gid+".json")).read_text())
+              assert len(view["lineups"])==entry["records"]
+              for row in view["lineups"]:
+                  assert (row["on_samples"]+row["off_samples"]+row["mixed_samples"]
+                          == row["eligible_samples"])
+                  assert row["offensive_ppp_on"] is None or entry["certified_possessions"]>0
+          files=[(root/(gid+".json"),entry["path"]) for gid,entry in sorted(m["games"].items())]
+          files.append((root/"index.json","gamepulse/fusion/onoff/index.json"))
+          for src,path in files:
+              target="repos/timeedmonds-maker/104/contents/"+path
+              existing=subprocess.run(["gh","api",target],capture_output=True,text=True)
+              payload={"branch":"main","message":"data(gamepulse): certified-source ON/OFF PPP search view",
+                       "content":base64.b64encode(src.read_bytes()).decode()}
+              if existing.returncode==0:
+                  old=json.loads(existing.stdout)
+                  if hashlib.sha256(base64.b64decode(old["content"])).digest()==hashlib.sha256(src.read_bytes()).digest():
+                      continue
+                  payload["sha"]=old["sha"]
+              elif "404" not in existing.stderr and "Not Found" not in existing.stderr:
+                  raise RuntimeError("private_onoff_lookup_failed")
+              result=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                  input=json.dumps(payload),capture_output=True,text=True)
+              if result.returncode:raise RuntimeError("private_onoff_publish_failed")
+          print("PRIVATE_ONOFF_WOWY_INDEX_VERIFIED_NO_INVENTED_POSSESSION_PPP")
           PY
       - name: Commit summary pointer to private 104 only
         shell: bash
