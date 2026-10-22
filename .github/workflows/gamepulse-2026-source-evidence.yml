@@ -205,7 +205,8 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_validate_pbp_onoff.py?ref=main' --jq .content | base64 -d > "$ROOT/tests/test_validate_pbp_onoff.py"
           python3 -m unittest discover -v -s "$ROOT/tests" -p 'test_validate_pbp_onoff.py'
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json?ref=main' --jq .content | base64 -d > "$ROOT/verified-catalog.json"
-          python3 "$ROOT/validate_pbp_onoff.py" --catalog "$ROOT/verified-catalog.json" --out "$ROOT/native-onoff-qa.json"
+          gh api 'repos/timeedmonds-maker/104/contents/data/extensions/nba_blueprint_2026_27/games/0022600091/blueprint_report_raw.json?ref=main' --jq .content | base64 -d > "$ROOT/rockets-original-blueprint.json"
+          python3 "$ROOT/validate_pbp_onoff.py" --catalog "$ROOT/verified-catalog.json" --blueprint "$ROOT/rockets-original-blueprint.json" --out "$ROOT/native-onoff-qa.json"
       - name: Preserve independent ON OFF provider QA only in private 104
         shell: bash
         run: |
