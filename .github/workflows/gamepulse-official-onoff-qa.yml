@@ -1,5 +1,5 @@
 name: NBA 2026-27 independent ONOFF and 5man NBA validation
-# Official single-game lineup minutes, team clock, and opponent exposures are cross-checked before accepting ON/OFF.
+# Official NBA 5man, player ONOFF and possession rates are canonical; sampled tracking WOWY is separate.
 on:
   push:
     branches: [main]
