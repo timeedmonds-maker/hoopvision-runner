@@ -29,8 +29,11 @@ def gh(*args):
 
 def official(filename):
     url="https://cdn.nba.com/static/json/liveData/"+filename
-    req=Request(url,headers={"Accept":"application/json",
-      "Referer":"https://www.nba.com/","User-Agent":"Mozilla/5.0"})
+    req=Request(url,headers={"Accept":"application/json, text/plain, */*",
+      "Accept-Language":"en-US,en;q=0.9",
+      "Origin":"https://www.nba.com",
+      "Referer":"https://www.nba.com/",
+      "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"})
     with urlopen(req,timeout=25) as response:
         raw=response.read(15_000_001)
     if len(raw)>15_000_000:raise RuntimeError("official_data_oversize")
