@@ -18,9 +18,9 @@ const fixture=()=>{
  const manifest={schema:'nba-gamepulse-sdk-chunk.v1',game_id:job.game_id,
   part:job.part,start_ms:job.start_ms,successful_windows:300,empty_windows:299,
   unique_keyframes:1,frames_with_players:1,frames_with_ball:1,observed:true,imputed:false};
- writeFileSync(join(dir,'manifest.json'),JSON.stringify(manifest)+'\\n');
- writeFileSync(join(dir,'raw-slots.jsonl.gz'),gzipSync(Buffer.from(rows.map(x=>JSON.stringify(x)).join('\\n')+'\\n')));
- writeFileSync(join(dir,'frames.jsonl.gz'),gzipSync(Buffer.from(JSON.stringify(frame)+'\\n')));
+ writeFileSync(join(dir,'manifest.json'),JSON.stringify(manifest)+'\n');
+ writeFileSync(join(dir,'raw-slots.jsonl.gz'),gzipSync(Buffer.from(rows.map(x=>JSON.stringify(x)).join('\n')+'\n')));
+ writeFileSync(join(dir,'frames.jsonl.gz'),gzipSync(Buffer.from(JSON.stringify(frame)+'\n')));
  const tar=spawnSync('tar',['-czf',join(dir,'checkpoint.tar.gz'),'-C',dir,
   'manifest.json','raw-slots.jsonl.gz','frames.jsonl.gz'],{stdio:'ignore'});
  assert.equal(tar.status,0);
