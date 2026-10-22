@@ -31,9 +31,9 @@ jobs:
     needs: preflight
     strategy:
       fail-fast: false
-      max-parallel: 3
+      max-parallel: 2
       matrix:
-        part: [10, 11, 12]
+        part: [11, 12]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -43,23 +43,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Start at exact source-window maturity, not the old 6:50 pm hold
-        env:
-          GAMEPULSE_PART: ${{ matrix.part }}
-        run: |
-          python3 - <<'PY'
-          import datetime as dt, os, time
-          part=int(os.environ['GAMEPULSE_PART'])
-          assert part in (10,11,12)
-          begin=dt.datetime(2026,10,22,0,20,tzinfo=dt.timezone.utc)
-          count=120 if part==12 else 300
-          ready=begin+dt.timedelta(seconds=part*300*5+count*5)
-          seconds=max(0,(ready-dt.datetime.now(dt.timezone.utc)).total_seconds())
-          if seconds>90*60: raise RuntimeError('unexpected_source_maturity_wait')
-          print('SOURCE_WINDOW_READY_AT_UTC', ready.isoformat(), flush=True)
-          if seconds: time.sleep(seconds)
-          print('CAPTURE_ELIGIBLE_NOW',part,flush=True)
-          PY
       - name: Install licensed SDK with lifecycle scripts disabled
         working-directory: tools/licensed_feed
         run: |
