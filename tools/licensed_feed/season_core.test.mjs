@@ -50,6 +50,7 @@ test('private token is usable only on trusted main, with isolated push pilot',()
  assert.doesNotThrow(()=>assertContext(env));
  assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'push',GAMEPULSE_FULLGAME_PILOT:'true'}));
  assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'schedule',GAMEPULSE_FULLGAME_PILOT:'true'}));
+ assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'schedule',DRY_RUN:'false',GAMEPULSE_PRODUCTION_ENABLED:'true'}));
  for(const bad of [{...env,DRY_RUN:'false'},{...env,GITHUB_EVENT_NAME:'push'},
   {...env,GITHUB_EVENT_NAME:'schedule'},{...env,GH_TOKEN:''},{...env,GITHUB_REF:'refs/heads/untrusted'},
   {...env,GITHUB_EVENT_NAME:'pull_request'},{...env,GITHUB_REPOSITORY:'other/repo'}])
