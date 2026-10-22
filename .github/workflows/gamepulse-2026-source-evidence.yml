@@ -129,7 +129,9 @@ jobs:
           for source,path in (
               (root/"qa.json","gamepulse/fusion/qualification_qa.json"),
               (root/"qualification.sqlite3.qualified_players.json",
-               "gamepulse/fusion/qualified_season_leaders_2026_27.json")):
+               "gamepulse/fusion/qualified_season_leaders_2026_27.json"),
+              (root/"qualification.sqlite3.lineup_shots.json",
+               "gamepulse/fusion/index/verified_event_lineup_shots_2026_27.json")):
               target="repos/timeedmonds-maker/104/contents/"+path
               old=subprocess.run(["gh","api",target],capture_output=True,text=True)
               payload={"message":"chore(2026): update private qualified player season and timing QA",
