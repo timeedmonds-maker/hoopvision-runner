@@ -40,5 +40,5 @@ jobs:
           python3 -m py_compile "$WORK/official_nba.py"
           # Never attempt media PTS or third-party full-game replay timestamps.
           python3 "$WORK/official_nba.py" --selftest
-          python3 "$WORK/official_nba.py" --game 0022600091
+          python3 "$WORK/official_nba.py" --game 0022600091  # NBA official only, no video clock inference
           echo 'NBA_FORMAL_EVENT_CLOCK_QA_PRIVATE_ONLY'
