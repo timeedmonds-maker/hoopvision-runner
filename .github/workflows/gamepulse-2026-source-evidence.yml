@@ -206,6 +206,28 @@ jobs:
           python3 -m unittest discover -v -s "$ROOT/tests" -p 'test_validate_pbp_onoff.py'
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json?ref=main' --jq .content | base64 -d > "$ROOT/verified-catalog.json"
           python3 "$ROOT/validate_pbp_onoff.py" --catalog "$ROOT/verified-catalog.json" --out "$ROOT/native-onoff-qa.json"
+      - name: Preserve independent ON OFF provider QA only in private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          blob=(Path(os.environ["RUNNER_TEMP"])/"qualification/native-onoff-qa.json").read_bytes()
+          endpoint="repos/timeedmonds-maker/104/contents/gamepulse/fusion/native_pbp_onoff_validation_qa.json"
+          old=subprocess.run(["gh","api",endpoint],capture_output=True,text=True)
+          record={"branch":"main","message":"qa(2026): independent PBP Stats and NBA ON OFF source diagnostics",
+                  "content":base64.b64encode(blob).decode()}
+          if old.returncode==0:record["sha"]=json.loads(old.stdout)["sha"]
+          elif "404" not in old.stderr and "Not Found" not in old.stderr:
+              raise RuntimeError("native_provider_private_read_error")
+          result=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                               input=json.dumps(record),capture_output=True,text=True)
+          if result.returncode:raise RuntimeError("native_provider_private_write_error")
+          check=subprocess.check_output(["gh","api",endpoint,"--jq",".content"])
+          if base64.b64decode(check)!=blob:raise RuntimeError("native_provider_qa_readback")
+          print("NATIVE_ONOFF_INDEPENDENT_SOURCE_QA_PRIVATE_VERIFIED")
+          PY
       - name: No licensed data in public results
         if: always()
         run: echo 'Detailed source evidence and QA reside exclusively in private 104.' >> "$GITHUB_STEP_SUMMARY"
