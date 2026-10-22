@@ -80,3 +80,20 @@ test('post-final recovery is bounded parallel, authentic, exact, and determinist
   assert.deepEqual(received.get(ms).events,[{slot:ms}]);
  }
 });
+
+test('404 for unpublished slot is retried and never accepted as an empty window',async()=>{
+ const one={...job,count:1},received=new Map();
+ let attempts=0;
+ await assert.rejects(recoverMissingWindows(one,received,signed,{
+  wait:async()=>{},request:async()=>{attempts++;return {status:404,ok:false};}
+ }),/uncovered_window/);
+ assert.equal(attempts,4);
+ assert.equal(received.size,0);
+});
+test('body-shaped 200 response is not mistaken for authentic event array',async()=>{
+ const one={...job,count:1},received=new Map();
+ await assert.rejects(recoverMissingWindows(one,received,signed,{
+  wait:async()=>{},request:async()=>({status:200,ok:true,json:async()=>({events:[]})})
+ }),/uncovered_window/);
+ assert.equal(received.size,0);
+});
