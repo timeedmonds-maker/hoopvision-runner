@@ -5,6 +5,7 @@ import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {spawnSync,execFileSync} from 'node:child_process';
 import {gzipSync} from 'node:zlib';
+import {recoverMissingWindows} from './sdk_slot.mjs';
 
 const ROOT=import.meta.dirname;
 const WINDOW=5000;
@@ -58,7 +59,7 @@ async function launchClient(job,received,pending){
   res.end(readFileSync(join(ROOT,file)));
  });
  await new Promise(ok=>server.listen(0,'127.0.0.1',ok));
- let browser;
+ let browser,observedSlotUrl=null;
  try{
   browser=await puppeteer.launch({headless:true,executablePath:browserBinary(),
    args:['--no-sandbox','--disable-dev-shm-usage']});
@@ -71,6 +72,7 @@ async function launchClient(job,received,pending){
      ||!url.pathname.endsWith('/events/slot'))return;
     const ms=Number(url.searchParams.get('from'));
     if(!Number.isSafeInteger(ms)||ms<job.start_ms||ms>=job.start_ms+job.count*WINDOW)return;
+    if(url.searchParams.has('token'))observedSlotUrl=response.url();
     const p=response.json().then(events=>{
       if(Array.isArray(events))received.set(ms,{from:ms,to:ms+4999,events});
     }).catch(()=>{});
@@ -83,7 +85,8 @@ async function launchClient(job,received,pending){
     accountId:j.account_id,programId:j.program_id
   }),job);
   if(result!=='ready')throw Error('sdk_initialization_failed');
-  return {page,close:async()=>{await browser.close();await new Promise(ok=>server.close(ok));}};
+  return {page,observedUrl:()=>observedSlotUrl,
+   close:async()=>{await browser.close();await new Promise(ok=>server.close(ok));}};
  }catch(e){
   if(browser)await browser.close();
   await new Promise(ok=>server.close(ok));
@@ -115,6 +118,10 @@ export async function capture(job,dir){
    await sleep(1600);await Promise.allSettled([...pending]);
   }
   const rows=windows.map(ms=>received.get(ms));
+  if(rows.some(x=>!x)){
+   await recoverMissingWindows(job,received,session.observedUrl());
+   for(let i=0;i<windows.length;i++)rows[i]=received.get(windows[i]);
+  }
   if(rows.some(x=>!x))throw Error('uncovered_window');
   const {manifest,frames}=stats(job,rows);
   mkdirSync(dir,{recursive:true});
