@@ -94,7 +94,7 @@ jobs:
           node "$WORK/courtcoder/qa/test_nba_clip_process.cjs"
           node "$WORK/courtcoder/qa/test_nba_gamepulse_single_upload.cjs"
           node "$WORK/courtcoder/qa/test_nba_measurements.cjs"
-          gh release download gamepulse-sdk-0022600091 --repo timeedmonds-maker/104 --dir "$WORK/rockets" --pattern 'sdk-part-01.tar.gz' --pattern 'sdk-part-01.json'
+          gh release download gamepulse-sdk-0022600091 --repo timeedmonds-maker/104 --dir "$WORK/rockets" --pattern 'sdk-part-01.tar.gz' --pattern 'sdk-part-01.json' --pattern 'sdk-COMPLETE.json'
           export CC_PRIVATE_SMOKE="$WORK"
           python3 - <<'PY'
           import json,os,sys,subprocess,re
@@ -111,9 +111,16 @@ jobs:
                   digest=a.get("digest","")
                   assert re.fullmatch(r"sha256:[0-9a-f]{64}",digest)
                   digests[a["name"]]=digest.split(":")[1]
+          complete_asset=next(a for a in release["assets"] if a.get("name")=="sdk-COMPLETE.json")
+          complete_bytes=(base/"rockets"/"sdk-COMPLETE.json").read_bytes()
+          import hashlib
+          assert "sha256:"+hashlib.sha256(complete_bytes).hexdigest()==complete_asset["digest"]
+          complete=json.loads(complete_bytes)
+          assert complete["game_id"]=="0022600091" and complete["parts"]==13 and complete["successful_windows"]==3720
           assert len(digests)==2
           frames,qa=load_private_sdk_parts("0022600091",base/"rockets",
-              part_numbers=[1],trusted_asset_digests=digests)
+              part_numbers=[1],trusted_asset_digests=digests,
+              verified_planned_start_ms=complete["planned_start_ms"])
           assert len(frames)>500
           eligible=[r for r in frames if len(r.get("positions",{}))>=9]
           assert eligible,"No observable active ten-player gameplay in selected part"
