@@ -31,8 +31,9 @@ function names(tag){
 }
 function ensure(tag){
  if(names(tag)!==null)return;
- call(['release','create',tag,'--target','main','--title',tag,
+ const result=gh(['release','create',tag,'--repo',REPO,'--target','main','--title',tag,
   '--notes','Private licensed SDK capture; no public observation assets','--latest=false']);
+ if(!result.ok && names(tag)===null)throw Error('private_release_create_failed');
 }
 function download(tag,name,directory){
  call(['release','download',tag,'--pattern',name,'--dir',directory]);
