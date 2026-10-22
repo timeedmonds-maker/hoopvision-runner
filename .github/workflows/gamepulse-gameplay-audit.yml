@@ -1,4 +1,5 @@
 name: Game Pulse gameplay cutoff verification (private result)
+# Recheck after real SDK frame timestamp tolerance update.
 on:
   push:
     branches: [main]
