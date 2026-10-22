@@ -204,7 +204,8 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/validate_pbp_onoff.py?ref=main' --jq .content | base64 -d > "$ROOT/validate_pbp_onoff.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_validate_pbp_onoff.py?ref=main' --jq .content | base64 -d > "$ROOT/tests/test_validate_pbp_onoff.py"
           python3 -m unittest discover -v -s "$ROOT/tests" -p 'test_validate_pbp_onoff.py'
-          python3 "$ROOT/validate_pbp_onoff.py" --catalog "$ROOT/games-index.json" --out "$ROOT/native-onoff-qa.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json?ref=main' --jq .content | base64 -d > "$ROOT/verified-catalog.json"
+          python3 "$ROOT/validate_pbp_onoff.py" --catalog "$ROOT/verified-catalog.json" --out "$ROOT/native-onoff-qa.json"
       - name: No licensed data in public results
         if: always()
         run: echo 'Detailed source evidence and QA reside exclusively in private 104.' >> "$GITHUB_STEP_SUMMARY"
