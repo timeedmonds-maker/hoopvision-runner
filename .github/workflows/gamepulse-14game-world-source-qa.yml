@@ -76,6 +76,28 @@ jobs:
             else
               echo "$ID" >> "$WORK/quarantined_ids.txt"
               echo "SOURCE_QA_GAME_QUARANTINED_$ID"
+              export DEBUG_DIR="$D" DEBUG_GAME="$ID"
+              # Expose only mismatch field NAMES and equality booleans; never
+              # private position values, source timestamps, tokens or footage.
+              python3 - <<'PY'
+          import json,os,tarfile
+          from pathlib import Path
+          path=Path(os.environ['DEBUG_DIR'])
+          for p in sorted(path.glob('sdk-part-??.tar.gz')):
+              with tarfile.open(p,'r:gz') as t:
+                  members={Path(m.name).name:m for m in t.getmembers() if m.isfile()}
+                  payload=json.loads(t.extractfile(members['manifest.json']).read())
+              side=json.loads((path/(p.name.replace('.tar.gz','.json'))).read_text())
+              different=sorted(k for k in set(payload)|set(side) if payload.get(k)!=side.get(k))
+              game_ok=payload.get('game_id')==os.environ['DEBUG_GAME']
+              schema_ok=payload.get('schema')=='nba-gamepulse-sdk-chunk.v1'
+              if different or not game_ok or not schema_ok:
+                  print('SOURCE_MANIFEST_ROOTCAUSE',os.environ['DEBUG_GAME'],p.name,
+                        'different_fields='+','.join(different),
+                        'game_id_match='+str(game_ok),
+                        'schema_match='+str(schema_ok),flush=True)
+                  break
+          PY
             fi
             rm -rf "$D"
           done
