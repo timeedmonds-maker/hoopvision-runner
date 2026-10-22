@@ -22,7 +22,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ${{ github.event_name == 'push' && 'gamepulse-priority-parallel' || 'gamepulse-public-season-private-release' }}
+  group: gamepulse-public-season-private-release
   cancel-in-progress: false
 jobs:
   preflight:
@@ -43,9 +43,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        part: ${{ fromJSON(github.event_name == 'push' && '[5,6]' || '[0]') }}
+        part: ${{ fromJSON(github.event_name == 'push' && '[7,8,9,10,11,12]' || '[0]') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 210
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,6 +53,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Wait until this full-game segment has elapsed
+        if: github.event_name == 'push'
+        env:
+          GAMEPULSE_PART: ${{ matrix.part }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import datetime as dt, os, time
+          part=int(os.environ['GAMEPULSE_PART'])
+          assert 7<=part<=12, 'unexpected_priority_part'
+          tipoff=dt.datetime(2026,10,22,0,30,tzinfo=dt.timezone.utc)
+          ready=tipoff+dt.timedelta(minutes=min((part+1)*25,310))
+          seconds=max(0,(ready-dt.datetime.now(dt.timezone.utc)).total_seconds())
+          if seconds>3*3600: raise RuntimeError('priority_wait_excessive')
+          print('WAITING_FOR_ELAPSED_WINDOW',part,round(seconds),flush=True)
+          time.sleep(seconds)
+          PY
       - name: Check private secret availability without outputting it
         env:
           SECRET_PRESENT: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN != '' }}
@@ -84,3 +101,28 @@ jobs:
           # Season ingestion takes precedence over a prior partial pilot.
           # A stalled pilot must not block newly completed priority games.
           GAMEPULSE_FULLGAME_PILOT=false GAMEPULSE_PARTS_PER_RUN=13 node season_private_release.mjs
+  finish-priority:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: private-season
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install SDK dependencies without scripts
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Verify complete private game archive and index
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_PRIORITY_FINALIZE: 'true'
+          GAMEPULSE_PRIORITY_ID: '0022600091'
+          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T00:30:00Z'
+        run: node season_private_release.mjs
