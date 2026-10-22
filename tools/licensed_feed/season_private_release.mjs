@@ -191,6 +191,23 @@ async function schedule(){
  }
  throw Error('schedule_sources_unavailable');
 }
+
+function pilotGame(){
+ const tags=JSON.parse(call(['release','list','--limit','100','--json','tagName']));
+ const matches=tags.filter(x=>typeof x.tagName==='string'&&
+  x.tagName.startsWith('gamepulse-sdk-github-acceptance-'));
+ if(matches.length!==1)throw Error('private_pilot_assignment_ambiguous');
+ const dir=temp();
+ try{
+  const manifest=JSON.parse(readFileSync(download(matches[0].tagName,'sdk-part-00.json',dir),'utf8'));
+  const game={id:manifest.game_id,start:manifest.start_ms+600000};
+  planGame(game);
+  if(manifest.successful_windows!==300||manifest.frames_with_players<1)
+   throw Error('private_pilot_assignment_invalid');
+  return game;
+ }finally{rmSync(dir,{recursive:true,force:true});}
+}
+
 export function assertContext(env){
  if(env.GITHUB_REPOSITORY!==PUBLIC||env.GITHUB_REF!=='refs/heads/main'||
     !['workflow_dispatch','push','schedule'].includes(env.GITHUB_EVENT_NAME)||
@@ -206,7 +223,9 @@ export async function run(){
  delete process.env.GH_TOKEN;
  // All third-party imports occur only after GH_TOKEN leaves process.env.
  const {capture}=await import('./capture.mjs');
- const index=readIndex(),games=await schedule();
+ const index=readIndex(),games=PILOT?[pilotGame()]:await schedule();
+ if(PILOT&&index.games[games[0].id]?.status==='retry')
+  index.games[games[0].id].retry_after=0;
  const due=selectDue(games,index,Date.now());
  console.log('PRIVATE_SEASON_DUE_COUNT',due.length);
  if(process.env.DRY_RUN==='true')return;
