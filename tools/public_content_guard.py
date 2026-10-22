@@ -55,6 +55,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-2026-source-evidence.yml",
     ".github/workflows/gamepulse-official-onoff-qa.yml",
     ".github/workflows/gamepulse-formal-pbp-14game.yml",
+    ".github/workflows/rockets-three-player-touch-probe.yml",
     "tests/test_consumer_receipt_waiter.py",
     "tests/test_public_bridge_preflight.py",
     "tests/test_public_content_guard.py",
