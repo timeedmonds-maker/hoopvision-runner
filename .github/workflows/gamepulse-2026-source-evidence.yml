@@ -1,5 +1,5 @@
 name: NBA 2026-27 all-player sources and certified event/lineup QA
-# Independent private-only diagnosis: ESPN shot participant and source clock mismatch classes.
+# Independent native PBP lineups and exact game scoreboard ON/OFF/PPP provenance check.
 # Reuse canonical source-supported NBA game webpage PBP plus ESPN independent wallclock.
 # NBA event sequence + observed ESPN narrative: permit provider team/athlete fields to be null.
 # Recheck ESPN nullable-team and shooter-narrative event clocks against independently mapped NBA player, period and source frames.
