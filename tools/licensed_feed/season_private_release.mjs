@@ -195,6 +195,8 @@ export function assertContext(env){
  if(env.GITHUB_REPOSITORY!==PUBLIC||env.GITHUB_REF!=='refs/heads/main'||
     !['workflow_dispatch','push','schedule'].includes(env.GITHUB_EVENT_NAME)||
     (env.GITHUB_EVENT_NAME!=='workflow_dispatch'&&env.GAMEPULSE_FULLGAME_PILOT!=='true')||
+    (env.GITHUB_EVENT_NAME==='workflow_dispatch'&&env.DRY_RUN!=='true'&&
+     env.GAMEPULSE_PRODUCTION_ENABLED!=='true')||
     typeof env.GH_TOKEN!=='string'||
     env.GH_TOKEN.length<30)
   throw Error('unauthorized_private_collection');
