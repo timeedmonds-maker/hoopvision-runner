@@ -51,7 +51,7 @@ jobs:
         run: |
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
-      - name: Capture only after official NBA final; private SHA-verified checkpoint
+      - name: Capture after official NBA final; private SHA-verified checkpoint
         working-directory: tools/licensed_feed
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
@@ -62,7 +62,8 @@ jobs:
           GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
         run: node season_private_release.mjs
   certify-private-complete:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Recover missing checkpoints even if one parallel worker exhausted its attempts.
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: capture-after-final
     runs-on: ubuntu-24.04
     timeout-minutes: 45
