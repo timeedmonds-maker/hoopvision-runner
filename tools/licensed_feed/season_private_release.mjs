@@ -178,6 +178,27 @@ async function archiveGame(game,index,capture){
  writeIndex(index);
  console.log('PRIVATE_GAME_COMPLETE_SHA_READBACK');
 }
+async function captureElapsedPriority(capture){
+ if(process.env.GITHUB_EVENT_NAME!=='schedule')return;
+ const id=process.env.GAMEPULSE_PRIORITY_ID;
+ const start=Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'');
+ const now=Date.now();
+ if(!Number.isSafeInteger(start)||now<start||now>=start+24*3600000)return;
+ const jobs=planGame({id,start}).parts;
+ const tag='gamepulse-sdk-'+id,existing=names(tag);
+ if(!existing)return;
+ let processed=0;
+ for(const job of jobs){
+  if(job.start_ms+job.count*5000+600000>now)break;
+  const base='sdk-part-'+String(job.part).padStart(2,'0');
+  if(existing.has(base+'.tar.gz')&&existing.has(base+'.json'))continue;
+  if(existing.has(base+'.json')&&!existing.has(base+'.tar.gz'))throw Error('priority_orphan_sidecar');
+  if(existing.has(base+'.tar.gz'))repairArchiveOnly(tag,job);
+  else await capturePart(tag,job,capture);
+  console.log('PRIVATE_PRIORITY_LIVE_PART_SHA_READBACK',job.part);
+  if(++processed>=2)break;
+ }
+}
 async function schedule(){
  const headers={'User-Agent':'Mozilla/5.0','Accept':'application/json','Referer':'https://www.nba.com/'};
  const sources=[['modern','https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json'],
@@ -249,6 +270,7 @@ export async function run(){
   console.log('PRIVATE_PRIORITY_PART_SHA_READBACK_CERTIFIED');
   return;
  }
+ await captureElapsedPriority(capture);
  const index=readIndex(),games=PILOT?[pilotGame()]:await schedule();
  if(PILOT&&index.games[games[0].id]?.status==='retry')
   index.games[games[0].id].retry_after=0;

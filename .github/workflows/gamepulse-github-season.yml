@@ -84,9 +84,3 @@ jobs:
           # Season ingestion takes precedence over a prior partial pilot.
           # A stalled pilot must not block newly completed priority games.
           GAMEPULSE_FULLGAME_PILOT=false GAMEPULSE_PARTS_PER_RUN=13 node season_private_release.mjs
-          # Afterwards, use leftover capacity to complete the earlier pilot.
-          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
-            if ! gh release view gamepulse-sdk-public-pilot-0022600002 --repo timeedmonds-maker/104 --json assets --jq '.assets[].name' 2>/dev/null | grep -Fxq sdk-COMPLETE.json; then
-              GAMEPULSE_FULLGAME_PILOT=true GAMEPULSE_PILOT_FINALIZE=true GAMEPULSE_PARTS_PER_RUN=13 node season_private_release.mjs
-            fi
-          fi
