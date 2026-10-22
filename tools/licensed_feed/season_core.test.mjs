@@ -33,6 +33,7 @@ test('complete games and cooldown are skipped while partial resumes',()=>{
  assert.deepEqual(selectDue(games,{games:{[id]:{status:'partial'},'0022600003':{
   status:'retry',retry_after:start+40000000}}},start+36000000),[games[0]]);
  assert.equal(selectDue(games,{games:{}},start+315*60000).length,0);
+ assert.equal(selectDue(games,{games:{}},start+36000000,3).length,2);
 });
 test('remote manifests must reconcile every assigned slot and remain observed',()=>{
  const p=planGame({id,start});
