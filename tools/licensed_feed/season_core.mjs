@@ -43,12 +43,22 @@ export function parseSchedule(doc,kind){
  return [...games.values()];
 }
 
-export function selectDue(games,index,now,max=1){
+export function priorityId(config,now=Date.now()){
+ if(config?.schema!=='gamepulse-priority.v1'||!idOK(config.game_id)||
+   !Number.isSafeInteger(now))return null;
+ const tipoff=Date.parse(config.tipoff_utc||'');
+ const expires=Date.parse(config.expires_at_utc||'');
+ if(!Number.isFinite(tipoff)||!Number.isFinite(expires)||
+   expires<=tipoff||now<tipoff||now>=expires)return null;
+ return config.game_id;
+}
+
+export function selectDue(games,index,now,max=1,preferred=null){
  if(!Number.isSafeInteger(max)||max<1||max>3)throw Error('invalid_game_limit');
  return games.filter(g=>idOK(g.id)&&Number.isSafeInteger(g.start)
   &&g.start+315*60000<now&&index.games?.[g.id]?.status!=='complete'
   &&(index.games?.[g.id]?.retry_after||0)<=now)
-  .sort((a,b)=>a.start-b.start).slice(0,max);
+  .sort((a,b)=>(a.id===preferred?-1:0)-(b.id===preferred?-1:0)||a.start-b.start).slice(0,max);
 }
 
 export function summarize(parts,manifests){
