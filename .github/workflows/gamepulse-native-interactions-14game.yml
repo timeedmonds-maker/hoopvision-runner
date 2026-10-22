@@ -1,4 +1,5 @@
 name: Game Pulse source-native touch event fusion for all 14 games
+# Respect NBA one-of-one technical FT scoring outside current possession owner.
 # Public/free GitHub-hosted CPU; all SDK archives, individual player and
 # possession records, coordinates, receipts and query outputs stay private 104.
 on:
