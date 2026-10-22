@@ -55,3 +55,28 @@ test('post-final chunks use the same earlier observed programme anchor',()=>{
  assert.throws(()=>recoveryAnchor({...b,start_ms:b.start_ms+1}),/invalid_slot_anchor/);
  assert.throws(()=>recoveryAnchor({...b,part:-1}),/invalid_slot_anchor/);
 });
+
+test('post-final recovery is bounded parallel, authentic, exact, and deterministic',async()=>{
+ const batch={...job,count:9};
+ const received=new Map();
+ let active=0,maxActive=0;
+ const attempted=[];
+ const request=async url=>{
+  const q=new URL(url);
+  const ms=Number(q.searchParams.get('from'));
+  attempted.push(ms);
+  active++;maxActive=Math.max(maxActive,active);
+  await new Promise(ok=>setTimeout(ok,3));
+  active--;
+  return {status:200,ok:true,json:async()=>[{slot:ms}]};
+ };
+ const total=await recoverMissingWindows(batch,received,signed,{request,wait:async()=>{}});
+ assert.equal(total,9);
+ assert.equal(received.size,9);
+ assert.equal(attempted.length,9);
+ assert(maxActive>1&&maxActive<=4,'bounded four-way concurrency');
+ for(let i=0;i<9;i++){
+  const ms=batch.start_ms+i*5000;
+  assert.deepEqual(received.get(ms).events,[{slot:ms}]);
+ }
+});
