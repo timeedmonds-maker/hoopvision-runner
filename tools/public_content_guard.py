@@ -51,6 +51,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-private-search-index.yml",
     ".github/workflows/gamepulse-private-blueprint-fusion.yml",
     ".github/workflows/gamepulse-2026-source-evidence.yml",
+    ".github/workflows/gamepulse-official-onoff-qa.yml",
     "tests/test_consumer_receipt_waiter.py",
     "tests/test_public_bridge_preflight.py",
     "tests/test_public_content_guard.py",
