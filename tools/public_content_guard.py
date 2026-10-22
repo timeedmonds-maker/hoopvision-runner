@@ -27,6 +27,8 @@ ALLOWED_STATIC = {
     "tools/licensed_feed/package.json",
     "tools/licensed_feed/season_core.mjs",
     "tools/licensed_feed/season_core.test.mjs",
+    "tools/licensed_feed/sdk_slot.mjs",
+    "tools/licensed_feed/sdk_slot.test.mjs",
     "tools/licensed_feed/season_private_release.mjs",
     ".github/workflows/gamepulse-github-season.yml",
     "tests/test_consumer_receipt_waiter.py",
