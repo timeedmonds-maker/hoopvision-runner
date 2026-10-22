@@ -213,7 +213,8 @@ export function assertContext(env){
     !['workflow_dispatch','push','schedule'].includes(env.GITHUB_EVENT_NAME)||
     (env.GITHUB_EVENT_NAME==='push'&&env.GAMEPULSE_FULLGAME_PILOT!=='true')||
     (env.GITHUB_EVENT_NAME==='schedule'&&
-     (env.GAMEPULSE_FULLGAME_PILOT==='true'||env.GAMEPULSE_PRODUCTION_ENABLED!=='true'))||
+     (env.GAMEPULSE_PRODUCTION_ENABLED!=='true'||
+      (env.GAMEPULSE_FULLGAME_PILOT==='true'&&env.GAMEPULSE_PILOT_FINALIZE!=='true')))||
     (env.GITHUB_EVENT_NAME==='workflow_dispatch'&&env.DRY_RUN!=='true'&&
      env.GAMEPULSE_PRODUCTION_ENABLED!=='true')||
     typeof env.GH_TOKEN!=='string'||
