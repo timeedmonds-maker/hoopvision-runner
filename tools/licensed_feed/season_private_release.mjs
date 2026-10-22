@@ -22,7 +22,7 @@ function pauseForRetry(attempt){
  spawnSync('sleep',[String(attempt+1)],{stdio:'ignore',timeout:5000});
 }
 function authDenied(err){
- return /(?:HTTP|status)\\s*(?:401|403)|permission denied|authentication failed|forbidden/i.test(err);
+ return /(?:HTTP|status)\s*(?:401|403)|permission denied|authentication failed|forbidden/i.test(err);
 }
 function call(args){
  const action=['view','create','upload','download','list'].includes(args[1])?args[1]:'operation';
