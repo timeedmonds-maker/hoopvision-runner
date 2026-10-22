@@ -1,0 +1,67 @@
+name: Opaque Licensed Feed Bridge
+on:
+  push:
+    branches: [agents/opaque-licensed-feed-20261022]
+    paths:
+      - ".github/workflows/opaque-licensed-feed.yml"
+      - "tools/licensed_feed/**"
+      - "tools/opaque_lane_*.py"
+      - "tools/public_content_guard.py"
+      - "tests/test_opaque_lane.py"
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: opaque-licensed-feed
+  cancel-in-progress: false
+jobs:
+  security-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce existing public confidentiality guard
+        run: python3 tools/public_content_guard.py
+      - name: Test opaque request contract and no artifacts
+        run: |
+          python3 -m unittest discover -s tests -p test_opaque_lane.py -v
+          python3 tools/licensed_feed/orchestrate.py --self-test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install isolated browser test dependencies
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --fetch-retries=1 --fetch-timeout=20000 --silent
+      - name: Test synthetic JavaScript collector contract
+        working-directory: tools/licensed_feed
+        run: node --test capture.test.mjs
+  live-feed:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    needs: security-preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    env:
+      LICENSED_FEED_PRIVATE_GATEWAY: ${{ secrets.LICENSED_FEED_PRIVATE_GATEWAY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Confirm authenticated intake is configured
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$LICENSED_FEED_PRIVATE_GATEWAY" || {
+            echo 'PRIVATE_INTAKE_NOT_CONFIGURED'
+            exit 3
+          }
+      - name: Install publicly distributed SDK
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --no-audit --no-fund --ignore-scripts --fetch-retries=1 --fetch-timeout=20000 --silent
+      - name: Capture into ephemeral runner and upload to private intake
+        run: python3 tools/licensed_feed/orchestrate.py --max-chunks 35

@@ -1,0 +1,35 @@
+name: Licensed Game Pulse one-shot ephemeral public pilot
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gamepulse-ephemeral-one-shot
+  cancel-in-progress: false
+jobs:
+  capture-pilot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce public-source whitelist
+        run: python3 tools/public_content_guard.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install supported licensed SDK without project scripts
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --no-audit --no-fund --ignore-scripts --fetch-retries=1 --fetch-timeout=20000 --silent
+      - name: Run single ephemeral licensed 300-window capture
+        working-directory: tools/licensed_feed
+        run: node ephemeral_pilot.mjs
+      - name: Enforce no persisted public player data
+        if: always()
+        run: |
+          if find /tmp -maxdepth 1 -type d -name 'licensed-ephemeral-smoke-*' | grep -q .; then
+            echo EPHEMERAL_CLEANUP_INCOMPLETE
+            exit 1
+          fi
+          echo NO_PUBLIC_TRACKING_ARTIFACTS

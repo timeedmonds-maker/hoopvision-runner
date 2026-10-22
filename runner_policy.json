@@ -80,5 +80,17 @@
     "public_content_guard_required": true,
     "actions_artifact_upload_for_engine_data_forbidden": true,
     "semantic_request_ids_forbidden": true
+  },
+  "ephemeral_licensed_feed_lane": {
+    "status": "STAGED_NOT_ENABLED",
+    "active_canonical_bridge_unchanged": true,
+    "public_source_checkout": false,
+    "public_artifact_upload": false,
+    "publicly_persisted_feed_data": false,
+    "runtime_processing": "temporarily in isolated GitHub-hosted worker only",
+    "authorization": "GitHub OIDC with exact workflow-and-ref binding, validated privately",
+    "assignment": "random opaque request ID; private authority determines game and chunk",
+    "destination": "authenticated private intake with per-chunk checksum and readback",
+    "cutover_gate": "private ingestion success required before enabling recurring public collection"
   }
 }
