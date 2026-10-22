@@ -35,6 +35,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-defender-spacing-qa.yml",
     ".github/workflows/gamepulse-rockets-private-clip-pilot.yml",
     ".github/workflows/gamepulse-pnr-feasibility.yml",
+    ".github/workflows/rockets-pnr-review-ui-preflight.yml",
     ".github/workflows/gamepulse-pnr-ui-preflight.yml",
     ".github/workflows/gamepulse-github-season.yml",
     ".github/workflows/gamepulse-final-fastlane.yml",
