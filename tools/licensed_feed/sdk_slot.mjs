@@ -32,10 +32,13 @@ export function slotRequestUrl(observed,job,ms){
 
 /** Never substitute an empty window on HTTP/network failure. Every slot must be observed. */
 export async function recoverMissingWindows(job,received,observedUrl,
- {request=fetch,wait=waitDefault}={}){
+ {request=fetch,wait=waitDefault,parallel=1}={}){
+ if(!Number.isSafeInteger(parallel)||parallel<1||parallel>2)
+  throw Error('invalid_slot_parallelism');
  const windows=Array.from({length:job.count},(_,i)=>job.start_ms+i*WINDOW);
- for(const ms of windows){
-  if(received.has(ms))continue;
+ let next=0,firstError=null;
+ async function one(ms){
+  if(received.has(ms))return;
   const url=slotRequestUrl(observedUrl,job,ms);
   for(let attempt=0;attempt<4&&!received.has(ms);attempt++){
    let response;
@@ -56,6 +59,15 @@ export async function recoverMissingWindows(job,received,observedUrl,
    if(!received.has(ms)&&attempt<3)await wait((attempt+1)*1000);
   }
  }
+ async function worker(){
+  while(!firstError&&next<windows.length){
+   const ms=windows[next++];
+   try{await one(ms);}
+   catch(e){if(!firstError)firstError=e;}
+  }
+ }
+ await Promise.all(Array.from({length:Math.min(parallel,windows.length)},worker));
+ if(firstError)throw firstError;
  if(windows.some(ms=>!received.has(ms)))throw Error('uncovered_window');
  return windows.length;
 }
