@@ -121,7 +121,7 @@ export async function capture(job,dir){
     await seek(anchor+attempt*WINDOW);await sleep(1500);
    }
    if(!session.observedUrl())throw Error('sdk_session_url_missing');
-   await recoverMissingWindows(job,received,session.observedUrl());
+   await recoverMissingWindows(job,received,session.observedUrl(),{parallel:2});
   }else{
    for(const ms of windows){await seek(ms);await sleep(450);}
    await sleep(1700);await Promise.allSettled([...pending]);
