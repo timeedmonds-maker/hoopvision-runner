@@ -1,4 +1,4 @@
-name: Game Pulse Rockets part-06 public fast recovery
+name: Game Pulse Rockets part-07 orphan archive repair
 on:
   push:
     branches: [main]
@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: gamepulse-rockets-part06-fast
+  group: gamepulse-rockets-part07-orphan-recovery
   cancel-in-progress: false
 jobs:
   preflight:
@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: '22'
       - run: node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
-  part06:
+  part07:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: preflight
     runs-on: ubuntu-24.04
@@ -43,7 +43,7 @@ jobs:
         run: |
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
-      - name: Retrieve part 06 after official final and verify private SHA
+      - name: Repair orphan sidecar and retrieve part 07 with private SHA readback
         working-directory: tools/licensed_feed
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
@@ -51,5 +51,5 @@ jobs:
           GAMEPULSE_FINAL_FASTLANE: 'true'
           GAMEPULSE_PRIORITY_ID: '0022600091'
           GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T00:30:00Z'
-          GAMEPULSE_PRIORITY_PART: '6'
+          GAMEPULSE_PRIORITY_PART: '7'
         run: node season_private_release.mjs
