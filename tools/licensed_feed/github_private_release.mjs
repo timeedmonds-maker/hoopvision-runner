@@ -35,7 +35,7 @@ export function pilotJob(){
 }
 export function assertScopedContext(env){
  if(env.GITHUB_REPOSITORY!==PUBLIC_REPO || env.GITHUB_REF!=='refs/heads/main' ||
-    env.GITHUB_EVENT_NAME!=='workflow_dispatch')throw Error('unauthorized_execution_context');
+    !['workflow_dispatch','push'].includes(env.GITHUB_EVENT_NAME))throw Error('unauthorized_execution_context');
  if(typeof env.GH_TOKEN!=='string'||env.GH_TOKEN.length<30)
    throw Error('private_token_unavailable');
 }
