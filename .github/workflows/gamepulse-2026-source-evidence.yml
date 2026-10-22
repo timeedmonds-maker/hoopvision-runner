@@ -1,4 +1,5 @@
 name: NBA 2026-27 all-player sources and certified event/lineup QA
+# Independent private-only diagnosis: ESPN shot participant and source clock mismatch classes.
 # Independently re-evaluate ESPN action IDs and NBA player/period/clock anchors.
 # Free ephemeral GitHub-hosted CPU only. All saved player records, source QA,
 # event candidates and private derivatives reside exclusively in private 104.
