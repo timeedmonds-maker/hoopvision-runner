@@ -1,0 +1,17 @@
+name: NBA Clip Lab native player-ID join QA
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/clip-lab-native-nba-id-qa.yml']
+  pull_request:
+    paths: ['.github/workflows/clip-lab-native-nba-id-qa.yml']
+permissions:
+  contents: read
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 tools/public_content_guard.py
