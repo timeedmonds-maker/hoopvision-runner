@@ -62,4 +62,14 @@ jobs:
           GAMEPULSE_FULLGAME_PILOT: 'false'
           GAMEPULSE_PRODUCTION_ENABLED: ${{ github.event_name == 'schedule' }}
           GAMEPULSE_PARTS_PER_RUN: '13'
-        run: node season_private_release.mjs
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The earlier bounded push pilot deliberately stopped after 12/13 parts.
+          # Complete its one-time SHA-verified private readback before season work.
+          if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            if ! gh release view gamepulse-sdk-public-pilot-0022600002 --repo timeedmonds-maker/104 --json assets --jq '.assets[].name' 2>/dev/null | grep -Fxq sdk-COMPLETE.json; then
+              GAMEPULSE_FULLGAME_PILOT=true GAMEPULSE_PILOT_FINALIZE=true GAMEPULSE_PARTS_PER_RUN=13 node season_private_release.mjs
+            fi
+          fi
+          GAMEPULSE_FULLGAME_PILOT=false GAMEPULSE_PARTS_PER_RUN=13 node season_private_release.mjs
