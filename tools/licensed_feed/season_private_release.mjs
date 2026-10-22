@@ -16,18 +16,36 @@ const temp=()=>mkdtempSync(join(tmpdir(),'gp-season-'));
 function gh(args){
  const p=spawnSync('gh',args,{encoding:'utf8',timeout:120000,maxBuffer:1024*1024,
   stdio:['ignore','pipe','pipe'],env:{...process.env,GH_TOKEN:TOKEN}});
- return {ok:p.status===0,out:p.stdout||''};
+ return {ok:p.status===0,out:p.stdout||'',err:p.stderr||''};
+}
+function pauseForRetry(attempt){
+ spawnSync('sleep',[String(attempt+1)],{stdio:'ignore',timeout:5000});
+}
+function authDenied(err){
+ return /(?:HTTP|status)\\s*(?:401|403)|permission denied|authentication failed|forbidden/i.test(err);
 }
 function call(args){
- const result=gh([...args,'--repo',REPO]);
- if(!result.ok)throw Error('private_github_operation_failed');
- return result.out;
+ const action=['view','create','upload','download','list'].includes(args[1])?args[1]:'operation';
+ for(let attempt=0;attempt<3;attempt++){
+  const result=gh([...args,'--repo',REPO]);
+  if(result.ok)return result.out;
+  if(authDenied(result.err))throw Error('private_release_auth_denied');
+  if(attempt<2)pauseForRetry(attempt);
+ }
+ throw Error('private_release_'+action+'_failed');
 }
 function names(tag){
- const r=gh(['release','view',tag,'--repo',REPO,'--json','assets']);
- if(!r.ok)return null;
- try{return new Set(JSON.parse(r.out).assets.map(x=>x.name));}
- catch{throw Error('private_asset_listing_invalid');}
+ for(let attempt=0;attempt<3;attempt++){
+  const r=gh(['release','view',tag,'--repo',REPO,'--json','assets']);
+  if(r.ok){
+   try{return new Set(JSON.parse(r.out).assets.map(x=>x.name));}
+   catch{throw Error('private_asset_listing_invalid');}
+  }
+  if(authDenied(r.err))throw Error('private_release_auth_denied');
+  if(/not found|HTTP 404/i.test(r.err))return null;
+  if(attempt<2)pauseForRetry(attempt);
+ }
+ throw Error('private_release_listing_failed');
 }
 function ensure(tag){
  if(names(tag)!==null)return;
@@ -111,8 +129,14 @@ async function capturePart(tag,job,capture){
   copyFileSync(join(dir,'checkpoint.tar.gz'),archive);
   writeFileSync(sidecar,JSON.stringify({...source,archive_sha256:sha(archive)})+'\n');
   if(readFileSync(archive).length>32*1024*1024)throw Error('checkpoint_too_large');
-  call(['release','upload',tag,archive]);
-  call(['release','upload',tag,sidecar]);
+  for(const [file,name] of [[archive,base+'.tar.gz'],[sidecar,base+'.json']]){
+   try{call(['release','upload',tag,file]);}
+   catch(e){
+    // Another trusted worker may have completed the upload concurrently.
+    // Remote SHA readback below is still mandatory before accepting the asset.
+    if(!names(tag)?.has(name))throw e;
+   }
+  }
   const check=temp();
   try{
    const a=download(tag,base+'.tar.gz',check),b=download(tag,base+'.json',check);
