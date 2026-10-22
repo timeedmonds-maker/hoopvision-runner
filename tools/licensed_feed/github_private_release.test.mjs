@@ -3,16 +3,27 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,writeFileSync,copyFileSync,mkdirSync,rmSync,readFileSync} from 'node:fs';
 import {join,basename} from 'node:path';
 import {tmpdir} from 'node:os';
+import {gzipSync} from 'node:zlib';
+import {spawnSync} from 'node:child_process';
 import {pilotJob,PRIVATE_REPO,privateTag,assertScopedContext,verifyAndStore} from './github_private_release.mjs';
 
 const fixture=()=>{
  const dir=mkdtempSync(join(tmpdir(),'fake-github-private-'));
  const job=pilotJob();
- writeFileSync(join(dir,'checkpoint.tar.gz'),Buffer.from('synthetic-test-archive-not-NBA'));
- writeFileSync(join(dir,'manifest.json'),JSON.stringify({
-   schema:'nba-gamepulse-sdk-chunk.v1',game_id:job.game_id,
-   part:job.part,start_ms:job.start_ms,successful_windows:300,
-   unique_keyframes:20,frames_with_players:15,frames_with_ball:12})+'\n');
+ const frame={timestamp:job.start_ms,positions:{ball:[1,2],player_1:[3,4]}};
+ const rows=Array.from({length:job.count},(_,i)=>({
+  from:job.start_ms+i*5000,to:job.start_ms+i*5000+4999,
+  events:i===0?[{metadata:{keyframes:[frame]}}]:[]
+ }));
+ const manifest={schema:'nba-gamepulse-sdk-chunk.v1',game_id:job.game_id,
+  part:job.part,start_ms:job.start_ms,successful_windows:300,empty_windows:299,
+  unique_keyframes:1,frames_with_players:1,frames_with_ball:1,observed:true,imputed:false};
+ writeFileSync(join(dir,'manifest.json'),JSON.stringify(manifest)+'\\n');
+ writeFileSync(join(dir,'raw-slots.jsonl.gz'),gzipSync(Buffer.from(rows.map(x=>JSON.stringify(x)).join('\\n')+'\\n')));
+ writeFileSync(join(dir,'frames.jsonl.gz'),gzipSync(Buffer.from(JSON.stringify(frame)+'\\n')));
+ const tar=spawnSync('tar',['-czf',join(dir,'checkpoint.tar.gz'),'-C',dir,
+  'manifest.json','raw-slots.jsonl.gz','frames.jsonl.gz'],{stdio:'ignore'});
+ assert.equal(tar.status,0);
  return {dir,job};
 };
 function fakeGithub(remote,record,corrupt=false){
@@ -93,5 +104,13 @@ test('missing player evidence fails before network access',()=>{
   info.frames_with_players=0;
   writeFileSync(p,JSON.stringify(info));
   assert.throws(()=>verifyAndStore(job,dir,()=>{throw Error('should never call network')}),/capture_qa_failed/);
+ }finally{rmSync(dir,{force:true,recursive:true});}
+});
+
+test('malformed archive is rejected before any private write',()=>{
+ const {dir,job}=fixture();
+ try{
+  writeFileSync(join(dir,'checkpoint.tar.gz'),Buffer.from('not a checkpoint'));
+  assert.throws(()=>verifyAndStore(job,dir,()=>{throw Error('network should not run')}),/checkpoint_invalid/);
  }finally{rmSync(dir,{force:true,recursive:true});}
 });
