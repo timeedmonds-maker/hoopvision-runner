@@ -171,7 +171,7 @@ jobs:
                           == row["eligible_samples"])
                   assert row["offensive_ppp_on"] is None or entry["certified_possessions"]>0
           files=[(root/(gid+".json"),entry["path"]) for gid,entry in sorted(m["games"].items())]
-          files.append((root/"index.json","gamepulse/fusion/onoff/index.json"))
+          files.append((root/"index.json","gamepulse/fusion/tracking_onoff/index.json"))
           for src,path in files:
               target="repos/timeedmonds-maker/104/contents/"+path
               existing=subprocess.run(["gh","api",target],capture_output=True,text=True)
