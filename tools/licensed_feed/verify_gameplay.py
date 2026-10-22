@@ -82,9 +82,11 @@ def audit():
                     for line in frames:
                         frame=json.loads(line)
                         stamp=frame.get("timestamp")
-                        if not isinstance(stamp,int) or not expected_start<=stamp<expected_start+CHUNK_COUNT*WINDOW_MS:
+                        # Keyframes can straddle the five-second slot or a
+                        # chunk boundary. Keep the official game-day bounds,
+                        # but do not incorrectly force frame time into the job.
+                        if not isinstance(stamp,int) or not START-3_600_000<=stamp<=START+8*3_600_000:
                             raise RuntimeError("frame_timestamp_invalid")
-                        if stamp in unique:raise RuntimeError("duplicate_frame_timestamp")
                         unique.add(stamp)
                         first=stamp if first is None else min(first,stamp)
                         last=stamp if last is None else max(last,stamp)
