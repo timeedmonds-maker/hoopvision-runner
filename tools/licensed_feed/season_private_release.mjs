@@ -194,9 +194,11 @@ async function archiveGame(game,index,capture){
   const dir=temp();
   try{reports.push(pair[0]?validatedPart(tag,job,dir):await capturePart(tag,job,capture));}
   finally{rmSync(dir,{recursive:true,force:true});}
+  // Release assets are the durable per-part state. Do not rewrite the shared
+  // private season index for each of the 13 SHA readbacks.
   index.games[game.id]={status:'partial',last_checkpoint:job.part,last_attempt:new Date().toISOString()};
-  writeIndex(index);
   if(!pair[0] && ++newParts>=partLimit && job.part<plan.parts.length-1){
+   writeIndex(index);
    console.log('PRIVATE_GAME_PARTIAL_SHA_READBACK');
    return;
   }
