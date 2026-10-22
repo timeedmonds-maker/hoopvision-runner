@@ -139,6 +139,58 @@ jobs:
               if result.returncode:raise RuntimeError("private_qa_publishing_failed")
           print("PRIVATE_QUALIFICATION_QA_PUBLISHED")
           PY
+      - name: Freeze independently certified first-game player Gravity without conflating Leverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/qualification"
+          PRIVATE='repos/timeedmonds-maker/104/contents'
+          DEST="$PRIVATE/gamepulse/fusion/first_game_qualified_metrics_2026_27.json"
+          if gh api "$DEST" >/dev/null 2>&1; then
+            echo 'IMMUTABLE_FIRST_GAME_EVIDENCE_ALREADY_PRESERVED'
+          else
+            mkdir -p "$ROOT/gameviews"
+            gh api "$PRIVATE/gamepulse/fusion/certify_first_game_qualified.py?ref=main" --jq .content |
+              base64 -d > "$ROOT/certify_first_game_qualified.py"
+            gh api "$PRIVATE/gamepulse/fusion/tests/test_first_game_certified.py?ref=main" --jq .content |
+              base64 -d > "$ROOT/tests/test_first_game_certified.py"
+            gh api "$PRIVATE/gamepulse/fusion/index/index.json?ref=main" --jq .content |
+              base64 -d > "$ROOT/games-index.json"
+            cp "$ROOT/qualification.sqlite3.qualified_players.json" "$ROOT/qualified-season.json"
+            python3 -m unittest discover -v -s "$ROOT/tests" -p test_first_game_certified.py
+            python3 - <<'PY'
+          import json,os,subprocess
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"qualification"
+          j=json.loads((root/"games-index.json").read_text())
+          for gid in sorted(j["games"]):
+              name=f"repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/{gid}.json"
+              blob=subprocess.check_output(["gh","api",name,"--jq",".content"])
+              import base64
+              (root/"gameviews"/(gid+".json")).write_bytes(base64.b64decode(blob))
+          PY
+            python3 "$ROOT/certify_first_game_qualified.py" \
+              --games "$ROOT/games-index.json" --qualified "$ROOT/qualified-season.json" \
+              --views "$ROOT/gameviews" --out "$ROOT/first-game.json"
+            python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"qualification"
+          source=root/"first-game.json"
+          j=json.loads(source.read_text())
+          assert j["qa"]["gravity_featured_verified"]==28
+          assert j["qa"]["official_all_qualified_gravity_first_game"]>=200
+          assert j["qa"]["leverage_featured_disagreements"]==28
+          assert not j["qa"]["leverage_blueprint_spotlight_equivalence_certified"]
+          target="repos/timeedmonds-maker/104/contents/gamepulse/fusion/first_game_qualified_metrics_2026_27.json"
+          payload={"branch":"main","message":"data(2026): freeze source-certified all-qualified first-game Gravity and Leverage contrast",
+                   "content":base64.b64encode(source.read_bytes()).decode()}
+          p=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                           input=json.dumps(payload),capture_output=True,text=True)
+          if p.returncode:raise RuntimeError("PRIVATE_FIRST_GAME_CERTIFICATION_COMMIT_FAILED")
+          print("PRIVATE_ALL_QUALIFIED_FIRST_GAME_GRAVITY_CERTIFIED")
+          PY
+          fi
       - name: No licensed data in public results
         if: always()
         run: echo 'Detailed source evidence and QA reside exclusively in private 104.' >> "$GITHUB_STEP_SUMMARY"
