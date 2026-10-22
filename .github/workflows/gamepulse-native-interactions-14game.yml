@@ -50,6 +50,7 @@ jobs:
           test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_SOURCE_AUTH_MISSING'; exit 3; }
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
       - name: Fetch current private fusion code, official source and tests
+        id: source
         shell: bash
         run: |
           set -euo pipefail
@@ -68,6 +69,7 @@ jobs:
           python3 -m py_compile "$ROOT/gamepulse_ball_control.py" "$ROOT/gamepulse_ball_dynamics.py" "$ROOT/interaction_fusion_2026.py"
           PYTHONPATH="$ROOT" python3 -m unittest discover -s "$ROOT/tests" -p test_interaction_fusion_2026.py
       - name: Download only the original SHA-verified private game SDK parts
+        id: archives
         shell: bash
         run: |
           set -euo pipefail
@@ -89,6 +91,7 @@ jobs:
           print("PRIVATE_ORIGINAL_GAME_SOURCE_SHA_CONFIRMED")
           PY
       - name: Fuse full original native touches with NBA official action and Blueprint exact IDs
+        id: fusion
         shell: bash
         run: |
           set -euo pipefail
@@ -115,6 +118,7 @@ jobs:
           print("PRIVATE_SOURCE_FUSION_ACCEPTED_NO_UNVERIFIED_CERTIFICATION")
           PY
       - name: Persist only to private canonical 104 with post-write SHA check
+        id: publish
         shell: bash
         run: |
           set -euo pipefail
@@ -138,6 +142,39 @@ jobs:
           actual=base64.b64decode(subprocess.check_output(["gh","api",target,"--jq",".content"]))
           assert hashlib.sha256(data).digest()==hashlib.sha256(actual).digest()
           print("PRIVATE_FUSION_INDEX_SHA_VERIFIED")
+          PY
+      - name: Preserve private per-game execution receipt
+        if: always()
+        shell: bash
+        env:
+          RUN_ID: ${{ github.run_id }}
+          JOB_RESULT: ${{ job.status }}
+          SOURCE_STEP: ${{ steps.source.outcome }}
+          ARCHIVE_STEP: ${{ steps.archives.outcome }}
+          FUSION_STEP: ${{ steps.fusion.outcome }}
+          PUBLISH_STEP: ${{ steps.publish.outcome }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GH_TOKEN:-}" ]; then exit 0; fi
+          python3 - <<'PY'
+          import base64,json,os,subprocess
+          gid=os.environ["GAME_ID"]
+          status={"schema":"gamepulse.private-14game-fusion-stage-receipt.v1",
+             "game_id":gid,"run_id":os.environ["RUN_ID"],
+             "job_status":os.environ["JOB_RESULT"],
+             "stages":{name:os.environ[name] for name in
+               ("SOURCE_STEP","ARCHIVE_STEP","FUSION_STEP","PUBLISH_STEP")}}
+          target="repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/interactions/status/"+gid+".json"
+          old=subprocess.run(["gh","api",target],capture_output=True,text=True)
+          payload={"branch":"main","message":"qa(gamepulse): record private source-fusion acceptance stages "+gid,
+                   "content":base64.b64encode(json.dumps(status,sort_keys=True).encode()).decode()}
+          if old.returncode==0:payload["sha"]=json.loads(old.stdout)["sha"]
+          elif "Not Found" not in old.stderr and "404" not in old.stderr:
+              raise RuntimeError("PRIVATE_ACCEPTANCE_RECEIPT_READ_FAILED")
+          result=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                               input=json.dumps(payload),capture_output=True,text=True)
+          if result.returncode:raise RuntimeError("PRIVATE_ACCEPTANCE_RECEIPT_WRITE_FAILED")
+          print("PRIVATE_EXECUTION_STAGE_RECEIPT_RECORDED")
           PY
       - name: No data in public Actions outputs
         if: always()
