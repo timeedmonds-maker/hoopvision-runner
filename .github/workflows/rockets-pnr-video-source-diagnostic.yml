@@ -94,3 +94,18 @@ jobs:
           python3 -m py_compile "$WORK/"*.py
           PYTHONPATH="$WORK:$WORK/tests" python3 -m unittest discover -s "$WORK/tests" -p 'test_possession*2026.py' -v
           python3 "$WORK/inspect_rockets_pbp_for_video_sync.py"
+
+      - name: Sample actual owner-provided full-game video frames privately without public media
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          WORK="$(mktemp -d)"
+          trap 'rm -rf "$WORK"' EXIT
+          python3 -m venv "$WORK/venv"
+          "$WORK/venv/bin/pip" install --disable-pip-version-check -q yt-dlp imageio-ffmpeg
+          gh api repos/timeedmonds-maker/104/contents/gamepulse/fusion/okc_spurs_fullgame_frame_pilot.py --jq .content | base64 -d > "$WORK/frame_pilot.py"
+          "$WORK/venv/bin/python" -m py_compile "$WORK/frame_pilot.py"
+          PATH="$WORK/venv/bin:$PATH" "$WORK/venv/bin/python" "$WORK/frame_pilot.py"
