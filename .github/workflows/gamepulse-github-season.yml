@@ -3,6 +3,10 @@ run-name: NBA Game Pulse public CPU private season archive
 on:
   schedule:
     - cron: '*/15 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-github-season.yml'
   pull_request:
     paths:
       - '.github/workflows/gamepulse-github-season.yml'
@@ -18,7 +22,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: gamepulse-public-season-private-release
+  group: ${{ github.event_name == 'push' && 'gamepulse-priority-parallel' || 'gamepulse-public-season-private-release' }}
   cancel-in-progress: false
 jobs:
   preflight:
@@ -36,6 +40,10 @@ jobs:
   private-season:
     if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
     needs: preflight
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ${{ fromJSON(github.event_name == 'push' && '[0,1,2,3]' || '[0]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
@@ -62,9 +70,17 @@ jobs:
           GAMEPULSE_FULLGAME_PILOT: 'false'
           GAMEPULSE_PRODUCTION_ENABLED: ${{ github.event_name == 'schedule' }}
           GAMEPULSE_PARTS_PER_RUN: '13'
+          GAMEPULSE_PRIORITY_FANOUT: ${{ github.event_name == 'push' }}
+          GAMEPULSE_PRIORITY_ID: '0022600091'
+          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T00:30:00Z'
+          GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
         shell: bash
         run: |
           set -euo pipefail
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            node season_private_release.mjs
+            exit 0
+          fi
           # The earlier bounded push pilot deliberately stopped after 12/13 parts.
           # Complete its one-time SHA-verified private readback before season work.
           if [ "$GITHUB_EVENT_NAME" = "schedule" ]; then

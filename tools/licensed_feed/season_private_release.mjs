@@ -31,8 +31,9 @@ function names(tag){
 }
 function ensure(tag){
  if(names(tag)!==null)return;
- call(['release','create',tag,'--target','main','--title',tag,
+ const result=gh(['release','create',tag,'--repo',REPO,'--target','main','--title',tag,
   '--notes','Private licensed SDK capture; no public observation assets','--latest=false']);
+ if(!result.ok && names(tag)===null)throw Error('private_release_create_failed');
 }
 function download(tag,name,directory){
  call(['release','download',tag,'--pattern',name,'--dir',directory]);
@@ -211,7 +212,7 @@ function pilotGame(){
 export function assertContext(env){
  if(env.GITHUB_REPOSITORY!==PUBLIC||env.GITHUB_REF!=='refs/heads/main'||
     !['workflow_dispatch','push','schedule'].includes(env.GITHUB_EVENT_NAME)||
-    (env.GITHUB_EVENT_NAME==='push'&&env.GAMEPULSE_FULLGAME_PILOT!=='true')||
+    (env.GITHUB_EVENT_NAME==='push'&&env.GAMEPULSE_FULLGAME_PILOT!=='true'&&env.GAMEPULSE_PRIORITY_FANOUT!=='true')||
     (env.GITHUB_EVENT_NAME==='schedule'&&
      (env.GAMEPULSE_PRODUCTION_ENABLED!=='true'||
       (env.GAMEPULSE_FULLGAME_PILOT==='true'&&env.GAMEPULSE_PILOT_FINALIZE!=='true')))||
@@ -226,10 +227,32 @@ export async function run(){
  delete process.env.GH_TOKEN;
  // All third-party imports occur only after GH_TOKEN leaves process.env.
  const {capture}=await import('./capture.mjs');
+ if(process.env.GAMEPULSE_PRIORITY_FANOUT==='true'){
+  if(PILOT||process.env.GITHUB_EVENT_NAME!=='push')throw Error('priority_context_invalid');
+  const game={id:process.env.GAMEPULSE_PRIORITY_ID,start:Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'')};
+  const plan=planGame(game),part=Number(process.env.GAMEPULSE_PRIORITY_PART);
+  if(!Number.isSafeInteger(part)||part<0||part>3)throw Error('invalid_priority_part');
+  const job=plan.parts[part];
+  if(Date.now()<job.start_ms+job.count*5000+10*60000)throw Error('priority_window_not_yet_observed');
+  if(Date.now()>game.start+24*3600000)throw Error('priority_assignment_expired');
+  const tag='gamepulse-sdk-'+game.id;
+  ensure(tag);
+  const existing=names(tag),base='sdk-part-'+String(part).padStart(2,'0');
+  if(!existing)throw Error('private_release_missing');
+  const archive=existing.has(base+'.tar.gz'),manifest=existing.has(base+'.json');
+  if(manifest&&!archive)throw Error('orphan_manifest_requires_review');
+  if(archive&&!manifest)repairArchiveOnly(tag,job);
+  if(archive){
+   const dir=temp();
+   try{validatedPart(tag,job,dir);}finally{rmSync(dir,{recursive:true,force:true});}
+  }else await capturePart(tag,job,capture);
+  console.log('PRIVATE_PRIORITY_PART_SHA_READBACK_CERTIFIED');
+  return;
+ }
  const index=readIndex(),games=PILOT?[pilotGame()]:await schedule();
  if(PILOT&&index.games[games[0].id]?.status==='retry')
   index.games[games[0].id].retry_after=0;
- const due=selectDue(games,index,Date.now());
+ const due=selectDue(games,index,Date.now(),1,process.env.GAMEPULSE_PRIORITY_ID||null);
  console.log('PRIVATE_SEASON_DUE_COUNT',due.length);
  if(process.env.DRY_RUN==='true')return;
  for(const game of due){

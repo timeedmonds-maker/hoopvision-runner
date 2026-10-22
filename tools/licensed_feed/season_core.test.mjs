@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {planGame,parseSchedule,selectDue,summarize} from './season_core.mjs';
+import {planGame,parseSchedule,selectDue,summarize,priorityId} from './season_core.mjs';
 import {assertContext} from './season_private_release.mjs';
 
 const id='0022600002';
@@ -58,4 +58,24 @@ test('private token is usable only on trusted main, with isolated push pilot',()
   {...env,GH_TOKEN:''},{...env,GITHUB_REF:'refs/heads/untrusted'},
   {...env,GITHUB_EVENT_NAME:'pull_request'},{...env,GITHUB_REPOSITORY:'other/repo'}])
   assert.throws(()=>assertContext(bad));
+});
+
+test('priority sorts an eligible assigned game ahead of backlog',()=>{
+ const older={id:'0022600001',start:start-3600000};
+ const preferred={id:'0022600091',start};
+ const now=start+8*3600000;
+ assert.deepEqual(selectDue([older,preferred],{games:{}},now,1,preferred.id),[preferred]);
+ assert.deepEqual(selectDue([older,preferred],{games:{[preferred.id]:{status:'complete'}}},now,1,preferred.id),[older]);
+ assert.equal(priorityId({schema:'gamepulse-priority.v1',game_id:preferred.id,
+  tipoff_utc:new Date(start).toISOString(),
+  expires_at_utc:new Date(start+24*3600000).toISOString()},now),preferred.id);
+});
+
+test('bounded main-only fanout context rejects untrusted contexts',()=>{
+ const env={GITHUB_REPOSITORY:'timeedmonds-maker/hoopvision-runner',
+  GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'push',
+  GAMEPULSE_PRIORITY_FANOUT:'true',GH_TOKEN:'x'.repeat(35)};
+ assert.doesNotThrow(()=>assertContext(env));
+ assert.throws(()=>assertContext({...env,GITHUB_REF:'refs/heads/untrusted'}));
+ assert.throws(()=>assertContext({...env,GITHUB_EVENT_NAME:'pull_request'}));
 });
