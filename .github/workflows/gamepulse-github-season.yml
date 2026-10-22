@@ -1,5 +1,5 @@
 name: Game Pulse public CPU season private Release worker
-run-name: Private-only full-game pilot and resume
+run-name: NBA Game Pulse private full-game pilot
 on:
   schedule:
     - cron: '*/15 * * * *'
