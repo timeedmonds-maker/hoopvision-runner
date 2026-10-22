@@ -273,6 +273,9 @@ export async function run(){
   return;
  }
  await captureElapsedPriority(capture);
+ const priorityStart=Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'');
+ if(process.env.GITHUB_EVENT_NAME==='schedule'&&Number.isFinite(priorityStart)
+    &&Date.now()>=priorityStart&&Date.now()<priorityStart+315*60000)return;
  const index=readIndex(),games=PILOT?[pilotGame()]:await schedule();
  if(PILOT&&index.games[games[0].id]?.status==='retry')
   index.games[games[0].id].retry_after=0;
