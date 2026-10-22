@@ -73,3 +73,24 @@ jobs:
           gh api repos/timeedmonds-maker/104/contents/gamepulse/fusion/fullgame_source_probe_20261023.py --jq .content | base64 -d > "$WORK/probe.py"
           "$WORK/venv/bin/python" "$WORK/probe.py" --selftest
           "$WORK/venv/bin/python" "$WORK/probe.py"
+
+      - name: Inspect original SHA-backed 510-action event/world archive and test video join code
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          WORK="$(mktemp -d)"
+          trap 'rm -rf "$WORK"' EXIT
+          mkdir -p "$WORK/tests"
+          ROOT='repos/timeedmonds-maker/104/contents/gamepulse/fusion'
+          for f in possession_video.py possession_touch_video_search.py possession_touch_query.py inspect_rockets_pbp_for_video_sync.py; do
+            gh api "$ROOT/$f" --jq .content | base64 -d > "$WORK/$f"
+          done
+          for f in test_possession_video_2026.py test_possession_touch_query_2026.py; do
+            gh api "$ROOT/tests/$f" --jq .content | base64 -d > "$WORK/tests/$f"
+          done
+          python3 -m py_compile "$WORK/"*.py
+          PYTHONPATH="$WORK:$WORK/tests" python3 -m unittest discover -s "$WORK/tests" -p 'test_possession*2026.py' -v
+          python3 "$WORK/inspect_rockets_pbp_for_video_sync.py"
