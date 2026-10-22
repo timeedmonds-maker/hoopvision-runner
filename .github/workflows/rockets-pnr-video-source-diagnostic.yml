@@ -1,111 +1,43 @@
-name: Rockets PNR xFG provider video delivery diagnostic (private report)
+name: Rockets official NBA PBP event-clock validation
+# Formal NBA play-by-play is the only authoritative game/event clock.
+# No third-party game replays, media OCR, video downloads or inferred PTS.
+# Private QA and exact event indexes publish only to PRIVATE 104.
 on:
   push:
     branches: [main]
-    paths:
-      - '.github/workflows/rockets-pnr-video-source-diagnostic.yml'
-  pull_request:
-    paths:
-      - '.github/workflows/rockets-pnr-video-source-diagnostic.yml'
-      - 'tools/public_content_guard.py'
+    paths: ['.github/workflows/rockets-pnr-video-source-diagnostic.yml']
 permissions:
   contents: read
 concurrency:
-  group: rockets-pnr-provider-video-probe
-  cancel-in-progress: true
+  group: rockets-official-nba-event-timing
+  cancel-in-progress: false
 jobs:
   public-preflight:
     runs-on: ubuntu-24.04
-    timeout-minutes: 4
+    timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - run: python3 tools/public_content_guard.py
-  private-provider-probe:
+  official-nba-timing:
     needs: public-preflight
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 13
+    timeout-minutes: 12
     steps:
-      - name: Test bounded provider HTTP headers/media signatures and persist private results
+      - name: Validate NBA official action, period, game clock, timeActual and official boxscore
+        shell: bash
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-        shell: bash
         run: |
           set -euo pipefail
-          test -n "$GH_TOKEN" || exit 3
-          gh api repos/timeedmonds-maker/104/contents/gamepulse/coverage/probe_nba_shot_video_delivery.py --jq .content | base64 -d > /tmp/probe_nba_shot_video_delivery.py
-          python3 -m py_compile /tmp/probe_nba_shot_video_delivery.py
-          python3 /tmp/probe_nba_shot_video_delivery.py --selftest
-          python3 /tmp/probe_nba_shot_video_delivery.py
-          rm -f /tmp/probe_nba_shot_video_delivery.py
-
-      - name: Probe real event MP4 decoding and scoreboard-to-source clock, private QA only
-        env:
-          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$GH_TOKEN" || exit 3
+          test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_OFFICIAL_SOURCE_ACCESS_UNAVAILABLE'; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
           WORK="$(mktemp -d)"
           trap 'rm -rf "$WORK"' EXIT
-          gh api repos/timeedmonds-maker/104/contents/gamepulse/fusion/rockets_video_clock_probe.py --jq .content | base64 -d > "$WORK/rockets_video_clock_probe.py"
-          python3 -m venv "$WORK/venv"
-          "$WORK/venv/bin/pip" install --disable-pip-version-check -q imageio-ffmpeg
-          "$WORK/venv/bin/python" -m py_compile "$WORK/rockets_video_clock_probe.py"
-          "$WORK/venv/bin/python" "$WORK/rockets_video_clock_probe.py" --selftest
-          "$WORK/venv/bin/python" "$WORK/rockets_video_clock_probe.py"
-
-      - name: Inspect owner-supplied complete-game video metadata, no media download
-        env:
-          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$GH_TOKEN"
-          WORK="$(mktemp -d)"
-          trap 'rm -rf "$WORK"' EXIT
-          python3 -m venv "$WORK/venv"
-          if ! "$WORK/venv/bin/pip" install --disable-pip-version-check -q yt-dlp; then
-            echo 'FULL_GAME_METADATA_EXTRACTOR_INSTALL_UNAVAILABLE'
-          fi
-          gh api repos/timeedmonds-maker/104/contents/gamepulse/fusion/fullgame_source_probe_20261023.py --jq .content | base64 -d > "$WORK/probe.py"
-          "$WORK/venv/bin/python" "$WORK/probe.py" --selftest
-          "$WORK/venv/bin/python" "$WORK/probe.py"
-
-      - name: Inspect original SHA-backed 510-action event/world archive and test video join code
-        env:
-          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$GH_TOKEN"
-          WORK="$(mktemp -d)"
-          trap 'rm -rf "$WORK"' EXIT
-          mkdir -p "$WORK/tests"
-          ROOT='repos/timeedmonds-maker/104/contents/gamepulse/fusion'
-          for f in possession_video.py possession_touch_video_search.py possession_touch_query.py inspect_rockets_pbp_for_video_sync.py; do
-            gh api "$ROOT/$f" --jq .content | base64 -d > "$WORK/$f"
-          done
-          for f in test_possession_video_2026.py test_possession_touch_query_2026.py; do
-            gh api "$ROOT/tests/$f" --jq .content | base64 -d > "$WORK/tests/$f"
-          done
-          python3 -m py_compile "$WORK/"*.py
-          PYTHONPATH="$WORK:$WORK/tests" python3 -m unittest discover -s "$WORK/tests" -p 'test_possession*2026.py' -v
-          python3 "$WORK/inspect_rockets_pbp_for_video_sync.py"
-
-      - name: Sample actual owner-provided full-game video frames privately without public media
-        env:
-          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$GH_TOKEN"
-          WORK="$(mktemp -d)"
-          trap 'rm -rf "$WORK"' EXIT
-          python3 -m venv "$WORK/venv"
-          "$WORK/venv/bin/pip" install --disable-pip-version-check -q yt-dlp imageio-ffmpeg
-          gh api repos/timeedmonds-maker/104/contents/gamepulse/fusion/okc_spurs_fullgame_frame_pilot.py --jq .content | base64 -d > "$WORK/frame_pilot.py"
-          "$WORK/venv/bin/python" -m py_compile "$WORK/frame_pilot.py"
-          PATH="$WORK/venv/bin:$PATH" "$WORK/venv/bin/python" "$WORK/frame_pilot.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timestamps_2026.py?ref=main' --jq .content | base64 -d > "$WORK/official_nba.py"
+          python3 -m py_compile "$WORK/official_nba.py"
+          python3 "$WORK/official_nba.py" --selftest
+          python3 "$WORK/official_nba.py" --game 0022600091
+          echo 'NBA_FORMAL_EVENT_CLOCK_QA_PRIVATE_ONLY'
