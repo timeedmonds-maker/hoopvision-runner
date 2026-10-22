@@ -36,6 +36,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-rockets-private-clip-pilot.yml",
     ".github/workflows/gamepulse-pnr-feasibility.yml",
     ".github/workflows/rockets-pnr-unified-review-qa.yml",
+    ".github/workflows/rockets-pnr-video-source-diagnostic.yml",
     ".github/workflows/gamepulse-pnr-ui-preflight.yml",
     ".github/workflows/gamepulse-github-season.yml",
     ".github/workflows/gamepulse-final-fastlane.yml",
