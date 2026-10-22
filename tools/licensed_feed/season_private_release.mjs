@@ -212,11 +212,12 @@ export async function run(){
  if(process.env.DRY_RUN==='true')return;
  for(const game of due){
   try{await archiveGame(game,index,capture);}
-  catch{
+  catch(e){
+   const reason=/^[a-z_]+$/.test(e?.message||'')?e.message:'capture_or_archive_failed';
    index.games[game.id]={status:'retry',retry_after:Date.now()+6*3600000,
     last_attempt:new Date().toISOString()};
    writeIndex(index);
-   console.error('PRIVATE_SEASON_RETRY_REQUIRED');
+   console.error('PRIVATE_SEASON_RETRY_REQUIRED',reason);
    process.exitCode=2;
   }
  }
