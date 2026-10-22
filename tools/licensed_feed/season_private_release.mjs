@@ -111,6 +111,33 @@ function repairArchiveOnly(tag,job){
   finally{rmSync(check,{recursive:true,force:true});}
  }finally{rmSync(dir,{recursive:true,force:true});rmSync(unpack,{recursive:true,force:true});}
 }
+/** Quarantine an unpaired private sidecar before an exact-window recapture.
+ * Never delete a raw checkpoint; retain and SHA-readback the orphan privately.
+ */
+function quarantineOrphanManifest(tag,job){
+ const base='sdk-part-'+String(job.part).padStart(2,'0');
+ let current=names(tag);
+ if(!current?.has(base+'.json')||current.has(base+'.tar.gz'))return;
+ const dir=temp(),check=temp();
+ try{
+  const orphan=download(tag,base+'.json',dir);
+  const quarantine=base+'-orphan-'+sha(orphan).slice(0,12)+'.json';
+  const copy=join(dir,quarantine);
+  copyFileSync(orphan,copy);
+  uploadOrExisting(tag,copy,quarantine);
+  if(sha(download(tag,quarantine,check))!==sha(orphan))
+   throw Error('orphan_quarantine_readback_failed');
+  current=names(tag);
+  if(current.has(base+'.tar.gz'))return;
+  const removed=gh(['release','delete-asset',tag,base+'.json','--repo',REPO,'--yes']);
+  if(!removed.ok&&names(tag)?.has(base+'.json'))
+   throw Error('orphan_manifest_delete_failed');
+  console.log('PRIVATE_ORPHAN_MANIFEST_QUARANTINED');
+ }finally{
+  rmSync(dir,{recursive:true,force:true});
+  rmSync(check,{recursive:true,force:true});
+ }
+}
 async function capturePart(tag,job,capture){
  const dir=temp();
  try{
@@ -143,13 +170,16 @@ async function archiveGame(game,index,capture){
   const existing=names(tag);
   const pair=[existing.has(base+'.tar.gz'),existing.has(base+'.json')];
   if(pair[0]&&!pair[1])repairArchiveOnly(tag,job);
-  if(!pair[0]&&pair[1])throw Error('orphan_manifest_requires_review');
+  if(!pair[0]&&pair[1])quarantineOrphanManifest(tag,job);
+  const ready=names(tag);
+  const archived=ready.has(base+'.tar.gz');
+  if(archived&&!ready.has(base+'.json'))repairArchiveOnly(tag,job);
   const dir=temp();
-  try{reports.push(pair[0]?validatedPart(tag,job,dir):await capturePart(tag,job,capture));}
+  try{reports.push(archived?validatedPart(tag,job,dir):await capturePart(tag,job,capture));}
   finally{rmSync(dir,{recursive:true,force:true});}
   index.games[game.id]={status:'partial',last_checkpoint:job.part,last_attempt:new Date().toISOString()};
   writeIndex(index);
-  if(!pair[0] && ++newParts>=partLimit && job.part<plan.parts.length-1){
+  if(!archived && ++newParts>=partLimit && job.part<plan.parts.length-1){
    console.log('PRIVATE_GAME_PARTIAL_SHA_READBACK');
    return;
   }
@@ -297,9 +327,12 @@ export async function run(){
   const existing=names(tag),base='sdk-part-'+String(part).padStart(2,'0');
   if(!existing)throw Error('private_release_missing');
   const archive=existing.has(base+'.tar.gz'),manifest=existing.has(base+'.json');
-  if(manifest&&!archive)throw Error('orphan_manifest_requires_review');
+  if(manifest&&!archive)quarantineOrphanManifest(tag,job);
   if(archive&&!manifest)repairArchiveOnly(tag,job);
-  if(archive){
+  const refreshed=names(tag);
+  const archived=refreshed.has(base+'.tar.gz');
+  if(archived&&!refreshed.has(base+'.json'))repairArchiveOnly(tag,job);
+  if(archived){
    const dir=temp();
    try{validatedPart(tag,job,dir);}finally{rmSync(dir,{recursive:true,force:true});}
   }else await capturePart(tag,job,capture);
