@@ -1,0 +1,69 @@
+name: Game Pulse Rockets private full-game finalization safeguard
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-rockets-finalize-safeguard.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/gamepulse-rockets-finalize-safeguard.yml'
+      - 'tools/public_content_guard.py'
+permissions:
+  contents: read
+concurrency:
+  group: gamepulse-rockets-independent-private-finalizer
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 tools/public_content_guard.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+  finalize:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Ensure entire planned horizon has elapsed, without private credentials
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import datetime as dt,time
+          target=dt.datetime(2026,10,22,5,50,tzinfo=dt.timezone.utc)
+          stop=dt.datetime(2026,10,23,0,30,tzinfo=dt.timezone.utc)
+          now=dt.datetime.now(dt.timezone.utc)
+          if now>=stop: raise RuntimeError('priority_assignment_expired')
+          seconds=max(0,(target-now).total_seconds())
+          if seconds>2*3600: raise RuntimeError('unexpected_wait_horizon')
+          print('PRIVATE_GAMEPULSE_FINALIZE_WAITS_FOR_FULL_HORIZON',flush=True)
+          time.sleep(seconds)
+          print('FULL_HORIZON_ELAPSED',flush=True)
+          PY
+      - name: Install public licensed SDK with lifecycle scripts disabled
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Resume missing chunks, verify private SHA readback and certify all 3720 slots
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_PRIORITY_FINALIZE: 'true'
+          GAMEPULSE_FINAL_FASTLANE: 'true'
+          GAMEPULSE_PRIORITY_ID: '0022600091'
+          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T00:30:00Z'
+        run: node season_private_release.mjs
