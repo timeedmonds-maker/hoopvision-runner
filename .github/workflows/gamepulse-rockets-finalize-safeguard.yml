@@ -12,7 +12,7 @@ permissions:
   contents: read
 concurrency:
   group: gamepulse-rockets-independent-private-finalizer
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   preflight:
     runs-on: ubuntu-24.04
@@ -26,9 +26,58 @@ jobs:
         with:
           node-version: '22'
       - run: node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
-  finalize:
+  capture-remaining:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: preflight
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        part: [10, 11, 12]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Start at exact source-window maturity, not the old 6:50 pm hold
+        env:
+          GAMEPULSE_PART: ${{ matrix.part }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt, os, time
+          part=int(os.environ['GAMEPULSE_PART'])
+          assert part in (10,11,12)
+          begin=dt.datetime(2026,10,22,0,20,tzinfo=dt.timezone.utc)
+          count=120 if part==12 else 300
+          ready=begin+dt.timedelta(seconds=part*300*5+count*5)
+          seconds=max(0,(ready-dt.datetime.now(dt.timezone.utc)).total_seconds())
+          if seconds>90*60: raise RuntimeError('unexpected_source_maturity_wait')
+          print('SOURCE_WINDOW_READY_AT_UTC', ready.isoformat(), flush=True)
+          if seconds: time.sleep(seconds)
+          print('CAPTURE_ELIGIBLE_NOW',part,flush=True)
+          PY
+      - name: Install licensed SDK with lifecycle scripts disabled
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Resume exact private checkpoint and verify SHA readback
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_PRIORITY_FANOUT: 'true'
+          GAMEPULSE_FINAL_FASTLANE: 'true'
+          GAMEPULSE_PRIORITY_ID: '0022600091'
+          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T00:30:00Z'
+          GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
+        run: node season_private_release.mjs
+  finalize:
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.preflight.result == 'success'
+    needs: [preflight, capture-remaining]
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     steps:
@@ -38,27 +87,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Ensure entire planned horizon has elapsed, without private credentials
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import datetime as dt,time
-          target=dt.datetime(2026,10,22,5,50,tzinfo=dt.timezone.utc)
-          stop=dt.datetime(2026,10,23,0,30,tzinfo=dt.timezone.utc)
-          now=dt.datetime.now(dt.timezone.utc)
-          if now>=stop: raise RuntimeError('priority_assignment_expired')
-          seconds=max(0,(target-now).total_seconds())
-          if seconds>2*3600: raise RuntimeError('unexpected_wait_horizon')
-          print('PRIVATE_GAMEPULSE_FINALIZE_WAITS_FOR_FULL_HORIZON',flush=True)
-          time.sleep(seconds)
-          print('FULL_HORIZON_ELAPSED',flush=True)
-          PY
-      - name: Install public licensed SDK with lifecycle scripts disabled
+      - name: Install licensed SDK with lifecycle scripts disabled
         working-directory: tools/licensed_feed
         run: |
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
-      - name: Resume missing chunks, verify private SHA readback and certify all 3720 slots
+      - name: Resume any outstanding part; require 3720 observed five-second windows and private completion marker
         working-directory: tools/licensed_feed
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
