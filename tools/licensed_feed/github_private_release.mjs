@@ -8,7 +8,17 @@ import {copyFileSync,existsSync,mkdirSync,mkdtempSync,readFileSync,rmSync} from 
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
-import {capture,checkJob} from './capture.mjs';
+// Keep the licensed SDK and all third-party modules unloaded until the private
+// upload token has been removed from the process environment.
+function checkJob(j){
+ if(!j||!/^(002|003|004|005|006)26\\d{5}$/.test(j.game_id)
+   ||j.account_id!=='nba'||j.program_id!=='companion-'+j.game_id+'-positions'
+   ||!Number.isSafeInteger(j.start_ms)||j.start_ms%5000!==0
+   ||!Number.isSafeInteger(j.count)||j.count<1||j.count>300
+   ||!Number.isSafeInteger(j.part)||j.part<0||j.part>50)
+  throw Error('invalid_private_job');
+ return j;
+}
 
 export const PRIVATE_REPO='timeedmonds-maker/104';
 const PUBLIC_REPO='timeedmonds-maker/hoopvision-runner';
@@ -89,6 +99,7 @@ export async function runPilot(){
  assertScopedContext({...process.env,GH_TOKEN:PRIVATE_TOKEN});
  // Do not pass the private GitHub write token to Chromium or SDK subprocesses.
  delete process.env.GH_TOKEN;
+ const {capture}=await import('./capture.mjs');
  const job=pilotJob();
  const directory=mkdtempSync(join(tmpdir(),'gp-private-only-'));
  try{
