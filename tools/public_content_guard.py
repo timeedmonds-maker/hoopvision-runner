@@ -58,6 +58,7 @@ ALLOWED_STATIC = {
     ".github/workflows/rockets-three-player-touch-probe.yml",
     ".github/workflows/rockets-native-touch-ppp.yml",
     ".github/workflows/gamepulse-native-interactions-14game.yml",
+    ".github/workflows/gamepulse-interaction-query.yml",
     "tests/test_consumer_receipt_waiter.py",
     "tests/test_public_bridge_preflight.py",
     "tests/test_public_content_guard.py",
