@@ -270,6 +270,7 @@ export async function run(){
   console.log('PRIVATE_PRIORITY_PART_SHA_READBACK_CERTIFIED');
   return;
  }
+ await captureElapsedPriority(capture);
  const index=readIndex(),games=PILOT?[pilotGame()]:await schedule();
  if(PILOT&&index.games[games[0].id]?.status==='retry')
   index.games[games[0].id].retry_after=0;
