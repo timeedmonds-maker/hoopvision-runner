@@ -214,6 +214,23 @@ async function schedule(){
  throw Error('schedule_sources_unavailable');
 }
 
+async function requireOfficialFinal(gameId){
+ for(let attempt=0;attempt<3;attempt++){
+  try{
+   const response=await fetch('https://cdn.nba.com/static/json/liveData/boxscore/boxscore_'+gameId+'.json',{
+    headers:{'Accept':'application/json','Referer':'https://www.nba.com/'},
+    signal:AbortSignal.timeout(9000)});
+   if(response.ok){
+    const body=await response.json();
+    const game=body?.game;
+    if(String(game?.gameId)===gameId&&String(game?.gameStatus)==='3')return;
+   }
+  }catch{}
+  try{if((await schedule()).some(g=>g.id===gameId))return;}catch{}
+  if(attempt<2)await new Promise(done=>setTimeout(done,2000));
+ }
+ throw Error('official_final_not_verified');
+}
 function pilotGame(){
  const tags=JSON.parse(call(['release','list','--limit','100','--json','tagName']));
  const matches=tags.filter(x=>typeof x.tagName==='string'&&
@@ -258,8 +275,7 @@ export async function run(){
   // window is postgame and can be queried immediately. Never infer empty slots:
   // capture() still requires an actual successful SDK response for every slot.
   if(process.env.GAMEPULSE_FINAL_FASTLANE==='true'){
-   const finalGames=await schedule();
-   if(!finalGames.some(g=>g.id===game.id))throw Error('official_final_not_verified');
+   await requireOfficialFinal(game.id);
   }else{
    const remaining=job.start_ms+job.count*5000+10*60000-Date.now();
    if(remaining>40*60000)throw Error('priority_window_not_yet_observed');
@@ -286,8 +302,7 @@ export async function run(){
    start:Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'')};
   planGame(game);
   if(process.env.GAMEPULSE_FINAL_FASTLANE==='true'){
-   const finalGames=await schedule();
-   if(!finalGames.some(g=>g.id===game.id))throw Error('official_final_not_verified');
+   await requireOfficialFinal(game.id);
   }else if(Date.now()<game.start+315*60000)throw Error('priority_fullgame_not_ready');
   if(Date.now()>game.start+24*3600000)throw Error('priority_assignment_expired');
   const index=readIndex();
@@ -319,4 +334,7 @@ export async function run(){
  }
 }
 if(process.argv[1]?.endsWith('season_private_release.mjs'))
- run().catch(()=>{console.error('PRIVATE_SEASON_STOPPED');process.exitCode=2;});
+ run().catch(e=>{
+  const reason=/^[a-z_]+$/.test(e?.message||'')?e.message:'collector_failed';
+  console.error('PRIVATE_SEASON_STOPPED',reason);process.exitCode=2;
+ });
