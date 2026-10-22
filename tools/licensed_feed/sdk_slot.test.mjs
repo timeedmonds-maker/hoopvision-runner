@@ -55,3 +55,22 @@ test('post-final chunks use the same earlier observed programme anchor',()=>{
  assert.throws(()=>recoveryAnchor({...b,start_ms:b.start_ms+1}),/invalid_slot_anchor/);
  assert.throws(()=>recoveryAnchor({...b,part:-1}),/invalid_slot_anchor/);
 });
+
+test('bounded two-way exact-window fallback returns independently observed slots',async()=>{
+ const requested=[];
+ const received=new Map();
+ const count=await recoverMissingWindows(job,received,signed,{
+  parallel:2,wait:async()=>{},
+  request:async url=>{
+   const ms=Number(new URL(url).searchParams.get('from'));
+   requested.push(ms);
+   return {status:200,ok:true,json:async()=>[{id:'event-'+ms}]};
+  }
+ });
+ assert.equal(count,2);
+ assert.equal(received.size,2);
+ assert.deepEqual(requested.sort((a,b)=>a-b),[job.start_ms,job.start_ms+5000]);
+ assert.throws(()=>slotRequestUrl(signed,job,job.start_ms-5000),/invalid_slot_request/);
+ await assert.rejects(recoverMissingWindows(job,new Map(),signed,{parallel:4,
+  request:async()=>({status:200,ok:true,json:async()=>[]})}),/invalid_slot_parallelism/);
+});
