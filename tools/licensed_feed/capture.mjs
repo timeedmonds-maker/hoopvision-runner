@@ -5,7 +5,7 @@ import {readFileSync,writeFileSync,mkdirSync} from 'node:fs';
 import {join} from 'node:path';
 import {spawnSync,execFileSync} from 'node:child_process';
 import {gzipSync} from 'node:zlib';
-import {recoverMissingWindows} from './sdk_slot.mjs';
+import {recoverMissingWindows,recoveryAnchor} from './sdk_slot.mjs';
 
 const ROOT=import.meta.dirname;
 const WINDOW=5000;
@@ -71,8 +71,11 @@ async function launchClient(job,received,pending){
      ||!url.pathname.includes('/'+job.program_id+'/')
      ||!url.pathname.endsWith('/events/slot'))return;
     const ms=Number(url.searchParams.get('from'));
-    if(!Number.isSafeInteger(ms)||ms<job.start_ms||ms>=job.start_ms+job.count*WINDOW)return;
+    if(!Number.isSafeInteger(ms))return;
+    // Keep SDK-issued session credentials in memory even when the browser
+    // probes an observed anchor slot outside the assigned capture chunk.
     if(url.searchParams.has('token'))observedSlotUrl=response.url();
+    if(ms<job.start_ms||ms>=job.start_ms+job.count*WINDOW)return;
     const p=response.json().then(events=>{
       if(Array.isArray(events))received.set(ms,{from:ms,to:ms+4999,events});
     }).catch(()=>{});
@@ -109,19 +112,29 @@ export async function capture(job,dir){
  try{
   const windows=Array.from({length:job.count},(_,i)=>job.start_ms+i*WINDOW);
   const seek=ms=>session.page.evaluate(t=>window.ephemeralFeed.seek(t),ms);
-  for(const ms of windows){await seek(ms);await sleep(450);}
-  await sleep(1700);await Promise.allSettled([...pending]);
-  for(let retry=0;retry<3;retry++){
-   const missing=windows.filter(ms=>!received.has(ms));
-   if(!missing.length)break;
-   for(const ms of missing){await seek(ms);await sleep(750);}
-   await sleep(1600);await Promise.allSettled([...pending]);
+  if(process.env.GAMEPULSE_FINAL_FASTLANE==='true'&&job.part>=6){
+   // Post-final chunks can lie beyond the original event's publication clock.
+   // Use an earlier, actually observed SDK slot to obtain an in-memory signed
+   // session URL, then require successful exact responses for EVERY target slot.
+   const anchor=recoveryAnchor(job);
+   for(let attempt=0;attempt<3&&!session.observedUrl();attempt++){
+    await seek(anchor+attempt*WINDOW);await sleep(1500);
+   }
+   if(!session.observedUrl())throw Error('sdk_session_url_missing');
+   await recoverMissingWindows(job,received,session.observedUrl());
+  }else{
+   for(const ms of windows){await seek(ms);await sleep(450);}
+   await sleep(1700);await Promise.allSettled([...pending]);
+   for(let retry=0;retry<3;retry++){
+    const missing=windows.filter(ms=>!received.has(ms));
+    if(!missing.length)break;
+    for(const ms of missing){await seek(ms);await sleep(750);}
+    await sleep(1600);await Promise.allSettled([...pending]);
+   }
+   if(windows.some(ms=>!received.has(ms)))
+    await recoverMissingWindows(job,received,session.observedUrl());
   }
   const rows=windows.map(ms=>received.get(ms));
-  if(rows.some(x=>!x)){
-   await recoverMissingWindows(job,received,session.observedUrl());
-   for(let i=0;i<windows.length;i++)rows[i]=received.get(windows[i]);
-  }
   if(rows.some(x=>!x))throw Error('uncovered_window');
   const {manifest,frames}=stats(job,rows);
   mkdirSync(dir,{recursive:true});

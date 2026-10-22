@@ -3,6 +3,17 @@ const HOST='nba-cdn.cloud.easelive.tv';
 const WINDOW=5000;
 const waitDefault=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
+/** A known in-game slot used only to obtain the SDK-issued signed session URL. */
+export function recoveryAnchor(job){
+ if(!Number.isSafeInteger(job?.start_ms)||job.start_ms%WINDOW!==0||
+    !Number.isSafeInteger(job?.part)||job.part<0||job.part>50)
+  throw Error('invalid_slot_anchor');
+ const origin=job.start_ms-job.part*300*WINDOW;
+ const anchor=origin+60*60000;
+ if(!Number.isSafeInteger(anchor)||anchor%WINDOW!==0)throw Error('invalid_slot_anchor');
+ return anchor;
+}
+
 export function slotRequestUrl(observed,job,ms){
  if(typeof observed!=='string'||!observed)throw Error('sdk_session_url_missing');
  if(!Number.isSafeInteger(ms)||ms%WINDOW!==0||!Number.isSafeInteger(job?.start_ms)

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {slotRequestUrl,recoverMissingWindows} from './sdk_slot.mjs';
+import {slotRequestUrl,recoverMissingWindows,recoveryAnchor} from './sdk_slot.mjs';
 const job={game_id:'0022699999',program_id:'companion-0022699999-positions',start_ms:1792522800000,count:2};
 const signed='https://nba-cdn.cloud.easelive.tv/a/companion-0022699999-positions/b/events/slot?token=synthetic-test-token&from=0&to=1';
 test('exact authorised URL is scoped and remains in memory',()=>{
@@ -41,4 +41,17 @@ test('unauthorised SDK slot is rejected immediately',async()=>{
   wait:async()=>{},request:async()=>{calls++;return {status:403,ok:false};}
  }),/sdk_slot_denied/);
  assert.equal(calls,1);
+});
+
+test('post-final chunks use the same earlier observed programme anchor',()=>{
+ const origin=1792522800000;
+ const a={...job,start_ms:origin,part:0};
+ const b={...job,start_ms:origin+7*300*5000,part:7};
+ const c={...job,start_ms:origin+12*300*5000,part:12,count:120};
+ const expected=origin+60*60000;
+ assert.equal(recoveryAnchor(a),expected);
+ assert.equal(recoveryAnchor(b),expected);
+ assert.equal(recoveryAnchor(c),expected);
+ assert.throws(()=>recoveryAnchor({...b,start_ms:b.start_ms+1}),/invalid_slot_anchor/);
+ assert.throws(()=>recoveryAnchor({...b,part:-1}),/invalid_slot_anchor/);
 });
