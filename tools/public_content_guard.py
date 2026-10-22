@@ -31,6 +31,7 @@ ALLOWED_STATIC = {
     "tools/licensed_feed/sdk_slot.test.mjs",
     "tools/licensed_feed/season_private_release.mjs",
     ".github/workflows/gamepulse-github-season.yml",
+    ".github/workflows/gamepulse-final-fastlane.yml",
     "tests/test_consumer_receipt_waiter.py",
     "tests/test_public_bridge_preflight.py",
     "tests/test_public_content_guard.py",
