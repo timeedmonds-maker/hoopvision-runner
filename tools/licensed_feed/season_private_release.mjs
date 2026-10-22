@@ -8,7 +8,8 @@ import {planGame,parseSchedule,selectDue,summarize} from './season_core.mjs';
 
 const REPO='timeedmonds-maker/104';
 const PUBLIC='timeedmonds-maker/hoopvision-runner';
-const INDEX='gamepulse-sdk-2026-27-index';
+const PILOT=process.env.GAMEPULSE_FULLGAME_PILOT==='true';
+const INDEX=PILOT?'gamepulse-sdk-public-pilot-index':'gamepulse-sdk-2026-27-index';
 const TOKEN=process.env.GH_TOKEN;
 const sha=path=>createHash('sha256').update(readFileSync(path)).digest('hex');
 const temp=()=>mkdtempSync(join(tmpdir(),'gp-season-'));
@@ -120,7 +121,7 @@ async function capturePart(tag,job,capture){
  }finally{rmSync(dir,{recursive:true,force:true});}
 }
 async function archiveGame(game,index,capture){
- const plan=planGame(game),tag='gamepulse-sdk-'+game.id;
+ const plan=planGame(game),tag=(PILOT?'gamepulse-sdk-public-pilot-':'gamepulse-sdk-')+game.id;
  ensure(tag);
  const reports=[];
  for(const job of plan.parts){
@@ -185,7 +186,9 @@ async function schedule(){
 }
 export function assertContext(env){
  if(env.GITHUB_REPOSITORY!==PUBLIC||env.GITHUB_REF!=='refs/heads/main'||
-    env.GITHUB_EVENT_NAME!=='workflow_dispatch'||typeof env.GH_TOKEN!=='string'||
+    !['workflow_dispatch','push'].includes(env.GITHUB_EVENT_NAME)||
+    (env.GITHUB_EVENT_NAME==='push'&&env.GAMEPULSE_FULLGAME_PILOT!=='true')||
+    typeof env.GH_TOKEN!=='string'||
     env.GH_TOKEN.length<30)
   throw Error('unauthorized_private_collection');
 }
