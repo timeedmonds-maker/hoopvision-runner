@@ -8,6 +8,8 @@ import {copyFileSync,existsSync,mkdirSync,mkdtempSync,readFileSync,rmSync} from 
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
+import {gunzipSync} from 'node:zlib';
+import {isDeepStrictEqual} from 'node:util';
 // Keep the licensed SDK and all third-party modules unloaded until the private
 // upload token has been removed from the process environment.
 function checkJob(j){
@@ -50,6 +52,41 @@ export function shellGh(args){
    env:{...process.env,GH_TOKEN:PRIVATE_TOKEN},stdio:['ignore','pipe','pipe'],timeout:120000,maxBuffer:1024*1024});
  return {ok:result.status===0,stdout:result.stdout||''};
 }
+
+function archiveMember(archive,name){
+ const p=spawnSync('tar',['-xOzf',archive,name],{encoding:'buffer',
+   stdio:['ignore','pipe','pipe'],timeout:60000,maxBuffer:LIMIT_BYTES});
+ if(p.status!==0||!Buffer.isBuffer(p.stdout))throw Error('checkpoint_invalid');
+ return p.stdout;
+}
+function assertCheckpoint(archive,data,job){
+ try{
+  const p=spawnSync('tar',['-tzf',archive],{encoding:'utf8',
+    stdio:['ignore','pipe','pipe'],timeout:60000,maxBuffer:1024*1024});
+  const expected=['frames.jsonl.gz','manifest.json','raw-slots.jsonl.gz'];
+  const actual=p.stdout?.trim().split('\n').sort();
+  if(p.status!==0||!isDeepStrictEqual(actual,expected))throw Error('checkpoint_invalid');
+  const embedded=JSON.parse(archiveMember(archive,'manifest.json').toString('utf8'));
+  if(!isDeepStrictEqual(embedded,data))throw Error('checkpoint_invalid');
+  const lines=name=>gunzipSync(archiveMember(archive,name),{maxOutputLength:LIMIT_BYTES})
+    .toString('utf8').trimEnd().split('\n').map(s=>JSON.parse(s));
+  const rows=lines('raw-slots.jsonl.gz'),frames=lines('frames.jsonl.gz');
+  if(rows.length!==job.count||frames.length!==data.unique_keyframes)throw Error('checkpoint_invalid');
+  let empty=0;
+  for(let i=0;i<rows.length;i++){
+   const row=rows[i],from=job.start_ms+i*5000;
+   if(row.from!==from||row.to!==from+4999||!Array.isArray(row.events))
+    throw Error('checkpoint_invalid');
+   if(!row.events.length)empty++;
+  }
+  if(empty!==data.empty_windows)throw Error('checkpoint_invalid');
+  const players=frames.filter(f=>Object.keys(f.positions||{}).some(k=>k!=='ball')).length;
+  const ball=frames.filter(f=>Object.hasOwn(f.positions||{},'ball')).length;
+  if(players!==data.frames_with_players||ball!==data.frames_with_ball||
+     frames.some(f=>!Number.isSafeInteger(f.timestamp)))throw Error('checkpoint_invalid');
+ }catch{throw Error('checkpoint_invalid');}
+}
+
 export function verifyAndStore(job,folder,execGh=shellGh){
  const tag=privateTag(job);
  const archive=join(folder,'checkpoint.tar.gz'),manifest=join(folder,'manifest.json');
@@ -59,6 +96,7 @@ export function verifyAndStore(job,folder,execGh=shellGh){
     data.start_ms!==job.start_ms||data.successful_windows!==300||
     data.unique_keyframes<1||data.frames_with_players<1)throw Error('capture_qa_failed');
  if(readFileSync(archive).length>LIMIT_BYTES)throw Error('archive_oversized');
+ assertCheckpoint(archive,data,job);
  const names=['sdk-part-00.tar.gz','sdk-part-00.json'];
  copyFileSync(archive,join(folder,names[0]));
  copyFileSync(manifest,join(folder,names[1]));
