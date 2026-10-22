@@ -44,6 +44,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-20261022-targeted-retry.yml",
     ".github/workflows/gamepulse-source-ready-final10.yml",
     ".github/workflows/gamepulse-part6-fast.yml",
+    ".github/workflows/gamepulse-14game-world-source-qa.yml",
     "tests/test_consumer_receipt_waiter.py",
     "tests/test_public_bridge_preflight.py",
     "tests/test_public_content_guard.py",
