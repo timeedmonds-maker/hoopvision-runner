@@ -1,4 +1,5 @@
 name: Game Pulse Rockets shot-spacing input QA (private results)
+# Rerun after fixing exact NBA shooter identity and strict ten-player coverage.
 on:
   push:
     branches: [main]
