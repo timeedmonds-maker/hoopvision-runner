@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/public-nba-gravity-onegame.yml",
+    "public_nba_gravity_rockets_game1_2026_27.json",
     "README.md",
     "PUBLIC_CONTENT_POLICY.md",
     "runner_policy.json",
