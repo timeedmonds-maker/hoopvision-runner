@@ -46,11 +46,11 @@ test('remote manifests must reconcile every assigned slot and remain observed',(
 });
 test('private token is usable only on trusted main, with isolated push pilot',()=>{
  const env={GITHUB_REPOSITORY:'timeedmonds-maker/hoopvision-runner',
-  GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GH_TOKEN:'x'.repeat(35)};
+  GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',DRY_RUN:'true',GH_TOKEN:'x'.repeat(35)};
  assert.doesNotThrow(()=>assertContext(env));
  assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'push',GAMEPULSE_FULLGAME_PILOT:'true'}));
  assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'schedule',GAMEPULSE_FULLGAME_PILOT:'true'}));
- for(const bad of [{...env,GITHUB_EVENT_NAME:'push'},
+ for(const bad of [{...env,DRY_RUN:'false'},{...env,GITHUB_EVENT_NAME:'push'},
   {...env,GITHUB_EVENT_NAME:'schedule'},{...env,GH_TOKEN:''},{...env,GITHUB_REF:'refs/heads/untrusted'},
   {...env,GITHUB_EVENT_NAME:'pull_request'},{...env,GITHUB_REPOSITORY:'other/repo'}])
   assert.throws(()=>assertContext(bad));
