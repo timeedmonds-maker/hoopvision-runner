@@ -97,6 +97,55 @@ jobs:
                 {k:data[k] for k in ("source_count","official_lineups","matched_tracking_lineups",
                     "verified_player_onoff_records","games_with_official_lineups","games_with_verified_onoff")})
           PY
+      - name: Publish game-level NBA ONOFF and official possessions alongside certified tracked shot samples
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/onoff"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/materialize_official_onoff_2026.py?ref=main' --jq .content |
+            base64 -d > "$ROOT/materialize_official_onoff_2026.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_materialize_official_onoff_2026.py?ref=main' --jq .content |
+            base64 -d > "$ROOT/tests/test_materialize_official_onoff_2026.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/verified_event_lineup_shots_2026_27.json?ref=main' --jq .content |
+            base64 -d > "$ROOT/verified_event_shot_sample.json"
+          python3 -m unittest discover -v -s "$ROOT/tests" -p test_materialize_official_onoff_2026.py
+          python3 "$ROOT/materialize_official_onoff_2026.py" \
+            --qa "$ROOT/official_onoff_qa.json" \
+            --matches "$ROOT/official_onoff_matches.json" \
+            --shots "$ROOT/verified_event_shot_sample.json" \
+            --out "$ROOT/search"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"onoff/search"
+          manifest=json.loads((root/"index.json").read_text())
+          assert manifest["stats"]["games"]==14
+          assert manifest["stats"]["official_five_rows"]>=500
+          targets=[(root/(gid+".json"),"gamepulse/fusion/onoff/games/"+gid+".json")
+                   for gid in sorted(manifest["games"])]
+          targets.append((root/"index.json","gamepulse/fusion/onoff/index.json"))
+          for src,where in targets:
+              path="repos/timeedmonds-maker/104/contents/"+where
+              blob=src.read_bytes()
+              existing=subprocess.run(["gh","api",path],capture_output=True,text=True)
+              item={"branch":"main","message":"data(2026): preserve independently validated NBA game ONOFF and 5-man denominators",
+                    "content":base64.b64encode(blob).decode()}
+              if existing.returncode==0:
+                  old=json.loads(existing.stdout)
+                  if base64.b64decode(old["content"])==blob:continue
+                  item["sha"]=old["sha"]
+              elif not ("404" in existing.stderr or "Not Found" in existing.stderr):
+                  raise RuntimeError("private_onoff_search_lookup_failed")
+              put=subprocess.run(["gh","api","-X","PUT",path,"--input","-"],
+                  input=json.dumps(item),capture_output=True,text=True)
+              if put.returncode:raise RuntimeError("private_onoff_search_write_failed")
+              readback=subprocess.run(["gh","api",path],capture_output=True,text=True)
+              if readback.returncode:raise RuntimeError("private_onoff_search_readback_failed")
+              if hashlib.sha256(base64.b64decode(json.loads(readback.stdout)["content"])).digest()!=hashlib.sha256(blob).digest():
+                  raise RuntimeError("private_onoff_search_sha_mismatch")
+          print("PRIVATE_2026_OFFICIAL_ONOFF_SEARCH_PUBLISHED",
+                json.dumps(manifest["stats"],sort_keys=True))
+          PY
       - name: Public workflow has no private data output
         if: always()
         run: echo 'All source results and validation are recorded solely in private 104.' >> "$GITHUB_STEP_SUMMARY"
