@@ -83,9 +83,20 @@ test('bounded main-only fanout context rejects untrusted contexts',()=>{
 test('full-game priority certification is authorised only on trusted main',()=>{
  const trusted={GITHUB_REPOSITORY:'timeedmonds-maker/hoopvision-runner',
   GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'push',
-  GAMEPULSE_PRIORITY_FINALIZE:'true',GH_TOKEN:'x'.repeat(35)};
+  GAMEPULSE_PRIORITY_FINALIZE:'true',GAMEPULSE_FINAL_FASTLANE:'true',GH_TOKEN:'x'.repeat(35)};
  assert.doesNotThrow(()=>assertContext(trusted));
  assert.throws(()=>assertContext({...trusted,GITHUB_REF:'refs/heads/feature'}));
  assert.throws(()=>assertContext({...trusted,GITHUB_EVENT_NAME:'pull_request'}));
  assert.throws(()=>assertContext({...trusted,GH_TOKEN:''}));
+});
+
+test('accelerated final capture cannot bypass trusted branch and event checks',()=>{
+ const env={GITHUB_REPOSITORY:'timeedmonds-maker/hoopvision-runner',
+  GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'push',
+  GAMEPULSE_PRIORITY_FANOUT:'true',GAMEPULSE_FINAL_FASTLANE:'true',
+  GH_TOKEN:'x'.repeat(35)};
+ assert.doesNotThrow(()=>assertContext(env));
+ assert.throws(()=>assertContext({...env,GITHUB_REF:'refs/heads/unsafe'}));
+ assert.throws(()=>assertContext({...env,GITHUB_EVENT_NAME:'pull_request'}));
+ assert.throws(()=>assertContext({...env,GH_TOKEN:''}));
 });
