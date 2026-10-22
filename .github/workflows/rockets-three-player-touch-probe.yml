@@ -1,4 +1,5 @@
 name: Rockets Durant VanVleet Sengun source-touch probe
+# Scan nested native lastTouch shape, fail closed on missing source provenance.
 on:
   push:
     branches: [main]
