@@ -1,4 +1,5 @@
 name: Rockets native Game Pulse triple-touch possession audit
+# Falsify native touch matches at deliberate shifted official boundaries.
 # Evaluate observed frame timestamp vs source lastTouch start timestamp.
 # Verify native lastTouch start-to-keyframe age without relabeling actions.
 # Verify same-actor native touch lag scan before classifying possessions.
