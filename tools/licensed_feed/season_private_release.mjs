@@ -124,6 +124,9 @@ async function archiveGame(game,index,capture){
  const plan=planGame(game),tag=(PILOT?'gamepulse-sdk-public-pilot-':'gamepulse-sdk-')+game.id;
  ensure(tag);
  const reports=[];
+ const partLimit=Number(process.env.GAMEPULSE_PARTS_PER_RUN||13);
+ if(!Number.isSafeInteger(partLimit)||partLimit<1||partLimit>13)throw Error('invalid_parts_limit');
+ let newParts=0;
  for(const job of plan.parts){
   const base='sdk-part-'+String(job.part).padStart(2,'0');
   const existing=names(tag);
@@ -135,6 +138,10 @@ async function archiveGame(game,index,capture){
   finally{rmSync(dir,{recursive:true,force:true});}
   index.games[game.id]={status:'partial',last_checkpoint:job.part,last_attempt:new Date().toISOString()};
   writeIndex(index);
+  if(!pair[0] && ++newParts>=partLimit && job.part<plan.parts.length-1){
+   console.log('PRIVATE_GAME_PARTIAL_SHA_READBACK');
+   return;
+  }
  }
  const sum=summarize(plan.parts,reports);
  if(sum.windows!==plan.windows||plan.windows!==3720||plan.parts.length!==13)
@@ -186,8 +193,8 @@ async function schedule(){
 }
 export function assertContext(env){
  if(env.GITHUB_REPOSITORY!==PUBLIC||env.GITHUB_REF!=='refs/heads/main'||
-    !['workflow_dispatch','push'].includes(env.GITHUB_EVENT_NAME)||
-    (env.GITHUB_EVENT_NAME==='push'&&env.GAMEPULSE_FULLGAME_PILOT!=='true')||
+    !['workflow_dispatch','push','schedule'].includes(env.GITHUB_EVENT_NAME)||
+    (env.GITHUB_EVENT_NAME!=='workflow_dispatch'&&env.GAMEPULSE_FULLGAME_PILOT!=='true')||
     typeof env.GH_TOKEN!=='string'||
     env.GH_TOKEN.length<30)
   throw Error('unauthorized_private_collection');
