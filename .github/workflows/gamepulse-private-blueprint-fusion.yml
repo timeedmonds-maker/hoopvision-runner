@@ -73,6 +73,9 @@ jobs:
           assert report["canonical_source_verified"]==14, "PRIVATE_BLUEPRINT_ORIGINAL_REPORTS_MISSING_REVIEW_QA_IN_104"
           assert report["canonical_source_deferred"]==0, "PRIVATE_BLUEPRINT_SOURCE_DEFERRED_REVIEW_QA_IN_104"
           assert report["blueprint_game_count"]==14, "PRIVATE_BLUEPRINT_SOURCE_SHOTS_NOT_JOINED"
+          assert report["games_with_gravity"]==14, "PRIVATE_BLUEPRINT_GRAVITY_NOT_INDEXED_ALL_GAMES"
+          assert report["games_with_leverage"]==14, "PRIVATE_BLUEPRINT_LEVERAGE_NOT_INDEXED_ALL_GAMES"
+          assert report["gravity_heatmaps"]==84, "PRIVATE_BLUEPRINT_SPATIAL_GRIDS_INCOMPLETE"
           print("PRIVATE_FUSION_WAREHOUSE_VALIDATED_NO_DATA_IN_PUBLIC_LOG")
           PY
       - name: Upload SQLite and QA to private 104 Release and verify SHA
