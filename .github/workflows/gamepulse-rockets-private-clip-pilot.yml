@@ -137,5 +137,16 @@ jobs:
           print("ROCKETS_REAL_SDK_PART01_SHA_AND_NATIVE_XYZ_SCHEMA_PASS",
                 "frames",len(frames),"fully_observed_example_players",
                 len(validated[0]["players"]))
+          sys.path.insert(0,str(base/"courtcoder"/"tools"))
+          from fetch_private_gamepulse_clip import fetch_parts
+          receipt=fetch_parts("0022600091",[1],base/"rockets",
+              trusted_asset_digests=dict(digests,**{
+                 "sdk-COMPLETE.json":complete_asset["digest"].split(":")[1]}),
+              verified_tipoff_ms=int(__import__("datetime").datetime.fromisoformat(
+                  complete["tipoff_utc"].replace("Z","+00:00")).timestamp()*1000))
+          assert receipt["observed_frames"]==len(frames)
+          assert receipt["downloaded_asset_count"]==0
+          assert receipt["verified_planned_start_ms"]==complete["planned_start_ms"]
+          print("ROCKETS_CACHED_PRIVATE_CHECKPOINT_FETCH_PASS")
           print("VIDEO_CLOCK_AND_CAMERA_GEOMETRY_NOT_CERTIFIED")
           PY
