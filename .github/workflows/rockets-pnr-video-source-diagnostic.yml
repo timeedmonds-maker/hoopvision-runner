@@ -1,0 +1,42 @@
+name: Rockets PNR xFG provider video delivery diagnostic (private report)
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/rockets-pnr-video-source-diagnostic.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/rockets-pnr-video-source-diagnostic.yml'
+      - 'tools/public_content_guard.py'
+permissions:
+  contents: read
+concurrency:
+  group: rockets-pnr-provider-video-probe
+  cancel-in-progress: false
+jobs:
+  public-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 tools/public_content_guard.py
+  private-provider-probe:
+    needs: public-preflight
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - name: Test bounded provider HTTP headers/media signatures and persist private results
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" || exit 3
+          gh api repos/timeedmonds-maker/104/contents/gamepulse/coverage/probe_nba_shot_video_delivery.py --jq .content | base64 -d > /tmp/probe_nba_shot_video_delivery.py
+          python3 -m py_compile /tmp/probe_nba_shot_video_delivery.py
+          python3 /tmp/probe_nba_shot_video_delivery.py --selftest
+          python3 /tmp/probe_nba_shot_video_delivery.py
+          rm -f /tmp/probe_nba_shot_video_delivery.py
