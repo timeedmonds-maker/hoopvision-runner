@@ -39,38 +39,47 @@ export async function recoverMissingWindows(job,received,observedUrl,
  {request=fetch,wait=waitDefault}={}){
  const windows=Array.from({length:job.count},(_,i)=>job.start_ms+i*WINDOW);
  const missing=windows.filter(ms=>!received.has(ms));
- let cursor=0;
- let denied=false;
+ const statuses={};
+ let networkErrors=0,invalidBodies=0,cursor=0,denied=false;
  const worker=async()=>{
   while(!denied){
    const i=cursor++;
    if(i>=missing.length)return;
-   const ms=missing[i];
-   const url=slotRequestUrl(observedUrl,job,ms);
+   const ms=missing[i],url=slotRequestUrl(observedUrl,job,ms);
    for(let attempt=0;attempt<4&&!received.has(ms);attempt++){
     let response;
     try{
      response=await request(url,{signal:AbortSignal.timeout(16000),headers:{
       Accept:'application/json',Referer:'https://www.nba.com/',
       'User-Agent':'Mozilla/5.0 (compatible; licensed Game Pulse SDK collector)'}});
-    }catch{}
+    }catch{networkErrors++;}
     if(response){
-     if([401,403,404].includes(response.status)){
-      denied=true;
-      throw Error('sdk_slot_denied');
-     }
+     const status=Number.isInteger(response.status)?response.status:0;
+     const bucket=status===200?'200':String(status);
+     statuses[bucket]=(statuses[bucket]||0)+1;
+     if(status===401||status===403){denied=true;break;}
      if(response.ok){
       try{
        const events=await response.json();
        if(Array.isArray(events))received.set(ms,{from:ms,to:ms+WINDOW-1,events});
-      }catch{}
+       else invalidBodies++;
+      }catch{invalidBodies++;}
      }
     }
-    if(!received.has(ms)&&attempt<3)await wait((attempt+1)*1000);
+    if(!received.has(ms)&&attempt<3&&!denied)await wait((attempt+1)*1000);
    }
   }
  };
- await Promise.all(Array.from({length:Math.min(4,missing.length)},()=>worker()));
- if(windows.some(ms=>!received.has(ms)))throw Error('uncovered_window');
+ await Promise.allSettled(Array.from({length:Math.min(4,missing.length)},()=>worker()));
+ const remaining=windows.filter(ms=>!received.has(ms)).length;
+ if(remaining||denied){
+  // No signed URLs, bodies, tokens, exact request times or player records in logs.
+  console.log('SDK_SLOT_COVERAGE_DIAGNOSTIC',JSON.stringify({
+   game_id:job.game_id,part:job.part,expected:windows.length,
+   accepted:windows.length-remaining,remaining,
+   http_status_counts:statuses,network_errors:networkErrors,invalid_bodies:invalidBodies}));
+ }
+ if(denied)throw Error('sdk_slot_denied');
+ if(remaining)throw Error('uncovered_window');
  return windows.length;
 }
