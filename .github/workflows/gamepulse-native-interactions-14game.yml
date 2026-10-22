@@ -129,22 +129,36 @@ jobs:
           game=os.environ["GAME_ID"]
           data=(r/"interactions.json").read_bytes()
           target="repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/interactions/"+game+".json"
-          old=subprocess.run(["gh","api",target],capture_output=True,text=True)
-          payload={"branch":"main",
-                   "message":"data(gamepulse): retain native-tracking/PBP/Blueprint fusion for game "+game,
-                   "content":base64.b64encode(data).decode()}
-          if old.returncode==0: payload["sha"]=json.loads(old.stdout)["sha"]
-          elif "Not Found" not in old.stderr and "404" not in old.stderr:
-              raise RuntimeError("PRIVATE_DESTINATION_READ_FAILED")
-          put=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
-                             input=json.dumps(payload),capture_output=True,text=True)
-          if put.returncode: raise RuntimeError("PRIVATE_DESTINATION_WRITE_FAILED")
+          import time
+          # GitHub Contents PUT updates the same git branch even when game
+          # paths differ. Parallel fanout requires re-reading SHA and retrying
+          # 409/422 ref-update races rather than losing finished CPU results.
+          for trial in range(15):
+              old=subprocess.run(["gh","api",target],capture_output=True,text=True)
+              payload={"branch":"main",
+                       "message":"data(gamepulse): retain native-tracking/PBP/Blueprint fusion for game "+game,
+                       "content":base64.b64encode(data).decode()}
+              if old.returncode==0:
+                  payload["sha"]=json.loads(old.stdout)["sha"]
+              elif "Not Found" not in old.stderr and "404" not in old.stderr:
+                  if any(x in old.stderr for x in ("429","500","502","503")):
+                      time.sleep(min(2+trial*2,25));continue
+                  raise RuntimeError("PRIVATE_DESTINATION_READ_FAILED")
+              put=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                                 input=json.dumps(payload),capture_output=True,text=True)
+              if put.returncode==0:break
+              if not any(x in put.stderr for x in ("409","422","429","500","502","503")):
+                  raise RuntimeError("PRIVATE_DESTINATION_NONRETRYABLE_WRITE_FAILURE")
+              time.sleep(min(2+trial*3,30)+(int(game[-3:])%7)/7)
+          else:
+              raise RuntimeError("PRIVATE_DESTINATION_WRITE_RETRIES_EXHAUSTED")
           actual=base64.b64decode(subprocess.check_output(["gh","api",target,"--jq",".content"]))
           assert hashlib.sha256(data).digest()==hashlib.sha256(actual).digest()
           print("PRIVATE_FUSION_INDEX_SHA_VERIFIED")
           PY
       - name: Preserve private per-game execution receipt
         if: always()
+        continue-on-error: true
         shell: bash
         env:
           RUN_ID: ${{ github.run_id }}
