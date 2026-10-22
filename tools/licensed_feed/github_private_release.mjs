@@ -64,12 +64,12 @@ function assertCheckpoint(archive,data,job){
   const p=spawnSync('tar',['-tzf',archive],{encoding:'utf8',
     stdio:['ignore','pipe','pipe'],timeout:60000,maxBuffer:1024*1024});
   const expected=['frames.jsonl.gz','manifest.json','raw-slots.jsonl.gz'];
-  const actual=p.stdout?.trim().split('\\n').sort();
+  const actual=p.stdout?.trim().split('\n').sort();
   if(p.status!==0||!isDeepStrictEqual(actual,expected))throw Error('checkpoint_invalid');
   const embedded=JSON.parse(archiveMember(archive,'manifest.json').toString('utf8'));
   if(!isDeepStrictEqual(embedded,data))throw Error('checkpoint_invalid');
   const lines=name=>gunzipSync(archiveMember(archive,name),{maxOutputLength:LIMIT_BYTES})
-    .toString('utf8').trimEnd().split('\\n').map(s=>JSON.parse(s));
+    .toString('utf8').trimEnd().split('\n').map(s=>JSON.parse(s));
   const rows=lines('raw-slots.jsonl.gz'),frames=lines('frames.jsonl.gz');
   if(rows.length!==job.count||frames.length!==data.unique_keyframes)throw Error('checkpoint_invalid');
   let empty=0;
