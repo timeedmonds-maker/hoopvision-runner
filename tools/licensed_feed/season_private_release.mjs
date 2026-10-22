@@ -156,7 +156,25 @@ function repairOrphanManifest(tag,job){
 async function capturePart(tag,job,capture){
  const dir=temp();
  try{
-  await capture(job,dir);
+  // Transient source anchor/slot failures warrant a fresh SDK browser
+  // session, not a fabricated successful window or a whole-game restart.
+  for(let attempt=0;;attempt++){
+   try{await capture(job,dir);break;}
+   catch(e){
+    const recoverable=['sdk_session_url_missing','uncovered_window','sdk_initialization_failed']
+      .includes(e?.message);
+    if(!recoverable||attempt>=2)throw e;
+    // Another authorised worker may have saved the missing exact part.
+    const base='sdk-part-'+String(job.part).padStart(2,'0');
+    if(names(tag)?.has(base+'.tar.gz')&&names(tag)?.has(base+'.json')){
+     const check=temp();
+     try{return validatedPart(tag,job,check);}
+     finally{rmSync(check,{recursive:true,force:true});}
+    }
+    console.log('PRIVATE_SDK_TRANSIENT_CHECKPOINT_RETRY',job.part,attempt+1);
+    await new Promise(resolve=>setTimeout(resolve,1500*(attempt+1)));
+   }
+  }
   const source=JSON.parse(readFileSync(join(dir,'manifest.json'),'utf8'));
   summarize([job],[source]);
   const base='sdk-part-'+String(job.part).padStart(2,'0');

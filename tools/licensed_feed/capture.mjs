@@ -117,8 +117,13 @@ export async function capture(job,dir){
    // Use an earlier, actually observed SDK slot to obtain an in-memory signed
    // session URL, then require successful exact responses for EVERY target slot.
    const anchor=recoveryAnchor(job);
-   for(let attempt=0;attempt<3&&!session.observedUrl();attempt++){
-    await seek(anchor+attempt*WINDOW);await sleep(1500);
+   // SDK feeds sometimes do not publish the first sampled anchor. Probe
+   // independent in-game points to recover an actual signed 200-response URL.
+   const anchorOffsets=[0,5*WINDOW,-15*60000,15*60000,30*60000,45*60000];
+   for(const offset of anchorOffsets){
+    if(session.observedUrl())break;
+    await seek(anchor+offset);
+    await sleep(1200);
    }
    if(!session.observedUrl())throw Error('sdk_session_url_missing');
    await recoverMissingWindows(job,received,session.observedUrl());
