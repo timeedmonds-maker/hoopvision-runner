@@ -1,12 +1,8 @@
 name: Game Pulse public CPU season private Release worker
-run-name: NBA Game Pulse private full-game pilot
+run-name: NBA Game Pulse public CPU private season archive
 on:
   schedule:
     - cron: '*/15 * * * *'
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/gamepulse-github-season.yml'
   pull_request:
     paths:
       - '.github/workflows/gamepulse-github-season.yml'
@@ -63,6 +59,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
-          GAMEPULSE_FULLGAME_PILOT: ${{ github.event_name == 'push' || github.event_name == 'schedule' }}
-          GAMEPULSE_PARTS_PER_RUN: ${{ github.event_name == 'push' && '12' || '1' }}
+          GAMEPULSE_FULLGAME_PILOT: 'false'
+          GAMEPULSE_PRODUCTION_ENABLED: ${{ github.event_name == 'schedule' }}
+          GAMEPULSE_PARTS_PER_RUN: '13'
         run: node season_private_release.mjs
