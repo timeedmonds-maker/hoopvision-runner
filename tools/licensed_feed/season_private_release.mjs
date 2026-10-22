@@ -111,6 +111,48 @@ function repairArchiveOnly(tag,job){
   finally{rmSync(check,{recursive:true,force:true});}
  }finally{rmSync(dir,{recursive:true,force:true});rmSync(unpack,{recursive:true,force:true});}
 }
+function repairOrphanManifest(tag,job){
+ const base='sdk-part-'+String(job.part).padStart(2,'0');
+ const sidecarName=base+'.json',archiveName=base+'.tar.gz';
+ const releasePath='repos/'+REPO+'/releases/tags/'+tag;
+ function listing(){
+  const result=gh(['api',releasePath]);
+  if(!result.ok)throw Error('orphan_release_inspection_failed');
+  let payload;
+  try{payload=JSON.parse(result.out);}catch{throw Error('orphan_asset_listing_invalid');}
+  if(!Array.isArray(payload.assets))throw Error('orphan_asset_listing_invalid');
+  return payload.assets;
+ }
+ let assets=listing();
+ if(assets.some(x=>x.name===archiveName))return;
+ const original=assets.find(x=>x.name===sidecarName);
+ if(!original)return;
+ const folder=temp(),check=temp();
+ try{
+  const source=download(tag,sidecarName,folder);
+  const record=JSON.parse(readFileSync(source,'utf8'));
+  if(record.game_id!==job.game_id||record.part!==job.part||
+     record.start_ms!==job.start_ms||record.successful_windows!==job.count)
+   throw Error('orphan_sidecar_identity_mismatch');
+  const backupName=base+'-orphan-backup.json';
+  const backup=join(folder,backupName);
+  copyFileSync(source,backup);
+  uploadOrExisting(tag,backup,backupName);
+  if(sha(download(tag,backupName,check))!==sha(source))
+   throw Error('orphan_backup_readback_mismatch');
+  assets=listing();
+  if(assets.some(x=>x.name===archiveName))return;
+  const current=assets.find(x=>x.name===sidecarName);
+  if(!current)return;
+  if(current.id!==original.id||!Number.isSafeInteger(current.id))
+   throw Error('orphan_sidecar_changed_during_repair');
+  const deletion=gh(['api','--method','DELETE',
+   'repos/'+REPO+'/releases/assets/'+current.id]);
+  if(!deletion.ok&&names(tag)?.has(sidecarName))
+   throw Error('orphan_sidecar_cleanup_denied');
+  console.log('PRIVATE_ORPHAN_MANIFEST_BACKUP_VERIFIED');
+ }finally{rmSync(folder,{recursive:true,force:true});rmSync(check,{recursive:true,force:true});}
+}
 async function capturePart(tag,job,capture){
  const dir=temp();
  try{
@@ -143,7 +185,12 @@ async function archiveGame(game,index,capture){
   const existing=names(tag);
   const pair=[existing.has(base+'.tar.gz'),existing.has(base+'.json')];
   if(pair[0]&&!pair[1])repairArchiveOnly(tag,job);
-  if(!pair[0]&&pair[1])throw Error('orphan_manifest_requires_review');
+  if(!pair[0]&&pair[1]){
+   repairOrphanManifest(tag,job);
+   const revised=names(tag);
+   pair[0]=revised.has(base+'.tar.gz');
+   pair[1]=revised.has(base+'.json');
+  }
   const dir=temp();
   try{reports.push(pair[0]?validatedPart(tag,job,dir):await capturePart(tag,job,capture));}
   finally{rmSync(dir,{recursive:true,force:true});}
@@ -297,9 +344,11 @@ export async function run(){
   const existing=names(tag),base='sdk-part-'+String(part).padStart(2,'0');
   if(!existing)throw Error('private_release_missing');
   const archive=existing.has(base+'.tar.gz'),manifest=existing.has(base+'.json');
-  if(manifest&&!archive)throw Error('orphan_manifest_requires_review');
-  if(archive&&!manifest)repairArchiveOnly(tag,job);
-  if(archive){
+  if(manifest&&!archive)repairOrphanManifest(tag,job);
+  const current=names(tag),hasArchive=current.has(base+'.tar.gz'),
+   hasManifest=current.has(base+'.json');
+  if(hasArchive&&!hasManifest)repairArchiveOnly(tag,job);
+  if(hasArchive){
    const dir=temp();
    try{validatedPart(tag,job,dir);}finally{rmSync(dir,{recursive:true,force:true});}
   }else await capturePart(tag,job,capture);
