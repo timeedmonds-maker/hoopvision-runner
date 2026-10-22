@@ -153,6 +153,12 @@ def main():
 if __name__=="__main__":
     try:main()
     except Exception as e:
+        # Never print URLs, credentials, private manifests or raw frames.
         msg=str(e)
-        print("PRIVATE_GAMEPLAY_QA_BLOCKED",msg if msg.replace("_","").isalnum() else "audit_failed")
+        kind=type(e).__name__
+        code=(msg if msg.replace("_","").isalnum() else "class_"+kind)
+        if kind=="HTTPError":
+            status=getattr(e,"code",None)
+            code="official_http_"+str(status) if isinstance(status,int) else "official_http_error"
+        print("PRIVATE_GAMEPLAY_QA_BLOCKED",code)
         raise SystemExit(2)
