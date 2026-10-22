@@ -51,6 +51,10 @@ jobs:
           WORK="$(mktemp -d)"
           trap 'rm -rf "$WORK"' EXIT
           gh api repos/timeedmonds-maker/104/contents/gamepulse/fusion/rockets_video_clock_probe.py --jq .content | base64 -d > "$WORK/rockets_video_clock_probe.py"
+          if ! command -v ffprobe >/dev/null || ! command -v ffmpeg >/dev/null || ! command -v tesseract >/dev/null; then
+            sudo apt-get update -qq >/dev/null
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ffmpeg tesseract-ocr >/dev/null
+          fi
           python3 -m py_compile "$WORK/rockets_video_clock_probe.py"
           python3 "$WORK/rockets_video_clock_probe.py" --selftest
           python3 "$WORK/rockets_video_clock_probe.py"
