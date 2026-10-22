@@ -31,31 +31,46 @@ export function slotRequestUrl(observed,job,ms){
 }
 
 /** Never substitute an empty window on HTTP/network failure. Every slot must be observed. */
+/** Bounded parallel slot recovery: only SDK-issued session URLs, exact 5s requests.
+ *  Limit in-flight requests to four per game checkpoint to avoid hammering the feed.
+ *  Every missing slot remains a hard error; never generate synthetic empty rows.
+ */
 export async function recoverMissingWindows(job,received,observedUrl,
  {request=fetch,wait=waitDefault}={}){
  const windows=Array.from({length:job.count},(_,i)=>job.start_ms+i*WINDOW);
- for(const ms of windows){
-  if(received.has(ms))continue;
-  const url=slotRequestUrl(observedUrl,job,ms);
-  for(let attempt=0;attempt<4&&!received.has(ms);attempt++){
-   let response;
-   try{
-    response=await request(url,{signal:AbortSignal.timeout(16000),headers:{
-     Accept:'application/json',Referer:'https://www.nba.com/',
-     'User-Agent':'Mozilla/5.0 (compatible; licensed Game Pulse SDK collector)'}});
-   }catch{}
-   if(response){
-    if([401,403,404].includes(response.status))throw Error('sdk_slot_denied');
-    if(response.ok){
-     try{
-      const events=await response.json();
-      if(Array.isArray(events))received.set(ms,{from:ms,to:ms+WINDOW-1,events});
-     }catch{}
+ const missing=windows.filter(ms=>!received.has(ms));
+ let cursor=0;
+ let denied=false;
+ const worker=async()=>{
+  while(!denied){
+   const i=cursor++;
+   if(i>=missing.length)return;
+   const ms=missing[i];
+   const url=slotRequestUrl(observedUrl,job,ms);
+   for(let attempt=0;attempt<4&&!received.has(ms);attempt++){
+    let response;
+    try{
+     response=await request(url,{signal:AbortSignal.timeout(16000),headers:{
+      Accept:'application/json',Referer:'https://www.nba.com/',
+      'User-Agent':'Mozilla/5.0 (compatible; licensed Game Pulse SDK collector)'}});
+    }catch{}
+    if(response){
+     if([401,403,404].includes(response.status)){
+      denied=true;
+      throw Error('sdk_slot_denied');
+     }
+     if(response.ok){
+      try{
+       const events=await response.json();
+       if(Array.isArray(events))received.set(ms,{from:ms,to:ms+WINDOW-1,events});
+      }catch{}
+     }
     }
+    if(!received.has(ms)&&attempt<3)await wait((attempt+1)*1000);
    }
-   if(!received.has(ms)&&attempt<3)await wait((attempt+1)*1000);
   }
- }
+ };
+ await Promise.all(Array.from({length:Math.min(4,missing.length)},()=>worker()));
  if(windows.some(ms=>!received.has(ms)))throw Error('uncovered_window');
  return windows.length;
 }

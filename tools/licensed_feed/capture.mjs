@@ -112,8 +112,8 @@ export async function capture(job,dir){
  try{
   const windows=Array.from({length:job.count},(_,i)=>job.start_ms+i*WINDOW);
   const seek=ms=>session.page.evaluate(t=>window.ephemeralFeed.seek(t),ms);
-  if(process.env.GAMEPULSE_FINAL_FASTLANE==='true'&&job.part>=6){
-   // Post-final chunks can lie beyond the original event's publication clock.
+  if(process.env.GAMEPULSE_FINAL_FASTLANE==='true'){
+   // Any post-final checkpoint can be collected by authentic exact SDK slots.
    // Use an earlier, actually observed SDK slot to obtain an in-memory signed
    // session URL, then require successful exact responses for EVERY target slot.
    const anchor=recoveryAnchor(job);
