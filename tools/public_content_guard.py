@@ -35,6 +35,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-github-season.yml",
     ".github/workflows/gamepulse-final-fastlane.yml",
     ".github/workflows/gamepulse-rockets-finalize-safeguard.yml",
+    ".github/workflows/gamepulse-20261022-slate-backfill.yml",
     ".github/workflows/gamepulse-part6-fast.yml",
     "tests/test_consumer_receipt_waiter.py",
     "tests/test_public_bridge_preflight.py",
