@@ -55,7 +55,7 @@ jobs:
           echo 'PRIVATE_PILOT_EXECUTION_COMPLETED_NO_GPU'
 
   clip-lab-sdksource-test:
-    name: Rockets live SDK archive + Clip Lab adapter QA
+    name: Rockets real SDK source + Clip Lab adapter regression QA
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: preflight
     runs-on: ubuntu-24.04
