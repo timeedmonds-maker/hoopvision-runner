@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           ROOT="$RUNNER_TEMP/triple-touch"
           mkdir -p "$ROOT/sdk"
-          for name in gamepulse_ball_control.py gamepulse_ball_dynamics.py native_touch_ppp_2026.py; do
+          for name in gamepulse_ball_control.py gamepulse_ball_dynamics.py native_touch_ppp_2026.py interaction_fusion_2026.py; do
             gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$name?ref=main" --jq .content |
               base64 -d > "$ROOT/$name"
           done
@@ -48,6 +48,11 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/0022600091.json?ref=main' --jq .content |
             base64 -d > "$ROOT/game-view.json"
           python3 -m py_compile "$ROOT/gamepulse_ball_control.py" "$ROOT/gamepulse_ball_dynamics.py" "$ROOT/native_touch_ppp_2026.py"
+          mkdir -p "$ROOT/tests"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_interaction_fusion_2026.py?ref=main' --jq .content |
+            base64 -d > "$ROOT/tests/test_interaction_fusion_2026.py"
+          python3 -m py_compile "$ROOT/interaction_fusion_2026.py"
+          PYTHONPATH="$ROOT" python3 -m unittest discover -v -s "$ROOT/tests" -p test_interaction_fusion_2026.py
       - name: Fetch all immutable original Rockets SDK parts and verify every SHA
         shell: bash
         run: |
@@ -78,6 +83,10 @@ jobs:
           python3 -u native_touch_ppp_2026.py --sdk-dir sdk --pbp formal-pbp.json \
             --game-view game-view.json --out candidate-report.json
           test -s candidate-report.json
+          python3 -u interaction_fusion_2026.py --sdk-dir sdk --pbp formal-pbp.json \
+            --view game-view.json --query-players 201142,1627832,1630578 \
+            --out interaction-fusion.json
+          test -s interaction-fusion.json
       - name: Publish report and source hashes only in private canonical repository
         shell: bash
         run: |
@@ -105,6 +114,25 @@ jobs:
           found=base64.b64decode(subprocess.check_output(['gh','api',target,'--jq','.content']))
           assert hashlib.sha256(found).digest()==hashlib.sha256(data).digest()
           print('NATIVE_TOUCH_PRIVATE_REPORT_PUBLISHED_AND_SHA_VERIFIED')
+          fusion=(root/'interaction-fusion.json').read_bytes()
+          stats=json.loads(fusion)
+          assert stats['schema']=='gamepulse.interaction-event-possession-fusion.v1'
+          assert stats['reconciliation']['nba_team_score_reconciled']
+          assert len(stats['possessions'])>0 and stats['certified_touch_possessions']==0
+          target='repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/0022600091.interactions.json'
+          old=subprocess.run(['gh','api',target],text=True,capture_output=True)
+          payload={'branch':'main','message':'data(gamepulse): Rockets reusable official-event and native-touch interaction index',
+                   'content':base64.b64encode(fusion).decode()}
+          if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
+          elif '404' not in old.stderr and 'Not Found' not in old.stderr:
+              raise RuntimeError('interaction_index_lookup_failed')
+          result=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],
+                                input=json.dumps(payload),text=True,capture_output=True)
+          if result.returncode:raise RuntimeError('interaction_index_write_failed')
+          received=base64.b64decode(subprocess.check_output(['gh','api',target,'--jq','.content']))
+          assert hashlib.sha256(received).digest()==hashlib.sha256(fusion).digest()
+          print('NATIVE_TOUCH_EVENT_PBP_BLUEPRINT_FUSION_PRIVATE_INDEX_PUBLISHED_AND_SHA_VERIFIED',
+                'runs',len(stats['possessions']))
           PY
       - name: Private-only publication
         if: always()
