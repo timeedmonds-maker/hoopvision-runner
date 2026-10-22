@@ -1,4 +1,5 @@
 name: NBA 2026-27 independent ONOFF and 5man NBA validation
+# Official single-game time scope independently tested before expanding all 14 games.
 on:
   push:
     branches: [main]
