@@ -196,6 +196,54 @@ jobs:
           print("PRIVATE_ALL_QUALIFIED_FIRST_GAME_GRAVITY_CERTIFIED")
           PY
           fi
+      - name: Crossvalidate native PBP five-man points and possession denominators
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/qualification"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/native_pbp_lineups.py?ref=main' --jq .content | base64 -d > "$ROOT/native_pbp_lineups.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_native_pbp_lineups.py?ref=main' --jq .content | base64 -d > "$ROOT/tests/test_native_pbp_lineups.py"
+          gh api 'repos/timeedmonds-maker/104/contents/data/extensions/nba_blueprint_2026_27/games/0022600091/blueprint_report_raw.json?ref=main' --jq .content | base64 -d > "$ROOT/rockets-source.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/0022600091.json?ref=main' --jq .content | base64 -d > "$ROOT/rockets-view.json"
+          python3 -m unittest discover -v -s "$ROOT/tests" -p 'test_native_pbp_lineups.py'
+          python3 "$ROOT/native_pbp_lineups.py" build --report "$ROOT/rockets-source.json" --view "$ROOT/rockets-view.json" --out "$ROOT/native-pbp-rockets.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"qualification"
+          q=json.loads((root/"native-pbp-rockets.json").read_text())
+          assert q["schema"]=="gamepulse.2026-27-pbp-native-lineup-ppp.v1"
+          assert q["game_id"]=="0022600091"
+          if q["fully_certified"]:
+              assert q["teams"]["home"]["totals"]["native_points"]==128
+              assert q["teams"]["away"]["totals"]["native_points"]==110
+              print("PBP_NATIVE_TWO_TEAM_FULL_GAME_CERTIFIED")
+          else:
+              print("PBP_NATIVE_DEFERRED_TO_PRIVATE_QA")
+          PY
+      - name: Save independent PBP five-man validated source in private only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"qualification"
+          blob=(root/"native-pbp-rockets.json").read_bytes()
+          target="repos/timeedmonds-maker/104/contents/gamepulse/fusion/pbp_native/games/0022600091.json"
+          old=subprocess.run(["gh","api",target],capture_output=True,text=True)
+          payload={"branch":"main","message":"data(2026): source-certified independent PBP native lineup and xman PPP",
+                   "content":base64.b64encode(blob).decode()}
+          if old.returncode==0:payload["sha"]=json.loads(old.stdout)["sha"]
+          elif "404" not in old.stderr and "Not Found" not in old.stderr:
+              raise RuntimeError("pbp_native_source_lookup_failed")
+          r=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                           input=json.dumps(payload),capture_output=True,text=True)
+          if r.returncode:raise RuntimeError("pbp_native_source_private_write_failed")
+          check=subprocess.check_output(["gh","api",target,"--jq",".content"])
+          if base64.b64decode(check)!=blob:raise RuntimeError("pbp_native_source_readback_failed")
+          print("PBP_NATIVE_PRIVATE_REPORT_SHA_VERIFIED")
+          PY
       - name: Independently probe NBA and PBPStats native on-off sources
         shell: bash
         run: |
