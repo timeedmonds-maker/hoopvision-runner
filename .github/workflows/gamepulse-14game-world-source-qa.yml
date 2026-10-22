@@ -76,6 +76,22 @@ jobs:
             else
               echo "$ID" >> "$WORK/quarantined_ids.txt"
               echo "SOURCE_QA_GAME_QUARANTINED_$ID"
+              export AUDIT_ERROR_PATH="$WORK/qa/$ID.error" AUDIT_FAILURE_ID="$ID"
+              python3 - <<'PY'
+          import os
+          from pathlib import Path
+          error=Path(os.environ['AUDIT_ERROR_PATH']).read_text()
+          known=['invalid source observations','SDK part range gap/overlap',
+                 'part source identity / manifest discrepancy',
+                 'sidecar archive_sha256 does not match original tarball',
+                 'declared SDK inclusive end_ms disagrees with windows',
+                 'SDK source part ordinal mismatch',
+                 'SDK start/window_count is not five-second aligned',
+                 'more distinct timestamps than part manifest',
+                 'incomplete window capture','cross-game','missing']
+          category=next((x.replace(' ','_') for x in known if x in error),'OTHER_QUARANTINE')
+          print('SOURCE_QA_FAILURE_CLASS',os.environ['AUDIT_FAILURE_ID'],category,flush=True)
+          PY
               export DEBUG_DIR="$D" DEBUG_GAME="$ID"
               # Expose only mismatch field NAMES and equality booleans; never
               # private position values, source timestamps, tokens or footage.
