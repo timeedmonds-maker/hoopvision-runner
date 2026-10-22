@@ -229,7 +229,7 @@ export async function run(){
  const index=readIndex(),games=PILOT?[pilotGame()]:await schedule();
  if(PILOT&&index.games[games[0].id]?.status==='retry')
   index.games[games[0].id].retry_after=0;
- const due=selectDue(games,index,Date.now());
+ const due=selectDue(games,index,Date.now(),1,process.env.GAMEPULSE_PRIORITY_ID||null);
  console.log('PRIVATE_SEASON_DUE_COUNT',due.length);
  if(process.env.DRY_RUN==='true')return;
  for(const game of due){
