@@ -101,27 +101,39 @@ def audit():
             total_windows+=CHUNK_COUNT
             total_empty+=manifest.get("empty_windows",0)
 
-    box=official("boxscore/boxscore_"+GAME+".json").get("game") or {}
-    pbp=official("playbyplay/playbyplay_"+GAME+".json").get("game") or {}
-    if str(box.get("gameId"))!=GAME or str(box.get("gameStatus"))!="3" or str(pbp.get("gameId"))!=GAME:
-        raise RuntimeError("official_game_final_not_verified")
-    # Last genuine in-game action (fourth quarter; the record is not a capture oracle).
-    action_times=[unix_ms(item.get("timeActual")) for item in pbp.get("actions",[])
-      if isinstance(item,dict) and item.get("period")==4]
-    action_times=[t for t in action_times if t is not None]
-    if not action_times or player_last is None:
-        raise RuntimeError("playbyplay_or_positions_missing")
-    end=max(action_times)
-    gap=end-player_last
-    # Classify separately from the 13-part extended capture acceptance.
-    covered=(total_windows==2100 and player_frames>100 and
+    # The official NBA liveData service may reject GitHub-hosted egress.
+    # This must not invalidate SHA-verified private observations; only the
+    # independent fourth-quarter cutoff test becomes inconclusive.
+    official_status="unverified"
+    try:
+        box=official("boxscore/boxscore_"+GAME+".json").get("game") or {}
+        if str(box.get("gameId"))==GAME and str(box.get("gameStatus"))=="3":
+            official_status="final"
+    except Exception:
+        pass
+    action_times=[]
+    try:
+        pbp=official("playbyplay/playbyplay_"+GAME+".json").get("game") or {}
+        if str(pbp.get("gameId"))==GAME:
+            action_times=[unix_ms(item.get("timeActual")) for item in pbp.get("actions",[])
+              if isinstance(item,dict) and item.get("period")==4]
+            action_times=[t for t in action_times if t is not None]
+    except Exception:
+        pass
+    end=max(action_times) if action_times else None
+    gap=end-player_last if end is not None and player_last is not None else None
+    # Temporal gameplay certification remains withheld unless an independent
+    # official Q4 action timestamp proves tracking through the final whistle.
+    covered=(official_status=="final" and end is not None and
+             total_windows==2100 and player_frames>100 and
              first is not None and first<=START+20*60*1000 and
-             player_last>=end-120_000 and end<=base+PARTS*CHUNK_COUNT*WINDOW_MS)
+             player_last is not None and player_last>=end-120_000 and
+             end<=base+PARTS*CHUNK_COUNT*WINDOW_MS)
     return {
       "schema":"gamepulse-gameplay-coverage-qa.v1",
       "game_id":GAME,
       "source":"private SHA-verified SDK frames and independent official NBA play-by-play",
-      "official_game_status":"final",
+      "official_game_status":official_status,
       "checked_parts":PARTS,
       "verified_five_second_windows":total_windows,
       "recorded_empty_windows":total_empty,
@@ -133,6 +145,7 @@ def audit():
       "last_official_q4_action_timestamp_ms":end,
       "q4_last_action_minus_last_player_frame_ms":gap,
       "gameplay_coverage_status":"supported" if covered else "inconclusive",
+      "reference_note":"Official final/Q4 timing may be unavailable from the public runner; no timing accuracy inferred",
       "limitations":"Temporal coverage check only; not per-player identity or frame-level tracking accuracy certification"
     }
 
