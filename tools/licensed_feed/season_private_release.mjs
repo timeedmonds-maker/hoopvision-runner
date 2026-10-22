@@ -36,10 +36,21 @@ function ensure(tag){
  if(!result.ok && names(tag)===null)throw Error('private_release_create_failed');
 }
 function download(tag,name,directory){
- call(['release','download',tag,'--pattern',name,'--dir',directory]);
  const path=join(directory,name);
- if(!existsSync(path))throw Error('private_readback_missing');
- return path;
+ for(let attempt=0;attempt<4;attempt++){
+  const result=gh(['release','download',tag,'--pattern',name,'--dir',directory,'--repo',REPO]);
+  if(result.ok&&existsSync(path))return path;
+  if(attempt<3)spawnSync('sleep',['2'],{stdio:'ignore'});
+ }
+ throw Error('private_readback_missing');
+}
+function uploadOrExisting(tag,file,name){
+ for(let attempt=0;attempt<4;attempt++){
+  const result=gh(['release','upload',tag,file,'--repo',REPO]);
+  if(result.ok||names(tag)?.has(name))return;
+  if(attempt<3)spawnSync('sleep',['2'],{stdio:'ignore'});
+ }
+ throw Error('private_upload_failed');
 }
 function readIndex(){
  ensure(INDEX);
@@ -94,7 +105,7 @@ function repairArchiveOnly(tag,job){
   summarize([job],[{...manifest,part:manifest.part??job.part}]);
   const sidecar=join(dir,base+'.json');
   writeFileSync(sidecar,JSON.stringify({...manifest,part:job.part,archive_sha256:sha(archive)})+'\n');
-  call(['release','upload',tag,sidecar]);
+  uploadOrExisting(tag,sidecar,base+'.json');
   const check=temp();
   try{if(sha(download(tag,base+'.json',check))!==sha(sidecar))throw Error('orphan_repair_sha_mismatch');}
   finally{rmSync(check,{recursive:true,force:true});}
@@ -111,14 +122,13 @@ async function capturePart(tag,job,capture){
   copyFileSync(join(dir,'checkpoint.tar.gz'),archive);
   writeFileSync(sidecar,JSON.stringify({...source,archive_sha256:sha(archive)})+'\n');
   if(readFileSync(archive).length>32*1024*1024)throw Error('checkpoint_too_large');
-  call(['release','upload',tag,archive]);
-  call(['release','upload',tag,sidecar]);
+  // Another public worker may reach the same part first. Reuse its archive
+  // rather than overwrite it or bind a sidecar to a different local tarball.
+  uploadOrExisting(tag,archive,base+'.tar.gz');
+  if(!names(tag)?.has(base+'.json'))repairArchiveOnly(tag,job);
   const check=temp();
-  try{
-   const a=download(tag,base+'.tar.gz',check),b=download(tag,base+'.json',check);
-   if(sha(a)!==sha(archive)||sha(b)!==sha(sidecar))throw Error('private_sha_mismatch');
-  }finally{rmSync(check,{recursive:true,force:true});}
-  return source;
+  try{return validatedPart(tag,job,check);}
+  finally{rmSync(check,{recursive:true,force:true});}
  }finally{rmSync(dir,{recursive:true,force:true});}
 }
 async function archiveGame(game,index,capture){
