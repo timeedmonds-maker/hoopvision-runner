@@ -33,6 +33,7 @@ ALLOWED_STATIC = {
     "tools/licensed_feed/verify_gameplay.py",
     ".github/workflows/gamepulse-gameplay-audit.yml",
     ".github/workflows/gamepulse-defender-spacing-qa.yml",
+    ".github/workflows/gamepulse-rockets-private-clip-pilot.yml",
     ".github/workflows/gamepulse-pnr-feasibility.yml",
     ".github/workflows/gamepulse-github-season.yml",
     ".github/workflows/gamepulse-final-fastlane.yml",

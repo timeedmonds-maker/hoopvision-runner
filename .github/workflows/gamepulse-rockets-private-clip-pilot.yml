@@ -1,0 +1,55 @@
+name: Rockets first clip private event/XYZ pilot via public CPU
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-rockets-private-clip-pilot.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/gamepulse-rockets-private-clip-pilot.yml'
+      - 'tools/public_content_guard.py'
+permissions:
+  contents: read
+concurrency:
+  group: rockets-private-clip-world-pilot
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce source and artifact boundary on public repository
+        run: python3 tools/public_content_guard.py
+  private-licensed-source-pilot:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 22
+    steps:
+      - name: Acquire authorised private-source analysis in temporary workspace
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_LICENSED_ANALYSIS_CONNECTION_UNAVAILABLE'; exit 3; }
+          WORK="$(mktemp -d)"
+          trap 'rm -rf "$WORK"' EXIT
+          mkdir -p "$WORK/rockets_pilot_tools"
+          ROOT='repos/timeedmonds-maker/104/contents/gamepulse/sdk-season'
+          for name in build_rockets_first_clip_pilot_2026.py \
+                      test_rockets_first_clip_pilot_2026.py \
+                      sync_nba_pbp_espn_gamepulse_2026_27.py \
+                      fetch_nba_pbp_2026_27.py; do
+            gh api "$ROOT/rockets_pilot_tools/$name" --jq .content | base64 -d > "$WORK/rockets_pilot_tools/$name"
+          done
+          gh api "$ROOT/defender_spacing_calc.py" --jq .content | base64 -d > "$WORK/defender_spacing_calc.py"
+          gh api "$ROOT/rockets_clip_pilot_run.py" --jq .content | base64 -d > "$WORK/rockets_clip_pilot_run.py"
+          # Private runner code checks SHA-verified private Release inputs, runs
+          # offline tests, writes raw outcomes back to private Release only.
+          # Public workflow exposes no private source, data, images or results.
+          python3 "$WORK/rockets_clip_pilot_run.py"
+          echo 'PRIVATE_PILOT_EXECUTION_COMPLETED_NO_GPU'
