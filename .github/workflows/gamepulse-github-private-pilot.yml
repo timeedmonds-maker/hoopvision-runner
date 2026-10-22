@@ -1,5 +1,9 @@
 name: Game Pulse GitHub-only private Release pilot
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/gamepulse-github-private-pilot.yml"
   pull_request:
     paths:
       - ".github/workflows/gamepulse-github-private-pilot.yml"
@@ -33,7 +37,7 @@ jobs:
         working-directory: tools/licensed_feed
         run: node --test github_private_release.test.mjs
   private-acceptance:
-    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && github.ref == 'refs/heads/main'
     needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 25
