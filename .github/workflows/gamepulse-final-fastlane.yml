@@ -12,7 +12,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: gamepulse-rockets-final-sdk-direct
+  group: gamepulse-rockets-final-sdk-direct-recovery2
   cancel-in-progress: false
 jobs:
   preflight:
