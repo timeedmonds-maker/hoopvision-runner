@@ -26,7 +26,7 @@ jobs:
     needs: public-preflight
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 7
+    timeout-minutes: 20
     steps:
       - name: Test bounded provider HTTP headers/media signatures and persist private results
         env:
@@ -40,3 +40,17 @@ jobs:
           python3 /tmp/probe_nba_shot_video_delivery.py --selftest
           python3 /tmp/probe_nba_shot_video_delivery.py
           rm -f /tmp/probe_nba_shot_video_delivery.py
+
+      - name: Probe real event MP4 decoding and scoreboard-to-source clock, private QA only
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" || exit 3
+          WORK="$(mktemp -d)"
+          trap 'rm -rf "$WORK"' EXIT
+          gh api repos/timeedmonds-maker/104/contents/gamepulse/fusion/rockets_video_clock_probe.py --jq .content | base64 -d > "$WORK/rockets_video_clock_probe.py"
+          python3 -m py_compile "$WORK/rockets_video_clock_probe.py"
+          python3 "$WORK/rockets_video_clock_probe.py" --selftest
+          python3 "$WORK/rockets_video_clock_probe.py"
