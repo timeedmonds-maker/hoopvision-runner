@@ -15,7 +15,7 @@ test('full game has 3720 unique five-second windows in 13 chunks',()=>{
   assert.equal(plan.parts[i].start_ms,plan.parts[i-1].start_ms+plan.parts[i-1].count*5000);
  assert.equal(plan.parts.at(-1).start_ms+plan.parts.at(-1).count*5000,plan.end);
 });
-test('both official schedule formats select only final 2026-27 regular games',()=>{
+test('both official schedule formats select only final 2026-27 supported games',()=>{
  const modern={leagueSchedule:{gameDates:[{games:[
   {gameId:id,gameStatus:3,gameDateTimeUTC:new Date(start).toISOString()},
   {gameId:'0022600003',gameStatus:1,gameDateTimeUTC:new Date(start).toISOString()},
@@ -23,7 +23,7 @@ test('both official schedule formats select only final 2026-27 regular games',()
  const legacy={data:{lscd:[{mscd:{g:[{gid:id,stt:'Final',
   gdtutc:'2026-10-20',utctm:'23:00'},{gid:'0022600003',stt:'Preview',
   gdtutc:'2026-10-20',utctm:'23:00'}]}}]}};
- assert.deepEqual(parseSchedule(modern,'modern'),[{id,start}]);
+ assert.deepEqual(parseSchedule(modern,'modern'),[{id,start},{id:'0032600002',start}]);
  assert.deepEqual(parseSchedule(legacy,'legacy'),[{id,start}]);
  assert.throws(()=>parseSchedule({},'modern'));
 });
@@ -49,9 +49,11 @@ test('private token is usable only on trusted main, with isolated push pilot',()
   GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',DRY_RUN:'true',GH_TOKEN:'x'.repeat(35)};
  assert.doesNotThrow(()=>assertContext(env));
  assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'push',GAMEPULSE_FULLGAME_PILOT:'true'}));
- assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'schedule',GAMEPULSE_FULLGAME_PILOT:'true'}));
+ assert.doesNotThrow(()=>assertContext({...env,GITHUB_EVENT_NAME:'schedule',GAMEPULSE_PRODUCTION_ENABLED:'true'}));
  for(const bad of [{...env,DRY_RUN:'false'},{...env,GITHUB_EVENT_NAME:'push'},
-  {...env,GITHUB_EVENT_NAME:'schedule'},{...env,GH_TOKEN:''},{...env,GITHUB_REF:'refs/heads/untrusted'},
+  {...env,GITHUB_EVENT_NAME:'schedule'},
+  {...env,GITHUB_EVENT_NAME:'schedule',GAMEPULSE_FULLGAME_PILOT:'true'},
+  {...env,GH_TOKEN:''},{...env,GITHUB_REF:'refs/heads/untrusted'},
   {...env,GITHUB_EVENT_NAME:'pull_request'},{...env,GITHUB_REPOSITORY:'other/repo'}])
   assert.throws(()=>assertContext(bad));
 });
