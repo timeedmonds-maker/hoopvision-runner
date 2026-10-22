@@ -254,7 +254,9 @@ export async function run(){
   const plan=planGame(game),part=Number(process.env.GAMEPULSE_PRIORITY_PART);
   if(!Number.isSafeInteger(part)||part<0||part>12)throw Error('invalid_priority_part');
   const job=plan.parts[part];
-  if(Date.now()<job.start_ms+job.count*5000+10*60000)throw Error('priority_window_not_yet_observed');
+  const remaining=job.start_ms+job.count*5000+10*60000-Date.now();
+  if(remaining>40*60000)throw Error('priority_window_not_yet_observed');
+  if(remaining>0)await new Promise(done=>setTimeout(done,remaining));
   if(Date.now()>game.start+24*3600000)throw Error('priority_assignment_expired');
   const tag='gamepulse-sdk-'+game.id;
   ensure(tag);
