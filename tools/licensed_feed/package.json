@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@ease-live/ease-live-bridge-web": "1.22.0",
+    "esbuild": "0.25.12",
+    "puppeteer-core": "24.43.1"
+  }
+}

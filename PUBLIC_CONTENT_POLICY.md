@@ -32,3 +32,14 @@ The public repository accepts and publishes only random opaque request IDs plus 
 Private infrastructure pulls the opaque outbox, performs private registration/authorization and starts only the preconfigured workload. This preserves the public/privacy boundary while allowing autonomous routine execution.
 
 Direct OIDC dispatch is staged/not active and must not be described as canonical until separately verified and adopted.
+
+## Isolated Game Pulse GitHub Release pilot
+
+A manually dispatched licensed-feed lane on reviewed `main` may process NBA
+Game Pulse SDK observations in temporary runner files and upload them directly
+to private `timeedmonds-maker/104` Releases. Its private repository token is
+scoped to the upload step after dependency installation. Pull requests and
+branch pushes never receive that token. The lane may not publish, log, commit,
+cache or upload tracking observations as public artifacts. This exception does
+not alter the opaque engine request bridge. Season scheduling remains disabled
+until live private upload and SHA-256 readback are verified.
