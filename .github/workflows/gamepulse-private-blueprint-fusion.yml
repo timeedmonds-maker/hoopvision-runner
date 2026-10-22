@@ -186,7 +186,21 @@ jobs:
                   raise RuntimeError("private_onoff_lookup_failed")
               result=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
                   input=json.dumps(payload),capture_output=True,text=True)
-              if result.returncode:raise RuntimeError("private_onoff_publish_failed")
+              if result.returncode:
+                  error=result.stderr
+                  if "409" in error or "Conflict" in error or "422" in error:
+                      import time
+                      time.sleep(2)
+                      before=subprocess.run(["gh","api",target],capture_output=True,text=True)
+                      if before.returncode==0:
+                          payload["sha"]=json.loads(before.stdout)["sha"]
+                      result=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+                                            input=json.dumps(payload),capture_output=True,text=True)
+                  if result.returncode:
+                      print("ONOFF_PRIVATE_PUBLISH_REJECTED",path,
+                            "status", "conflict" if "409" in result.stderr else
+                            "too_large" if "422" in result.stderr else "other")
+                      raise RuntimeError("private_onoff_publish_failed")
           print("PRIVATE_ONOFF_WOWY_INDEX_VERIFIED_NO_INVENTED_POSSESSION_PPP")
           PY
       - name: Commit summary pointer to private 104 only
