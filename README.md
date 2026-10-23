@@ -39,3 +39,18 @@ A direct GitHub OIDC dispatch gateway remains a staged alternative only. It is *
 Public status is restricted to a minimal allowlist: request ID, coarse status, result-available boolean and observation time. Detailed metrics and failure evidence remain private.
 
 See `PUBLIC_CONTENT_POLICY.md` and `runner_policy.json`.
+
+## Approved Game Pulse CPU source-fusion jobs (2026–27)
+
+This public repository also contains **orchestration-only** GitHub-hosted CPU workflows for an NBA Game Pulse data extension. The **private canonical repository** retains original source payloads, derived event-level records, and detailed acceptance results. Public repository commits, PRs, artifacts and logs **must never** contain player-level tracking, original SDK positions, query results, source secrets, video footage or copied private scripts.
+
+Approved workflow roles:
+- `.github/workflows/gamepulse-formal-pbp-14game.yml`: fetch source code transiently in the authenticated runner, validate official NBA play-by-play clocks and scores, write private results.
+- `.github/workflows/gamepulse-native-interactions-14game.yml`: CPU fan-out of source-native tracking / official PBP / shot-event joins; result records are written **only** to the private repository.
+- `.github/workflows/gamepulse-interaction-query.yml`: source-index-backed private player interaction query and private result write.
+- `.github/workflows/rockets-native-touch-ppp.yml`: scoped original source/shot-alignment diagnostics, distinct from production indexed search.
+
+**Scope note:** These purpose-built workflows are different from the opaque-request **CourtCoder execution transport** described above. They may fetch approved private code and data into an **ephemeral GitHub runner job**, subject to an authorized private access token and source SHA checks. The public *repository* never becomes a private mirror, and no private payload may be uploaded as a public artifact or printed to a public log. These actions do not grant a public user the ability to dispatch or approve private GPU execution.
+
+**Source semantics:** original NBA Game Pulse-native touch fields can be treated as authoritative for recorded touch events without independent human review. Exact possession counting and media seek timing are distinct statistical or engineering layers. Source-specific detail and all numerical results belong only in the canonical **private** Game Pulse documentation, not this public README.
+
