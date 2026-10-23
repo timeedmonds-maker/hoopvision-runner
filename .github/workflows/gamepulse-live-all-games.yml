@@ -96,12 +96,12 @@ jobs:
             python3 "$ROOT/touch_report_cli.py" --game "$GAME_ID" --input "$ROOT" --output "$ROOT/touches.json"
           fi
           python3 - <<'PY'
-          import base64,json,os,subprocess
+          import base64,json,os,subprocess,time
           from pathlib import Path
           path="repos/timeedmonds-maker/104/contents/gamepulse/live/touches/"+os.environ["GAME_ID"]+".json"
           payload=Path(os.environ["RUNNER_TEMP"]+"/private-live-touch/touches.json").read_bytes()
           if len(payload)>950000:raise ValueError("source_touch_oversize")
-          for retry in range(4):
+          for retry in range(12):
               previous=subprocess.run(["gh","api",path],capture_output=True,text=True)
               write={"branch":"main","message":"data: refresh private live native touch counts","content":base64.b64encode(payload).decode()}
               if previous.returncode==0:write["sha"]=json.loads(previous.stdout)["sha"]
@@ -111,6 +111,9 @@ jobs:
                   if base64.b64decode(check["content"])!=payload:raise ValueError("private_live_touch_readback_failed")
                   print("PRIVATE_NATIVE_TOUCH_INDEX_SAVED")
                   break
+              # Many distinct NBA game workers share the same private main ref.
+              # Refresh the blob SHA each attempt, and back off on 409 conflicts.
+              time.sleep(min(8.0,0.7+retry*0.7)+(int(os.environ["GAME_ID"][-2:])%7)*0.11)
           else:raise RuntimeError("private_touch_conflict")
           PY
       - name: Build and publish tracking-reconstructed touches from player-ball XYZ
