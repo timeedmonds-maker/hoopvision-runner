@@ -1,4 +1,5 @@
 name: NBA Jabari616 Alternate HLS Camera QA
+# Bound stalled provider camera URL delivery; preserve private source status.
 on:
   push:
     branches: [main]
