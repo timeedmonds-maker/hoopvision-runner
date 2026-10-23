@@ -4,6 +4,9 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/gamepulse-20261022-targeted-retry.yml'
+  # Bounded postgame checks for provider backfill, no fabricated coordinates.
+  schedule:
+    - cron: '17 9,13,17,21 23-24 10 *'
   pull_request:
     paths:
       - '.github/workflows/gamepulse-20261022-targeted-retry.yml'
@@ -80,7 +83,7 @@ jobs:
         run: node season_private_release.mjs
 
   cavs-source-gap-probes:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     strategy:
@@ -126,7 +129,8 @@ jobs:
           import {createHash} from 'node:crypto';
           const priv=process.env.GH_TOKEN, game='0022600006';
           if(!priv||priv.length<30||process.env.GITHUB_REPOSITORY!=='timeedmonds-maker/hoopvision-runner'
-              ||process.env.GITHUB_REF!=='refs/heads/main'||process.env.GITHUB_EVENT_NAME!=='push')
+              ||process.env.GITHUB_REF!=='refs/heads/main'
+              ||!['push','schedule'].includes(process.env.GITHUB_EVENT_NAME))
             throw Error('unauthorized_private_source_probe');
           const from=Number(process.env.PROBE_START),part=Number(process.env.PROBE_PART);
           const label=process.env.PROBE_LABEL;
