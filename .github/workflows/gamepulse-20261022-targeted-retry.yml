@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/gamepulse-20261022-targeted-retry.yml'
   # Bounded postgame checks for provider backfill, no fabricated coordinates.
+  # Cavaliers Q2-Q4 checks are source-native only; the QA gate must still
+  # reject completion unless official active-play positions exist in all periods.
   schedule:
     - cron: '17 9,13,17,21 23-24 10 *'
     - cron: '17 13 25-31 10 *'
