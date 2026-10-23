@@ -41,6 +41,7 @@ ALLOWED_STATIC = {
     ".github/workflows/nba-ring-only-private-pilot.yml",
     ".github/workflows/nba-jabari616-camera-qa.yml",
     ".github/workflows/nba-jabari616-frozen-ring-cpu-qa.yml",
+    ".github/workflows/nba-jabari616-constant-ring-render.yml",
     ".github/workflows/gamepulse-pnr-feasibility.yml",
     ".github/workflows/rockets-pnr-unified-review-qa.yml",
     ".github/workflows/rockets-pnr-video-source-diagnostic.yml",
