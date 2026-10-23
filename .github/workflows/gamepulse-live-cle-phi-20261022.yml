@@ -124,6 +124,8 @@ jobs:
           node-version: '22'
       - name: Require mature full-game window before final certification
         id: due
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
         shell: bash
         run: |
           python3 - <<'PY'
