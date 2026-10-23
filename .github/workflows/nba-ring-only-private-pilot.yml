@@ -32,5 +32,6 @@ jobs:
           ROOT="$(mktemp -d)"
           trap 'rm -rf "$ROOT"' EXIT
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/video_ring_hls_probe.py?ref=main' --jq .content | base64 -d > "$ROOT/runner.py"
-          python3 -m pip install --disable-pip-version-check --quiet opencv-python-headless==4.10.0.84 'numpy<2' yt-dlp imageio-ffmpeg
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
+          python3 -m pip install --disable-pip-version-check --quiet opencv-python-headless==4.10.0.84 'numpy<2'
           python3 "$ROOT/runner.py"
