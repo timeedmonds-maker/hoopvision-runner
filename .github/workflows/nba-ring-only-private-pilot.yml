@@ -2,7 +2,7 @@
 # Public CPU executes private source ephemerally. Fetches fresh NBA signed HLS.
 # Result MP4 and raw Pulse evidence stay in private 104 Release; no public artifacts.
 # Frozen v1.3 ring renderer is not modified; unknown camera/UTC sync fails closed.
-# Re-run after Blueprint source ID serialization validation fix.
+# Run the opt-in ball-owner mode with the reviewed private rendering implementation.
 name: NBA Jabari 616 HLS to frozen Clip Lab ingest
 on:
   push:
