@@ -180,10 +180,18 @@ jobs:
           test -n "$GH_TOKEN"
           assets=$(gh release view gamepulse-sdk-0022600006 --repo timeedmonds-maker/104 --json assets --jq '.assets[].name')
           if grep -Fxq sdk-COMPLETE.json <<< "$assets"; then
-            echo 'ready=true' >> "$GITHUB_OUTPUT"
+            # The SDK marker proves window transport only. A game lacking Q3/Q4
+            # observed player and ball frames must NEVER promote its source.
+            if gh api 'repos/timeedmonds-maker/104/contents/gamepulse/coverage/season16/0022600006.json?ref=main' --jq .content \
+              | base64 -d | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["full_active_play_observation_gate"].startswith("PASSED_") and not d["sdk_parts_missing"] and all(q["coverage_gate"].startswith("PASS") for q in d["quarters"])'; then
+              echo 'ready=true' >> "$GITHUB_OUTPUT"
+            else
+              echo 'ready=false' >> "$GITHUB_OUTPUT"
+              echo 'CAVS_ARCHIVE_COMPLETE_BUT_ACTIVE_PLAY_TRACKING_INCOMPLETE'
+            fi
           else
             echo 'ready=false' >> "$GITHUB_OUTPUT"
-            echo 'CAVS_NOT_FULLGAME_CERTIFIED_YET'
+            echo 'CAVS_ORIGINAL_SDK_ARCHIVE_INCOMPLETE'
           fi
       - name: Validate and rebuild original plus Cavaliers team/game/player search
         if: steps.ready.outputs.ready == 'true'
