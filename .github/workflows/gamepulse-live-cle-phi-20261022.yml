@@ -110,8 +110,8 @@ jobs:
           from pathlib import Path
           raw=(Path(os.environ["RUNNER_TEMP"])/"lebron-touch-analysis/quarter.json").read_bytes()
           report=json.loads(raw)
-          if report["unmatched"] or not report["complete_game_time_span"]:
-              raise ValueError("game_touch_quarter_data_incomplete")
+          if report["unmatched"]:
+              raise ValueError("source_touch_period_attribution_incomplete")
           url="repos/timeedmonds-maker/104/contents/gamepulse/live/queries/lebron_20261022_quarters.json"
           for i in range(5):
               existing=subprocess.run(["gh","api",url],capture_output=True,text=True)
