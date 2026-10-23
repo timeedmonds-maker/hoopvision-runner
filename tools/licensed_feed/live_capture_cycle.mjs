@@ -29,7 +29,7 @@ function ensure(tag) {
 }
 export function eligibleSlot(start,now,slotsAlready=new Set()) {
  const full=planGame({id:'0022600001',start});
- for(let i=0;i<310;i++){
+ for(let i=10;i<310;i++){
   const from=full.begin+i*60000;
   if(from>=full.end)return null;
   if(now<from+Math.min(60000,full.end-from)+30000)return null;
