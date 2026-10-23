@@ -1,4 +1,5 @@
 name: Private Rockets Sengun high-hub source QA
+# Re-query native touch-start XYZ after correcting delayed label-state coordinates.
 on:
   push:
     branches: [main]
