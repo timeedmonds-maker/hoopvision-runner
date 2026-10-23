@@ -31,9 +31,9 @@ jobs:
     needs: verify
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 9
       matrix:
-        part: [3]
+        part: [4, 5, 6, 7, 8, 9, 10, 11, 12]
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -53,7 +53,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAMEPULSE_PRIORITY_FANOUT: 'true'
-          GAMEPULSE_LIVE_ELAPSED_FASTLANE: 'true'
+          GAMEPULSE_FINAL_FASTLANE: 'true'
           GAMEPULSE_PRIORITY_ID: '0022600006'
           GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T23:00:00Z'
           GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
