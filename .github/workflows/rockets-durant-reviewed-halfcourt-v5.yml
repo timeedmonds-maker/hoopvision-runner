@@ -23,7 +23,7 @@ jobs:
           mkdir -p "$ROOT"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/durant_double_team_review_calibrated_v5.py?ref=main' --jq .content | base64 -d > "$ROOT/classify.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/queries/rockets_durant_reviewed_double_team_v4_qa.json?ref=main' --jq .content | base64 -d > "$ROOT/geometry.json"
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/queries/rockets_durant_halfcourt_context_qa.json?ref=main' --jq .content | base64 -d > "$ROOT/context.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/queries/rockets_durant_halfcourt_attack_end_v2_qa.json?ref=main' --jq .content | base64 -d > "$ROOT/context.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/interactions/0022600091.json?ref=main' --jq .content | base64 -d > "$ROOT/interaction.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/games/0022600091.json?ref=main' --jq .content | base64 -d > "$ROOT/official.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/queries/rockets_durant_double_team_human_labels_v1.json?ref=main' --jq .content | base64 -d > "$ROOT/labels.json"
