@@ -77,6 +77,8 @@ jobs:
           PYTHONPATH="$ROOT/nba" python3 -m unittest discover -s "$ROOT/nba/qa" -p test_nba_hls_pulse_release_stage.py -v
           python3 "$ROOT/runner.py" --selftest
           python3 "$ROOT/runner.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_616_visual_diagnostic.py?ref=main' --jq .content | base64 -d > "$ROOT/visual.py"
+          python3 "$ROOT/visual.py"
           mkdir -p "$ROOT/media"
           gh release download "clip-lab-hls-${NBA_GAME_ID}-${NBA_EVENT_NUM}" --repo timeedmonds-maker/104 --dir "$ROOT/media" --pattern "event${NBA_EVENT_NUM}-broadcast.mp4" --pattern "manifest.json"
           export VIDEO_TEST_ROOT="$ROOT/media"
