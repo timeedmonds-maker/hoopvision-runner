@@ -51,5 +51,10 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_hls_ingest_616.py?ref=main' --jq .content | base64 -d > "$ROOT/runner.py"
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
           python3 -m pip install --disable-pip-version-check --quiet opencv-python-headless==4.10.0.84 'numpy<2'
+          mkdir -p "$ROOT/nba/qa"
+          gh api "repos/timeedmonds-maker/104/contents/courtcoder/nba_clip_intake.py?ref=courtcoder%2Fnba-clip-lab-gamepulse-layer-20261022" --jq .content | base64 -d > "$ROOT/nba/nba_clip_intake.py"
+          gh api "repos/timeedmonds-maker/104/contents/courtcoder/nba_hls_pulse_release_stage.py?ref=courtcoder%2Fnba-clip-lab-gamepulse-layer-20261022" --jq .content | base64 -d > "$ROOT/nba/nba_hls_pulse_release_stage.py"
+          gh api "repos/timeedmonds-maker/104/contents/courtcoder/qa/test_nba_hls_pulse_release_stage.py?ref=courtcoder%2Fnba-clip-lab-gamepulse-layer-20261022" --jq .content | base64 -d > "$ROOT/nba/qa/test_nba_hls_pulse_release_stage.py"
+          PYTHONPATH="$ROOT/nba" python3 -m unittest discover -s "$ROOT/nba/qa" -p test_nba_hls_pulse_release_stage.py -v
           python3 "$ROOT/runner.py" --selftest
           python3 "$ROOT/runner.py"
