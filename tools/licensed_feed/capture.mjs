@@ -107,12 +107,18 @@ export async function initializeWithRetry(factory,wait=sleep){
 }
 export async function capture(job,dir){
  checkJob(job);
+ // Live acceleration is limited to matured, fully elapsed five-second source windows.
+ // The licensed SDK must authenticate and every slot response must be observed.
+ if(process.env.GAMEPULSE_LIVE_ELAPSED_FASTLANE==='true' &&
+    Date.now()<job.start_ms+job.count*WINDOW+10*60000)
+   throw Error('live_window_not_mature');
  const received=new Map(),pending=new Set();
  const session=await initializeWithRetry(()=>launchClient(job,received,pending));
  try{
   const windows=Array.from({length:job.count},(_,i)=>job.start_ms+i*WINDOW);
   const seek=ms=>session.page.evaluate(t=>window.ephemeralFeed.seek(t),ms);
-  if(process.env.GAMEPULSE_FINAL_FASTLANE==='true'){
+  if(process.env.GAMEPULSE_FINAL_FASTLANE==='true'||
+     process.env.GAMEPULSE_LIVE_ELAPSED_FASTLANE==='true'){
    // Any post-final checkpoint can be collected by authentic exact SDK slots.
    // Use an earlier, actually observed SDK slot to obtain an in-memory signed
    // session URL, then require successful exact responses for EVERY target slot.
