@@ -51,6 +51,7 @@ ALLOWED_STATIC = {
     ".github/workflows/nba-jabari616-frozen-v31-pulse-dense.yml",
     ".github/workflows/nba-jabari616-cumulative-play12.yml",
     ".github/workflows/nba-jabari616-five-ring-public-preview.yml",
+    ".github/workflows/nba-jabari616-frozen-v31-public-video.yml",
     ".github/workflows/nba-jabari616-cumulative-receivers.yml",
     ".github/workflows/gamepulse-pnr-feasibility.yml",
     ".github/workflows/rockets-pnr-unified-review-qa.yml",
