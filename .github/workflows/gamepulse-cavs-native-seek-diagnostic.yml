@@ -1,0 +1,75 @@
+name: Integrated Pulse Cavs native SDK seek diagnostic
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-cavs-native-seek-diagnostic.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gamepulse-cavs-native-seek-diagnostic
+  cancel-in-progress: false
+jobs:
+  compare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        include:
+          - { label: cavs-q1-positive, game: '0022600006', from: '1792711680000' }
+          - { label: cavs-q2-late, game: '0022600006', from: '1792714480000' }
+          - { label: cavs-q3-native, game: '0022600006', from: '1792716650000' }
+          - { label: cavs-q4-native, game: '0022600006', from: '1792718860000' }
+          - { label: denver-q3-historical-control, game: '0022600007', from: '1792725500000' }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check public boundary
+        run: python3 tools/public_content_guard.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install original licensed SDK runtime without lifecycle scripts
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Direct native player.time seeks at each target interval (no early-anchor fastlane)
+        env:
+          SAMPLE_LABEL: ${{ matrix.label }}
+          GAME_ID: ${{ matrix.game }}
+          SOURCE_FROM: ${{ matrix.from }}
+          GAMEPULSE_FINAL_FASTLANE: 'false'
+          GAMEPULSE_LIVE_ELAPSED_FASTLANE: 'false'
+        run: |
+          node --input-type=module <<'NODE'
+          import {mkdtempSync,readFileSync,rmSync} from 'node:fs';
+          import {tmpdir} from 'node:os';
+          import {join} from 'node:path';
+          import {capture} from './tools/licensed_feed/capture.mjs';
+          const game_id=process.env.GAME_ID;
+          const label=process.env.SAMPLE_LABEL;
+          const start_ms=Number(process.env.SOURCE_FROM);
+          const job={game_id,account_id:'nba',program_id:'companion-'+game_id+'-positions',part:0,start_ms,count:12};
+          const path=mkdtempSync(join(tmpdir(),'pulse-native-seek-'));
+          try {
+            await capture(job,path);
+            const m=JSON.parse(readFileSync(join(path,'manifest.json'),'utf8'));
+            if(m.observed!==true || m.imputed!==false || m.successful_windows!==12)throw Error('incomplete_source_windows');
+            console.log('PULSE_NATIVE_SEEK_RESULT',JSON.stringify({
+              label,game_id,source_start_ms:start_ms,seek_method:'SDK_PLAYER_TIME_AT_EACH_TARGET_WINDOW',
+              successful_windows:m.successful_windows,empty_windows:m.empty_windows,
+              keyframes:m.unique_keyframes,player_frames:m.frames_with_players,
+              ball_frames:m.frames_with_ball,valid_source_windows:true
+            }));
+          }catch(e){
+            const code=/^[a-z_]+$/.test(e?.message||'')?e.message:'capture_error';
+            console.error('PULSE_NATIVE_SEEK_ERROR',label,code);
+            process.exitCode=1;
+          }finally{
+            rmSync(path,{recursive:true,force:true});
+          }
+          NODE
