@@ -1,0 +1,85 @@
+name: Live CLE-PHI Game Pulse private fast capture
+# Exact NBA game 0022600006, Thu Oct 22 2026 19:00 EDT.
+# Source SDK tokens/XYZ stay in ephemeral runner memory and PRIVATE 104 Releases.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-live-cle-phi-20261022.yml']
+  schedule:
+    - cron: '*/10 * * * *'
+permissions:
+  contents: read
+concurrency:
+  group: live-cle-phi-20261022-${{ github.event_name }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 tools/public_content_guard.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+  first-live-fanout:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        part: [0, 1, 2]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install sanctioned SDK with no lifecycle scripts
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Capture exact elapsed Game Pulse slots, SHA verify private 104
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_PRIORITY_FANOUT: 'true'
+          GAMEPULSE_LIVE_ELAPSED_FASTLANE: 'true'
+          GAMEPULSE_PRIORITY_ID: '0022600006'
+          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T23:00:00Z'
+          GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
+        run: node season_private_release.mjs
+  follow-live-source:
+    if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install sanctioned SDK
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Capture next two elapsed windows without synthetic records
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_PRODUCTION_ENABLED: 'true'
+          GAMEPULSE_LIVE_ELAPSED_FASTLANE: 'true'
+          GAMEPULSE_PRIORITY_ID: '0022600006'
+          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T23:00:00Z'
+        run: node season_private_release.mjs
