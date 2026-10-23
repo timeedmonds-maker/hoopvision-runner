@@ -1,5 +1,5 @@
 name: Game Pulse private 16-game searchable season index
-# Rebuild following independent Denver 13/13-part active-play QA and full-SDK touch ledger join.
+# Rebuild to verify current 16-game original SDK touch search and correct Denver archive state.
 # Executes metadata/indexing on free hosted CPU. No private game observations
 # are committed to this public repository or emitted in workflow artifacts/logs.
 on:
