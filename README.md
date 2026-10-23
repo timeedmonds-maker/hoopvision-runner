@@ -20,7 +20,7 @@ Forbidden here:
 - credentials or authentication material;
 - detailed private logs, failure traces or acceptance evidence.
 
-The only workload input crossing the public boundary is a random opaque request ID.
+**For the routine HoopVision/CourtCoder request bridge**, the only workload input crossing its public request/status boundary is a random opaque request ID. The separately scoped **Integrated Pulse Database** CPU Actions jobs below use a different, reviewed pattern: ephemeral workers authenticate to private `timeedmonds-maker/104`, process original NBA-source archives in ephemeral scratch space and write reports **only back to private `104`**. They are not sent through the routine opaque-request workflow, and their private payloads are never committed as public repository files or artifacts.
 
 ## Transport
 
@@ -54,3 +54,21 @@ Approved workflow roles:
 
 **Source semantics:** original NBA Game Pulse-native touch fields can be treated as authoritative for recorded touch events without independent human review. Exact possession counting and media seek timing are distinct statistical or engineering layers. Source-specific detail and all numerical results belong only in the canonical **private** Game Pulse documentation, not this public README.
 
+
+
+## Integrated Pulse Database — separate NBA database workload
+
+**Product name:** [Integrated Pulse Database](https://github.com/timeedmonds-maker/104/blob/main/INTEGRATED_PULSE_DATABASE.md) (private canonical repository). **Not** HoopVision image tracking, OCR, court calibration, prediction or Clip Lab. NBA Game Pulse refers to the original NBA tracking source; Integrated Pulse Database refers to the joined current-season tracking, NBA official PBP, Blueprint, lineup and query datasets.
+
+This shared public GitHub repository provides **free GitHub-hosted CPU orchestration only** for independently scoped Integrated Pulse Database tasks. The private source release archives, NBA player/touch events, fused interaction indexes, scorer results and licensed XYZ stay in private `104` or ephemeral runner memory. Never expose per-player private results, tokens, source private revisions or raw positions in public logs, source files or public Actions artifacts.
+
+| Reviewed workflow | Database operation |
+|---|---|
+| `.github/workflows/gamepulse-formal-pbp-14game.yml` | Check original 14-game official NBA clock and final score, publish private PBP receipt |
+| `.github/workflows/gamepulse-native-interactions-14game.yml` | Fuse original native touch identities with PBP action runs and Blueprint in 14 parallel game jobs, save private per-game indexes |
+| `.github/workflows/gamepulse-interaction-query.yml` | Run synthetic tests and saved three-player source-touch search over private indexed records |
+| `.github/workflows/rockets-native-touch-ppp.yml` | Original Rockets source-native touch and independent event-clock control QA |
+
+**Snapshot, 23 October 2026:** private original 14-game manifest has **8,701** NBA actions, **12,231** deduplicated native NBA Game Pulse touch records, **2,923** consecutive possession-team action runs and **14/14** final-score reconciliations. The saved Durant + VanVleet + Şengün query has **14 matching Rockets team action runs, 16 points and 1.142857 points/run**. Original Game Pulse touch records are treated as authoritative, without video/human touch recertification. The current counting unit is a team action run, not automatically an exact NBA offensive possession. See the private canonical documentation for provenance and the separate possession-accounting audit.
+
+No statement above implies that these database jobs modify or validate the HoopVision/CourtCoder vision and prediction engines.
