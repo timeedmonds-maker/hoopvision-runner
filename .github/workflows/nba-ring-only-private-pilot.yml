@@ -1,4 +1,5 @@
 # Private NBA source/video and results remain in 104, never public artifacts.
+# Test NBA provider HLS before any attempt to render on an NBA event clip.
 name: Private NBA event ring-only CPU pilot
 on:
   push:
