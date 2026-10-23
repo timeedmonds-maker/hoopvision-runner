@@ -2,6 +2,7 @@ name: Game Pulse 16-game authentic Q1-Q4 active-play coverage QA
 # Read original observed SDK archives in private 104, never publish XYZ publicly.
 # Re-evaluate Q1-Q4 after adding per-source-part metadata and NBA player-ID counts.
 # Trigger after unrelated temporary public workflow removal restored the allowlist.
+# Re-run source QA with hard quarantine of physically impossible NBA period UTC spans.
 on:
   push:
     branches: [main]
