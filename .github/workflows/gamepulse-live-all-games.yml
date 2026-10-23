@@ -118,22 +118,22 @@ jobs:
         run: |
           set -euo pipefail
           test -s "$RUNNER_TEMP/private-live-touch/live-qa.json"
-                    python3 - <<'PY'
-                    import base64,json,os,subprocess
-                    from pathlib import Path
-                    qa=Path(os.environ["RUNNER_TEMP"]+"/private-live-touch/live-qa.json").read_bytes()
-                    url="repos/timeedmonds-maker/104/contents/gamepulse/live/qa/"+os.environ["GAME_ID"]+".json"
-                    for i in range(4):
-                        prior=subprocess.run(["gh","api",url],capture_output=True,text=True)
-                        data={"branch":"main","message":"qa: refresh private live SDK coverage",
-                              "content":base64.b64encode(qa).decode()}
-                        if prior.returncode==0:data["sha"]=json.loads(prior.stdout)["sha"]
-                        result=subprocess.run(["gh","api","-X","PUT",url,"--input","-"],
-                                              input=json.dumps(data),capture_output=True,text=True)
-                        if result.returncode==0:break
-                    else:raise RuntimeError("private_live_qa_write_failed")
-                    print("PRIVATE_LIVE_QA_PUBLISHED")
-                    PY
+          python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          qa=Path(os.environ["RUNNER_TEMP"]+"/private-live-touch/live-qa.json").read_bytes()
+          url="repos/timeedmonds-maker/104/contents/gamepulse/live/qa/"+os.environ["GAME_ID"]+".json"
+          for i in range(4):
+              prior=subprocess.run(["gh","api",url],capture_output=True,text=True)
+              data={"branch":"main","message":"qa: refresh private live SDK coverage",
+                    "content":base64.b64encode(qa).decode()}
+              if prior.returncode==0:data["sha"]=json.loads(prior.stdout)["sha"]
+              result=subprocess.run(["gh","api","-X","PUT",url,"--input","-"],
+                                    input=json.dumps(data),capture_output=True,text=True)
+              if result.returncode==0:break
+          else:raise RuntimeError("private_live_qa_write_failed")
+          print("PRIVATE_LIVE_QA_PUBLISHED")
+          PY
 
       - name: Assert no current source data is published to public artifacts
         if: always() && matrix.game.id != 'none'
