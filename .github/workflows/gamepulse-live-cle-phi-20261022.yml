@@ -414,6 +414,108 @@ jobs:
           assert hashlib.sha256(base64.b64decode(final['content'])).digest()==hashlib.sha256(raw).digest()
           print('CAVS_NATIVE_INTERACTION_PRIVATE_SHA_VERIFIED')
           PY
+  scheduled-15game-search-verification:
+    if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && needs.scheduled-native-cavs-fusion.result == 'success'
+    needs: [scheduled-native-cavs-fusion]
+    concurrency:
+      group: gamepulse-cavs-15game-cross-source-search
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Check Cavs native fusion index exists
+        id: ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          if gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/interactions/0022600006.json' >/dev/null 2>&1; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Preserve original fourteen and independently prove fifteen-game query works
+        if: steps.ready.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/cavs-crossgame"
+          mkdir -p "$ROOT/games"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/interactions/index.json' --jq .content | base64 -d > "$ROOT/frozen.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/interaction_search_2026.py?ref=main' --jq .content | base64 -d > "$ROOT/interaction_search_2026.py"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess,sys,time
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'cavs-crossgame'
+          original=json.loads((root/'frozen.json').read_text())
+          assert original['game_count']==14 and len(original['games'])==14
+          assert '0022600006' not in original['games']
+          def read(p):
+              raw=subprocess.check_output(['gh','api','repos/timeedmonds-maker/104/contents/'+p,'--jq','.content'])
+              return base64.b64decode(raw)
+          retained={}
+          for game,meta in sorted(original['games'].items()):
+              raw=read('gamepulse/fusion/index/interactions/'+game+'.json')
+              assert hashlib.sha256(raw).hexdigest()==meta['sha256']
+              retained[game]=meta
+              (root/'games'/(game+'.json')).write_bytes(raw)
+          gid='0022600006'
+          raw=read('gamepulse/fusion/index/interactions/'+gid+'.json')
+          cavs=json.loads(raw)
+          assert cavs['game_id']==gid and cavs['reconciliation']['nba_team_score_reconciled']
+          assert cavs['source_event_counts']['native_unique_touch_labels']>0
+          (root/'games'/(gid+'.json')).write_bytes(raw)
+          retained[gid]={
+             'sha256':hashlib.sha256(raw).hexdigest(),
+             'source_native_touch_labels':cavs['source_event_counts']['native_unique_touch_labels'],
+             'team_action_runs':len(cavs['possessions']),
+             'nba_scores_reconciled':True}
+          manifest={**original,'schema':'gamepulse.interaction-fusion-season-index.v2',
+             'game_count':len(retained),'games':retained,
+             'status':'SOURCE_NATIVE_TOUCH_PBP_BLUEPRINT_15_GAME_SEARCH',
+             'original_14_manifest_sha256':hashlib.sha256((root/'frozen.json').read_bytes()).hexdigest(),
+             'original_14_preserved':True}
+          assert len(retained)==15 and all(x['nba_scores_reconciled'] for x in retained.values())
+          sys.path.insert(0,str(root))
+          from interaction_search_2026 import search
+          candidate=next((t['player_id'] for p in cavs['possessions']
+                            for t in p['native_touch_events'] if t.get('player_id')),None)
+          assert candidate is not None
+          result=search(sorted((root/'games').glob('*.json')),all_touched=(candidate,),
+                        evidence='native_start',expected_games=15)
+          assert result['games_count']==15 and gid in result['games_searched']
+          assert any(p['game_id']==gid for p in result['possessions'])
+          assert result['denominator_unit']=='NBA_OFFICIAL_POSSESSION_TEAM_ACTION_RUN'
+          def save(path,body):
+              dest='repos/timeedmonds-maker/104/contents/'+path
+              data=(json.dumps(body,sort_keys=True,ensure_ascii=False,separators=(',',':'))+'\\n').encode()
+              for trial in range(10):
+                  old=subprocess.run(['gh','api',dest],capture_output=True,text=True)
+                  payload={'branch':'main','message':'data(gamepulse): certified 15-game private source search',
+                           'content':base64.b64encode(data).decode()}
+                  if old.returncode==0:
+                      previous=json.loads(old.stdout)
+                      if base64.b64decode(previous['content'])==data:break
+                      payload['sha']=previous['sha']
+                  elif '404' not in old.stderr and 'Not Found' not in old.stderr:
+                      raise RuntimeError('private_search_read_failed')
+                  change=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],
+                           input=json.dumps(payload),capture_output=True,text=True)
+                  if change.returncode==0:break
+                  if not any(k in change.stderr for k in ('409','422','Conflict')):
+                      raise RuntimeError('private_search_write_failed')
+                  time.sleep(2+trial)
+              else:raise RuntimeError('private_search_write_retries_exhausted')
+              check=read(path)
+              assert check==data
+          save('gamepulse/fusion/index/interactions/index-2026-27.json',manifest)
+          save('gamepulse/fusion/queries/cavs_15game_search_smoke.json',result)
+          print('CAVS_FIFTEEN_GAME_SEARCH_SHA_VERIFIED',len(retained),
+                'cavs_native_touches',retained[gid]['source_native_touch_labels'],
+                'cavs_official_action_runs',retained[gid]['team_action_runs'])
+          PY
   quarter-native-report:
     if: always() && needs.verify.result == 'success' && github.ref == 'refs/heads/main'
     needs: verify
