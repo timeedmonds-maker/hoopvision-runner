@@ -43,6 +43,7 @@ ALLOWED_STATIC = {
     ".github/workflows/nba-jabari616-frozen-ring-cpu-qa.yml",
     ".github/workflows/nba-jabari616-constant-ring-render.yml",
     ".github/workflows/nba-jabari616-constant-ring-v2.yml",
+    ".github/workflows/nba-jabari616-ring-export-to-chat.yml",
     ".github/workflows/gamepulse-pnr-feasibility.yml",
     ".github/workflows/rockets-pnr-unified-review-qa.yml",
     ".github/workflows/rockets-pnr-video-source-diagnostic.yml",
