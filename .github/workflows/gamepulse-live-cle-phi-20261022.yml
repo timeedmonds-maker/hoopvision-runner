@@ -110,4 +110,5 @@ jobs:
           python3 "$RUNNER_TEMP/live_game_index.py"
       - name: Publish only generic private-search pointer
         if: always()
-        run: echo 'Queryable source-qualified live snapshot, where available, is private in 104: gamepulse/live/games/0022600006.json' >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo 'Queryable source-qualified live snapshot, where available, is private in 104: gamepulse/live/games/0022600006.json' >> "$GITHUB_STEP_SUMMARY"
