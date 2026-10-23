@@ -84,6 +84,48 @@ jobs:
           GAMEPULSE_PRIORITY_ID: '0022600006'
           GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T23:00:00Z'
         run: node season_private_release.mjs
+  quarter-native-report:
+    if: always() && needs.verify.result == 'success' && github.ref == 'refs/heads/main'
+    needs: [verify, first-live-fanout]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Read all original SHA-backed source releases without public artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/timeedmonds-maker/104 --jq '.private')" = true
+          ROOT="$RUNNER_TEMP/lebron-touch-analysis"
+          mkdir -p "$ROOT"
+          gh release download gamepulse-sdk-0022600006 --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$ROOT"
+          for name in source_touch_counts roster_resolver quarter_native_2026; do
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/live/$name.py?ref=main" --jq .content | base64 -d > "$ROOT/$name.py"
+          done
+          python3 -m py_compile "$ROOT/"*.py
+          python3 "$ROOT/quarter_native_2026.py" --dir "$ROOT" > "$ROOT/quarter.json"
+          python3 - <<'PY'
+          import os,json,base64,subprocess
+          from pathlib import Path
+          raw=(Path(os.environ["RUNNER_TEMP"])/"lebron-touch-analysis/quarter.json").read_bytes()
+          report=json.loads(raw)
+          if report["unmatched"] or not report["complete_game_time_span"]:
+              raise ValueError("game_touch_quarter_data_incomplete")
+          url="repos/timeedmonds-maker/104/contents/gamepulse/live/queries/lebron_20261022_quarters.json"
+          for i in range(5):
+              existing=subprocess.run(["gh","api",url],capture_output=True,text=True)
+              entry={"branch":"main","message":"data: full-game LeBron native source touches per quarter",
+                     "content":base64.b64encode(raw).decode()}
+              if existing.returncode==0:entry["sha"]=json.loads(existing.stdout)["sha"]
+              result=subprocess.run(["gh","api","-X","PUT",url,"--input","-"],
+                 input=json.dumps(entry),capture_output=True,text=True)
+              if result.returncode==0:break
+          else:raise RuntimeError("private_game_touch_write_failed")
+          readback=json.loads(subprocess.check_output(["gh","api",url]))
+          if base64.b64decode(readback["content"])!=raw:raise RuntimeError("report_readback_failed")
+          print("PRIVATE_FULL_GAME_QUARTER_TOUCH_REPORT_SHA_VERIFIED")
+          PY
   live-private-query-index:
     if: always() && needs.verify.result == 'success' && github.ref == 'refs/heads/main'
     needs: [verify, first-live-fanout, follow-live-source]
