@@ -1,0 +1,106 @@
+name: Game Pulse private 16-game searchable season index
+# Executes metadata/indexing on free hosted CPU. No private game observations
+# are committed to this public repository or emitted in workflow artifacts/logs.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-16game-private-search.yml']
+  workflow_dispatch:
+  schedule:
+    - cron: '37 8 * * *'
+permissions:
+  contents: read
+concurrency:
+  group: gamepulse-16game-private-search
+  cancel-in-progress: false
+jobs:
+  build-and-certify-index:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public content boundary
+        run: python3 tools/public_content_guard.py
+      - name: Install private metadata builder and synthetic tests into ephemeral runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_READ_TOKEN_MISSING'; exit 3; }
+          WORK="$RUNNER_TEMP/season-search"
+          mkdir -p "$WORK/tests"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/season16.py?ref=main' --jq .content | base64 -d > "$WORK/season16.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/tests/test_season16.py?ref=main' --jq .content | base64 -d > "$WORK/tests/test_season16.py"
+          python3 -m py_compile "$WORK/season16.py"
+          PYTHONPATH="$WORK" python3 -m unittest discover -s "$WORK/tests" -p 'test_season16.py' -v
+      - name: Build authentic live-inclusive 16-game private catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/season-search"
+          python3 "$WORK/season16.py" build --output "$WORK/current.json"
+          python3 "$WORK/season16.py" verify --input "$WORK/current.json"
+          python3 "$WORK/season16.py" search --input "$WORK/current.json" --kind games --summary-only
+          python3 "$WORK/season16.py" search --input "$WORK/current.json" --kind games --team DEN --summary-only
+          python3 "$WORK/season16.py" search --input "$WORK/current.json" --kind games --team CLE --summary-only
+          python3 "$WORK/season16.py" search --input "$WORK/current.json" --kind games --player 203999 --summary-only
+      - name: Independently cross-search native events over all 16 games
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/season-search"
+          python3 "$WORK/season16.py" search --input "$WORK/current.json" --kind native-touches --summary-only
+      - name: Publish only in private 104 with byte and SHA readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/season-search"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess
+          from pathlib import Path
+          work=Path(os.environ['RUNNER_TEMP'])/'season-search'
+          data=(work/'current.json').read_bytes()
+          if len(data)>950000:raise RuntimeError('PRIVATE_INDEX_TOO_LARGE')
+          endpoint='repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-current.json'
+          def api(*args,input=None):
+              p=subprocess.run(['gh','api',*args],input=input,capture_output=True,
+                               text=True,timeout=60)
+              if p.returncode:raise RuntimeError('PRIVATE_INDEX_GITHUB_API_FAILED')
+              return json.loads(p.stdout)
+          for attempt in range(4):
+              previous=subprocess.run(['gh','api',endpoint],capture_output=True,text=True)
+              if previous.returncode and '404' not in previous.stderr:
+                  raise RuntimeError('PRIVATE_INDEX_PREVIOUS_READ_FAILED')
+              payload={'branch':'main',
+                       'message':'data(gamepulse): SHA-verified searchable 16-game provisional index',
+                       'content':base64.b64encode(data).decode()}
+              if previous.returncode==0:payload['sha']=json.loads(previous.stdout)['sha']
+              write=subprocess.run(['gh','api','-X','PUT',endpoint,'--input','-'],
+                                   input=json.dumps(payload),capture_output=True,text=True)
+              if write.returncode==0:break
+          else:raise RuntimeError('PRIVATE_INDEX_UPDATE_CONFLICT')
+          remote=base64.b64decode(api(endpoint)['content'])
+          if remote!=data or hashlib.sha256(remote).digest()!=hashlib.sha256(data).digest():
+              raise RuntimeError('PRIVATE_INDEX_SHA256_READBACK_MISMATCH')
+          frozen=json.loads(base64.b64decode(api(
+              'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json')['content']))
+          doc=json.loads(remote)
+          if doc['game_count']!=16 or any(doc['games'][gid]!=row
+                   for gid,row in frozen['games'].items()):
+              raise RuntimeError('ORIGINAL_14_PROVENANCE_NOT_IDENTICAL')
+          for gid in ('0022600006','0022600007'):
+              src=doc['games'][gid]['live_source_evidence']
+              for ref in src.values():
+                  observed=base64.b64decode(api('repos/timeedmonds-maker/104/contents/'+ref['path'])['content'])
+                  if hashlib.sha256(observed).hexdigest()!=ref['sha256']:
+                      raise RuntimeError('LIVE_SOURCE_SHA256_READBACK_FAILED')
+          print('PRIVATE_16_GAME_INDEX_SHA_READBACK_PASSED',
+                'games',doc['game_count'],'frozen_originals',len(frozen['games']),
+                'live_additions',2)
+          PY
+      - name: Report safe metadata only
+        if: always()
+        run: echo 'Private 16-game index attempted; see private 104 for full status and source QA.' >> "$GITHUB_STEP_SUMMARY"
