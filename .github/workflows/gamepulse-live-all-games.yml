@@ -81,6 +81,8 @@ jobs:
           gh release download "gamepulse-live-sdk-$GAME_ID" --repo timeedmonds-maker/104 --pattern 'live-*.tar.gz' --dir "$ROOT"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/source_touch_counts.py?ref=main' --jq .content | base64 -d > "$ROOT/source_touch_counts.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/touch_report_cli.py?ref=main' --jq .content | base64 -d > "$ROOT/touch_report_cli.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/test_native_touches.py?ref=main' --jq .content | base64 -d > "$ROOT/test_native_touches.py"
+          python3 "$ROOT/test_native_touches.py"
           if gh api "repos/timeedmonds-maker/104/contents/gamepulse/live/verified_paint_geometry/$GAME_ID.json?ref=main" --jq .content > "$ROOT/geometry.base64" 2>/dev/null; then
             base64 -d "$ROOT/geometry.base64" > "$ROOT/geometry.json"
             python3 "$ROOT/touch_report_cli.py" --game "$GAME_ID" --input "$ROOT" --output "$ROOT/touches.json" --geometry "$ROOT/geometry.json"
