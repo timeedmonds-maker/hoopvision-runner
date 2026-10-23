@@ -71,7 +71,13 @@ jobs:
           import base64,json,os,subprocess
           from pathlib import Path
           repo='timeedmonds-maker/104'
-          path='gamepulse/catalog/2026-27.json'
+          # Never overwrite the immutable original 14-game baseline or the
+          # independently coverage-gated current catalog. Auto-refresh is provisional.
+          path='gamepulse/catalog/2026-27-auto-refresh-provisional.json'
+          frozen='repos/'+repo+'/contents/gamepulse/catalog/2026-27.json'
+          frozen_read=subprocess.run(['gh','api',frozen],capture_output=True,text=True)
+          if frozen_read.returncode or json.loads(frozen_read.stdout).get('sha')!='4ec7dff505e3a05dc011950e2df5060300b1054e':
+              raise RuntimeError('FROZEN_14_CATALOG_SHA_CHANGED')
           target='repos/'+repo+'/contents/'+path
           data=(Path(os.environ['RUNNER_TEMP'])/'gamepulse/search-catalog.json').read_bytes()
           before=subprocess.run(['gh','api',target],capture_output=True,text=True)
