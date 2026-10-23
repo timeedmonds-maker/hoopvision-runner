@@ -234,6 +234,76 @@ jobs:
           assert base64.b64decode(actual['content'])==raw
           print('CAVS_15GAME_CATALOG_PRIVATE_SHA_VERIFIED')
           PY
+  scheduled-official-event-index:
+    if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && needs.scheduled-catalog-refresh.result == 'success'
+    needs: [scheduled-catalog-refresh]
+    concurrency:
+      group: gamepulse-cavs-15game-official-events
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Verify full original source and private catalog before PBP extension
+        id: ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          if ! gh release view gamepulse-sdk-0022600006 --repo timeedmonds-maker/104 --json assets --jq '.assets[].name' | grep -Fxq sdk-COMPLETE.json; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+          elif ! gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json' --jq '.content' | base64 -d | jq -e '.game_count >= 15 and .games["0022600006"].index_state == "VERIFIED_ARCHIVE_INDEX"' >/dev/null; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Extend official PBP source index while preserving the original 14
+        if: steps.ready.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/cavs-pbp"
+          mkdir -p "$ROOT"
+          for n in official_pbp_timestamps_2026.py official_pbp_allgames_2026.py; do
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$n?ref=main" --jq .content | base64 -d > "$ROOT/$n"
+          done
+          export PYTHONPATH="$ROOT"
+          python3 - <<'PY'
+          import hashlib,json
+          from official_pbp_allgames_2026 import certify_game,private_json
+          from official_pbp_timestamps_2026 import publish
+          gid='0022600006'
+          pbp=certify_game(gid,['CLE','PHI'])
+          assert pbp['qa']['nba_score_reconciled_to_boxscore']
+          assert pbp['qa']['nba_action_records']>=300
+          path='gamepulse/fusion/official_pbp_timing/games/'+gid+'.json'
+          result=publish(pbp,path)
+          frozen,freeze_sha=private_json('gamepulse/fusion/official_pbp_timing/index.json')
+          assert len(frozen['games'])==14 and gid not in frozen['games']
+          game=pbp['official_final']
+          extension=dict(frozen['games'])
+          extension[gid]={
+            'game_id':gid,'state':pbp['state'],
+            'action_records':pbp['qa']['nba_action_records'],
+            'actions_with_official_timeActual_utc':pbp['qa']['nba_actions_with_formal_utc'],
+            'official_final':game,'source_file':path,
+            'source_pbp_sha256':pbp['source_provenance']['nba_pbp_sha256'],
+            'disposition':'PRIVATE_NBA_PBP_EVENT_TIMELINE_SHA_VERIFIED',
+            'video_pts_certified':0
+          }
+          expanded={**frozen,'schema':'gamepulse.formal-nba-official-event-clock-season.v2',
+                    'source_game_count':len(extension),'games':extension,
+                    'state':'NBA_OFFICIAL_EVENTS_RECONCILED_SEASON_EXTENSION',
+                    'nba_action_count':sum(r['action_records'] for r in extension.values()),
+                    'nba_actions_with_direct_nba_timeActual':sum(r['actions_with_official_timeActual_utc'] for r in extension.values()),
+                    'nba_game_score_checks_passed':len(extension),
+                    'frozen_original_14_manifest_sha256':freeze_sha,
+                    'full_possession_video_links_certified':0}
+          assert len(extension)>=15
+          publish(expanded,'gamepulse/fusion/official_pbp_timing/index-2026-27.json')
+          print('CAVS_OFFICIAL_PBP_15GAME_PRIVATE_SEARCH_TIMING_SHA_VERIFIED')
+          PY
   quarter-native-report:
     if: always() && needs.verify.result == 'success' && github.ref == 'refs/heads/main'
     needs: verify
