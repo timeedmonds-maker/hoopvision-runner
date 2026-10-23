@@ -43,3 +43,16 @@ branch pushes never receive that token. The lane may not publish, log, commit,
 cache or upload tracking observations as public artifacts. This exception does
 not alter the opaque engine request bridge. Season scheduling remains disabled
 until live private upload and SHA-256 readback are verified.
+
+## User-approved one-clip preview exception (NBA game 0022600091, event 616)
+
+The owner expressly authorized the Jabari #616 clip itself to be public. A
+single short **derived MP4 video only** may therefore be published as a
+public GitHub Release asset for in-chat playback, after private-renderer QA
+confirms the intended five-receiver cumulative overlay. This is a scoped
+preview, not permission to share internal code, original raw Game Pulse
+positions, sensor data, calibration source files, artifacts, test outputs,
+tokens, or other clips. The public runner must still pass its exact workflow
+content guard. This one-clip exception does not permit generic public video
+artifacts or broad weakening of confidentiality checks. The release description
+must disclose any remaining visual synchronisation uncertainty.
