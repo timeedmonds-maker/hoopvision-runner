@@ -563,6 +563,8 @@ jobs:
           print("PRIVATE_FULL_GAME_QUARTER_TOUCH_REPORT_SHA_VERIFIED")
           PY
   official-quarter-touches:
+    # Nonblocking supplementary NBA player-quarter publication; full SDK/PBP/search have independent hard gates.
+    continue-on-error: true
     if: github.ref == 'refs/heads/main'
     needs: verify
     runs-on: ubuntu-24.04
