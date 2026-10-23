@@ -1,0 +1,34 @@
+name: Private NBA event ring-only CPU pilot
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/nba-ring-only-private-pilot.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nba-ring-only-private-pilot
+  cancel-in-progress: false
+jobs:
+  inspect-private-event-video:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public privacy boundary
+        run: python3 tools/public_content_guard.py
+      - name: Acquire private code and run CPU source inspection
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_SOURCE_CREDENTIAL_UNAVAILABLE; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/video_ring_only_pilot.py?ref=main' --jq .content | base64 -d > "$ROOT/runner.py"
+          python3 -m pip install --disable-pip-version-check --quiet opencv-python-headless==4.10.0.84 'numpy<2'
+          python3 "$ROOT/runner.py"
