@@ -8,6 +8,8 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/gamepulse-github-season.yml'
+      - 'tools/licensed_feed/season_private_release.mjs'
+      - 'tools/licensed_feed/season_core.test.mjs'
   pull_request:
     paths:
       - '.github/workflows/gamepulse-github-season.yml'

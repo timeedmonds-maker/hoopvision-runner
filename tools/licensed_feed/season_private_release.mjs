@@ -327,7 +327,7 @@ function pilotGame(){
 export function assertContext(env){
  if(env.GITHUB_REPOSITORY!==PUBLIC||env.GITHUB_REF!=='refs/heads/main'||
     !['workflow_dispatch','push','schedule'].includes(env.GITHUB_EVENT_NAME)||
-    (env.GITHUB_EVENT_NAME==='push'&&env.GAMEPULSE_FULLGAME_PILOT!=='true'&&env.GAMEPULSE_PRIORITY_FANOUT!=='true'&&env.GAMEPULSE_PRIORITY_FINALIZE!=='true')||
+    (env.GITHUB_EVENT_NAME==='push'&&env.GAMEPULSE_FULLGAME_PILOT!=='true'&&env.GAMEPULSE_PRIORITY_FANOUT!=='true'&&env.GAMEPULSE_PRIORITY_FINALIZE!=='true'&&env.GAMEPULSE_PRODUCTION_ENABLED!=='true')||
     (env.GITHUB_EVENT_NAME==='schedule'&&
      (env.GAMEPULSE_PRODUCTION_ENABLED!=='true'||
       (env.GAMEPULSE_FULLGAME_PILOT==='true'&&env.GAMEPULSE_PILOT_FINALIZE!=='true')))||
