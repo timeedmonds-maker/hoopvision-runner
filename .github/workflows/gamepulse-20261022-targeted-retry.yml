@@ -78,3 +78,117 @@ jobs:
           GAMEPULSE_PRIORITY_FINALIZE: 'true'
           GAMEPULSE_FINAL_FASTLANE: 'true'
         run: node season_private_release.mjs
+
+  cavs-source-gap-probes:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      max-parallel: 7
+      matrix:
+        include:
+          - { label: 'q2-late', start_ms: 1792714480000, part: 3 }
+          - { label: 'q3-early', start_ms: 1792716080000, part: 4 }
+          - { label: 'q3-mid', start_ms: 1792716650000, part: 4 }
+          - { label: 'q3-late', start_ms: 1792717685000, part: 5 }
+          - { label: 'q4-early', start_ms: 1792718265000, part: 5 }
+          - { label: 'q4-mid', start_ms: 1792718860000, part: 6 }
+          - { label: 'q4-late', start_ms: 1792720025000, part: 7 }
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Ensure no private data is exposed publicly
+        run: python3 tools/public_content_guard.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install licensed SDK without lifecycle scripts
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Probe real game-action SDK windows and privately preserve evidence
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          PROBE_LABEL: ${{ matrix.label }}
+          PROBE_START: ${{ matrix.start_ms }}
+          PROBE_PART: ${{ matrix.part }}
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import {mkdtempSync,readFileSync,writeFileSync,rmSync,existsSync} from 'node:fs';
+          import {tmpdir} from 'node:os';
+          import {join} from 'node:path';
+          import {spawnSync} from 'node:child_process';
+          import {createHash} from 'node:crypto';
+          const priv=process.env.GH_TOKEN, game='0022600006';
+          if(!priv||priv.length<30||process.env.GITHUB_REPOSITORY!=='timeedmonds-maker/hoopvision-runner'
+              ||process.env.GITHUB_REF!=='refs/heads/main'||process.env.GITHUB_EVENT_NAME!=='push')
+            throw Error('unauthorized_private_source_probe');
+          const from=Number(process.env.PROBE_START),part=Number(process.env.PROBE_PART);
+          const label=process.env.PROBE_LABEL;
+          if(!Number.isSafeInteger(from)||from%5000||!Number.isInteger(part)
+             ||!/^q[234]-(early|mid|late)$/.test(label))
+            throw Error('invalid_probe_assignment');
+          delete process.env.GH_TOKEN;
+          const {capture}=await import('./capture.mjs');
+          const work=mkdtempSync(join(tmpdir(),'gpcavs-'));
+          const gh=(args)=>spawnSync('gh',args,{encoding:'utf8',
+             env:{...process.env,GH_TOKEN:priv},timeout:100000,maxBuffer:2*1024*1024});
+          const tag='gamepulse-cavs-source-gap-probes';
+          const job={game_id:game,account_id:'nba',
+             program_id:'companion-'+game+'-positions',part,start_ms:from,count:12};
+          let summary={schema:'gamepulse.authentic-cavs-source-gap-probe.v1',game_id:game,
+             label,source_start_ms:from,window_count:12,
+             source_observed:false,player_frames:0,ball_frames:0,
+             active_play_source_usable:false,status:'NOT_COLLECTED'};
+          try{
+            try {
+              await capture(job,work);
+              const m=JSON.parse(readFileSync(join(work,'manifest.json'),'utf8'));
+              if(m.observed!==true||m.imputed!==false||m.successful_windows!==12)
+                throw Error('source_manifest_not_authentic');
+              summary={...summary,source_observed:true,player_frames:m.frames_with_players,
+                 ball_frames:m.frames_with_ball,empty_windows:m.empty_windows,
+                 active_play_source_usable:m.frames_with_players>0&&m.frames_with_ball>0,
+                 status:m.frames_with_players>0&&m.frames_with_ball>0
+                   ?'SOURCE_PLAYER_BALL_OBSERVED':'SDK_EMPTY_FOR_OFFICIAL_ACTIVE_PLAY'};
+            } catch(e) {
+              const reason=/^[a-z_]+$/.test(e?.message||'')?e.message:'source_probe_failed';
+              summary.status='SDK_PROBE_FAILED';
+              summary.error_code=reason;
+            }
+            const newRelease=gh(['release','view',tag,'--repo','timeedmonds-maker/104']);
+            if(newRelease.status!==0){
+              const create=gh(['release','create',tag,'--repo','timeedmonds-maker/104',
+                '--title',tag,'--notes','Private original SDK action-time source QA; no imputation',
+                '--latest=false']);
+              if(create.status!==0 && gh(['release','view',tag,'--repo','timeedmonds-maker/104']).status!==0)
+                throw Error('private_probe_release_failed');
+            }
+            const base='cavs-'+label+'-'+from;
+            const receipt=join(work,base+'.json');
+            writeFileSync(receipt,JSON.stringify(summary)+'\n');
+            if(gh(['release','upload',tag,receipt,'--repo','timeedmonds-maker/104','--clobber']).status!==0)
+              throw Error('private_probe_receipt_save_failed');
+            const archive=join(work,'checkpoint.tar.gz');
+            if(summary.active_play_source_usable && existsSync(archive)){
+              const name=base+'.tar.gz';
+              const target=join(work,name);
+              const {copyFileSync}=await import('node:fs');
+              copyFileSync(archive,target);
+              if(gh(['release','upload',tag,target,'--repo','timeedmonds-maker/104','--clobber']).status!==0)
+                throw Error('private_probe_source_save_failed');
+              const list=gh(['api','repos/timeedmonds-maker/104/releases/tags/'+tag]);
+              if(list.status!==0)throw Error('private_probe_sha_listing_failed');
+              const digest=JSON.parse(list.stdout).assets.find(x=>x.name===name)?.digest;
+              if(digest!=='sha256:'+createHash('sha256').update(readFileSync(target)).digest('hex'))
+                throw Error('private_probe_sha_mismatch');
+            }
+            console.log('PRIVATE_CAVS_SOURCE_PROBE_RECEIPT_SAVED',label,summary.status,
+              summary.player_frames,summary.ball_frames);
+          } finally{rmSync(work,{recursive:true,force:true});}
+          NODE
