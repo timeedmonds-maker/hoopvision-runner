@@ -46,6 +46,7 @@ ALLOWED_STATIC = {
     ".github/workflows/nba-jabari616-ring-export-to-chat.yml",
     ".github/workflows/nba-jabari616-ball-handler-media.yml",
     ".github/workflows/nba-jabari616-cumulative-five-rings.yml",
+    ".github/workflows/nba-jabari616-frozen-v31-quality.yml",
     ".github/workflows/nba-jabari616-cumulative-play12.yml",
     ".github/workflows/nba-jabari616-five-ring-public-preview.yml",
     ".github/workflows/nba-jabari616-cumulative-receivers.yml",
