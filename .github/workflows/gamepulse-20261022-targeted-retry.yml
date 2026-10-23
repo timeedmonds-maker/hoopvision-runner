@@ -69,3 +69,12 @@ jobs:
           GAMEPULSE_PRIORITY_TIPOFF: ${{ matrix.tipoff }}
           GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
         run: node season_private_release.mjs
+
+      - name: Certify all thirteen Denver original SDK parts after successful genuine source recovery
+        if: matrix.game_id == '0022600007' && matrix.part == 12
+        working-directory: tools/licensed_feed
+        env:
+          GAMEPULSE_PRIORITY_FANOUT: 'false'
+          GAMEPULSE_PRIORITY_FINALIZE: 'true'
+          GAMEPULSE_FINAL_FASTLANE: 'true'
+        run: node season_private_release.mjs
