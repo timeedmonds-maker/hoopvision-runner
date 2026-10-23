@@ -33,7 +33,7 @@ concurrency:
 jobs:
   inspect-private-event-video:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 50
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       NBA_GAME_ID: ${{ inputs.game_id || '0022600091' }}
