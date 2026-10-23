@@ -43,6 +43,8 @@ jobs:
           - { game_id: '0022600085', tipoff: '2026-10-21T23:00:00Z', part: 5 }
           - { game_id: '0022600085', tipoff: '2026-10-21T23:00:00Z', part: 6 }
           - { game_id: '0022600085', tipoff: '2026-10-21T23:00:00Z', part: 7 }
+          - { game_id: '0022600007', tipoff: '2026-10-23T01:30:00Z', part: 11 }
+          - { game_id: '0022600007', tipoff: '2026-10-23T01:30:00Z', part: 12 }
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     steps:
