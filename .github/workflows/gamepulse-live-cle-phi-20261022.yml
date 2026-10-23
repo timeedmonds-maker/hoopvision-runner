@@ -84,3 +84,30 @@ jobs:
           GAMEPULSE_PRIORITY_ID: '0022600006'
           GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T23:00:00Z'
         run: node season_private_release.mjs
+  live-private-query-index:
+    if: always() && needs.verify.result == 'success' && github.ref == 'refs/heads/main'
+    needs: [verify, first-live-fanout, follow-live-source]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce all indexed sources and output stay private
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = "true"
+      - name: Refresh private live search snapshot of captured slots, official ONOFF scoring and published Blueprint xFG
+        run: |
+          set -euo pipefail
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/live_game_index.py?ref=main' --jq '.content' |
+            base64 -d > "$RUNNER_TEMP/live_game_index.py"
+          python3 -m py_compile "$RUNNER_TEMP/live_game_index.py"
+          python3 "$RUNNER_TEMP/live_game_index.py"
+      - name: Publish only generic private-search pointer
+        if: always()
+        run: echo 'Queryable source-qualified live snapshot, where available, is private in 104: gamepulse/live/games/0022600006.json' >> "$GITHUB_STEP_SUMMARY"
