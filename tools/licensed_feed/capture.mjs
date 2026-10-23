@@ -142,6 +142,12 @@ export async function capture(job,dir){
     for(const ms of missing){await seek(ms);await sleep(750);}
     await sleep(1600);await Promise.allSettled([...pending]);
    }
+   if(process.env.GAMEPULSE_DIAGNOSTIC_ONLY==='true')
+    console.log('SDK_NATIVE_SEEK_WINDOW_COVERAGE',JSON.stringify({
+     game_id:job.game_id,start_ms:job.start_ms,
+     native_windows_received:windows.filter(ms=>received.has(ms)).length,
+     expected_windows:windows.length
+    }));
    if(windows.some(ms=>!received.has(ms)))
     await recoverMissingWindows(job,received,session.observedUrl());
   }
