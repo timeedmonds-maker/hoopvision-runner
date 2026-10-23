@@ -16,14 +16,16 @@ jobs:
     timeout-minutes: 16
     strategy:
       fail-fast: false
-      max-parallel: 5
+      max-parallel: 6
       matrix:
         include:
           - { label: cavs-q1-positive, game: '0022600006', from: '1792711680000' }
-          - { label: cavs-q2-late, game: '0022600006', from: '1792714480000' }
-          - { label: cavs-q3-native, game: '0022600006', from: '1792716650000' }
-          - { label: cavs-q4-native, game: '0022600006', from: '1792718860000' }
-          - { label: denver-q3-historical-control, game: '0022600007', from: '1792725500000' }
+          - { label: denver-q1-official-action, game: '0022600007', from: '1792720245000' }
+          - { label: denver-q2-official-action, game: '0022600007', from: '1792721950000' }
+          - { label: denver-q3-early-official-action, game: '0022600007', from: '1792724860000' }
+          - { label: denver-q3-late-official-action, game: '0022600007', from: '1792726020000' }
+          - { label: denver-q4-official-action, game: '0022600007', from: '1792727060000' }
+          - { label: rockets-q3-official-action, game: '0022600091', from: '1792634450000' }
     steps:
       - uses: actions/checkout@v4
         with:
