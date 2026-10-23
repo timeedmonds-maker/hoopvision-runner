@@ -1,0 +1,106 @@
+name: Game Pulse complete-source handler touch aggregation
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-sdk-handler-aggregation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  original-sdk-handler-touches:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        game: ['0022600006', '0022600007']
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME_ID: ${{ matrix.game }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check public-private data boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Download and independently SHA-check all available original SDK slots
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/sdk-handler"
+          mkdir -p "$ROOT/sdk"
+          gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME_ID" > "$ROOT/release.json"
+          gh release download "gamepulse-sdk-$GAME_ID" --repo timeedmonds-maker/104 \
+            --pattern 'sdk-part-??.tar.gz' --dir "$ROOT/sdk" --clobber
+          python3 - <<'PY'
+          import hashlib,json,os,re
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"sdk-handler"
+          assets=json.loads((root/"release.json").read_text())["assets"]
+          expected={a["name"]:a.get("digest") for a in assets
+                    if re.fullmatch(r"sdk-part-\d{2}\.tar\.gz",a["name"])}
+          files=list((root/"sdk").glob("sdk-part-??.tar.gz"))
+          if not files or len(files)!=len(expected):raise ValueError("SOURCE_PART_MISMATCH")
+          for f in files:
+              digest="sha256:"+hashlib.sha256(f.read_bytes()).hexdigest()
+              if expected[f.name]!=digest:raise ValueError("SDK_PART_DIGEST_MISMATCH")
+          print("ORIGINAL_SDK_SHA_VERIFIED",len(files),"OF",13)
+          PY
+      - name: Aggregate unique source ball handlers across ORIGINAL SDK and save private index
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/sdk-handler"
+          for name in gamepulse_ball_control gamepulse_ball_dynamics; do
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$name.py?ref=main" --jq .content | base64 -d > "$ROOT/$name.py"
+          done
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/full_original_handler_touch_index.py?ref=main' --jq .content | base64 -d > "$ROOT/full_original_handler_touch_index.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json?ref=main' --jq .content | base64 -d > "$ROOT/catalog.json"
+          python3 -m py_compile "$ROOT/"*.py
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ["RUNNER_TEMP"])/"sdk-handler"
+          cat=json.loads((p/"catalog.json").read_text())
+          game_id=os.environ["GAME_ID"]
+          roster={}
+          for gid,g in cat.get("games",{}).items():
+              if gid != game_id:continue
+              for x in g.get("players",[]):
+                  if x.get("team_assignment")=="NBA_OFFICIAL_BOX_SCORE":
+                      roster[str(x["player_id"])]=x["team"]
+          (p/"roster.json").write_text(json.dumps(roster))
+          print("INDEPENDENT_OFFICIAL_CURRENT_GAME_ROSTER_ANCHORS",len(roster))
+          PY
+          PYTHONPATH="$ROOT" python3 "$ROOT/full_original_handler_touch_index.py" \
+            --game "$GAME_ID" --sdk-dir "$ROOT/sdk" --teams "$ROOT/roster.json" --output "$ROOT/handler_touches.json"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess,time
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])/"sdk-handler"
+          raw=(root/"handler_touches.json").read_bytes()
+          parsed=json.loads(raw)
+          assert parsed["schema"]=="gamepulse.original-sdk-ball-handler-touches.v1"
+          assert parsed["game_id"]==os.environ["GAME_ID"]
+          assert parsed["touch_count"]>0
+          assert sum(x["touches"] for x in parsed["by_player"])==parsed["touch_count"]
+          if len(raw)>950000:raise ValueError("PRIVATE_HANDLER_INDEX_TOO_LARGE_SPLIT_REQUIRED")
+          endpoint="repos/timeedmonds-maker/104/contents/gamepulse/live/original_sdk_handler_touches/"+os.environ["GAME_ID"]+".json"
+          for attempt in range(8):
+              old=subprocess.run(["gh","api",endpoint],capture_output=True,text=True)
+              entry={"branch":"main","message":"data(gamepulse): full original SDK ball-handler touch ledger "+os.environ["GAME_ID"],
+                     "content":base64.b64encode(raw).decode()}
+              if old.returncode==0:entry["sha"]=json.loads(old.stdout)["sha"]
+              updated=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],input=json.dumps(entry),capture_output=True,text=True)
+              if updated.returncode==0:break
+              if not any(k in updated.stderr for k in ("409","422","429","500","502","503")):
+                  raise RuntimeError("PRIVATE_HANDLER_INDEX_WRITE_FAILED")
+              time.sleep(2+attempt)
+          else:raise RuntimeError("PRIVATE_HANDLER_INDEX_CONFLICT_RETRIES_EXHAUSTED")
+          stored=base64.b64decode(subprocess.check_output(["gh","api",endpoint,"--jq",".content"]))
+          assert hashlib.sha256(raw).digest()==hashlib.sha256(stored).digest()
+          print("PRIVATE_ORIGINAL_SDK_HANDLER_TOUCH_LEDGER_READBACK_VERIFIED",parsed["touch_count"])
+          PY
