@@ -59,7 +59,7 @@ jobs:
           GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
         run: node season_private_release.mjs
   certify-full-cavs:
-    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.verify.result == 'success'
+    if: false # Durable scheduled-finalize only runs after source horizon matures.
     needs: [verify, first-live-fanout]
     runs-on: ubuntu-24.04
     timeout-minutes: 100
