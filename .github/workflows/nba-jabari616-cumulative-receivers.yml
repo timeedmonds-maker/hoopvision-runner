@@ -1,4 +1,4 @@
-name: Jabari 616 five received rings with original frozen green pulse
+name: NBA five receiver cumulative frozen ring output
 on:
   push:
     branches: [main]
