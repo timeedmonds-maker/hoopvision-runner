@@ -49,6 +49,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-live-cle-phi-20261022.yml",
     ".github/workflows/gamepulse-live-all-games.yml",
     "tools/licensed_feed/live_capture_cycle.mjs",
+    "tools/licensed_feed/live_capture_cycle.test.mjs",
     "tools/licensed_feed/live_discovery.mjs",
     "tools/licensed_feed/live_discovery.test.mjs",
     ".github/workflows/gamepulse-final-fastlane.yml",
