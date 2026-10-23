@@ -1,5 +1,5 @@
 name: Private Rockets Event 616 double-team FN diagnostic
-# Falsify temporal-window false negative for specific event, keep all source data PRIVATE.
+# Re-run expanded event616 proximity / ball release context from private source XYZ.
 on:
   push:
     branches: [main]
