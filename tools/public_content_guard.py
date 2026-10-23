@@ -25,6 +25,8 @@ ALLOWED_STATIC = {
     "tools/licensed_feed/capture.test.mjs",
     "tools/licensed_feed/github_private_release.mjs",
     "tools/licensed_feed/github_private_release.test.mjs",
+    "tools/licensed_feed/live_discovery.mjs",
+    "tools/licensed_feed/live_discovery.test.mjs",
     "tools/licensed_feed/index.html",
     "tools/licensed_feed/package.json",
     "tools/licensed_feed/season_core.mjs",
