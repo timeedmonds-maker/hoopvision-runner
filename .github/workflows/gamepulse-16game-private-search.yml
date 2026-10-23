@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           WORK="$RUNNER_TEMP/season-search"
           python3 - <<'PY'
-          import base64,hashlib,json,os,subprocess
+          import base64,hashlib,json,os,subprocess,time
           from pathlib import Path
           work=Path(os.environ['RUNNER_TEMP'])/'season-search'
           data=(work/'current.json').read_bytes()
@@ -86,9 +86,15 @@ jobs:
                                    input=json.dumps(payload),capture_output=True,text=True)
               if write.returncode==0:break
           else:raise RuntimeError('PRIVATE_INDEX_UPDATE_CONFLICT')
-          remote=base64.b64decode(api(endpoint)['content'])
-          if remote!=data or hashlib.sha256(remote).digest()!=hashlib.sha256(data).digest():
-              raise RuntimeError('PRIVATE_INDEX_SHA256_READBACK_MISMATCH')
+          # GitHub Contents GET can briefly return a stale cached version after
+          # the successful compare-and-swap PUT. Do not report false corruption.
+          for poll in range(10):
+              remote=base64.b64decode(api(endpoint)['content'])
+              if remote==data and hashlib.sha256(remote).digest()==hashlib.sha256(data).digest():
+                  break
+              time.sleep(2)
+          else:
+              raise RuntimeError('PRIVATE_INDEX_SHA256_READBACK_MISMATCH_AFTER_RETRIES')
           frozen=json.loads(base64.b64decode(api(
               'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json')['content']))
           doc=json.loads(remote)
