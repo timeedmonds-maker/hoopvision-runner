@@ -122,7 +122,14 @@ jobs:
           set -euo pipefail
           ROOT="$RUNNER_TEMP/private-live-touch"
           test -s "$ROOT/tracking_touch_reconstruction.py"
-          python3 "$ROOT/tracking_touch_reconstruction.py" --game "$GAME_ID" --input "$ROOT" --output "$ROOT/tracking_touches.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json?ref=main' --jq .content | base64 -d > "$ROOT/verified-prior-catalog.json"
+          if curl --fail --silent --show-error --retry 2 --max-time 25 \
+                 'https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json' -o "$ROOT/current-schedule.json"; then
+            python3 "$ROOT/tracking_touch_reconstruction.py" --game "$GAME_ID" --input "$ROOT" --output "$ROOT/tracking_touches.json" \
+              --catalog "$ROOT/verified-prior-catalog.json" --schedule "$ROOT/current-schedule.json"
+          else
+            python3 "$ROOT/tracking_touch_reconstruction.py" --game "$GAME_ID" --input "$ROOT" --output "$ROOT/tracking_touches.json"
+          fi
           python3 - <<'PY'
           import base64,json,os,subprocess
           from pathlib import Path
