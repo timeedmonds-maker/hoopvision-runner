@@ -55,6 +55,7 @@ jobs:
           set -euo pipefail
           WORK="$RUNNER_TEMP/season-search"
           python3 "$WORK/season16.py" search --input "$WORK/current.json" --kind native-touches --summary-only
+          python3 "$WORK/season16.py" search --input "$WORK/current.json" --kind official-events --summary-only
       - name: Publish only in private 104 with byte and SHA readback
         shell: bash
         run: |
@@ -94,6 +95,8 @@ jobs:
                    for gid,row in frozen['games'].items() if gid not in ('0022600006','0022600007')):
               raise RuntimeError('ORIGINAL_14_PROVENANCE_NOT_IDENTICAL')
           for gid in ('0022600006','0022600007'):
+              if doc['games'][gid].get('official_pbp_action_count',0)<300:
+                  raise RuntimeError('NBA_OFFICIAL_EVENT_QA_NOT_JOINED')
               src=doc['games'][gid]['live_source_evidence']
               for ref in src.values():
                   observed=base64.b64decode(api('repos/timeedmonds-maker/104/contents/'+ref['path'])['content'])
