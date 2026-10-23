@@ -36,7 +36,7 @@ jobs:
     if: needs.discover.result == 'success'
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 16
       matrix:
         game: ${{ fromJSON(needs.discover.outputs.games) }}
     concurrency:
