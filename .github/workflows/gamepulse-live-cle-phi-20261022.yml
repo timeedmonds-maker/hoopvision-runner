@@ -131,9 +131,13 @@ jobs:
           import os
           now=datetime.now(timezone.utc)
           ready=datetime.fromisoformat('2026-10-23T04:15:00+00:00')
+          import subprocess
+          complete=subprocess.run(['gh','release','view','gamepulse-sdk-0022600006','--repo','timeedmonds-maker/104','--json','assets','--jq','.assets[].name'],capture_output=True,text=True,timeout=30)
+          already=complete.returncode==0 and 'sdk-COMPLETE.json' in complete.stdout.splitlines()
+          due=now>=ready and not already
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:
-              print('due='+('true' if now>=ready else 'false'),file=f)
-          print('CAVS_FULLGAME_WINDOW_MATURE',now>=ready)
+              print('due='+('true' if due else 'false'),file=f)
+          print('CAVS_FULLGAME_WINDOW_MATURE',now>=ready,'ALREADY_COMPLETE',already)
           PY
       - name: Install authenticated SDK without lifecycle scripts
         if: steps.due.outputs.due == 'true'
