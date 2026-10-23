@@ -31,5 +31,5 @@ jobs:
           ROOT="$(mktemp -d)"
           trap 'rm -rf "$ROOT"' EXIT
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/video_ring_source_fallback.py?ref=main' --jq .content | base64 -d > "$ROOT/runner.py"
-          python3 -m pip install --disable-pip-version-check --quiet opencv-python-headless==4.10.0.84 'numpy<2' yt-dlp==2026.10.22
+          python3 -m pip install --disable-pip-version-check --quiet opencv-python-headless==4.10.0.84 'numpy<2' yt-dlp
           python3 "$ROOT/runner.py"
