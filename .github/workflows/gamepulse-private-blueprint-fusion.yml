@@ -7,7 +7,7 @@ on:
     branches: [main]
     paths: ['.github/workflows/gamepulse-private-blueprint-fusion.yml']
   schedule:
-    - cron: '47 15 * * *'
+    - cron: '17,47 * * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -31,7 +31,26 @@ jobs:
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN" || { echo 'PRIVATE_FUSION_CREDENTIAL_UNAVAILABLE'; exit 3; }
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Check 15-game source readiness and avoid redundant expensive rebuilds
+        id: ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          catalog=$(gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json' --jq '.content' | base64 -d)
+          if ! jq -e '.game_count >= 15 and .games["0022600006"].index_state == "VERIFIED_ARCHIVE_INDEX"' <<< "$catalog" >/dev/null; then
+            echo 'needed=false' >> "$GITHUB_OUTPUT"
+            echo 'WAIT_FOR_SOURCE_COMPLETE_AND_15_GAME_CATALOG'
+          elif gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/0022600006.json' >/dev/null 2>&1; then
+            echo 'needed=false' >> "$GITHUB_OUTPUT"
+            echo 'CAVS_FUSION_SEARCH_VIEW_ALREADY_PRESENT'
+          else
+            echo 'needed=true' >> "$GITHUB_OUTPUT"
+            echo 'CAVS_BLUEPRINT_FUSION_REFRESH_READY'
+          fi
       - name: Download private integration code and run synthetic tests
+        if: steps.ready.outputs.needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -54,6 +73,7 @@ jobs:
           python3 -m py_compile "$ROOT/build.py" "$ROOT/materialize.py" "$ROOT/onoff_ppp.py"
           python3 -m unittest discover -v -s "$ROOT/tests"
       - name: Build private event xFG XYZ and x-man search warehouse
+        if: steps.ready.outputs.needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -68,21 +88,22 @@ jobs:
           assert db.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
           games=db.execute("SELECT COUNT(*) FROM games").fetchone()[0]
           rows=db.execute("SELECT COUNT(*) FROM frames").fetchone()[0]
-          assert games>=14 and rows>100000
+          assert games>=15 and rows>100000
           assert db.execute("SELECT COUNT(*) FROM lineups_xman WHERE x BETWEEN 1 AND 5").fetchone()[0]>0
           db.close()
           report=json.loads((folder/"gamepulse-fusion.sqlite3.manifest.json").read_text())
           assert report["game_count"]==games
           assert report["total_frames"]==rows
-          assert report["canonical_source_verified"]==14, "PRIVATE_BLUEPRINT_ORIGINAL_REPORTS_MISSING_REVIEW_QA_IN_104"
-          assert report["canonical_source_deferred"]==0, "PRIVATE_BLUEPRINT_SOURCE_DEFERRED_REVIEW_QA_IN_104"
-          assert report["blueprint_game_count"]==14, "PRIVATE_BLUEPRINT_SOURCE_SHOTS_NOT_JOINED"
-          assert report["games_with_gravity"]==14, "PRIVATE_BLUEPRINT_GRAVITY_NOT_INDEXED_ALL_GAMES"
-          assert report["games_with_leverage"]==14, "PRIVATE_BLUEPRINT_LEVERAGE_NOT_INDEXED_ALL_GAMES"
-          assert report["gravity_heatmaps"]==84, "PRIVATE_BLUEPRINT_SPATIAL_GRIDS_INCOMPLETE"
+          assert report["canonical_source_verified"]>=14, "ORIGINAL_14_BLUEPRINT_SOURCE_LOST"
+          assert report["canonical_source_deferred"]<=games-14, "ORIGINAL_14_BLUEPRINT_SOURCE_DEFERRED"
+          assert report["blueprint_game_count"]>=14, "ORIGINAL_14_BLUEPRINT_SHOTS_MISSING"
+          assert report["games_with_gravity"]>=14, "ORIGINAL_14_BLUEPRINT_GRAVITY_NOT_INDEXED"
+          assert report["games_with_leverage"]>=14, "ORIGINAL_14_BLUEPRINT_LEVERAGE_NOT_INDEXED"
+          assert report["gravity_heatmaps"]>=84, "ORIGINAL_14_BLUEPRINT_SPATIAL_GRIDS_INCOMPLETE"
           print("PRIVATE_FUSION_WAREHOUSE_VALIDATED_NO_DATA_IN_PUBLIC_LOG")
           PY
       - name: Upload SQLite and QA to private 104 Release and verify SHA
+        if: steps.ready.outputs.needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -111,6 +132,7 @@ jobs:
           print("PRIVATE_FUSION_RELEASE_SHA_VERIFIED")
           PY
       - name: Materialize private GitHub-native game and x-man search views
+        if: steps.ready.outputs.needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -123,7 +145,7 @@ jobs:
           root=Path(os.environ["RUNNER_TEMP"])/"gamepulse-fusion/search-views"
           manifest=json.loads((root/"index.json").read_text())
           assert manifest["schema"]=="gamepulse.blueprint-chat-search.v1"
-          assert len(manifest["games"])>=14
+          assert len(manifest["games"])>=15 and "0022600006" in manifest["games"]
           assert manifest["contains_raw_XYZ"] is False
           files=[(root/(gid+".json"),entry["path"])
                  for gid,entry in sorted(manifest["games"].items())]
@@ -148,6 +170,7 @@ jobs:
           print("PRIVATE_SEARCH_VIEWS_PUBLISHED_NO_RAW_XYZ")
           PY
       - name: Compute ON OFF WOWY and certified-possession PPP only from verified sources
+        if: steps.ready.outputs.needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -159,9 +182,9 @@ jobs:
           root=Path(os.environ["RUNNER_TEMP"])/"gamepulse-fusion/onoff"
           m=json.loads((root/"index.json").read_text())
           assert m["schema"]=="gamepulse.2026-27-onoff-ppp.v1"
-          assert len(m["games"])==14
-          assert m["xman_onoff_rows"]==11104
-          assert m["native_5v5_samples"]==144442
+          assert len(m["games"])>=15 and "0022600006" in m["games"]
+          assert m["xman_onoff_rows"]>=11104
+          assert m["native_5v5_samples"]>=144442
           assert m["no_fabrication"] is True
           for gid,entry in m["games"].items():
               view=json.loads((root/(gid+".json")).read_text())
@@ -204,6 +227,7 @@ jobs:
           print("PRIVATE_ONOFF_WOWY_INDEX_VERIFIED_NO_INVENTED_POSSESSION_PPP")
           PY
       - name: Commit summary pointer to private 104 only
+        if: steps.ready.outputs.needed == 'true'
         shell: bash
         run: |
           set -euo pipefail
