@@ -267,3 +267,134 @@ jobs:
               summary.player_frames,summary.ball_frames);
           } finally{rmSync(work,{recursive:true,force:true});}
           NODE
+
+  cavs-clean-room-scratch:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 tools/public_content_guard.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the trusted licensed feed SDK
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Fresh independent Q1 positive control against Q3 and Q4 source gaps
+        working-directory: tools/licensed_feed
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import {mkdtempSync,rmSync,writeFileSync,readFileSync,copyFileSync} from 'node:fs';
+          import {tmpdir} from 'node:os';
+          import {join} from 'node:path';
+          import {spawnSync} from 'node:child_process';
+          import {createHash} from 'node:crypto';
+          import {planGame} from './season_core.mjs';
+          const game='0022600006', start=Date.parse('2026-10-22T23:00:00Z');
+          const tag='gamepulse-cavs-cleanroom-0022600006',token=process.env.GH_TOKEN;
+          if(!token||token.length<30||process.env.GITHUB_REPOSITORY!=='timeedmonds-maker/hoopvision-runner'
+            ||process.env.GITHUB_EVENT_NAME!=='push'||process.env.GITHUB_REF!=='refs/heads/main')
+            throw Error('unauthorized_clean_room');
+          delete process.env.GH_TOKEN;
+          const {capture}=await import('./capture.mjs');
+          const gh=args=>spawnSync('gh',args,{encoding:'utf8',
+            env:{...process.env,GH_TOKEN:token},timeout:120000,maxBuffer:2*1024*1024});
+          if(gh(['release','view',tag,'--repo','timeedmonds-maker/104']).status!==0){
+            const r=gh(['release','create',tag,'--repo','timeedmonds-maker/104',
+              '--title',tag,'--notes','Completely independent clean-room historical SDK re-collection; original release untouched',
+              '--latest=false']);
+            if(r.status!==0&&gh(['release','view',tag,'--repo','timeedmonds-maker/104']).status!==0)
+              throw Error('private_clean_room_release_failed');
+          }
+          const plan=planGame({id:game,start});
+          const samples=[
+            {label:'q1-positive-control',ts:Date.parse('2026-10-22T23:28:00Z')},
+            {label:'q3-fresh',ts:Date.parse('2026-10-23T00:50:50Z')},
+            {label:'q4-fresh',ts:Date.parse('2026-10-23T01:27:40Z')}
+          ];
+          const evidence=[];
+          for(const sample of samples){
+            const part=Math.floor((sample.ts-plan.begin)/(300*5000));
+            const path=mkdtempSync(join(tmpdir(),'cavs-scratch-'));
+            const job={...plan.parts[part],start_ms:sample.ts,count:12};
+            let item={label:sample.label,source_start_utc_ms:sample.ts,part,
+              status:'SOURCE_UNAVAILABLE',frames_with_players:0,frames_with_ball:0,
+              reused_source_assets:false};
+            try{
+              process.env.GAMEPULSE_FINAL_FASTLANE='true';
+              await capture(job,path);
+              const m=JSON.parse(readFileSync(join(path,'manifest.json'),'utf8'));
+              if(m.imputed!==false||m.observed!==true||m.successful_windows!==12)
+                throw Error('invalid_authentic_sdk_manifest');
+              item={...item,status:'SOURCE_OBSERVED',source_windows:m.successful_windows,
+                frames_with_players:m.frames_with_players,
+                frames_with_ball:m.frames_with_ball,empty_windows:m.empty_windows,
+                unique_keyframes:m.unique_keyframes};
+            }catch(e){
+              item.error_code=/^[a-z_]+$/.test(e.message||'')?e.message:'source_unavailable';
+            }finally{
+              delete process.env.GAMEPULSE_FINAL_FASTLANE;
+              rmSync(path,{recursive:true,force:true});
+            }
+            evidence.push(item);
+            console.log('CAVS_CLEANROOM_SOURCE_SUMMARY',item.label,item.status,
+              item.frames_with_players,item.frames_with_ball);
+          }
+          const good=evidence.every(x=>x.status==='SOURCE_OBSERVED'
+            &&x.frames_with_players>0&&x.frames_with_ball>0);
+          const evidenceDir=mkdtempSync(join(tmpdir(),'cavs-scratch-out-'));
+          const report={schema:'gamepulse.cavs-cleanroom-source-diagnostic.v1',
+            game_id:game,method:'NEW_SDK_SESSIONS_NEW_TEMP_DIRECT_PROVIDER_WINDOWS',
+            reused_original_archive:false,samples:evidence,
+            genuine_second_half_source_restored:good,
+            complete_game_tracking_certified:false,
+            next_action:good?'BUILD_FULL_FRESH_SDK_CANDIDATE'
+              :'DO_NOT_DELETE_ORIGINAL_SOURCE_PROVIDER_SECOND_HALF_STILL_ABSENT'};
+          const out=join(evidenceDir,'cleanroom-source-diagnostic.json');
+          try{
+            writeFileSync(out,JSON.stringify(report)+'\n');
+            if(gh(['release','upload',tag,out,'--repo','timeedmonds-maker/104','--clobber']).status!==0)
+              throw Error('private_source_diagnostic_publish_failed');
+            const listing=gh(['api','repos/timeedmonds-maker/104/releases/tags/'+tag]);
+            if(listing.status!==0)throw Error('source_diagnostic_readback_failed');
+            const asset=JSON.parse(listing.stdout).assets.find(x=>x.name==='cleanroom-source-diagnostic.json');
+            if(asset?.digest!=='sha256:'+createHash('sha256').update(readFileSync(out)).digest('hex'))
+              throw Error('source_diagnostic_sha_mismatch');
+            console.log('CAVS_CLEANROOM_SHA_VERIFIED',good?'SECOND_HALF_RESTORED':'SECOND_HALF_UNAVAILABLE');
+          }finally{rmSync(evidenceDir,{recursive:true,force:true});}
+          if(!good)return;
+          for(const j of plan.parts){
+            const work=mkdtempSync(join(tmpdir(),'cavs-full-fresh-'));
+            try{
+              process.env.GAMEPULSE_FINAL_FASTLANE='true';
+              await capture(j,work);
+              const m=JSON.parse(readFileSync(join(work,'manifest.json'),'utf8'));
+              if(m.game_id!==game||m.part!==j.part||m.successful_windows!==j.count
+                ||m.imputed!==false||m.observed!==true)
+                throw Error('fresh_part_source_validation_failed');
+              const name='sdk-part-'+String(j.part).padStart(2,'0')+'.tar.gz';
+              const target=join(work,name);
+              copyFileSync(join(work,'checkpoint.tar.gz'),target);
+              if(gh(['release','upload',tag,target,'--repo','timeedmonds-maker/104','--clobber']).status!==0)
+                throw Error('fresh_source_archive_upload_failed');
+              const release=gh(['api','repos/timeedmonds-maker/104/releases/tags/'+tag]);
+              if(release.status!==0)throw Error('fresh_source_asset_check_failed');
+              const digest=JSON.parse(release.stdout).assets.find(x=>x.name===name)?.digest;
+              if(digest!=='sha256:'+createHash('sha256').update(readFileSync(target)).digest('hex'))
+                throw Error('fresh_source_sha256_mismatch');
+              console.log('CAVS_CLEANROOM_NEW_PART_VERIFIED',j.part,
+                m.frames_with_players,m.frames_with_ball);
+            }finally{delete process.env.GAMEPULSE_FINAL_FASTLANE;
+              rmSync(work,{recursive:true,force:true});}
+          }
+          console.log('CAVS_CLEANROOM_ALL_ORIGINAL_PARTS_RECAPTURED_PENDING_Q1_Q4_INDEPENDENT_QA');
+          NODE
