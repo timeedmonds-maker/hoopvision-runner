@@ -1,4 +1,5 @@
 name: Private Rockets Sengun 4ft double defender v2 QA
+# Retry after private source v2 function-name correction.
 # Derive bounded two-defender proximity after source Sengun touches from original private XYZ.
 on:
   push:
