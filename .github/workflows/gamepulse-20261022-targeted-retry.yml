@@ -104,15 +104,28 @@ jobs:
           persist-credentials: false
       - name: Ensure no private data is exposed publicly
         run: python3 tools/public_content_guard.py
+      - name: Limit scheduled retries to 23–24 October 2026 UTC
+        id: horizon
+        shell: bash
+        run: |
+          today="$(date -u +%Y-%m-%d)"
+          if [ "${{ github.event_name }}" = 'push' ] || [ "$today" = '2026-10-23' ] || [ "$today" = '2026-10-24' ]; then
+            echo 'eligible=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'eligible=false' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-node@v4
+        if: steps.horizon.outputs.eligible == 'true'
         with:
           node-version: '22'
       - name: Install licensed SDK without lifecycle scripts
+        if: steps.horizon.outputs.eligible == 'true'
         working-directory: tools/licensed_feed
         run: |
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
       - name: Probe real game-action SDK windows and privately preserve evidence
+        if: steps.horizon.outputs.eligible == 'true'
         working-directory: tools/licensed_feed
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
