@@ -1,4 +1,5 @@
 name: Integrated Pulse Cavs native SDK seek diagnostic
+# Approved metadata-only isolation run; no raw frames leave ephemeral GitHub runner.
 on:
   push:
     branches: [main]
