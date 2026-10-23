@@ -9,6 +9,22 @@ on:
     branches: [main]
     paths: ['.github/workflows/nba-ring-only-private-pilot.yml']
   workflow_dispatch:
+    inputs:
+      game_id:
+        description: NBA game ID
+        required: true
+        type: string
+        default: '0022600091'
+      event_num:
+        description: NBA shot event number
+        required: true
+        type: string
+        default: '616'
+      player_id:
+        description: Exact NBA shooter player ID
+        required: true
+        type: string
+        default: '1631095'
 permissions:
   contents: read
 concurrency:
@@ -20,6 +36,9 @@ jobs:
     timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      NBA_GAME_ID: ${{ inputs.game_id || '0022600091' }}
+      NBA_EVENT_NUM: ${{ inputs.event_num || '616' }}
+      NBA_PLAYER_ID: ${{ inputs.player_id || '1631095' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -48,7 +67,7 @@ jobs:
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
           ROOT="$(mktemp -d)"
           trap 'rm -rf "$ROOT"' EXIT
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_hls_ingest_616.py?ref=main' --jq .content | base64 -d > "$ROOT/runner.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_hls_ingest_event.py?ref=main' --jq .content | base64 -d > "$ROOT/runner.py"
           sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg >/dev/null
           python3 -m pip install --disable-pip-version-check --quiet opencv-python-headless==4.10.0.84 'numpy<2'
           mkdir -p "$ROOT/nba/qa"
@@ -59,18 +78,19 @@ jobs:
           python3 "$ROOT/runner.py" --selftest
           python3 "$ROOT/runner.py"
           mkdir -p "$ROOT/media"
-          gh release download clip-lab-hls-0022600091-616 --repo timeedmonds-maker/104 --dir "$ROOT/media" --pattern 'event616-broadcast.mp4' --pattern 'manifest.json'
+          gh release download "clip-lab-hls-${NBA_GAME_ID}-${NBA_EVENT_NUM}" --repo timeedmonds-maker/104 --dir "$ROOT/media" --pattern "event${NBA_EVENT_NUM}-broadcast.mp4" --pattern "manifest.json"
           export VIDEO_TEST_ROOT="$ROOT/media"
           PYTHONPATH="$ROOT/nba" python3 - <<'PY'
           import os,json
           from pathlib import Path
           from nba_hls_pulse_release_stage import validate_release_handoff
           root=Path(os.environ["VIDEO_TEST_ROOT"])
-          media=(root/"event616-broadcast.mp4").read_bytes()
+          event=int(os.environ["NBA_EVENT_NUM"])
+          media=(root/f"event{event}-broadcast.mp4").read_bytes()
           manifest=json.loads((root/"manifest.json").read_text())
           receipt=validate_release_handoff(media,manifest,
-              expected_game="0022600091",expected_event=616,expected_player=1631095)
+              expected_game=os.environ["NBA_GAME_ID"],expected_event=event,expected_player=int(os.environ["NBA_PLAYER_ID"]))
           assert receipt["analysis_dispatched"] is False
           assert receipt["pulse_assisted_processing_ready"] is False
-          print("REAL_JABARI_616_MP4_NATIVE_CLIPLAB_SHA_AND_INTAKE_READY")
+          print("REAL_NBA_EVENT_MP4_NATIVE_CLIPLAB_SHA_AND_INTAKE_READY")
           PY
