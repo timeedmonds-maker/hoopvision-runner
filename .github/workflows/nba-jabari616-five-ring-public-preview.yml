@@ -1,7 +1,7 @@
 name: Public playable Jabari #616 cumulative ring video preview
 on:
   workflow_run:
-    workflows: ["Jabari616 original locked v3.1 five-player ring quality rebuild"]
+    workflows: ["Jabari616 original locked v3.1 five-player ring quality rebuild", "Jabari616 frozen v3.1 efficient complete five-player ring master"]
     types: [completed]
   workflow_dispatch:
 permissions:
@@ -34,9 +34,17 @@ jobs:
           test -n "${PRIVATE_104_TOKEN:-}" || exit 3
           ROOT="$(mktemp -d)"
           trap 'rm -rf "$ROOT"' EXIT
-          SOURCE_TAG=clip-lab-jabari616-cumulative-v31-original-ring-visuals
-          SOURCE_VIDEO=jabari616-five-cumulative-rings-frozen-v31.mp4
+          if [[ "${{ github.event.workflow_run.name }}" == "Jabari616 frozen v3.1 efficient complete five-player ring master" ]]; then
+            SOURCE_TAG=clip-lab-jabari616-cumulative-v31-efficient-ring-master
+            SOURCE_VIDEO=jabari616-five-cumulative-rings-frozen-v31-efficient.mp4
+          else
+            SOURCE_TAG=clip-lab-jabari616-cumulative-v31-original-ring-visuals
+            SOURCE_VIDEO=jabari616-five-cumulative-rings-frozen-v31.mp4
+          fi
           GH_TOKEN="$PRIVATE_104_TOKEN" gh release download "$SOURCE_TAG" --repo timeedmonds-maker/104 --dir "$ROOT"
+          if [[ "$SOURCE_VIDEO" != "jabari616-five-cumulative-rings-frozen-v31.mp4" ]]; then
+            cp "$ROOT/$SOURCE_VIDEO" "$ROOT/jabari616-five-cumulative-rings-frozen-v31.mp4"
+          fi
           export ROOT
           python3 - <<'PY'
           import hashlib,json,os
