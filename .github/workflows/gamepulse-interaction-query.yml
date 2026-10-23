@@ -33,7 +33,7 @@ jobs:
             base64 -d > "$ROOT/interaction_search_2026.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_interaction_search_2026.py?ref=main' --jq .content |
             base64 -d > "$ROOT/tests/test_interaction_search_2026.py"
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/0022600091.interactions.json?ref=main' --jq .content |
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/interactions/0022600091.json?ref=main' --jq .content |
             base64 -d > "$ROOT/games/0022600091.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/video/index.json?ref=main' --jq .content |
             base64 -d > "$ROOT/videos.json"
