@@ -108,6 +108,33 @@ jobs:
             base64 -d > "$RUNNER_TEMP/live_game_index.py"
           python3 -m py_compile "$RUNNER_TEMP/live_game_index.py"
           python3 "$RUNNER_TEMP/live_game_index.py"
+      - name: Validate searchable native 1-5 man, ESPN scoring on-off and xFG source abstention
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/search_live.py?ref=main' --jq '.content' |
+            base64 -d > "$RUNNER_TEMP/search_live.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/games/0022600006.json?ref=main' --jq '.content' |
+            base64 -d > "$RUNNER_TEMP/live.json"
+          python3 -m py_compile "$RUNNER_TEMP/search_live.py"
+          python3 "$RUNNER_TEMP/search_live.py" --index "$RUNNER_TEMP/live.json" --kind lineups --team CLE --x 2 --players "Donovan Mitchell,Evan Mobley" > "$RUNNER_TEMP/lineups.json"
+          python3 "$RUNNER_TEMP/search_live.py" --index "$RUNNER_TEMP/live.json" --kind onoff --player "Donovan Mitchell" > "$RUNNER_TEMP/onoff.json"
+          python3 "$RUNNER_TEMP/search_live.py" --index "$RUNNER_TEMP/live.json" --kind xfg --team CLE > "$RUNNER_TEMP/xfg.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          tmp=Path(os.environ['RUNNER_TEMP'])
+          lineup=json.loads((tmp/'lineups.json').read_text())
+          onoff=json.loads((tmp/'onoff.json').read_text())
+          xfg=json.loads((tmp/'xfg.json').read_text())
+          assert lineup['filtered_total']>0
+          assert len(lineup['rows'])>0
+          assert len(onoff['rows'])==1
+          assert onoff['rows'][0]['net_rating_on'] is None
+          assert xfg['source_status'] in ('NBA_NATIVE_BLUEPRINT_PUBLISHED','NO_PUBLISHED_XFG','NOT_PUBLISHED','REPORT_NOT_READY')
+          assert all('native_blueprint_xfg' in r for r in xfg['rows'])
+          print('PRIVATE_LIVE_QUERY_CONTRACT_TESTS_OK_NO_PLAYER_DATA_PUBLIC')
+          PY
       - name: Publish only generic private-search pointer
         if: always()
         run: |
