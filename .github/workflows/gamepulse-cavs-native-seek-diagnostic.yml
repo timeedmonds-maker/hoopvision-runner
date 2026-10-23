@@ -19,12 +19,11 @@ jobs:
       max-parallel: 6
       matrix:
         include:
-          - { label: cavs-q1-positive, game: '0022600006', tipoff: '2026-10-22T23:00:00Z', from: '1792711680000' }
-          - { label: cavs-q2-late, game: '0022600006', tipoff: '2026-10-22T23:00:00Z', from: '1792714480000' }
-          - { label: cavs-q3-active, game: '0022600006', tipoff: '2026-10-22T23:00:00Z', from: '1792716600000' }
-          - { label: cavs-q4-active, game: '0022600006', tipoff: '2026-10-22T23:00:00Z', from: '1792718340000' }
-          - { label: denver-q3-active-control, game: '0022600007', tipoff: '2026-10-23T01:30:00Z', from: '1792725600000' }
-          - { label: denver-q4-active-control, game: '0022600007', tipoff: '2026-10-23T01:30:00Z', from: '1792728900000' }
+          - { label: cavs-q1-positive, game: '0022600006', from: '1792711680000' }
+          - { label: cavs-q3-native, game: '0022600006', from: '1792716650000' }
+          - { label: cavs-q4-native, game: '0022600006', from: '1792718860000' }
+          - { label: denver-q3-official-action, game: '0022600007', from: '1792726020000' }
+          - { label: rockets-q3-official-action, game: '0022600091', from: '1792634450000' }
     steps:
       - uses: actions/checkout@v4
         with:
