@@ -86,7 +86,7 @@ jobs:
         run: node season_private_release.mjs
   quarter-native-report:
     if: always() && needs.verify.result == 'success' && github.ref == 'refs/heads/main'
-    needs: [verify, first-live-fanout]
+    needs: verify
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
