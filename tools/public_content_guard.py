@@ -62,6 +62,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-private-search-index.yml",
     ".github/workflows/gamepulse-16game-private-search.yml",
     ".github/workflows/gamepulse-denver-sdk-recovery.yml",
+    ".github/workflows/gamepulse-denver-official-pbp.yml",
     ".github/workflows/gamepulse-private-blueprint-fusion.yml",
     ".github/workflows/gamepulse-2026-source-evidence.yml",
     ".github/workflows/gamepulse-official-onoff-qa.yml",

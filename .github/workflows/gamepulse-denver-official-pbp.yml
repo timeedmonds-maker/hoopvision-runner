@@ -1,0 +1,50 @@
+name: Game Pulse Denver independently certified official NBA PBP
+# Fetch current official NBA event clocks and boxscore; private indexes only.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-denver-official-pbp.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce no public private-data output
+        run: python3 tools/public_content_guard.py
+      - name: Load trusted strict official validator into ephemeral runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || exit 3
+          ROOT="$RUNNER_TEMP/nba-official"
+          mkdir -p "$ROOT"
+          for module in official_pbp_timestamps_2026 official_pbp_allgames_2026; do
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$module.py?ref=main" --jq .content | base64 -d > "$ROOT/$module.py"
+          done
+          python3 -m py_compile "$ROOT/"*.py
+      - name: Verify exact NBA official game clock, timeActual, final score and SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          PYTHONPATH="$RUNNER_TEMP/nba-official" python3 - <<'PY'
+          from official_pbp_allgames_2026 import certify_game
+          from official_pbp_timestamps_2026 import publish
+          game="0022600007"
+          result=certify_game(game,["DEN","OKC"])
+          if result["qa"]["nba_action_records"]<300:
+              raise RuntimeError("OFFICIAL_PBP_INCOMPLETE")
+          if result["qa"]["nba_actions_with_formal_utc"]==0:
+              raise RuntimeError("OFFICIAL_PBP_UTC_UNAVAILABLE")
+          if not result["qa"]["nba_score_reconciled_to_boxscore"]:
+              raise RuntimeError("OFFICIAL_PBP_FINAL_SCORE_NOT_RECONCILED")
+          publication=publish(result,"gamepulse/fusion/official_pbp_timing/games/"+game+".json")
+          print("PRIVATE_OFFICIAL_PBP_VERIFIED",result["qa"]["nba_action_records"],publication)
+          PY
