@@ -132,7 +132,7 @@ jobs:
           now=datetime.now(timezone.utc)
           ready=datetime.fromisoformat('2026-10-23T04:15:00+00:00')
           with open(os.environ['GITHUB_OUTPUT'],'a') as f:
-              f.write('due='+('true' if now>=ready else 'false')+'\\n')
+              print('due='+('true' if now>=ready else 'false'),file=f)
           print('CAVS_FULLGAME_WINDOW_MATURE',now>=ready)
           PY
       - name: Install authenticated SDK without lifecycle scripts
