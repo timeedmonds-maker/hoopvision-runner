@@ -7,6 +7,7 @@ on:
   # Bounded postgame checks for provider backfill, no fabricated coordinates.
   schedule:
     - cron: '17 9,13,17,21 23-24 10 *'
+    - cron: '17 13 25-31 10 *'
   pull_request:
     paths:
       - '.github/workflows/gamepulse-20261022-targeted-retry.yml'
@@ -104,12 +105,12 @@ jobs:
           persist-credentials: false
       - name: Ensure no private data is exposed publicly
         run: python3 tools/public_content_guard.py
-      - name: Limit scheduled retries to 23–24 October 2026 UTC
+      - name: Limit scheduled retries to 23–31 October 2026 UTC
         id: horizon
         shell: bash
         run: |
           today="$(date -u +%Y-%m-%d)"
-          if [ "${{ github.event_name }}" = 'push' ] || [ "$today" = '2026-10-23' ] || [ "$today" = '2026-10-24' ]; then
+          if [ "${{ github.event_name }}" = 'push' ] || [[ "$today" > '2026-10-22' && "$today" < '2026-11-01' ]]; then
             echo 'eligible=true' >> "$GITHUB_OUTPUT"
           else
             echo 'eligible=false' >> "$GITHUB_OUTPUT"
@@ -269,7 +270,7 @@ jobs:
           NODE
 
   cavs-clean-room-scratch:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
     needs: preflight
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -302,7 +303,7 @@ jobs:
           const game='0022600006', start=Date.parse('2026-10-22T23:00:00Z');
           const tag='gamepulse-cavs-cleanroom-0022600006',token=process.env.GH_TOKEN;
           if(!token||token.length<30||process.env.GITHUB_REPOSITORY!=='timeedmonds-maker/hoopvision-runner'
-            ||process.env.GITHUB_EVENT_NAME!=='push'||process.env.GITHUB_REF!=='refs/heads/main')
+            ||!['push','schedule'].includes(process.env.GITHUB_EVENT_NAME)||process.env.GITHUB_REF!=='refs/heads/main')
             throw Error('unauthorized_clean_room');
           delete process.env.GH_TOKEN;
           const {capture}=await import('./capture.mjs');
