@@ -23,7 +23,7 @@ jobs:
           test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_ACCESS_UNAVAILABLE'; exit 3; }
           ROOT="$RUNNER_TEMP/sengun-hub"
           mkdir -p "$ROOT/sdk"
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/durant_halfcourt_context_qa_2026.py?ref=main' --jq .content | base64 -d > "$ROOT/qa.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/durant_halfcourt_context_and_attack_end_v2_2026.py?ref=main' --jq .content | base64 -d > "$ROOT/qa.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/interactions/0022600091.json?ref=main' --jq .content | base64 -d > "$ROOT/interactions.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/0022600091.json?ref=main' --jq .content | base64 -d > "$ROOT/view.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/games/0022600091.json?ref=main' --jq .content | base64 -d > "$ROOT/pbp.json"
@@ -57,7 +57,7 @@ jobs:
           from pathlib import Path
           root=Path(os.environ['RUNNER_TEMP'])/'sengun-hub'
           blob=(root/'result.json').read_bytes()
-          target='repos/timeedmonds-maker/104/contents/gamepulse/fusion/queries/rockets_durant_halfcourt_context_qa.json'
+          target='repos/timeedmonds-maker/104/contents/gamepulse/fusion/queries/rockets_durant_halfcourt_attack_end_v2_qa.json'
           old=subprocess.run(['gh','api',target],capture_output=True,text=True,timeout=30)
           item={'branch':'main','message':'data(gamepulse): source-verified Rockets Durant double-team calibrated detection v4 QA','content':base64.b64encode(blob).decode()}
           if old.returncode==0:item['sha']=json.loads(old.stdout)['sha']
