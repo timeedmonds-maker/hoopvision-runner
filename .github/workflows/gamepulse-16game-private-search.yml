@@ -4,7 +4,9 @@ name: Game Pulse private 16-game searchable season index
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-16game-private-search.yml']
+    paths:
+      - '.github/workflows/gamepulse-16game-private-search.yml'
+      - 'tools/public_content_guard.py'
   workflow_dispatch:
   schedule:
     - cron: '37 8 * * *'
