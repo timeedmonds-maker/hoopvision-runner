@@ -1,4 +1,5 @@
 name: Jabari616 original frozen ring CPU acceptance
+# Re-run real synthetic film output and source failure gates after test fixture repair.
 on:
   push:
     branches: [main]
