@@ -83,6 +83,8 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/touch_report_cli.py?ref=main' --jq .content | base64 -d > "$ROOT/touch_report_cli.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/test_native_touches.py?ref=main' --jq .content | base64 -d > "$ROOT/test_native_touches.py"
           python3 "$ROOT/test_native_touches.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/audit_live_parts.py?ref=main' --jq .content | base64 -d > "$ROOT/audit_live_parts.py"
+          python3 "$ROOT/audit_live_parts.py" --game "$GAME_ID" --input "$ROOT" --out "$ROOT/live-qa.json"
           if gh api "repos/timeedmonds-maker/104/contents/gamepulse/live/verified_paint_geometry/$GAME_ID.json?ref=main" --jq .content > "$ROOT/geometry.base64" 2>/dev/null; then
             base64 -d "$ROOT/geometry.base64" > "$ROOT/geometry.json"
             python3 "$ROOT/touch_report_cli.py" --game "$GAME_ID" --input "$ROOT" --output "$ROOT/touches.json" --geometry "$ROOT/geometry.json"
@@ -107,6 +109,32 @@ jobs:
                   break
           else:raise RuntimeError("private_touch_conflict")
           PY
+      - name: Preserve independent live source coverage QA privately
+        if: always() && matrix.game.id != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAME_ID: ${{ matrix.game.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s "$RUNNER_TEMP/private-live-touch/live-qa.json"
+                    python3 - <<'PY'
+                    import base64,json,os,subprocess
+                    from pathlib import Path
+                    qa=Path(os.environ["RUNNER_TEMP"]+"/private-live-touch/live-qa.json").read_bytes()
+                    url="repos/timeedmonds-maker/104/contents/gamepulse/live/qa/"+os.environ["GAME_ID"]+".json"
+                    for i in range(4):
+                        prior=subprocess.run(["gh","api",url],capture_output=True,text=True)
+                        data={"branch":"main","message":"qa: refresh private live SDK coverage",
+                              "content":base64.b64encode(qa).decode()}
+                        if prior.returncode==0:data["sha"]=json.loads(prior.stdout)["sha"]
+                        result=subprocess.run(["gh","api","-X","PUT",url,"--input","-"],
+                                              input=json.dumps(data),capture_output=True,text=True)
+                        if result.returncode==0:break
+                    else:raise RuntimeError("private_live_qa_write_failed")
+                    print("PRIVATE_LIVE_QA_PUBLISHED")
+                    PY
+
       - name: Assert no current source data is published to public artifacts
         if: always() && matrix.game.id != 'none'
         run: |
