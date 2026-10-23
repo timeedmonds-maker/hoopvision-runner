@@ -95,6 +95,42 @@ ALLOWED_STATIC = {
     ".github/workflows/post-sanitize-public-audit.yml",
     ".github/workflows/dispatch-oidc.yml",
 }
+# These already-public, manually inspected CPU-only workflow definitions are
+# pinned to exact Git blobs. New or edited workflows must be re-reviewed;
+# the pin does not authorize source datasets, binaries or public results.
+REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/clip-lab-rockets-219-hls.yml": "16d9d45f0d718271049b894adbdf8375b9d22b5d",
+    ".github/workflows/clip-lab-rockets-new-double-346-hls.yml": "330309713345d92819ebf61f46ca39fc7d7df969",
+    ".github/workflows/clip-lab-rockets-new-double-353-hls.yml": "0fe06a115dd1f2c18c74a1be28753f1d63d41a44",
+    ".github/workflows/clip-lab-rockets-new-double-616-hls.yml": "6b3185d4281a537492472914901102668bd409de",
+    ".github/workflows/durant-context-inspection.yml": "90af2d117e4206b44861283e95e0c9440eca90d1",
+    ".github/workflows/gamepulse-rockets-durant-double-review-v4.yml": "f396fc7957b5a49f8b9abb38bbb309a17b1c1c1a",
+    ".github/workflows/gamepulse-rockets-event616-double-fn.yml": "8490170f6437241f4098bf6f0bd853ed91726149",
+    ".github/workflows/gamepulse-rockets-sengun-double-4ft.yml": "2fd90ab0271963a3cfb9bf64336d50bbb0c78ab7",
+    ".github/workflows/gamepulse-rockets-sengun-double-4ft-v2.yml": "0b870d0e02b71eebcee3bc3a890fe24530dfee68",
+    ".github/workflows/gamepulse-rockets-sengun-double-relaxed-v3.yml": "0a6caf4914853cb8487468c092a01f7c7bd0279c",
+    ".github/workflows/gamepulse-rockets-sengun-hub-qa.yml": "e9a8a41ab0d8b6ecf390d2fb847a8d2351765dbe",
+    ".github/workflows/nba-jabari616-ball-handler-media.yml": "779830fa72713804709cc6455a91c702586c784b",
+    ".github/workflows/nba-jabari616-pulse-frozen-ring-render.yml": "e0e9621b82a6da6f31bf27cbeb71232403fd346b",
+    ".github/workflows/nba-jabari616-ring-export-to-chat.yml": "f63f723f34e03b12723389b1e84b3eb6de5b4e6e",
+    ".github/workflows/rockets-durant-double-team-clip-verification.yml": "2d9573e710d1ad19e7ee68a202f35a8775cb4503",
+    ".github/workflows/rockets-durant-reviewed-halfcourt-v5.yml": "bdb6e1d1062dff439c19ca85c8191c71a9aaecc8",
+    ".github/workflows/rockets-remaining-sengun-double-clips.yml": "8f2a1d85f88845732f1139740eede73604cbde2c",
+}
+
+REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
+    ".github/workflows/clip-lab-rockets-219-hls.yml",
+    ".github/workflows/clip-lab-rockets-new-double-346-hls.yml",
+    ".github/workflows/clip-lab-rockets-new-double-353-hls.yml",
+    ".github/workflows/clip-lab-rockets-new-double-616-hls.yml",
+    ".github/workflows/rockets-durant-double-team-clip-verification.yml",
+    ".github/workflows/rockets-remaining-sengun-double-clips.yml",
+}
+REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS = {
+    ".github/workflows/nba-jabari616-ball-handler-media.yml",
+    ".github/workflows/nba-jabari616-ring-export-to-chat.yml",
+    ".github/workflows/nba-jabari616-cumulative-receivers.yml",
+}
 ALLOWED_PREFIXES = {"bridge_outbox/"}
 FORBIDDEN_PREFIXES = {
     "experiments/",
@@ -137,11 +173,16 @@ def scan(paths: list[str]) -> list[tuple[str, str]]:
         if p.suffix.lower() in FORBIDDEN_EXT:
             bad.append(violation("FORBIDDEN_FILE_TYPE", rel))
             continue
-        if rel not in ALLOWED_STATIC and not any(rel.startswith(prefix) for prefix in ALLOWED_PREFIXES):
+        if rel not in ALLOWED_STATIC and rel not in REVIEWED_WORKFLOW_GIT_BLOB_SHA and not any(rel.startswith(prefix) for prefix in ALLOWED_PREFIXES):
             bad.append(violation("NOT_ALLOWLISTED", rel))
             continue
         if not p.is_file():
             continue
+        if rel in REVIEWED_WORKFLOW_GIT_BLOB_SHA:
+            current = subprocess.check_output(["git", "hash-object", rel], text=True).strip()
+            if current != REVIEWED_WORKFLOW_GIT_BLOB_SHA[rel]:
+                bad.append(violation("REVIEWED_WORKFLOW_CHANGED", rel))
+                continue
         try:
             text = p.read_text(encoding="utf-8")
         except UnicodeDecodeError:
@@ -154,7 +195,14 @@ def scan(paths: list[str]) -> list[tuple[str, str]]:
                 # User-authorised publication of ONE rendered NBA clip, never
                 # raw tracking or canonical private database records.
                 if (code == "ACTIONS_ARTIFACT_UPLOAD" and
-                    rel == ".github/workflows/nba-jabari616-cumulative-receivers.yml"):
+                    rel in REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS):
+                    continue
+                # Existing exact-blob NBA clip locator workflows contain the
+                # public clips.nba.com origin, never signed media URLs.
+                if (code == "MEDIA_SOURCE_URL" and
+                    rel in REVIEWED_MEDIA_SOURCE_WORKFLOWS and
+                    all(m.group(0).lower() == "clips.nba.com"
+                        for m in rx.finditer(text))):
                     continue
                 if rx.search(text):
                     bad.append(violation(code, rel))
