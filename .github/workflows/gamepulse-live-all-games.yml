@@ -1,5 +1,6 @@
 name: Game Pulse NBA all-game live-first private capture
 # 2026-10-23: Resume Denver–OKC with guarded live-first eligible-slot priority after missed schedule.
+# 2026-10-24: Authorized refresh of live/final discovery; retain source-only capture and private SHA gates.
 # Each simultaneous NBA game gets its own independent free GitHub-hosted CPU job.
 # Licensed tracking remains only in private 104 Releases; no public player assets.
 on:
