@@ -37,7 +37,6 @@ jobs:
           SOURCE_TAG=clip-lab-jabari616-cumulative-v31-original-ring-visuals
           SOURCE_VIDEO=jabari616-five-cumulative-rings-frozen-v31.mp4
           GH_TOKEN="$PRIVATE_104_TOKEN" gh release download "$SOURCE_TAG" --repo timeedmonds-maker/104 --dir "$ROOT"
-          cp "$ROOT/$SOURCE_VIDEO" "$ROOT/jabari616-five-cumulative-rings-frozen-v31.mp4"
           export ROOT
           python3 - <<'PY'
           import hashlib,json,os
