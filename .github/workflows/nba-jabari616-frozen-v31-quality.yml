@@ -1,4 +1,4 @@
-name: Jabari616 original locked v3.1 five-player ring quality rebuild
+name: Jabari616 full 20-second frozen v3.1 five-ring CRF12 master
 on:
   push:
     branches: [main]
@@ -41,7 +41,7 @@ jobs:
           ROOT="$(mktemp -d)"
           trap 'rm -rf "$ROOT"' EXIT
           export YOLO_CONFIG_DIR="$ROOT/yolo"
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_616_cumulative_five_v31_native_visuals.py?ref=main' --jq .content | base64 -d > "$ROOT/cumulative.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_616_frozen_v31_quality_full20.py?ref=main' --jq .content | base64 -d > "$ROOT/cumulative.py"
           python3 -m py_compile "$ROOT/cumulative.py"
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg >/dev/null
