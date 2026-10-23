@@ -43,6 +43,7 @@ ALLOWED_STATIC = {
     ".github/workflows/rockets-all-defensive-pnr-analysis.yml",
     ".github/workflows/gamepulse-pnr-ui-preflight.yml",
     ".github/workflows/gamepulse-github-season.yml",
+    ".github/workflows/gamepulse-live-cle-phi-20261022.yml",
     ".github/workflows/gamepulse-final-fastlane.yml",
     ".github/workflows/gamepulse-rockets-finalize-safeguard.yml",
     ".github/workflows/gamepulse-20261022-slate-backfill.yml",
