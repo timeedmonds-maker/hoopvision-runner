@@ -1,0 +1,74 @@
+name: Game Pulse NBA all-game live-first private capture
+# Each simultaneous NBA game gets its own independent free GitHub-hosted CPU job.
+# Licensed tracking remains only in private 104 Releases; no public player assets.
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-live-all-games.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  discover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    outputs:
+      games: ${{ steps.active.outputs.games }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 tools/public_content_guard.py
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify concurrent slate selection and original SDK integrity
+        run: |
+          node --test tools/licensed_feed/live_discovery.test.mjs tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+      - name: Select every currently active or recently final NBA fixture
+        id: active
+        run: node tools/licensed_feed/live_discovery.mjs
+  collect:
+    needs: discover
+    if: needs.discover.result == 'success'
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        game: ${{ fromJSON(needs.discover.outputs.games) }}
+    concurrency:
+      group: gamepulse-live-2026-${{ matrix.game.id }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        if: matrix.game.id != 'none'
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        if: matrix.game.id != 'none'
+        with:
+          node-version: '22'
+      - name: Install licensed SDK with scripts disabled
+        if: matrix.game.id != 'none'
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Ingest all available elapsed one-minute windows, resume missing private checkpoints
+        if: matrix.game.id != 'none'
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_LIVE_ID: ${{ matrix.game.id }}
+          GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
+        run: node live_capture_cycle.mjs
+      - name: Assert no current source data is published to public artifacts
+        if: always() && matrix.game.id != 'none'
+        run: |
+          test ! -d artifacts
+          echo 'Live NBA capture privately archived when SDK observed; see private 104 Release.' >> "$GITHUB_STEP_SUMMARY"
