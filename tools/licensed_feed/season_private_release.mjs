@@ -376,7 +376,7 @@ export async function run(){
   return;
  }
  if(process.env.GAMEPULSE_PRIORITY_FINALIZE==='true'){
-  if(PILOT||process.env.GITHUB_EVENT_NAME!=='push')throw Error('priority_context_invalid');
+  if(PILOT||!['push','schedule'].includes(process.env.GITHUB_EVENT_NAME))throw Error('priority_context_invalid');
   const game={id:process.env.GAMEPULSE_PRIORITY_ID,
    start:Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'')};
   planGame(game);
