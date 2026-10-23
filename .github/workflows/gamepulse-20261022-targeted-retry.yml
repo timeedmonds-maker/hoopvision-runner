@@ -85,10 +85,10 @@ jobs:
   cavs-source-gap-probes:
     if: (github.event_name == 'push' || github.event_name == 'schedule') && github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 80
     strategy:
       fail-fast: false
-      max-parallel: 7
+      max-parallel: 5
       matrix:
         include:
           - { label: 'q2-late', start_ms: 1792714480000, part: 3 }
@@ -177,6 +177,64 @@ jobs:
               const reason=/^[a-z_]+$/.test(e?.message||'')?e.message:'source_probe_failed';
               summary.status='SDK_PROBE_FAILED';
               summary.error_code=reason;
+            }
+
+            // Escalate a successful historical probe into a full, separate
+            // original-SDK checkpoint re-collection. Never overwrite canonical
+            // gamepulse-sdk-0022600006 source assets or invent any empty frames.
+            const recoveryParts={'q2-late':3,'q3-early':4,'q3-late':5,
+              'q4-mid':6,'q4-late':7};
+            if(summary.active_play_source_usable &&
+               Object.hasOwn(recoveryParts,label)){
+              const sdkPart=recoveryParts[label];
+              const fullStart=Date.parse('2026-10-22T22:50:00Z')+sdkPart*300*5000;
+              const recoveryJob={...job,start_ms:fullStart,count:300,part:sdkPart};
+              const candidateDir=mkdtempSync(join(tmpdir(),'gpcavs-fullpart-'));
+              const recoveryTag='gamepulse-cavs-backfill-0022600006';
+              summary.regather={sdk_part:sdkPart,status:'STARTED'};
+              try{
+                process.env.GAMEPULSE_FINAL_FASTLANE='true';
+                await capture(recoveryJob,candidateDir);
+                const m=JSON.parse(readFileSync(join(candidateDir,'manifest.json'),'utf8'));
+                if(m.game_id!==game||m.part!==sdkPart||m.successful_windows!==300||
+                   m.observed!==true||m.imputed!==false)
+                  throw Error('recovery_original_manifest_invalid');
+                summary.regather={sdk_part:sdkPart,status:'SOURCE_RECOLLECTED',
+                  frames_with_players:m.frames_with_players,frames_with_ball:m.frames_with_ball,
+                  unique_keyframes:m.unique_keyframes,empty_windows:m.empty_windows,
+                  active_play_coverage_certified:false};
+                if(m.frames_with_players>0&&m.frames_with_ball>0){
+                  const filename='sdk-part-'+String(sdkPart).padStart(2,'0')+'.tar.gz';
+                  const archive=join(candidateDir,'checkpoint.tar.gz');
+                  const ready=join(candidateDir,filename);
+                  const {copyFileSync}=await import('node:fs');
+                  copyFileSync(archive,ready);
+                  if(gh(['release','view',recoveryTag,'--repo','timeedmonds-maker/104']).status!==0){
+                    const cr=gh(['release','create',recoveryTag,'--repo','timeedmonds-maker/104',
+                      '--title',recoveryTag,'--notes','Candidate genuine source backfill, separate from frozen canonical source',
+                      '--latest=false']);
+                    if(cr.status!==0&&gh(['release','view',recoveryTag,
+                       '--repo','timeedmonds-maker/104']).status!==0)
+                      throw Error('private_candidate_release_failed');
+                  }
+                  if(gh(['release','upload',recoveryTag,ready,'--repo',
+                         'timeedmonds-maker/104','--clobber']).status!==0)
+                    throw Error('private_candidate_part_upload_failed');
+                  const proof=gh(['api','repos/timeedmonds-maker/104/releases/tags/'+recoveryTag]);
+                  if(proof.status!==0)throw Error('candidate_digest_lookup_failed');
+                  const asset=JSON.parse(proof.stdout).assets.find(a=>a.name===filename);
+                  const expected='sha256:'+createHash('sha256').update(readFileSync(ready)).digest('hex');
+                  if(asset?.digest!==expected)throw Error('candidate_archive_digest_mismatch');
+                  summary.regather.status='PRIVATE_SHA_VERIFIED_CANDIDATE';
+                  summary.regather.digest=expected;
+                  summary.regather.private_release=recoveryTag;
+                }else summary.regather.status='FULLPART_SDK_RETURNED_NO_PLAYER_BALL';
+              }catch(e){
+                summary.regather.status='SOURCE_RECOLLECTION_FAILED';
+                summary.regather.safe_error_code=/^[a-z_]+$/.test(e?.message||'')
+                  ?e.message:'unclassified_recovery_error';
+              }finally{delete process.env.GAMEPULSE_FINAL_FASTLANE;
+                         rmSync(candidateDir,{recursive:true,force:true});}
             }
             const newRelease=gh(['release','view',tag,'--repo','timeedmonds-maker/104']);
             if(newRelease.status!==0){
