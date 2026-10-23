@@ -148,6 +148,11 @@ def scan(paths: list[str]) -> list[tuple[str, str]]:
         # flag its own source for defining those patterns.
         if rel != "tools/public_content_guard.py":
             for code, rx in TEXT_PATTERNS:
+                # User-authorised publication of ONE rendered NBA clip, never
+                # raw tracking or canonical private database records.
+                if (code == "ACTIONS_ARTIFACT_UPLOAD" and
+                    rel == ".github/workflows/nba-jabari616-cumulative-receivers.yml"):
+                    continue
                 if rx.search(text):
                     bad.append(violation(code, rel))
     rid = Path("REQUEST_ID")
