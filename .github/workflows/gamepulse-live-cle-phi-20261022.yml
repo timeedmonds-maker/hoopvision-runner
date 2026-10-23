@@ -126,6 +126,41 @@ jobs:
           if base64.b64decode(readback["content"])!=raw:raise RuntimeError("report_readback_failed")
           print("PRIVATE_FULL_GAME_QUARTER_TOUCH_REPORT_SHA_VERIFIED")
           PY
+  official-quarter-touches:
+    if: github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Fetch NBA published quarter tracking and reconcile full game privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/timeedmonds-maker/104 --jq '.private')" = true
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/nba_official_touches_quarter.py?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/quarter.py"
+          python3 "$RUNNER_TEMP/quarter.py" --output "$RUNNER_TEMP/result.json"
+          python3 - <<'PY'
+          import os,json,base64,subprocess
+          from pathlib import Path
+          raw=(Path(os.environ["RUNNER_TEMP"])/"result.json").read_bytes()
+          d=json.loads(raw)
+          assert d["touches_reconciled"] and sum(d["periods"].values())==d["official_total"]
+          url="repos/timeedmonds-maker/104/contents/gamepulse/live/queries/lebron_20261022_official_quarters.json"
+          for _ in range(4):
+              old=subprocess.run(["gh","api",url],capture_output=True,text=True)
+              body={"branch":"main","message":"data: NBA official touch counts by quarter",
+                    "content":base64.b64encode(raw).decode()}
+              if old.returncode==0:body["sha"]=json.loads(old.stdout)["sha"]
+              r=subprocess.run(["gh","api","-X","PUT",url,"--input","-"],
+                               input=json.dumps(body),capture_output=True,text=True)
+              if r.returncode==0:break
+          else:raise RuntimeError("private_official_quarter_write_failed")
+          verify=json.loads(subprocess.check_output(["gh","api",url]))
+          if base64.b64decode(verify["content"])!=raw:raise RuntimeError("private_readback_failed")
+          print("PRIVATE_NBA_OFFICIAL_QUARTER_TOUCHES_VERIFIED")
+          PY
   live-private-query-index:
     if: always() && needs.verify.result == 'success' && github.ref == 'refs/heads/main'
     needs: [verify, first-live-fanout, follow-live-source]
