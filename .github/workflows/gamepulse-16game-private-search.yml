@@ -1,4 +1,5 @@
 name: Game Pulse private 16-game searchable season index
+# Re-run with offline independently reconciled official NBA PBP player/team mapping (no CDN 403).
 # Executes metadata/indexing on free hosted CPU. No private game observations
 # are committed to this public repository or emitted in workflow artifacts/logs.
 on:
