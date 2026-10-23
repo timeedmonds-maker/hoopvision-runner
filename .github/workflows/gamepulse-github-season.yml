@@ -1,4 +1,5 @@
 name: Game Pulse public CPU season private Release worker
+# 2026-10-24: Retire expired game-specific push fanout; keep scheduled private fullgame due-selector.
 run-name: NBA Game Pulse public CPU private season archive
 on:
   schedule:
@@ -43,7 +44,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        part: ${{ fromJSON(github.event_name == 'push' && '[7,8,9,10,11,12]' || '[0]') }}
+        part: ${{ fromJSON('[0]') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 210
     steps:
@@ -54,7 +55,7 @@ jobs:
         with:
           node-version: '22'
       - name: Wait until this full-game segment has elapsed
-        if: github.event_name == 'push'
+        if: ${{ false }}
         env:
           GAMEPULSE_PART: ${{ matrix.part }}
         shell: bash
@@ -85,9 +86,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
           GAMEPULSE_FULLGAME_PILOT: 'false'
-          GAMEPULSE_PRODUCTION_ENABLED: ${{ github.event_name == 'schedule' }}
+          GAMEPULSE_PRODUCTION_ENABLED: ${{ github.event_name == 'schedule' || github.event_name == 'push' }}
           GAMEPULSE_PARTS_PER_RUN: '13'
-          GAMEPULSE_PRIORITY_FANOUT: ${{ github.event_name == 'push' }}
+          GAMEPULSE_PRIORITY_FANOUT: 'false'
           GAMEPULSE_PRIORITY_ID: '0022600091'
           GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T00:30:00Z'
           GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
@@ -102,7 +103,7 @@ jobs:
           # A stalled pilot must not block newly completed priority games.
           GAMEPULSE_FULLGAME_PILOT=false GAMEPULSE_PARTS_PER_RUN=13 node season_private_release.mjs
   finish-priority:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: ${{ false }}
     needs: private-season
     runs-on: ubuntu-24.04
     timeout-minutes: 65
