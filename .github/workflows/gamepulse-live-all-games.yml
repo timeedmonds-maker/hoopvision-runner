@@ -1,4 +1,5 @@
 name: Game Pulse NBA all-game live-first private capture
+# 2026-10-23: Force Denver–OKC live rediscovery because scheduled all-game workflow has not fired after 01:30Z tip-off.
 # Each simultaneous NBA game gets its own independent free GitHub-hosted CPU job.
 # Licensed tracking remains only in private 104 Releases; no public player assets.
 on:
