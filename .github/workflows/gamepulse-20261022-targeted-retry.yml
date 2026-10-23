@@ -371,7 +371,7 @@ jobs:
               throw Error('source_diagnostic_sha_mismatch');
             console.log('CAVS_CLEANROOM_SHA_VERIFIED',good?'SECOND_HALF_RESTORED':'SECOND_HALF_UNAVAILABLE');
           }finally{rmSync(evidenceDir,{recursive:true,force:true});}
-          if(!good)return;
+          if(!good)process.exit(0);
           for(const j of plan.parts){
             const work=mkdtempSync(join(tmpdir(),'cavs-full-fresh-'));
             try{
