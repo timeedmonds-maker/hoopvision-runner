@@ -1,4 +1,5 @@
 name: Live CLE-PHI Game Pulse private fast capture
+# Operational activation after public allowlist update.
 # Exact NBA game 0022600006, Thu Oct 22 2026 19:00 EDT.
 # Source SDK tokens/XYZ stay in ephemeral runner memory and PRIVATE 104 Releases.
 on:
