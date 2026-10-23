@@ -43,7 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           WORK="$RUNNER_TEMP/season-search"
-          python3 "$WORK/season16.py" build --output "$WORK/current.json"
+          python3 "$WORK/season16.py" build --require-coverage --output "$WORK/current.json"
           python3 "$WORK/season16.py" verify --input "$WORK/current.json"
           python3 "$WORK/season16.py" search --input "$WORK/current.json" --kind games --summary-only
           python3 "$WORK/season16.py" search --input "$WORK/current.json" --kind games --team DEN --summary-only
@@ -94,6 +94,21 @@ jobs:
           if doc['game_count']!=16 or any(doc['games'][gid]!=row
                    for gid,row in frozen['games'].items() if gid not in ('0022600006','0022600007')):
               raise RuntimeError('ORIGINAL_14_PROVENANCE_NOT_IDENTICAL')
+          audit_refs=doc.get('independent_quarter_coverage_evidence',{})
+          audit_summary=doc.get('independent_quarter_tracking_screen',{})
+          if len(audit_refs)!=16 or audit_summary.get('audited_games')!=16:
+              raise RuntimeError('REQUIRE_GENUINE_SIXTEEN_GAME_QUARTER_QA')
+          for gid,ref in audit_refs.items():
+              observed=base64.b64decode(api('repos/timeedmonds-maker/104/contents/'+ref['path'])['content'])
+              if hashlib.sha256(observed).hexdigest()!=ref['sha256']:
+                  raise RuntimeError('PRIVATE_PERIOD_COVERAGE_SHA256_READBACK_FAILED')
+          denver=doc['games']['0022600007']
+          if (denver.get('observed_frame_count',0)<20000 or
+                  not any(p.get('tracking_observed') and p.get('team')=='DEN'
+                          for p in denver.get('players',[])) or
+                  not any(p.get('tracking_observed') and p.get('team')=='OKC'
+                          for p in denver.get('players',[]))):
+              raise RuntimeError('DENVER_OFFICIAL_ROSTER_TRACKING_JOIN_INCOMPLETE')
           for gid in ('0022600006','0022600007'):
               if doc['games'][gid].get('official_pbp_action_count',0)<300:
                   raise RuntimeError('NBA_OFFICIAL_EVENT_QA_NOT_JOINED')
@@ -104,7 +119,7 @@ jobs:
                       raise RuntimeError('LIVE_SOURCE_SHA256_READBACK_FAILED')
           print('PRIVATE_16_GAME_INDEX_SHA_READBACK_PASSED',
                 'games',doc['game_count'],'frozen_originals',14,
-                'live_additions',2)
+                'live_additions',2,'quarter_qa_verified',len(audit_refs))
           PY
       - name: Report safe metadata only
         if: always()
