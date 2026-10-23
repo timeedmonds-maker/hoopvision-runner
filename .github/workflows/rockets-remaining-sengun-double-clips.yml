@@ -36,7 +36,7 @@ jobs:
                   m=re.search(r"<title>(.*?)</title>",source,re.I|re.S)
                   row["title"]=html.unescape(m.group(1).strip()) if m else None
                   angles=[]
-                  for match in re.finditer(r'<option\\s+value="([^"]+)"([^>]*)>(.*?)</option>',source,re.I|re.S):
+                  for match in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',source,re.I|re.S):
                       stream=html.unescape(match.group(1).strip())
                       if ".m3u8" in stream.lower() and "lrmedia.nba.com" in stream.lower():
                           label=re.sub(r"<[^>]+>","",html.unescape(match.group(3))).strip()
@@ -50,7 +50,7 @@ jobs:
               results.append(row)
           document={"game_id":gid,"checked_at_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"events":results}
           target="repos/timeedmonds-maker/104/contents/gamepulse/status/rockets_remaining_sengun_double_clips.json"
-          payload={"branch":"main","message":"data: verify Rockets remaining Sengun double-team NBA event clips","content":base64.b64encode((json.dumps(document,indent=2)+"\\n").encode()).decode()}
+          payload={"branch":"main","message":"data: verify Rockets remaining Sengun double-team NBA event clips","content":base64.b64encode((json.dumps(document,indent=2)+"\n").encode()).decode()}
           old=subprocess.run(["gh","api",target],capture_output=True,text=True,timeout=25)
           if old.returncode==0:payload["sha"]=json.loads(old.stdout)["sha"]
           elif "Not Found" not in old.stderr and "404" not in old.stderr:raise RuntimeError("PRIVATE_PATH_LOOKUP_FAILED")
