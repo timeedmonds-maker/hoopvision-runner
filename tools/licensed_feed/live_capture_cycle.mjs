@@ -29,13 +29,15 @@ function ensure(tag) {
 }
 export function eligibleSlot(start,now,slotsAlready=new Set()) {
  const full=planGame({id:'0022600001',start});
+ // Live first: save the newest fully elapsed missing minute before backfilling.
+ let latest=null;
  for(let i=10;i<310;i++){
   const from=full.begin+i*60000;
-  if(from>=full.end)return null;
-  if(now<from+Math.min(60000,full.end-from)+30000)return null;
-  if(!slotsAlready.has(from))return i;
+  if(from>=full.end)break;
+  if(now<from+Math.min(60000,full.end-from)+30000)break;
+  if(!slotsAlready.has(from))latest=i;
  }
- return null;
+ return latest;
 }
 async function main() {
  const id=process.env.GAMEPULSE_LIVE_ID;
