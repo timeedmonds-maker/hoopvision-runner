@@ -77,6 +77,7 @@ jobs:
           PYTHONPATH="$ROOT/nba" python3 -m unittest discover -s "$ROOT/nba/qa" -p test_nba_hls_pulse_release_stage.py -v
           python3 "$ROOT/runner.py" --selftest
           python3 "$ROOT/runner.py"
+          python3 "$ROOT/runner.py" --render-ball-handler
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_616_visual_diagnostic.py?ref=main' --jq .content | base64 -d > "$ROOT/visual.py"
           python3 "$ROOT/visual.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_616_raw_scopes.py?ref=main' --jq .content | base64 -d > "$ROOT/raw_scopes.py"
