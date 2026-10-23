@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: live-cle-phi-20261022-${{ github.event_name }}
+  group: live-cle-phi-report-${{ github.run_id }}
   cancel-in-progress: false
 jobs:
   verify:
@@ -27,7 +27,7 @@ jobs:
           node-version: '22'
       - run: node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
   first-live-fanout:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: false # The prior nine-job recovery run remains active; this push only reports captured originals.
     needs: verify
     strategy:
       fail-fast: false
