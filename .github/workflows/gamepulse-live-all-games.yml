@@ -84,6 +84,8 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/touch_report_cli.py?ref=main' --jq .content | base64 -d > "$ROOT/touch_report_cli.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/test_native_touches.py?ref=main' --jq .content | base64 -d > "$ROOT/test_native_touches.py"
           python3 "$ROOT/test_native_touches.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/tracking_touch_reconstruction.py?ref=main' --jq .content | base64 -d > "$ROOT/tracking_touch_reconstruction.py"
+          python3 -m py_compile "$ROOT/tracking_touch_reconstruction.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/audit_live_parts.py?ref=main' --jq .content | base64 -d > "$ROOT/audit_live_parts.py"
           python3 "$ROOT/audit_live_parts.py" --game "$GAME_ID" --input "$ROOT" --out "$ROOT/live-qa.json"
           if gh api "repos/timeedmonds-maker/104/contents/gamepulse/live/verified_paint_geometry/$GAME_ID.json?ref=main" --jq .content > "$ROOT/geometry.base64" 2>/dev/null; then
@@ -109,6 +111,39 @@ jobs:
                   print("PRIVATE_NATIVE_TOUCH_INDEX_SAVED")
                   break
           else:raise RuntimeError("private_touch_conflict")
+          PY
+      - name: Build and publish tracking-reconstructed touches from player-ball XYZ
+        if: always() && matrix.game.id != 'none'
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAME_ID: ${{ matrix.game.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/private-live-touch"
+          test -s "$ROOT/tracking_touch_reconstruction.py"
+          python3 "$ROOT/tracking_touch_reconstruction.py" --game "$GAME_ID" --input "$ROOT" --output "$ROOT/tracking_touches.json"
+          python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          payload=(Path(os.environ["RUNNER_TEMP"])/"private-live-touch/tracking_touches.json").read_bytes()
+          if len(payload)>950000:
+              raise ValueError("tracking_touch_index_too_large_needs_chunked_publish")
+          endpoint="repos/timeedmonds-maker/104/contents/gamepulse/live/tracking_touches/"+os.environ["GAME_ID"]+".json"
+          for _ in range(4):
+              old=subprocess.run(["gh","api",endpoint],capture_output=True,text=True)
+              body={"branch":"main","message":"data: publish XYZ-reconstructed NBA touch candidates",
+                    "content":base64.b64encode(payload).decode()}
+              if old.returncode==0:body["sha"]=json.loads(old.stdout)["sha"]
+              done=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                                  input=json.dumps(body),capture_output=True,text=True)
+              if done.returncode==0:
+                  check=json.loads(subprocess.check_output(["gh","api",endpoint]))
+                  if base64.b64decode(check["content"])!=payload:
+                      raise ValueError("tracking_touch_readback_fail")
+                  print("PRIVATE_TRACKING_RECONSTRUCTED_TOUCH_INDEX_SAVED")
+                  break
+          else:raise RuntimeError("tracking_touch_publish_conflict")
           PY
       - name: Build private generic live lineup ONOFF and NBA Blueprint xFG search
         if: always() && matrix.game.id != 'none'
