@@ -151,6 +151,89 @@ jobs:
           GAMEPULSE_PRIORITY_ID: '0022600006'
           GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T23:00:00Z'
         run: node season_private_release.mjs
+  scheduled-catalog-refresh:
+    if: github.event_name == 'schedule' && github.ref == 'refs/heads/main' && needs.scheduled-finalize.result == 'success'
+    needs: [scheduled-finalize]
+    concurrency:
+      group: gamepulse-cavs-15game-private-catalog
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require the original full-game complete marker
+        id: ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          assets=$(gh release view gamepulse-sdk-0022600006 --repo timeedmonds-maker/104 --json assets --jq '.assets[].name')
+          if grep -Fxq sdk-COMPLETE.json <<< "$assets"; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'CAVS_NOT_FULLGAME_CERTIFIED_YET'
+          fi
+      - name: Validate and rebuild original plus Cavaliers team/game/player search
+        if: steps.ready.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/cavs-15-index"
+          mkdir -p "$ROOT/tests"
+          for spec in 'catalog.py' 'tests/test_catalog.py'; do
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/catalog/$spec?ref=main" --jq .content | base64 -d > "$ROOT/$spec"
+          done
+          python3 -m unittest discover -v -s "$ROOT/tests"
+          python3 "$ROOT/catalog.py" build --output "$ROOT/catalog.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          obj=json.loads((Path(os.environ['RUNNER_TEMP'])/'cavs-15-index/catalog.json').read_text())
+          gid='0022600006'
+          original=('0022600001','0022600002','0022600003','0022600004','0022600005',
+                    '0022600085','0022600086','0022600087','0022600088','0022600089',
+                    '0022600090','0022600091','0022600092','0022600093')
+          assert len(obj['games'])>=15 and set(original+(gid,)).issubset(obj['games'])
+          entry=obj['games'][gid]
+          assert entry['index_state']=='VERIFIED_ARCHIVE_INDEX'
+          assert entry['away_team']=='CLE' and entry['home_team']=='PHI'
+          assert entry['observed_frame_count']>0
+          assert gid in obj['by_team']['CLE'] and gid in obj['by_team']['PHI']
+          print('CAVS_15GAME_PRIVATE_CATALOG_VERIFIED')
+          PY
+      - name: Publish private 15-game catalog with byte-identical readback
+        if: steps.ready.outputs.ready == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,base64,subprocess,time
+          from pathlib import Path
+          raw=(Path(os.environ['RUNNER_TEMP'])/'cavs-15-index/catalog.json').read_bytes()
+          dest='repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json'
+          for attempt in range(8):
+              old=subprocess.run(['gh','api',dest],capture_output=True,text=True)
+              if old.returncode:return_code=old.returncode;raise RuntimeError('private_catalog_read_failed')
+              x=json.loads(old.stdout)
+              if base64.b64decode(x['content'])==raw:break
+              body={'branch':'main','message':'data(gamepulse): add verified Cavaliers to source search catalog',
+                    'sha':x['sha'],'content':base64.b64encode(raw).decode()}
+              p=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],
+                               input=json.dumps(body),text=True,capture_output=True)
+              if p.returncode==0:break
+              if not any(t in p.stderr for t in ('409','422','Conflict')):raise RuntimeError('private_catalog_write_failed')
+              time.sleep(2+attempt)
+          else:raise RuntimeError('private_catalog_publish_retries_exhausted')
+          actual=json.loads(subprocess.check_output(['gh','api',dest]))
+          assert base64.b64decode(actual['content'])==raw
+          print('CAVS_15GAME_CATALOG_PRIVATE_SHA_VERIFIED')
+          PY
   quarter-native-report:
     if: always() && needs.verify.result == 'success' && github.ref == 'refs/heads/main'
     needs: verify
