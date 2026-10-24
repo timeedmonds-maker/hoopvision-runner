@@ -358,7 +358,7 @@ export async function run(){
    if(remaining>40*60000)throw Error('priority_window_not_yet_observed');
    if(remaining>0)await new Promise(done=>setTimeout(done,remaining));
   }
-  if(Date.now()>game.start+24*3600000)throw Error('priority_assignment_expired');
+  if(Date.now()>game.start+7*24*3600000)throw Error('priority_assignment_expired');
   const tag='gamepulse-sdk-'+game.id;
   ensure(tag);
   const existing=names(tag),base='sdk-part-'+String(part).padStart(2,'0');
@@ -383,7 +383,7 @@ export async function run(){
   if(process.env.GAMEPULSE_FINAL_FASTLANE==='true'){
    await requireOfficialFinal(game.id);
   }else if(Date.now()<game.start+315*60000)throw Error('priority_fullgame_not_ready');
-  if(Date.now()>game.start+24*3600000)throw Error('priority_assignment_expired');
+  if(Date.now()>game.start+7*24*3600000)throw Error('priority_assignment_expired');
   const index=readIndex();
   await archiveGame(game,index,capture);
   if(index.games[game.id]?.status!=='complete')throw Error('priority_fullgame_incomplete');
