@@ -33,7 +33,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        part: [11, 12]
+        part: [12]
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -48,6 +48,10 @@ jobs:
         run: |
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Ensure SDK source window is fully matured
+        shell: bash
+        run: |
+          node -e 'const remaining=Date.parse("2026-10-24T06:40:00Z")-Date.now(); if(remaining>0) { console.log("SOURCE_WINDOW_MATURITY_WAIT"); setTimeout(()=>{},remaining); }'
       - name: Resume exact private checkpoint and verify SHA readback
         working-directory: tools/licensed_feed
         env:
