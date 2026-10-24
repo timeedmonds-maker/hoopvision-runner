@@ -24,9 +24,9 @@ jobs:
           import os,hashlib,json,base64,subprocess,pathlib
           p=pathlib.Path(os.environ['RELAY_FILE'])
           raw=p.read_bytes()
-          assert len(raw)==15605344
-          assert hashlib.sha256(raw).hexdigest()=='ae69376c85cb11148f2fe1c95eb853dc4ef5bef98fbe4314e7516435df6df916'
-          target='repos/timeedmonds-maker/104/contents/gamepulse/chat_export_616_floorlocked'
+          assert len(raw)==14713033
+          assert hashlib.sha256(raw).hexdigest()=='36f222dd7d59a1fc9a9684d2d6cdb55b40d9ffe9b16a502419fe5c71d741e492'
+          target='repos/timeedmonds-maker/104/contents/gamepulse/chat_export_616_floorlocked_v2'
           for i in range(0,len(raw),512000):
               chunk=base64.b64encode(raw[i:i+512000]).decode()
               path=f'{target}/chunk_{i//512000:03d}.txt'
