@@ -42,8 +42,9 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fetch_official_multicam.py?ref=b154a834a95a887226757a4ff0d5b34f69bc55e6' --jq .content | base64 -d > "$ROOT/hoopvision/freeview/fetch_official_multicam.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/clip_orb_sync.py?ref=main' --jq .content | base64 -d > "$ROOT/clip_orb_sync.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/qa/0022600009_user_video_orb_fingerprint.json?ref=main' --jq .content | base64 -d > "$ROOT/user_fingerprint.json"
+          gh release download clip-lab-rockets-spurs-0022600009-e86-broadcast --repo timeedmonds-maker/104 --pattern '0022600009-e86-broadcast.mp4' --dir "$ROOT" >/dev/null
           PYTHONPATH="$ROOT" python3 - "$ROOT" <<'PY'
-          import hashlib,json,sys
+          import hashlib,json,sys,shutil
           from pathlib import Path
           import cv2,numpy as np
           from hoopvision.freeview.fetch_official_multicam import resolve_options,download_hls,probe
@@ -59,7 +60,10 @@ jobs:
             path=out/f'view_{len(rows):02d}.mp4'
             row={'label':label}
             try:
-              download_hls(opts[label],path)
+              if label=='Broadcast':
+                shutil.copyfile(root/'0022600009-e86-broadcast.mp4',path)
+              else:
+                download_hls(opts[label],path)
               metadata=probe(path)
               if metadata['width']<640 or metadata['duration_s']<8:raise ValueError('invalid replay')
               cap=cv2.VideoCapture(str(path));n=int(cap.get(cv2.CAP_PROP_FRAME_COUNT));lap=[]
@@ -79,7 +83,7 @@ jobs:
               row.update(state='FAILED',failure=type(exc).__name__)
               path.unlink(missing_ok=True)
             rows.append(row)
-            print('SOURCE_ANGLE',label,row['state'],flush=True)
+            print('SOURCE_ANGLE',label,row['state'],row.get('failure',''),flush=True)
           good=[(i,row) for i,row in enumerate(rows) if row['state']=='DECODED_UNCERTIFIED']
           if not good:raise RuntimeError('NO_VALID_ORIGINAL_ANGLE')
           def score(x):
