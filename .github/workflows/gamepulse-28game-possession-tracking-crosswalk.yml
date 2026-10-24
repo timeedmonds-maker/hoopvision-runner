@@ -270,6 +270,18 @@ jobs:
                 "unjoined_games",len(j['native_touch_action_run_crosswalk_missing_games']),
                 "physical_possessions_certified",0)
           PY
+      - name: Verify quarantined event IDs remain searchable without native tracking joins
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK="$RUNNER_TEMP/pulse-private"
+          for spec in '0022600009 1 507' '0022600101 1 191'; do
+            read -r gid period event <<< "$spec"
+            python3 "$WORK/gamepulse/fusion/season_possession_tracking_crosswalk_2026.py" \
+              --root "$WORK" --game "$gid" --period "$period" --action "$event" |
+              python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["joined_run"] is None; assert r["physical_possession_certified"] is False; assert "official_timeActual_utc_ms" not in r["nba_official_action"]; assert r["join_state"]=="SOURCE_ACTION_AVAILABLE_TRACKING_JOIN_QUARANTINED"'
+          done
+          echo 'NBA_QUARANTINED_GAME_EVENT_LOOKUP_PASSED'
       - name: Save SHA-verified report privately and nowhere public
         shell: bash
         run: |
