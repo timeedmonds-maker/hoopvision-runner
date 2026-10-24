@@ -244,3 +244,25 @@ jobs:
                     "measured_pairs",c["measured_frame_pairs"],
                     "p95_px_peak",c["max_measured_p95_native_px"])
           PY
+
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_stationary_basket_motion_qa.py?ref=be4e6eee5dd5cb6511515470ce00d034afdf5bc0' \
+            --jq .content | base64 -d > "$TMP/stationary_motion.py"
+          python3 "$TMP/stationary_motion.py" --selftest
+          python3 "$TMP/stationary_motion.py" \
+            --root "$TMP/src" \
+            --manifest "$TMP/src/source_manifest.json" \
+            --bracket "$TMP/amen732_event_bracket/event732-contact-bracket-qa.json" \
+            --out "$TMP/event732-stationary-anchor-qa.json"
+          gh release upload "$TAG" "$TMP/event732-stationary-anchor-qa.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          remote="$(gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" \
+            --jq '.assets[] | select(.name=="event732-stationary-anchor-qa.json") | .digest')"
+          test "$remote" = "sha256:$(sha256sum "$TMP/event732-stationary-anchor-qa.json" | cut -d' ' -f1)"
+          echo EVENT732_STATIONARY_BASKET_READBACK_PASS
+          python3 - "$TMP/event732-stationary-anchor-qa.json" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          for c in q["per_camera"]:
+              print("SOURCE_STATIONARY_MOTION",c["label"],
+                    c["status"],c["max_stationary_anchor_shift_px"])
+          PY
