@@ -1,5 +1,6 @@
 name: Clip Lab event80 direct source frozen v3.1 two rings
 # CPU-only: original NBA Broadcast and native SDK are fetched ephemerally.
+# Enabled after independent content-guard review; no private media artifact.
 # Private engine source is fetched by Git smart HTTP, not copied to public repo.
 on:
   push:
