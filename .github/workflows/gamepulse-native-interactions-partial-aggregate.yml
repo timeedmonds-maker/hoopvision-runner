@@ -1,5 +1,6 @@
 name: Integrated Pulse partial native-touch season manifest
 # Materialize only already saved SHA-verified private per-game indexes.
+# Refresh all 28 index digests after global NBA-PBP-over-Blueprint corrections.
 # After two independent game-specific chronology certifications, rebuild all 28 source-backed game records.
 on:
   push:
