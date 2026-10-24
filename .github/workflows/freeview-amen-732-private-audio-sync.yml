@@ -212,3 +212,26 @@ jobs:
              --input "$TMP/amen732_event_bracket/private_put.json" \
              --jq '.content.path' >/dev/null
           echo PRIVATE_3D_CONTACT_BRACKET_QA_COMMITTED
+
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_native_optical_motion_qa.py?ref=e9bdbbcb572c706540cab872915690a8514e3122' \
+            --jq .content | base64 -d > "$TMP/native_optics.py"
+          python3 "$TMP/native_optics.py" --selftest
+          python3 "$TMP/native_optics.py" \
+            --root "$TMP/src" \
+            --manifest "$TMP/src/source_manifest.json" \
+            --bracket "$TMP/amen732_event_bracket/event732-contact-bracket-qa.json" \
+            --out "$TMP/event732-native-optics-qa.json"
+          gh release upload "$TAG" "$TMP/event732-native-optics-qa.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          remote="$(gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" \
+            --jq '.assets[] | select(.name=="event732-native-optics-qa.json") | .digest')"
+          test "$remote" = "sha256:$(sha256sum "$TMP/event732-native-optics-qa.json" | cut -d' ' -f1)"
+          echo EVENT732_NATIVE_OPTICS_READBACK_PASS
+          python3 - "$TMP/event732-native-optics-qa.json" <<'PY'
+          import json,sys
+          qa=json.load(open(sys.argv[1]))
+          for c in qa["cameras"]:
+              print("EVENT732_OPTICS_GATE",c["label"],c["status"],
+                    "measured_pairs",c["measured_frame_pairs"],
+                    "p95_px_peak",c["max_measured_p95_native_px"])
+          PY
