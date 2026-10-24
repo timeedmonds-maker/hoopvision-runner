@@ -1,5 +1,5 @@
-name: Jabari616 original frozen ring CPU acceptance
-# Source QA fixture syntax corrected; rerun the true frozen renderer and output check.
+name: Original frozen CourtCoder ring CPU acceptance
+# Source-of-truth: unchanged frozen HoopVision v1.3 engine, NOT the Jabari3 replica.
 on:
   push:
     branches: [main]
@@ -42,3 +42,28 @@ jobs:
           python3 -m pip install --disable-pip-version-check --quiet opencv-python-headless==4.10.0.84 'numpy<2' pillow
           export COURTCODER_FROZEN_SOURCE_FILE="$ROOT/frozen.py"
           PYTHONPATH="$ROOT/nba" python3 -m unittest discover -s "$ROOT/nba/qa" -p test_nba_pulse_frozen_ring_cpu.py -v
+          python3 - <<'PY'
+          import importlib.util,json,os,time,cv2,numpy as np
+          from pathlib import Path
+          source=Path(os.environ['COURTCODER_FROZEN_SOURCE_FILE'])
+          spec=importlib.util.spec_from_file_location('original_frozen_v13',source)
+          module=importlib.util.module_from_spec(spec)
+          import sys
+          sys.modules[spec.name]=module
+          spec.loader.exec_module(module)
+          assert module.TOOL_ID=='HOOPVISION_1_3_RINGS'
+          blank=np.full((512,908,3),(96,141,172),np.uint8)
+          matte=np.zeros((512,908),np.uint8)
+          t0=time.perf_counter()
+          for i in range(246):
+            frame=blank.copy()
+            for pid,x,y in [(201142,480,230),(203500,560,260)]:
+              module.draw_ring(frame,x,y-4,(65,17,206),35,13,t=i/30,seed=pid,occlusion_mask=matte)
+          elapsed=time.perf_counter()-t0
+          assert elapsed>0
+          print('ORIGINAL_FROZEN_CPU_RENDER_BENCHMARK',json.dumps({
+            'frames':246,'rings_per_frame':2,'size':[908,512],
+            'wall_s':round(elapsed,3),'frames_per_second':round(246/elapsed,1),
+            'GPU_used':False,'player_detection_included':False,
+            'renderer_blob':'9fac8a8915b90bbd9bd1235532c297c35da77ca2'}))
+          PY
