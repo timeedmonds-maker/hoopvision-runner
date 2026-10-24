@@ -1,5 +1,5 @@
 name: Game Pulse 28-game official PBP and ONOFF verification
-# Private original NBA-source validation; no tracking/PBP data exported to public repository.
+# Private original NBA-source validation; fail-closed QA retries and SHA readback, no public data.
 on:
   push:
     branches: [main]
