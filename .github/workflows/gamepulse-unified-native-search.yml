@@ -99,21 +99,22 @@ jobs:
           root=Path(os.environ["RUNNER_TEMP"])
           doc=json.loads((root/"unified-season-check.json").read_text())
           assert doc["captured_season_games_checked"]==28
-          assert doc["source_join_tier_games"]==26
-          assert doc["source_clock_quarantine_games"]==2
+          assert doc["source_join_tier_games"]==28
+          assert doc["source_clock_quarantine_games"]==0
+          assert doc["archived_source_clock_quarantine_games"]==2
           assert doc["physical_possessions_certified"]==0
           tiers=doc["source_native_label_totals_by_tier"]
-          assert len(tiers)==3
-          assert tiers["VERIFIED_SOURCE_NATIVE_TOUCH_TO_NBA_TEAM_ACTION_RUN"]>=11839
-          assert tiers["SOURCE_NATIVE_UNATTRIBUTED_TO_PBP_RUN"]>=10542
-          assert tiers["SOURCE_NATIVE_PBP_CLOCK_QUARANTINED"]>=1729
-          assert sum(tiers.values())>=24110
+          assert len(tiers)==2
+          assert tiers["VERIFIED_SOURCE_NATIVE_TOUCH_TO_NBA_TEAM_ACTION_RUN"]==12557
+          assert tiers["SOURCE_NATIVE_UNATTRIBUTED_TO_PBP_RUN"]==11553
+          assert "SOURCE_NATIVE_PBP_CLOCK_QUARANTINED" not in tiers
+          assert sum(tiers.values())==24110
           one=json.loads((root/"durant-original-native-labels.json").read_text())
           assert one["requested_player_id"]=="201142"
           assert one["captured_season_games_checked"]==28
           assert one["physical_possessions_certified"]==0
           print("PRIVATE_UNIFIED_SOURCE_LABEL_SEARCH_ACCEPTED",
-                "games",28,"source_evidence_tiers",3,"physical_possessions_certified",0)
+                "games",28,"source_evidence_tiers",2,"physical_possessions_certified",0)
           PY
       - name: Persist only private search report and player query with original SHA readback
         shell: bash
