@@ -54,6 +54,53 @@ jobs:
           python3 -m py_compile "$ROOT/certified_possession_feature_queries_2026.py"
           PYTHONPATH="$ROOT:$ROOT/tests" python3 -m unittest discover -v -s "$ROOT/tests" -p test_certified_possession_feature_queries_2026.py
           echo "Universal Game Pulse feature-alignment contract validated; no physical possession counts certified." >> "$GITHUB_STEP_SUMMARY"
+          # Automated physics bridge: original SDK ball XYZ, no broadcast download.
+          AUTO_REF=feat/gamepulse-automatic-native-hoop-anchors-20261025
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/automatic_native_hoop_anchor_candidates_2026.py?ref=$AUTO_REF" --jq .content |
+            base64 -d > "$ROOT/automatic_native_hoop_anchor_candidates_2026.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_automatic_native_hoop_anchor_candidates_2026.py?ref=$AUTO_REF" --jq .content |
+            base64 -d > "$ROOT/tests/test_automatic_native_hoop_anchor_candidates_2026.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/positions/0022600009_q1_durant_adams.json?ref=main" --jq .content |
+            base64 -d > "$ROOT/native_q1.json"
+          python3 -m py_compile "$ROOT/automatic_native_hoop_anchor_candidates_2026.py"
+          GAMEPULSE_REAL_PBP_PATH="$ROOT/pbp.json" GAMEPULSE_REAL_FRAMES_PATH="$ROOT/native_q1.json" PYTHONPATH="$ROOT" python3 -m unittest discover -v -s "$ROOT/tests" -p test_automatic_native_hoop_anchor_candidates_2026.py
+          PYTHONPATH="$ROOT" python3 "$ROOT/automatic_native_hoop_anchor_candidates_2026.py" --pbp "$ROOT/pbp.json" --frames "$ROOT/native_q1.json" --period 1 --out "$ROOT/auto_q1_qa.json"
+          python3 - "$ROOT" <<'PY'
+          import json,sys
+          from pathlib import Path
+          r=Path(sys.argv[1]);q=json.loads((r/'auto_q1_qa.json').read_text())
+          assert q['candidate_source_alignment_gate_passed']
+          assert [x['matched_nba_action'] for x in q['anchors']]==[80,81,86]
+          assert len(q['bracket_candidates'])==1
+          assert not q['clock_anchors_are_independently_certified']
+          p=json.loads((r/'pbp.json').read_text())
+          f=json.loads((r/'native_q1.json').read_text())
+          assert p['source_provenance']['nba_pbp_sha256']=='b0afc850fc892691fbc29888f77c9bcf84e9d238b5b2f29a8aa11750bc787bc1'
+          assert f['source_checkpoint_sha256']=='8b9c34b411f28fdae58fcd6fe77a00dc7dd63257114c4232bc00a374677bd108'
+          assert len(f['frames'])==552
+          print('PRIVATE_REAL_SOURCE_AUTO_HOOP_ANCHORS_GATE_PASSED')
+          PY
+          # Save proof on private 104 only; source frame content never published.
+          python3 - "$ROOT" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          dest='repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/0022600009_automatic_hoop_clock_candidates_20261025.json'
+          obj=json.loads((root/'auto_q1_qa.json').read_text())
+          raw=(json.dumps(obj,sort_keys=True,indent=2)+'\n').encode()
+          old=subprocess.run(['gh','api',dest],capture_output=True,text=True)
+          payload={'branch':'main','message':'qa(gamepulse): independent physical SDK hoop detector and exact NBA PBP candidate clock anchors','content':base64.b64encode(raw).decode()}
+          if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
+          elif '404' not in old.stderr and 'Not Found' not in old.stderr:
+              raise RuntimeError('PRIVATE_QA_READ_FAILED')
+          put=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],input=json.dumps(payload),capture_output=True,text=True)
+          if put.returncode:raise RuntimeError('PRIVATE_QA_PUBLISH_FAILED')
+          check=subprocess.check_output(['gh','api',dest,'--jq','.content'])
+          assert base64.b64decode(check)==raw
+          print('PRIVATE_AUTO_HOOP_ANCHOR_QA_SHA_READBACK_VERIFIED')
+          PY
+          echo "Video-free physical hoop landmark extraction: original 552 SDK frames, three source-to-PBP made-shot matches and stoppage-safe live bracket tested; not yet full-season certified." >> "$GITHUB_STEP_SUMMARY"
+
       - name: No private payload artifacts
         if: always()
         run: echo 'All original source data remains private; no public source artifacts.' >> "$GITHUB_STEP_SUMMARY"
