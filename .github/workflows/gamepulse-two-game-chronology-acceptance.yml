@@ -52,7 +52,7 @@ jobs:
             gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$mod?ref=$PRIVATE_REF" --jq .content |
               base64 -d > "$ROOT/$mod"
           done
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_interaction_fusion_2026.py?ref=$PRIVATE_REF' --jq .content |
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_interaction_fusion_2026.py?ref=$PRIVATE_REF" --jq .content |
             base64 -d > "$ROOT/tests/test_interaction_fusion_2026.py"
           gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/games/$GAME_ID.json?ref=$PRIVATE_REF" --jq .content |
             base64 -d > "$ROOT/pbp.json"
