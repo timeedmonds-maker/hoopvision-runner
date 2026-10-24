@@ -171,6 +171,7 @@ jobs:
             --target-players '1627832:Fred VanVleet,203500:Steven Adams' \
             --fps 30 --duration-s "$DURATION" \
             --utc-search-from-ms 1792807050000 --utc-search-to-ms 1792807100000 \
+            --provisional-preview \
             --out "$ROOT/fused" > "$ROOT/native-fusion.log"
           printf '%s\n' '{"schema":"hoopvision.clip-lab.native-last-touch-intervals.v1","possession_intervals":[]}' > "$ROOT/neutral-possession.json"
           PYTHONPATH="$ROOT/private-frozen:$ROOT/private-frozen/tools" \
