@@ -73,7 +73,12 @@ def nearest_gap(sorted_stamps, target):
 
 
 def independent_nba():
-    # Import the existing, reviewed public source client; never invent PBP UTC.
+    """Prefer live NBA originals; fall back to an explicitly labelled private derivative.
+
+    The fallback is *not* a fresh independent-source verification. It supplies
+    quarter action timestamps for gap diagnostics when NBA CDN blocks runner
+    egress, but must never upgrade the original-source certification gate.
+    """
     from verify_gameplay import official
     status = "unverified"
     periods = {p: [] for p in range(1, 5)}
@@ -97,7 +102,47 @@ def independent_nba():
                     periods[period].append(stamp)
     except Exception:
         pass
-    return status, periods
+    if status == "final" and all(periods.values()):
+        return status, periods, "LIVE_NBA_OFFICIAL"
+
+    # Only a private canonical 104 artifact is allowed here. No public data,
+    # licensed positions, or original action payloads enter public logs.
+    import base64
+    path = f"gamepulse/fusion/official_pbp_timing/games/{GAME}.json"
+    try:
+        response = json.loads(gh("api", f"repos/{REPO}/contents/{path}?ref=main"))
+        raw = base64.b64decode(response["content"])
+        # Check GitHub's content-addressed blob before trusting the payload.
+        blob_sha = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\\0" + raw).hexdigest()
+        if blob_sha != response.get("sha"):
+            raise RuntimeError("private_nba_reference_blob_sha_mismatch")
+        reference = json.loads(raw)
+        provenance = reference.get("source_provenance") or {}
+        actions = reference.get("actions") or []
+        qa = reference.get("qa") or {}
+        if (reference.get("game_id") != GAME or
+            provenance.get("nba_pbp_url") !=
+                f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{GAME}.json" or
+            not isinstance(provenance.get("nba_pbp_sha256"), str) or
+            len(provenance["nba_pbp_sha256"]) != 64 or
+            qa.get("nba_score_reconciled_to_boxscore") is not True or
+            qa.get("nba_actions_with_formal_utc") != len(actions) or
+            reference.get("official_final", {}).get("home", {}).get("score") != 110 or
+            reference.get("official_final", {}).get("away", {}).get("score") != 114):
+            raise RuntimeError("private_nba_reference_provenance_invalid")
+        stored = {p: [] for p in range(1, 5)}
+        for action in actions:
+            period = action.get("period")
+            stamp = action.get("official_timeActual_utc_ms")
+            if period in stored and isinstance(stamp, int):
+                stored[period].append(stamp)
+        if not all(stored.values()):
+            raise RuntimeError("private_nba_reference_periods_missing")
+        return "final", stored, "PRIVATE_NBA_PBP_DERIVED_NOT_FRESH"
+    except Exception as exc:
+        # Do not suppress malformed evidence; this is a diagnostic fallback.
+        print("PRIVATE_NBA_REFERENCE_FALLBACK_UNAVAILABLE", type(exc).__name__)
+        return status, periods, "LIVE_NBA_INCOMPLETE"
 
 
 def audit():
@@ -190,7 +235,7 @@ def audit():
                 total_windows != EXPECTED_WINDOWS):
             raise RuntimeError("completion_marker_count_invalid")
 
-    official_status, official_periods = independent_nba()
+    official_status, official_periods, reference_origin = independent_nba()
     sorted_players = sorted(player_timestamps)
     quarter_qa = {}
     for period, times in official_periods.items():
@@ -209,7 +254,7 @@ def audit():
     q4 = quarter_qa["4"]
     source_verified = (total_windows == EXPECTED_WINDOWS and
                        len(player_timestamps) > 100 and len(ball_timestamps) > 50)
-    temporal_supported = (source_verified and official_status == "final" and
+    temporal_supported = (source_verified and reference_origin == "LIVE_NBA_OFFICIAL" and\n        official_status == "final" and
         all(quarter_qa[str(p)]["actions_with_observed_player_frame_within_60s"] > 0
             for p in range(1, 5)) and
         q4["last_action_nearest_player_frame_gap_ms"] is not None and
@@ -226,7 +271,7 @@ def audit():
         "first_player_timestamp_ms": min(player_timestamps) if player_timestamps else None,
         "last_player_timestamp_ms": max(player_timestamps) if player_timestamps else None,
         "original_source_part_qa": part_qa,
-        "independent_nba_final_status": official_status,
+        "independent_nba_final_status": official_status,\n        "nba_action_reference_origin": reference_origin,\n        "nba_action_reference_is_fresh_original": reference_origin == "LIVE_NBA_OFFICIAL",
         "independent_nba_quarter_action_coverage": quarter_qa,
         "temporal_source_coverage": "SUPPORTED" if temporal_supported else "INCONCLUSIVE",
         "tracking_gameplay_certified": False,
