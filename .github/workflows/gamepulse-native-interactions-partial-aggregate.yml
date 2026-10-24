@@ -1,6 +1,6 @@
 name: Integrated Pulse partial native-touch season manifest
 # Materialize only already saved SHA-verified private per-game indexes.
-# After fencing the legacy 15-game writer, restore the authoritative 26-game season crosswalk.
+# After two independent game-specific chronology certifications, rebuild all 28 source-backed game records.
 on:
   push:
     branches: [main]
