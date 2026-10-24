@@ -50,7 +50,20 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$RUNNER_TEMP/gp"
-          python3 "$ROOT/gamepulse/catalog/catalog.py" build --output "$ROOT/catalog.json"
+          for attempt in 1 2 3; do
+            python3 "$ROOT/gamepulse/catalog/catalog.py" build --output "$ROOT/catalog.json"
+            if python3 - "$ROOT/catalog.json" <<'CHECK'
+          import json,sys
+          data=json.load(open(sys.argv[1]))
+          bad=[(gid,g.get('scan_error_class','unknown')) for gid,g in data['games'].items()
+               if g.get('index_state')!='VERIFIED_ARCHIVE_INDEX']
+          print('SOURCE_SCAN_UNVERIFIED_PUBLIC_GAME_IDS_AND_ERROR_CLASSES',bad)
+          sys.exit(bool(bad))
+          CHECK
+            then break; fi
+            if [ "$attempt" -eq 3 ]; then echo 'SOURCE_SCAN_UNVERIFIED_AFTER_THREE_RETRIES'; exit 4; fi
+            sleep 6
+          done
           python3 - <<'PY'
           import json,os
           from pathlib import Path
