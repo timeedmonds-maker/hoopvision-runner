@@ -334,6 +334,8 @@ def main():
         if digest((check / OUTPUT).read_bytes()) != expected_sha:
             raise RuntimeError("private_qa_readback_sha256_mismatch")
     print("PRIVATE_ORIGINAL_GAMEPLAY_QA_SAVED", report["temporal_source_coverage"])
+    for code in report["original_source_qa_blockers"]:
+        print("ORIGINAL_QA_BLOCKER", code)
     print("TRACKING_GAMEPLAY_CERTIFIED_FALSE")
 
 
