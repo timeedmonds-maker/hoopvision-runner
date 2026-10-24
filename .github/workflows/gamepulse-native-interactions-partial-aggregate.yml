@@ -1,5 +1,6 @@
 name: Integrated Pulse partial native-touch season manifest
 # Materialize only already saved SHA-verified private per-game indexes.
+# Reconcile the newly materialized 0095 PBP/native touches; preserve two clock-quarantined games.
 on:
   push:
     branches: [main]
