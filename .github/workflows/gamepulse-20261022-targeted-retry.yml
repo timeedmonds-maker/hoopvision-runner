@@ -6,6 +6,7 @@ on:
       - '.github/workflows/gamepulse-20261022-targeted-retry.yml'
   # Bounded postgame checks for provider backfill, no fabricated coordinates.
   # 2026-10-24: recheck genuine source after reviewed public workflow guard repair.
+  # 2026-10-25 NZ: restart authentic CLE-PHI Q2-Q4 source probes after pinned artifact-guard repair.
   # Cavaliers Q2-Q4 checks are source-native only; the QA gate must still
   # reject completion unless official active-play positions exist in all periods.
   schedule:
