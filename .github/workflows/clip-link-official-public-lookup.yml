@@ -1,0 +1,52 @@
+name: Public NBA event clip lookup
+on:
+  push:
+    branches: [public-clip-lookup-20261024]
+    paths: [.github/workflows/clip-link-official-public-lookup.yml]
+  workflow_dispatch:
+jobs:
+  official-public-event:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Resolve public NBA event numbers and camera labels
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, html.parser, re
+          gid="0022600009"
+          req=urllib.request.Request(
+             "https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_"+gid+".json",
+             headers={"User-Agent":"Mozilla/5.0","Referer":"https://www.nba.com/"})
+          with urllib.request.urlopen(req,timeout=20) as resp:
+             pbp=json.load(resp)
+          actions=pbp["game"]["actions"]
+          print("NBA_GAME_ID",gid,"ACTION_COUNT",len(actions))
+          blocks=[]
+          for a in actions:
+             if a.get("period") != 4: continue
+             d=a.get("description","")
+             if "block" in d.lower() and "thompson" in d.lower():
+               blocks.append(a)
+          print("Q4_THOMPSON_BLOCKS",len(blocks))
+          for a in blocks:
+             print("MATCH",json.dumps({k:a.get(k) for k in
+                ("actionNumber","actionId","period","clock","description","playerName",
+                 "actionType","subType","personId","blockPersonId")},sort_keys=True))
+          for a in actions[-16:]:
+             print("FINAL_EVENT",a.get("actionNumber"),a.get("clock"),a.get("description"))
+          for a in blocks[-2:]:
+             for ev in dict.fromkeys([a.get("actionNumber"),a.get("actionId")]):
+               if not isinstance(ev,int):continue
+               from urllib.parse import urlencode
+               clip="https://clips.nba.com/?"+urlencode({"gameNo":gid,"eventNum":ev,"source":"grs"})
+               try:
+                 req=urllib.request.Request(clip,headers={"User-Agent":"Mozilla/5.0"})
+                 with urllib.request.urlopen(req,timeout=15) as resp: content=resp.read().decode("utf8","replace")
+                 title=re.search(r"<title[^>]*>(.*?)</title>",content,re.I|re.S)
+                 opts=re.findall(r"<option[^>]*>(.*?)</option>",content,re.I|re.S)
+                 opts=[re.sub(r"<.*?>","",v).strip() for v in opts]
+                 print("CLIP_PROBE",ev,"length",len(content),"title",title.group(1) if title else "none","angles",opts[:22],"unavailable",("No video clip available" in content))
+               except Exception as exc: print("CLIP_PROBE_ERROR",ev,type(exc).__name__,str(exc)[:180])
+          PY
