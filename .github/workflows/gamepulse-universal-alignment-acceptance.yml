@@ -1,4 +1,5 @@
 name: Game Pulse universal measurement to possession alignment acceptance
+# Positive certified player-on-court and negative full-capture QA revision
 on:
   push:
     branches: [main]
