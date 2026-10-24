@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 25
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      QA_REF: ab88fe9a88167645a8915d71da5eaf0bab849462
+      QA_REF: b42a0b27d5fe455b16514752e95353c46130a1ea
       PRIVATE_REPO: timeedmonds-maker/104
     steps:
       - uses: actions/checkout@v4
