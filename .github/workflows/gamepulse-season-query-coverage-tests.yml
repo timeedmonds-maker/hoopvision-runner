@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_REF: main
-      CROSSWALK_REF: 278d5a186c8cd473ffc0dd79bdef70e17d7f196c
+      CROSSWALK_REF: main
     steps:
       - uses: actions/checkout@v4
         with:
