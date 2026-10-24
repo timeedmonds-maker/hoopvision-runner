@@ -62,3 +62,14 @@ jobs:
           python3 -m py_compile "$ROOT/query_adams_first_sub_2026.py" "$ROOT/nba_event_angle_discovery.py"
           cd "$ROOT"
           python3 -u query_adams_first_sub_2026.py --read-only
+
+      - name: Regression-test reusable player possession clip query
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/nba-official"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/player_possession_clips.py?ref=main' --jq .content | base64 -d > "$ROOT/player_possession_clips.py"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_player_possession_clips.py?ref=main' --jq .content | base64 -d > "$ROOT/test_player_possession_clips.py"
+          python3 -m py_compile "$ROOT/player_possession_clips.py" "$ROOT/test_player_possession_clips.py"
+          cd "$ROOT"
+          python3 -m unittest -v test_player_possession_clips
