@@ -13,7 +13,7 @@ concurrency:
 jobs:
   fetch-original-to-private:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 22
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GID: '0022600009'
