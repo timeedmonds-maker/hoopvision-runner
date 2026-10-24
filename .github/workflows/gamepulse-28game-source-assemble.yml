@@ -1,4 +1,5 @@
 name: Game Pulse official source 28-game private index rebuild
+# Preserve frozen source QA; publish truthful partial coverage when providers omit current-game data.
 on:
   push:
     branches: [main]
