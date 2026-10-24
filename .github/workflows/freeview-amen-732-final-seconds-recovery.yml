@@ -180,3 +180,17 @@ jobs:
           remote="$(gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" --jq '.assets[] | select(.name=="event732-rim-state.json") | .digest')"
           test "$remote" = "sha256:$(sha256sum "$OUT/event732-rim-state.json" | cut -d' ' -f1)"
           echo EVENT732_RIM_STATE_SOURCE_SHA256_VERIFIED
+
+          python3 - "$OUT/event732-rim-state.json" "$ROOT/private_rim_put.json" <<'PY'
+          import base64,json,sys
+          from pathlib import Path
+          payload=Path(sys.argv[1]).read_bytes()
+          assert 100<len(payload)<1000000
+          Path(sys.argv[2]).write_text(json.dumps({
+              "branch":"research/amen-wemby-freeze-spin-20261024",
+              "message":"data(freeview): private source-authentic Amen Wemby rim-state candidates",
+              "content":base64.b64encode(payload).decode("ascii")}))
+          PY
+          gh api -X PUT 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_raw_rim_state_candidates.json' \
+            --input "$ROOT/private_rim_put.json" --jq '.content.path' >/dev/null
+          echo EVENT732_PRIVATE_RIM_STATE_COMMITTED
