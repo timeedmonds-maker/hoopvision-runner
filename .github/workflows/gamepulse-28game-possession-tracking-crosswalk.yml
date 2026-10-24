@@ -1,5 +1,6 @@
 name: Integrated Pulse PBP to Game Pulse crosswalk integrity
 # Only CPU, private 104 data stays in ephemeral runner and private 104 outputs.
+# Validate 26-game native source hash reconciliation after safe no-content rewrite.
 # Public runner persists NO licensed raw tracking/player/event payload.
 on:
   push:
