@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen-732-private-native.yml",
     ".github/workflows/gamepulse-season-backlog.yml",
     ".github/workflows/gamepulse-rockets-spurs-fusion-merge.yml",
     ".github/workflows/gamepulse-rockets-spurs-original-qa.yml",
