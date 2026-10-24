@@ -38,6 +38,7 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/0022600009.json' --jq .content | base64 -d > "$ROOT/index.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/games/0022600009.json' --jq .content | base64 -d > "$ROOT/pbp.json"
           gh release download clip-lab-rockets-spurs-0022600009-e86-broadcast --repo timeedmonds-maker/104 --pattern '0022600009-e86-broadcast.mp4' --dir "$ROOT" >/dev/null
+          python3 -m pip install --quiet --disable-pip-version-check "numpy<2" "opencv-python-headless==4.10.0.84"
           PYTHONPATH="$ROOT" python3 - "$ROOT" <<'PY'
           import json,sys,re,subprocess,hashlib
           from pathlib import Path
