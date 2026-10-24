@@ -70,6 +70,17 @@ jobs:
             base64 -d > "$ROOT/tests/test_automatic_native_hoop_anchor_candidates_2026.py"
           gh api "repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/positions/0022600009_q1_durant_adams.json?ref=main" --jq .content |
             base64 -d > "$ROOT/native_q1.json"
+          # All tracking feature kinds share this SAME automatic clock
+          # correspondence. Candidate output cannot publish true ORtg.
+          SEARCH_REF=feat/gamepulse-automatic-clock-universal-feature-search-20261025
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/automatic_clock_feature_search_2026.py?ref=$SEARCH_REF" --jq .content |
+            base64 -d > "$ROOT/automatic_clock_feature_search_2026.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_automatic_clock_feature_search_2026.py?ref=$SEARCH_REF" --jq .content |
+            base64 -d > "$ROOT/tests/test_automatic_clock_feature_search_2026.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/automatic_hoop_anchor_fullgame_0022600009_20261025.json?ref=main" --jq .content |
+            base64 -d > "$ROOT/source_auto_fullgame_qa.json"
+          python3 -m py_compile "$ROOT/automatic_clock_feature_search_2026.py"
+          GAMEPULSE_REAL_PBP_PATH="$ROOT/pbp.json" GAMEPULSE_REAL_FRAMES_PATH="$ROOT/native_q1.json" GAMEPULSE_REAL_AUTO_QA_PATH="$ROOT/source_auto_fullgame_qa.json" PYTHONPATH="$ROOT" python3 -m unittest discover -v -s "$ROOT/tests" -p test_automatic_clock_feature_search_2026.py
           python3 -m py_compile "$ROOT/automatic_native_hoop_anchor_candidates_2026.py"
           GAMEPULSE_REAL_PBP_PATH="$ROOT/pbp.json" GAMEPULSE_REAL_FRAMES_PATH="$ROOT/native_q1.json" PYTHONPATH="$ROOT" python3 -m unittest discover -v -s "$ROOT/tests" -p test_automatic_native_hoop_anchor_candidates_2026.py
           PYTHONPATH="$ROOT" python3 "$ROOT/automatic_native_hoop_anchor_candidates_2026.py" --pbp "$ROOT/pbp.json" --frames "$ROOT/native_q1.json" --period 1 --out "$ROOT/auto_q1_qa.json"
