@@ -1,4 +1,5 @@
 name: Clip Lab Rockets event80 original NBA Broadcast HLS
+# Reviewed: original 2026–27 NBA shot event; only private 104 receives licensed source media.
 on:
   push:
     branches: [main]
