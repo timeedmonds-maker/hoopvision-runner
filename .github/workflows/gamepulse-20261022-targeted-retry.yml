@@ -81,6 +81,9 @@ jobs:
         if: matrix.game_id == '0022600007' && matrix.part == 12
         working-directory: tools/licensed_feed
         env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_PRIORITY_ID: ${{ matrix.game_id }}
+          GAMEPULSE_PRIORITY_TIPOFF: ${{ matrix.tipoff }}
           GAMEPULSE_PRIORITY_FANOUT: 'false'
           GAMEPULSE_PRIORITY_FINALIZE: 'true'
           GAMEPULSE_FINAL_FASTLANE: 'true'
