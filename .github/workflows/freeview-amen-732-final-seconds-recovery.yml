@@ -194,3 +194,20 @@ jobs:
           gh api -X PUT 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_raw_rim_state_candidates.json' \
             --input "$ROOT/private_rim_put.json" --jq '.content.path' >/dev/null
           echo EVENT732_PRIVATE_RIM_STATE_COMMITTED
+
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_spatial_video_event_link.py?ref=b39ee631fe82ea7f5ae6fd731ac72e85338c7c6c' \
+            --jq .content | base64 -d > "$ROOT/spatial_video_join.py"
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_contact_bracket_qa.json?ref=research/amen-wemby-freeze-spin-20261024' \
+            --jq .content | base64 -d > "$ROOT/amen732_video_bracket.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/games/0022600009.json?ref=main' \
+            --jq .content | base64 -d > "$ROOT/official_pbp_0009.json"
+          python3 "$ROOT/spatial_video_join.py" \
+            --pbp "$ROOT/official_pbp_0009.json" \
+            --bracket "$ROOT/amen732_video_bracket.json" \
+            --out "$OUT/event732-activity-native-video-join.json"
+          gh release upload "$TAG" "$OUT/event732-activity-native-video-join.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          remote="$(gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" \
+              --jq '.assets[] | select(.name=="event732-activity-native-video-join.json") | .digest')"
+          test "$remote" = "sha256:$(sha256sum "$OUT/event732-activity-native-video-join.json" | cut -d' ' -f1)"
+          echo EVENT732_ACTIVITY_VIDEO_JOIN_SHA256_PASS
