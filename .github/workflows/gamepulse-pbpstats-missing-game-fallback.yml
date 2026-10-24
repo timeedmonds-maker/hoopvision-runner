@@ -1,4 +1,5 @@
 name: Game Pulse source-checked PBPStats missing game native PPP
+# Private three-game source-grain and score-reconciliation audit; never synthesize possession boundaries.
 on:
   push:
     branches: [main]
