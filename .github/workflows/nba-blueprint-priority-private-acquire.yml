@@ -67,8 +67,18 @@ jobs:
           target.write_text(json.dumps(status,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
           print('PRIORITY_SOURCE_ATTEMPT_RECORDED_PRIVATELY')
           PY
-          python3 scripts/build_nba_blueprint_2026_27.py > "$RUNNER_TEMP/blueprint-rebuild.log" 2>&1
-          python3 scripts/build_nba_blueprint_2026_27.py --validate-only > "$RUNNER_TEMP/blueprint-validation.log" 2>&1
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('data/extensions/nba_blueprint_2026_27/priority_0022600009_source_status.json')
+          s=json.loads(p.read_text())
+          print('PRIORITY_SOURCE_STATE='+s['state'])
+          PY
+          if python3 scripts/build_nba_blueprint_2026_27.py > "$RUNNER_TEMP/blueprint-rebuild.log" 2>&1 && python3 scripts/build_nba_blueprint_2026_27.py --validate-only > "$RUNNER_TEMP/blueprint-validation.log" 2>&1; then
+            echo 'BLUEPRINT_REBUILD_VERIFIED'
+          else
+            echo 'BLUEPRINT_REBUILD_DEFERRED; PRESERVE_ORIGINAL_AND_STATUS'
+          fi
           git add data/extensions/nba_blueprint_2026_27
           if git diff --cached --quiet; then
             echo 'PRIVATE_DATA_ALREADY_CURRENT'
