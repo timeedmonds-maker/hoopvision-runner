@@ -63,6 +63,11 @@ jobs:
             --jq .content | base64 -d > "$TMP/pulse-qa.json"
           echo STAGE_DEPENDENCIES
           python3 -m pip install --quiet --disable-pip-version-check 'numpy<2' opencv-python-headless==4.10.0.84
+          echo STAGE_FFMPEG_CHECK
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
           command -v ffmpeg
           command -v ffprobe
           echo STAGE_SELFTEST
