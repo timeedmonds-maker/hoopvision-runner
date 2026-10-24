@@ -47,7 +47,10 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/audio_sync_native.py?ref=04bdbf1097eea70e4cdf0fd861fdde2b07eb40a6' \
             --jq .content | base64 -d > "$TMP/native_sync.py"
           echo PRIVATE_SYNC_SOURCE_VERIFIED
-          python3 -m pip install --quiet --disable-pip-version-check 'numpy<2'
+          python3 -m pip install --quiet --disable-pip-version-check 'numpy<2' opencv-python-headless==4.10.0.84
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/native_contact_review.py?ref=49ef05318000c95210fd246b166bf8eec1379936' \
+            --jq .content | base64 -d > "$TMP/contact_review.py"
+          python3 "$TMP/contact_review.py" --selftest
           if ! command -v ffmpeg >/dev/null; then
             sudo apt-get update -qq
             sudo apt-get install -y -qq ffmpeg >/dev/null
@@ -64,7 +67,7 @@ jobs:
           PY
           TAG="freeview-native-0022600009-732"
           gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$TMP/src" \
-            --pattern '*.mp4' --pattern 'source_manifest.json'
+            --pattern '*.mp4' --pattern 'source_manifest.json' --pattern 'native_presentation_timestamps.json'
           python3 - "$TMP/src/source_manifest.json" "$TMP/config.json" <<'PY'
           import json,sys
           m=json.load(open(sys.argv[1]))
@@ -94,3 +97,31 @@ jobs:
              --jq '.assets[] | select(.name=="native_audio_sync.json") | .digest')"
           test "$remote" = "sha256:$(sha256sum "$TMP/native_audio_sync.json" | cut -d' ' -f1)"
           echo PRIVATE_NATIVE_AUDIO_SYNC_SHA256_READBACK_PASS
+          python3 - "$TMP/native_audio_sync.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]))
+          for row in a["angles"]:
+              print("AUDIO_OFFSET_RESULT",row["label"],
+                    "relative_seconds",row["audio_lag_seconds_vs_reference"],
+                    "confidence",row["confidence"],
+                    "mean_quality",row["mean_incident_quality"])
+          PY
+          mkdir -p "$TMP/contact_review"
+          python3 "$TMP/contact_review.py" --clips "$TMP/src" \
+            --source-manifest "$TMP/src/source_manifest.json" \
+            --native-pts "$TMP/src/native_presentation_timestamps.json" \
+            --out "$TMP/contact_review"
+          gh release upload "$TAG" "$TMP/contact_review/"*.jpg \
+             "$TMP/contact_review/native_contact_review.json" \
+             --repo timeedmonds-maker/104 --clobber >/dev/null
+          gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" > "$TMP/release_receipt.json"
+          python3 - "$TMP/contact_review" "$TMP/release_receipt.json" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1]);r=json.load(open(sys.argv[2]))
+          assets={a["name"]:a for a in r["assets"]}
+          for file in root.iterdir():
+              sha=hashlib.sha256(file.read_bytes()).hexdigest()
+              assert assets[file.name]["digest"]=="sha256:"+sha,file.name
+          print("PRIVATE_NATIVE_CONTACT_REVIEW_SHA256_READBACK_PASS",len(list(root.iterdir())))
+          PY
