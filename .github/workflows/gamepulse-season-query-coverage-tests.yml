@@ -20,6 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_REF: main
+      CROSSWALK_REF: 278d5a186c8cd473ffc0dd79bdef70e17d7f196c
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,4 +54,21 @@ jobs:
           python3 -m py_compile "$WORK/interaction_search_2026.py"
           PYTHONPATH="$WORK" python3 -m unittest discover -v \
             -s "$WORK/tests" -p 'test_interaction_search_2026.py'
+          for file in \
+            gamepulse/fusion/season_possession_tracking_crosswalk_2026.py \
+            gamepulse/fusion/tests/test_season_possession_tracking_crosswalk_2026.py; do
+            base="$(basename "$file")"
+            if [[ "$file" == *"/tests/"* ]]; then
+              out="$WORK/tests/$base"
+            else
+              out="$WORK/$base"
+            fi
+            gh api "repos/$PRIVATE_REPO/contents/$file?ref=$CROSSWALK_REF" \
+              --jq '.content' | base64 -d > "$out"
+            test -s "$out"
+          done
+          python3 -m py_compile "$WORK/season_possession_tracking_crosswalk_2026.py"
+          PYTHONPATH="$WORK" python3 -m unittest discover -v \
+            -s "$WORK/tests" -p 'test_season_possession_tracking_crosswalk_2026.py'
+          echo 'SEASON_NATIVE_PBP_CHRONOLOGY_NEGATIVE_CONTROLS_PASSED'
           echo 'SOURCE_NATIVE_SEASON_QUERY_TESTS_PASSED_NO_LICENSED_OUTPUT'
