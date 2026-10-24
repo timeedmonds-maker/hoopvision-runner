@@ -48,3 +48,16 @@ jobs:
           publication=publish(result,"gamepulse/fusion/official_pbp_timing/games/"+game+".json")
           print("PRIVATE_OFFICIAL_PBP_VERIFIED",result["qa"]["nba_action_records"],publication)
           PY
+
+      - name: Certify Rockets Spurs official substitutions and private multi-angle lookup
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/nba-official"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/query_adams_first_sub_2026.py?ref=main' --jq .content |
+            base64 -d > "$ROOT/query_adams_first_sub_2026.py"
+          gh api 'repos/timeedmonds-maker/104/contents/courtcoder/nba_event_angle_discovery.py?ref=courtcoder%2Fintegration' --jq .content |
+            base64 -d > "$ROOT/nba_event_angle_discovery.py"
+          python3 -m py_compile "$ROOT/query_adams_first_sub_2026.py" "$ROOT/nba_event_angle_discovery.py"
+          cd "$ROOT"
+          python3 -u query_adams_first_sub_2026.py
