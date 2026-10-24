@@ -111,3 +111,29 @@ jobs:
           print('PRIVATE_MATCHED_USER_WINDOW_SHA_VERIFIED')
           PY
           fi
+
+          # Private-only low-resolution visual QA thumbnails for camera comparison.
+          python3 - "$ROOT" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          import cv2
+          root=Path(sys.argv[1]);video=root/'0022600009-e86-broadcast.mp4'
+          cap=cv2.VideoCapture(str(video));fps=float(cap.get(cv2.CAP_PROP_FPS))
+          for second in (0,4,8,12,16):
+              cap.set(cv2.CAP_PROP_POS_FRAMES,int(round(second*fps)))
+              ok,frame=cap.read()
+              if not ok:continue
+              small=cv2.resize(frame,(480,270))
+              ok,buf=cv2.imencode('.jpg',small,[int(cv2.IMWRITE_JPEG_QUALITY),70])
+              if not ok:continue
+              raw=base64.b64encode(buf.tobytes()).decode()
+              target=f'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/qa/native_event86_preview_t{second:02d}.jpg.b64.txt'
+              old=subprocess.run(['gh','api',target],capture_output=True,text=True)
+              payload={'branch':'main','message':f'qa(private): native event86 video frame at {second}s',
+                       'content':base64.b64encode(raw.encode()).decode()}
+              if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
+              put=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],input=json.dumps(payload),text=True,capture_output=True)
+              if put.returncode:raise RuntimeError('PRIVATE_PREVIEW_WRITE_FAILED')
+          cap.release()
+          print('PRIVATE_NATIVE_EVENT86_VISUAL_QA_THUMBNAILS_INDEXED')
+          PY
