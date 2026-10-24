@@ -113,7 +113,7 @@ def independent_nba():
         response = json.loads(gh("api", f"repos/{REPO}/contents/{path}?ref=main"))
         raw = base64.b64decode(response["content"])
         # Check GitHub's content-addressed blob before trusting the payload.
-        blob_sha = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\\0" + raw).hexdigest()
+        blob_sha = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
         if blob_sha != response.get("sha"):
             raise RuntimeError("private_nba_reference_blob_sha_mismatch")
         reference = json.loads(raw)
@@ -254,7 +254,8 @@ def audit():
     q4 = quarter_qa["4"]
     source_verified = (total_windows == EXPECTED_WINDOWS and
                        len(player_timestamps) > 100 and len(ball_timestamps) > 50)
-    temporal_supported = (source_verified and reference_origin == "LIVE_NBA_OFFICIAL" and\n        official_status == "final" and
+    temporal_supported = (source_verified and reference_origin == "LIVE_NBA_OFFICIAL" and
+        official_status == "final" and
         all(quarter_qa[str(p)]["actions_with_observed_player_frame_within_60s"] > 0
             for p in range(1, 5)) and
         q4["last_action_nearest_player_frame_gap_ms"] is not None and
