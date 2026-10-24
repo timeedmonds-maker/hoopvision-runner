@@ -41,6 +41,9 @@ jobs:
           set -euo pipefail
           WORK="$RUNNER_TEMP/pulse-private"
           mkdir -p "$WORK"
+          SOURCE_COMMIT="$(gh api "repos/$PRIVATE_REPO/git/ref/heads/main" --jq .object.sha)"
+          test "${#SOURCE_COMMIT}" -eq 40
+          echo "SOURCE_COMMIT=$SOURCE_COMMIT" >> "$GITHUB_ENV"
           fetch_private () {
             local name="$1"
             local ref="$2"
@@ -49,15 +52,15 @@ jobs:
               base64 --decode > "$WORK/$name"
             test -s "$WORK/$name"
           }
-          fetch_private gamepulse/fusion/season_possession_tracking_crosswalk_2026.py "$QA_REF"
-          fetch_private gamepulse/fusion/tests/test_season_possession_tracking_crosswalk_2026.py "$QA_REF"
+          fetch_private gamepulse/fusion/season_possession_tracking_crosswalk_2026.py "$SOURCE_COMMIT"
+          fetch_private gamepulse/fusion/tests/test_season_possession_tracking_crosswalk_2026.py "$SOURCE_COMMIT"
           for src in \
             gamepulse/catalog/2026-27-integrated-current.json \
             gamepulse/fusion/index/index.json \
             gamepulse/fusion/official_pbp_timing/index-2026-27-expanded.json \
             gamepulse/fusion/index/interactions/index-2026-27.json \
             gamepulse/fusion/onoff/index-2026-27-expanded.json; do
-              fetch_private "$src" main
+              fetch_private "$src" "$SOURCE_COMMIT"
           done
           python3 -m py_compile "$WORK/gamepulse/fusion/season_possession_tracking_crosswalk_2026.py"
           python3 -m unittest discover -s "$WORK/gamepulse/fusion/tests" \
@@ -80,7 +83,7 @@ jobs:
               print("gamepulse/fusion/index/interactions/"+gid+".json")
           PY
           while IFS= read -r src; do
-            fetch_private "$src" main
+            fetch_private "$src" "$SOURCE_COMMIT"
           done < "$RUNNER_TEMP/private-paths.txt"
       - name: Enforce full season official events and correct native-touch crosswalk
         shell: bash
@@ -89,6 +92,13 @@ jobs:
           WORK="$RUNNER_TEMP/pulse-private"
           python3 "$WORK/gamepulse/fusion/season_possession_tracking_crosswalk_2026.py" \
             --root "$WORK" --out "$RUNNER_TEMP/pulse-verified.json"
+          python3 - "$RUNNER_TEMP/pulse-verified.json" <<'PY'
+          import json,os,sys
+          from pathlib import Path
+          p=Path(sys.argv[1]); j=json.loads(p.read_text())
+          j["source_repository_commit"]=os.environ["SOURCE_COMMIT"]
+          p.write_text(json.dumps(j,indent=2,sort_keys=True)+"\n")
+          PY
           python3 - "$RUNNER_TEMP/pulse-verified.json" <<'PY'
           import json,sys
           j=json.load(open(sys.argv[1]))
