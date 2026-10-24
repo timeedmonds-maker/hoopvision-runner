@@ -36,7 +36,7 @@ jobs:
           import locked_broadcast_screen_v5_rings as v5
           assert v5.TOOL_ID=='HOOPVISION_1_3_RINGS'
           f=Path(v5.__file__).read_bytes()
-          sha=hashlib.sha1(b'blob '+str(len(f)).encode()+b'\\0'+f).hexdigest()
+          sha=hashlib.sha1(b'blob '+str(len(f)).encode()+b'\0'+f).hexdigest()
           assert sha=='9fac8a8915b90bbd9bd1235532c297c35da77ca2'
           out=Path('ring-stencils');out.mkdir(exist_ok=True)
           tw,th,cols,n=128,80,16,288
