@@ -35,6 +35,48 @@ jobs:
           python3 tools/public_content_guard.py
           test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_104_AUTH_NOT_AVAILABLE'; exit 3; }
           test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+      - name: Independently recheck quarantined NBA source timelines
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json
+          from urllib.request import Request,urlopen
+          for gid in ("0022600009","0022600101"):
+              url="https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_"+gid+".json"
+              req=Request(url,headers={"User-Agent":"Mozilla/5.0",
+                                      "Referer":"https://www.nba.com/"})
+              try:
+                  with urlopen(req,timeout=22) as result:
+                      raw=result.read(2_000_001)
+                  assert len(raw)<2_000_001
+                  doc=json.loads(raw)
+                  assert str(doc["game"]["gameId"])==gid
+                  acts=doc["game"]["actions"]
+                  assert len(acts)>=500
+                  def clock(a):
+                      import re
+                      m=re.fullmatch(r"PT(?:(\d+)H)?(?:(\d+)M)?([0-9.]+)S",a["clock"])
+                      assert m
+                      return int(float(m[1] or 0)*3600000+float(m[2] or 0)*60000+float(m[3])*1000)
+                  keyed=sorted(acts,key=lambda a:(a["period"],-clock(a),
+                      a.get("orderNumber") or a["actionNumber"]))
+                  number_regressions=sum(
+                      b["orderNumber"]<a["orderNumber"] for a,b in zip(keyed,keyed[1:]))
+                  score_regressions=sum(
+                      int(b["scoreHome"])<int(a["scoreHome"]) or
+                      int(b["scoreAway"])<int(a["scoreAway"])
+                      for a,b in zip(keyed,keyed[1:]))
+                  times=[a.get("timeActual") or "" for a in keyed]
+                  utc_regressions=sum(b<a for a,b in zip(times,times[1:]) if a and b)
+                  print("OFFICIAL_NBA_SOURCE_RECHECK",gid,
+                        "actions",len(acts),"order_regressions",number_regressions,
+                        "score_regressions",score_regressions,
+                        "utc_regressions",utc_regressions,
+                        "source_sha256",hashlib.sha256(raw).hexdigest())
+              except Exception as err:
+                  print("OFFICIAL_NBA_SOURCE_RECHECK_UNAVAILABLE",gid,type(err).__name__)
+          PY
       - name: Retrieve only required original private 104 indexes into ephemeral temp
         shell: bash
         run: |
