@@ -46,6 +46,12 @@ jobs:
             base64 -d > "$ROOT/tests/test_universal_native_frame_bridge_2026.py"
           python3 -m py_compile "$ROOT/universal_native_frame_bridge_2026.py"
           PYTHONPATH="$ROOT:$ROOT/tests" python3 -m unittest discover -v -s "$ROOT/tests" -p test_universal_native_frame_bridge_2026.py
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/certified_possession_feature_queries_2026.py?ref=$PRIVATE_REF" --jq .content |
+            base64 -d > "$ROOT/certified_possession_feature_queries_2026.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_certified_possession_feature_queries_2026.py?ref=$PRIVATE_REF" --jq .content |
+            base64 -d > "$ROOT/tests/test_certified_possession_feature_queries_2026.py"
+          python3 -m py_compile "$ROOT/certified_possession_feature_queries_2026.py"
+          PYTHONPATH="$ROOT:$ROOT/tests" python3 -m unittest discover -v -s "$ROOT/tests" -p test_certified_possession_feature_queries_2026.py
           echo "Universal Game Pulse feature-alignment contract validated; no physical possession counts certified." >> "$GITHUB_STEP_SUMMARY"
       - name: No private payload artifacts
         if: always()
