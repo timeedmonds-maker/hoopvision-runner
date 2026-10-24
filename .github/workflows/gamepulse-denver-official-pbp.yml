@@ -31,8 +31,8 @@ jobs:
             gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$module.py?ref=main" --jq .content | base64 -d > "$ROOT/$module.py"
           done
           python3 -m py_compile "$ROOT/"*.py
+          python3 "$ROOT/official_pbp_timestamps_2026.py" --selftest
       - name: Verify exact NBA official game clock, timeActual, final score and SHA
-        continue-on-error: true # Existing Denver private publish is currently permission-blocked; do not block NBA read-only source verification.
         shell: bash
         run: |
           set -euo pipefail
@@ -47,8 +47,7 @@ jobs:
               raise RuntimeError("OFFICIAL_PBP_UTC_UNAVAILABLE")
           if not result["qa"]["nba_score_reconciled_to_boxscore"]:
               raise RuntimeError("OFFICIAL_PBP_FINAL_SCORE_NOT_RECONCILED")
-          publication=publish(result,"gamepulse/fusion/official_pbp_timing/games/"+game+".json")
-          print("PRIVATE_OFFICIAL_PBP_VERIFIED",result["qa"]["nba_action_records"],publication)
+          print("OFFICIAL_PBP_SOURCE_VERIFIED_READ_ONLY",result["qa"]["nba_action_records"])
           PY
 
       - name: Certify Rockets Spurs official substitutions and private multi-angle lookup
