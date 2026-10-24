@@ -65,6 +65,7 @@ jobs:
             "$ROOT/private-main/gamepulse/clip_lab/frozen_v31_gamepulse_bridge.py" \
             "$ROOT/private-main/gamepulse/clip_lab/prepare_frozen_physical.py" \
             "$ROOT/private-main/gamepulse/clip_lab/launch_frozen_ring_only.py" \
+            "$ROOT/private-main/gamepulse/clip_lab/adaptive_frozen_visual_tracking.py" \
             "$ROOT/private-frozen/screen_tracker_nextgen/render_all_player_labels.py"
           echo ORIGINAL_PRIVATE_SOURCE_NO_REST_DOWNLOAD_VERIFIED
       - name: Reacquire original NBA Broadcast HLS and native Game Pulse SDK evidence
@@ -183,11 +184,21 @@ jobs:
             per=collections.Counter(int(t) for t in times)
             print('ASSIGNED_FOOT_SAMPLES',pid,'count',len(times),'range',round(min(times),2) if times else None,round(max(times),2) if times else None,'per_second',sorted(per.items()))
           PY
+          python3 "$ROOT/private-main/gamepulse/clip_lab/adaptive_frozen_visual_tracking.py" \
+            --native "$ROOT/native.json" \
+            --physical "$ROOT/physical_paths.csv" \
+            --courts "$ROOT/original-tracking/court_frames.json" \
+            --qa "$ROOT/fused/frozen_v31_gamepulse_qa.json" \
+            --assignments "$ROOT/fused/frozen_v31_gamepulse_assignments.csv" \
+            --fps 30 --duration-s "$DURATION" > "$ROOT/tracklet-qa.json"
+          echo ADAPTIVE_VISIBLE_FEET_RECONCILED
+          cat "$ROOT/tracklet-qa.json"
           printf '%s\n' '{"schema":"hoopvision.clip-lab.native-last-touch-intervals.v1","possession_intervals":[]}' > "$ROOT/neutral-possession.json"
           PYTHONPATH="$ROOT/private-frozen:$ROOT/private-frozen/tools" \
             python3 "$ROOT/private-main/gamepulse/clip_lab/launch_frozen_ring_only.py" \
               "$ROOT/private-frozen/screen_tracker_nextgen/render_all_player_labels.py" \
               --source "$ROOT/event80-broadcast.mp4" \
+              --end-s 9.6 \
               --assignments "$ROOT/fused/frozen_v31_gamepulse_assignments.csv" \
               --paths "$ROOT/fused/frozen_v31_gamepulse_assignments.csv" \
               --court-frames "$ROOT/original-tracking/court_frames.json" \
