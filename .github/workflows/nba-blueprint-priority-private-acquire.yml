@@ -78,7 +78,21 @@ jobs:
             echo 'BLUEPRINT_REBUILD_VERIFIED'
           else
             echo 'BLUEPRINT_REBUILD_DEFERRED; PRESERVE_ORIGINAL_AND_STATUS'
-            grep -E '(ValueError|TypeError|KeyError|AssertionError|RuntimeError):' "$RUNNER_TEMP/blueprint-rebuild.log" | sed -E 's/:.*/: details redacted/' | tail -n 1 || true
+            if grep -Fq 'Blueprint shot source changed without archived original report' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_SOURCE_REVISION'; fi
+            if grep -Fq 'Missing essential shooter/defender identity' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_PLAYER_ID'; fi
+            if grep -Fq 'Defender/shooter appear on same team' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_TEAM_MATCH'; fi
+            if grep -Fq 'Cross-source period/outcome/shot-type conflict' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_SHOT_CONFLICT'; fi
+            if grep -Fq 'Blueprint tracked FGA exceeds official attempts' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_FGA'; fi
+            if grep -Fq 'Independent Blueprint shot schema changed' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_SOURCE_SCHEMA'; fi
+            if grep -Fq 'Original 37-field shot video source schema drift' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_VIDEO_SCHEMA'; fi
+            if grep -Fq 'Gravity' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_GRAVITY'; fi
+            if grep -Fq 'Leverage' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_LEVERAGE'; fi
+            if grep -Fq 'heatmap' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_HEATMAP'; fi
+            if grep -Fq 'Stored output differs from deterministic rebuild' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_REBUILD_COMPARE'; fi
+            if grep -Fq 'Opening-night shot observations unexpectedly decreased' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_OPENING_NIGHT'; fi
+            if grep -Fq 'Unexpected shot type' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_SHOT_TYPE'; fi
+            if grep -Fq 'Unexpected shot result' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_SHOT_RESULT'; fi
+            if grep -Fq 'ValueError:' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_OTHER_VALUE'; fi
           fi
           git add data/extensions/nba_blueprint_2026_27
           if git diff --cached --quiet; then
