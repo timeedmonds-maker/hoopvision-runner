@@ -53,8 +53,11 @@ jobs:
               -o "$ROOT/$name" -w '%{http_code}' \
               "https://github.com/timeedmonds-maker/104/releases/download/$TAG/$name" || true)"
             if [ "$code" != '200' ]; then
-              echo PRIVATE_ORIGINAL_MEDIA_DIRECT_AUTH_UNAVAILABLE
-              exit 4
+              rm -f "$ROOT/$name"
+              gh release download "$TAG" --repo timeedmonds-maker/104 --pattern "$name" --dir "$ROOT" >/dev/null || {
+                echo ORIGINAL_PRIVATE_RELEASE_UNAVAILABLE_OR_RATE_LIMITED
+                exit 4
+              }
             fi
           done
           # Frozen worker stores private tracking & homography only inside 104.
