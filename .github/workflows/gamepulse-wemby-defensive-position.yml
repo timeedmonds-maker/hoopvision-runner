@@ -82,12 +82,17 @@ jobs:
           obj=json.loads(data)
           assert obj['game_id']==game and obj['player_id']=='1641705'
           target='repos/timeedmonds-maker/104/contents/gamepulse/fusion/queries/wemby_defensive_position_'+game+'.json'
-          old=subprocess.run(['gh','api',target],capture_output=True,text=True,timeout=30)
-          payload={'branch':'main','message':'data(gamepulse): persist Wembanyama defensive XY court comparison '+game,'content':base64.b64encode(data).decode()}
-          if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
-          elif 'Not Found' not in old.stderr and '404' not in old.stderr:raise RuntimeError('PRIVATE_READ_ERROR')
-          out=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],input=json.dumps(payload),capture_output=True,text=True,timeout=90)
-          if out.returncode:raise RuntimeError('PRIVATE_WRITE_ERROR')
+          import time
+          for attempt in range(15):
+              old=subprocess.run(['gh','api',target],capture_output=True,text=True,timeout=30)
+              payload={'branch':'main','message':'data(gamepulse): persist Wembanyama defensive XY court comparison '+game,'content':base64.b64encode(data).decode()}
+              if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
+              elif 'Not Found' not in old.stderr and '404' not in old.stderr:raise RuntimeError('PRIVATE_READ_ERROR')
+              out=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],input=json.dumps(payload),capture_output=True,text=True,timeout=90)
+              if out.returncode==0:break
+              if not any(v in out.stderr for v in ('409','422','429','500','502','503')):raise RuntimeError('PRIVATE_NONRETRYABLE_WRITE_ERROR')
+              time.sleep(min(2+attempt,12))
+          else:raise RuntimeError('PRIVATE_WRITE_CONFLICT_RETRIES_EXHAUSTED')
           back=base64.b64decode(subprocess.check_output(['gh','api',target,'--jq','.content'],timeout=40))
           assert hashlib.sha256(data).digest()==hashlib.sha256(back).digest()
           print('PRIVATE_WEMBY_HALFCOURT_ANALYSIS_STORED_AND_VERIFIED')
