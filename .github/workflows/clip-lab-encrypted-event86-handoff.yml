@@ -30,6 +30,8 @@ jobs:
             --pattern 'cpu_frozen_full20_qa.json' \
             --repo timeedmonds-maker/104 --dir "$RUNNER_TEMP/secure-source" >/dev/null
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/positions/0022600009_q1_durant_adams.json' --jq .content | base64 -d > "$RUNNER_TEMP/secure-source/native_gamepulse_q1.json"
+          gh api 'repos/timeedmonds-maker/104/contents/tools/locked_broadcast_screen_v5_rings.py?ref=courtcoder/integration' --jq .content | base64 -d > "$RUNNER_TEMP/secure-source/original_frozen_rings_v31.py"
+          gh api 'repos/timeedmonds-maker/104/contents/screen_tracker_nextgen/materialize_fast_path_render_assignments.py?ref=courtcoder/integration' --jq .content | base64 -d > "$RUNNER_TEMP/secure-source/official_floor_anchor_materializer.py"
           python3 - "$RUNNER_TEMP/secure-source" <<'PY'
           import hashlib,json,csv,sys
           from pathlib import Path
