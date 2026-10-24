@@ -19,7 +19,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      SOURCE_REF: fc2bec7c1c3b39c19816245abeedbb3f39d0ef30
+      SOURCE_REF: main
     steps:
       - uses: actions/checkout@v4
         with:
