@@ -5,7 +5,9 @@ name: Integrated Pulse native SDK to official PBP missing-13 source fusion
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-native-interactions-season-missing13.yml']
+    paths:
+      - '.github/workflows/gamepulse-native-interactions-season-missing13.yml'
+      - 'tools/public_content_guard.py'
   workflow_dispatch:
 permissions:
   contents: read
