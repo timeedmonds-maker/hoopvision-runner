@@ -150,6 +150,18 @@ REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
     ".github/workflows/rockets-remaining-sengun-double-clips.yml": "8f2a1d85f88845732f1139740eede73604cbde2c",
 }
 
+# Two reviewed, immutable handoff workflows may upload only their audited
+# artifacts. In particular, the encrypted handoff's recipient certificate must
+# also remain byte-for-byte pinned: changing the recipient would expose the
+# private source bundle to an unintended decryptor.
+REVIEWED_ARTIFACT_HANDOFF_GIT_BLOB_SHA = {
+    ".github/workflows/clip-lab-artifact-handoff-smoke.yml": "c82cd5194d384e32acd1bf0cb42a0064e5703af7",
+    ".github/workflows/clip-lab-encrypted-event86-handoff.yml": "4fb87ada769b0422c24afae0a60470c0d04bae3b",
+}
+REVIEWED_HANDOFF_CERT_GIT_BLOB_SHA = {
+    "tools/clip_lab_public_handoff_cert.pem": "b3e84c69c35e061580dd3a4e6201c07f4adbdc19",
+}
+
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
     ".github/workflows/clip-lab-rockets-219-hls.yml",
     ".github/workflows/clip-lab-rockets-new-double-346-hls.yml",
@@ -210,10 +222,15 @@ def scan(paths: list[str]) -> list[tuple[str, str]]:
             continue
         if not p.is_file():
             continue
-        if rel in REVIEWED_WORKFLOW_GIT_BLOB_SHA:
+        pinned_sha = (
+            REVIEWED_WORKFLOW_GIT_BLOB_SHA.get(rel)
+            or REVIEWED_ARTIFACT_HANDOFF_GIT_BLOB_SHA.get(rel)
+            or REVIEWED_HANDOFF_CERT_GIT_BLOB_SHA.get(rel)
+        )
+        if pinned_sha:
             current = subprocess.check_output(["git", "hash-object", rel], text=True).strip()
-            if current != REVIEWED_WORKFLOW_GIT_BLOB_SHA[rel]:
-                bad.append(violation("REVIEWED_WORKFLOW_CHANGED", rel))
+            if current != pinned_sha:
+                bad.append(violation("REVIEWED_WORKFLOW_OR_CERT_CHANGED", rel))
                 continue
         try:
             text = p.read_text(encoding="utf-8")
@@ -227,7 +244,8 @@ def scan(paths: list[str]) -> list[tuple[str, str]]:
                 # User-authorised publication of ONE rendered NBA clip, never
                 # raw tracking or canonical private database records.
                 if (code == "ACTIONS_ARTIFACT_UPLOAD" and
-                    rel in REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS):
+                    (rel in REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS
+                     or rel in REVIEWED_ARTIFACT_HANDOFF_GIT_BLOB_SHA)):
                     continue
                 # Existing exact-blob NBA clip locator workflows contain the
                 # public clips.nba.com origin, never signed media URLs.
