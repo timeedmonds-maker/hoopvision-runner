@@ -116,8 +116,10 @@ jobs:
 
   full-game-source-hoop-qa:
     name: Original full-game CPU hoop-anchor QA (${{ matrix.game }})
+    needs: verify-universal-contract
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         game: ['0022600009','0022600101']
     runs-on: ubuntu-24.04
@@ -191,6 +193,13 @@ jobs:
                 'eligible_makes',j['nba_made_fg'],
                 'brackets',j['bracket_candidates'],
                 'qualified_periods',j['qualified_candidate_periods'])
+          for period,v in j['periods'].items():
+              print('AUTO_PERIOD_QA',j['game_id'],period,
+                    'matches',v['matched_made_fg'],
+                    'makes',v['nba_made_fg_in_period'],
+                    'purity',v['team_basket_direction_purity'],
+                    'qualified',v['candidate_source_alignment_gate_passed'],
+                    'ambiguous',len(v['ambiguities']))
           PY
       - name: Save source evidence QA in private 104 only
         run: |
