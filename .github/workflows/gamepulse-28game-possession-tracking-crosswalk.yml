@@ -78,6 +78,40 @@ jobs:
                   print("OFFICIAL_NBA_SOURCE_RECHECK_UNAVAILABLE",gid,type(err).__name__,
                         "http_status",getattr(err,"code",None))
           PY
+      - name: Verify independent ESPN event source chronology for quarantined games
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from urllib.request import Request,urlopen
+          for gid,eid in (("0022600009","401909096"),("0022600101","401909850")):
+              url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event="+eid
+              try:
+                  req=Request(url,headers={"User-Agent":"Mozilla/5.0",
+                         "Accept":"application/json","Referer":"https://www.espn.com/"})
+                  with urlopen(req,timeout=22) as r:
+                      raw=r.read(8_000_001)
+                  assert len(raw)<8_000_001
+                  doc=json.loads(raw)
+                  plays=doc.get("plays") or []
+                  if isinstance(plays,dict):
+                      plays=plays.get("plays",[])
+                  assert isinstance(plays,list)
+                  periods={}
+                  for p in plays:
+                      n=(p.get("period") or {}).get("number")
+                      periods[str(n)]=periods.get(str(n),0)+1
+                  with_wallclock=sum(bool(p.get("wallclock")) for p in plays)
+                  with_clock=sum(bool((p.get("clock") or {}).get("displayValue")) for p in plays)
+                  print("ESPN_ORIGINAL_PBP_SOURCE_QA",gid,"espn_game_id",eid,
+                        "plays",len(plays),"period_counts",json.dumps(periods,sort_keys=True),
+                        "wallclock_actions",with_wallclock,"clock_actions",with_clock,
+                        "has_plays",len(plays)>250)
+              except Exception as exc:
+                  print("ESPN_SOURCE_TIMING_UNAVAILABLE",gid,type(exc).__name__,
+                        "http_status",getattr(exc,"code",None))
+          PY
       - name: Retrieve only required original private 104 indexes into ephemeral temp
         shell: bash
         run: |
