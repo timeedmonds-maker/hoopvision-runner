@@ -63,7 +63,7 @@ jobs:
           set -euo pipefail
           WORK="$RUNNER_TEMP/season-search"
           python3 - <<'PY'
-          import base64,hashlib,json,os,subprocess
+          import base64,hashlib,json,os,subprocess,time
           from pathlib import Path
           work=Path(os.environ['RUNNER_TEMP'])/'season-search'
           data=(work/'current.json').read_bytes()
@@ -84,11 +84,32 @@ jobs:
               if previous.returncode==0:payload['sha']=json.loads(previous.stdout)['sha']
               write=subprocess.run(['gh','api','-X','PUT',endpoint,'--input','-'],
                                    input=json.dumps(payload),capture_output=True,text=True)
-              if write.returncode==0:break
+              if write.returncode==0:
+                  published=json.loads(write.stdout)
+                  break
+              time.sleep(2)
           else:raise RuntimeError('PRIVATE_INDEX_UPDATE_CONFLICT')
-          remote=base64.b64decode(api(endpoint)['content'])
-          if remote!=data or hashlib.sha256(remote).digest()!=hashlib.sha256(data).digest():
-              raise RuntimeError('PRIVATE_INDEX_SHA256_READBACK_MISMATCH')
+          # GitHub's contents endpoint may briefly serve the prior blob after
+          # a successful PUT. Verify the immutable blob returned by that PUT
+          # first; then require the branch path to converge to that same SHA.
+          expected_blob=published['content']['sha']
+          immutable=api('repos/timeedmonds-maker/104/git/blobs/'+expected_blob)
+          immutable_bytes=base64.b64decode(immutable['content'])
+          if immutable_bytes!=data or hashlib.sha256(immutable_bytes).digest()!=hashlib.sha256(data).digest():
+              raise RuntimeError('PRIVATE_INDEX_PUBLISHED_BLOB_SHA_MISMATCH')
+          remote=None
+          for read_attempt in range(12):
+              current=api(endpoint)
+              if current['sha']==expected_blob:
+                  remote=base64.b64decode(current['content'])
+                  if remote==data and hashlib.sha256(remote).digest()==hashlib.sha256(data).digest():
+                      break
+                  raise RuntimeError('PRIVATE_INDEX_CURRENT_BLOB_BYTES_MISMATCH')
+              time.sleep(2)
+          else:
+              raise RuntimeError('PRIVATE_INDEX_BRANCH_READBACK_STALE_OR_CONCURRENT_WRITER')
+          if remote is None:
+              raise RuntimeError('PRIVATE_INDEX_READBACK_UNAVAILABLE')
           frozen=json.loads(base64.b64decode(api(
               'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json')['content']))
           doc=json.loads(remote)
