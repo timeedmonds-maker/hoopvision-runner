@@ -207,11 +207,20 @@ jobs:
               "content":base64.b64encode(source).decode("ascii")
           }))
           PY
-          gh api -X PUT \
-             'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_contact_bracket_qa.json' \
-             --input "$TMP/amen732_event_bracket/private_put.json" \
-             --jq '.content.path' >/dev/null
-          echo PRIVATE_3D_CONTACT_BRACKET_QA_COMMITTED
+          QA_PATH='repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_contact_bracket_qa.json'
+          if gh api "$QA_PATH?ref=research/amen-wemby-freeze-spin-20261024" \
+             --jq .content | base64 -d | cmp -s - "$TMP/amen732_event_bracket/event732-contact-bracket-qa.json"; then
+            echo EVENT732_PRIVATE_CONTACT_BRACKET_UNCHANGED
+          else
+            python3 - "$TMP/amen732_event_bracket/private_put.json" "$(gh api "$QA_PATH?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha)" <<'PY'
+          import json,sys
+          f=sys.argv[1];data=json.load(open(f));data["sha"]=sys.argv[2]
+          open(f,"w").write(json.dumps(data))
+          PY
+            gh api -X PUT "$QA_PATH" --input "$TMP/amen732_event_bracket/private_put.json" \
+              --jq '.content.path' >/dev/null
+            echo EVENT732_PRIVATE_CONTACT_BRACKET_UPDATED
+          fi
 
           gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_native_optical_motion_qa.py?ref=e9bdbbcb572c706540cab872915690a8514e3122' \
             --jq .content | base64 -d > "$TMP/native_optics.py"
