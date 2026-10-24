@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-season-backlog.yml",
     ".github/workflows/gamepulse-rockets-spurs-fusion-merge.yml",
     ".github/workflows/public-nba-gravity-onegame.yml",
     ".github/workflows/nba-blueprint-priority-private-acquire.yml",
