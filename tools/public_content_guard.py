@@ -186,6 +186,7 @@ REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
     ".github/workflows/rockets-remaining-sengun-double-clips.yml",
 }
 REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS = {
+    ".github/workflows/clip-lab-rockets-event80-frozen-render.yml",  # ONLY QA-approved ringed MP4 artifact
     ".github/workflows/clip-lab-event80-delivery-smoke.yml",  # harmless test fixture upload
     ".github/workflows/nba-jabari616-ball-handler-media.yml",
     ".github/workflows/nba-jabari616-ring-export-to-chat.yml",
