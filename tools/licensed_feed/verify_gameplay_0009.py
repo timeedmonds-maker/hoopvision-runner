@@ -191,6 +191,7 @@ def audit():
     timestamps = set()
     player_timestamps = set()
     ball_timestamps = set()
+    same_frame_player_ball_timestamps = set()
     part_qa = []
     total_windows = 0
     with tempfile.TemporaryDirectory(prefix="gp-original-qa-") as folder:
@@ -242,12 +243,17 @@ def audit():
                             raise RuntimeError("invalid_source_frame")
                         n_frames += 1
                         timestamps.add(stamp)
-                        if any(pid != "ball" for pid in pos):
+                        has_player = any(pid != "ball" for pid in pos)
+                        has_ball = "ball" in pos
+                        if has_player:
                             n_player += 1
                             player_timestamps.add(stamp)
-                        if "ball" in pos:
+                        if has_ball:
                             n_ball += 1
                             ball_timestamps.add(stamp)
+                        if has_player and has_ball:
+                            # Same original source frame, not merely a shared 5s bin.
+                            same_frame_player_ball_timestamps.add(stamp)
                 if (n_frames != manifest.get("unique_keyframes") or
                         n_player != manifest.get("frames_with_players") or
                         n_ball != manifest.get("frames_with_ball")):
@@ -297,6 +303,20 @@ def audit():
     entire_capture_slots = observed_slot_diagnostic(
         player_timestamps, ball_timestamps, BEGIN,
         BEGIN + EXPECTED_WINDOWS * SLOT_MS - 1)
+    # A player and ball in separate frames within one 5s bin is NOT
+    # a jointly observed original source frame. Keep this stricter diagnostic
+    # separate from the pre-existing coarse-bin screen; neither certifies play.
+    same_frame_quarter_bins = {
+        str(period): observed_slot_diagnostic(
+            same_frame_player_ball_timestamps,
+            same_frame_player_ball_timestamps,
+            min(times) if times else None, max(times) if times else None)
+        for period, times in official_periods.items()
+    }
+    same_frame_capture_bins = observed_slot_diagnostic(
+        same_frame_player_ball_timestamps,
+        same_frame_player_ball_timestamps,
+        BEGIN, BEGIN + EXPECTED_WINDOWS * SLOT_MS - 1)
     q4 = quarter_qa["4"]
     source_verified = (total_windows == EXPECTED_WINDOWS and
                        len(player_timestamps) > 100 and len(ball_timestamps) > 50)
@@ -328,6 +348,16 @@ def audit():
             "interpretation": "Original position-bearing 5s timestamp bins, NOT "
                 "scheduled SDK success slots, continuous gameplay, identity, "
                 "shot-release timing or possession certification.",
+        },
+        "observed_original_same_frame_player_ball": {
+            "unique_source_timestamps_with_both_position_keys":
+                len(same_frame_player_ball_timestamps),
+            "entire_capture_5s_bins": same_frame_capture_bins,
+            "official_quarter_action_spans_5s_bins": same_frame_quarter_bins,
+            "interpretation": "Both player and ball position keys appear in the "
+                "same original source frame, not merely within one 5s bin. "
+                "These are diagnostic source observations, not continuous "
+                "gameplay, possession, or video timing certification.",
         },
         "temporal_source_coverage": "SUPPORTED" if temporal_supported else "INCONCLUSIVE",
         "tracking_gameplay_certified": False,
@@ -368,6 +398,9 @@ def original_qa_blocker_codes(report):
         codes.append("OBSERVED_PLAYER_SOURCE_INSUFFICIENT")
     if report.get("observed_unique_ball_timestamps", 0) <= 50:
         codes.append("OBSERVED_BALL_SOURCE_INSUFFICIENT")
+    if not (report.get("observed_original_same_frame_player_ball") or {}).get(
+            "unique_source_timestamps_with_both_position_keys", 0):
+        codes.append("OBSERVED_SAME_FRAME_PLAYER_BALL_ABSENT")
     return codes or ["TEMPORAL_SCREEN_PASSED_FULL_TRACKING_UNCERTIFIED"]
 
 
