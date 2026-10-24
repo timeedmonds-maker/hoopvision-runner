@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths: ['.github/workflows/gamepulse-rockets-spurs-fusion-merge.yml']
   workflow_dispatch:
+  workflow_run:
+    workflows: ['Game Pulse complete season backlog']
+    types: [completed]
 permissions:
   contents: read
 concurrency:
@@ -12,6 +15,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   merge:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
@@ -147,7 +151,7 @@ jobs:
             where=('gamepulse/fusion/index/index.json' if f.name=='index.json' else 'gamepulse/fusion/index/games/'+f.name)
             put(where,f.read_bytes())
           for f in sorted((root/'onoff').glob('*.json')):
-            where=('gamepulse/fusion/tracking_onoff/index.json' if f.name=='index.json' else 'gamepulse/fusion/tracking_onoff/'+f.name)
+            where=('gamepulse/fusion/tracking_onoff/index.json' if f.name=='index.json' else 'gamepulse/fusion/tracking_onoff/games/'+f.name)
             put(where,f.read_bytes())
           report=json.loads((root/'manifest.json').read_text())
           status={'schema':'gamepulse.fusion-search-status.v1','release_tag':'gamepulse-fusion-2026-27',
