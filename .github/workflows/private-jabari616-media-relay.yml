@@ -1,0 +1,39 @@
+name: Private Jabari616 media relay
+on:
+  push:
+    branches: [agent/private-video-relay-616]
+    paths: [.github/workflows/private-jabari616-media-relay.yml]
+permissions:
+  contents: read
+jobs:
+  relay:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Copy verified media in private text chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_TOKEN_MISSING; exit 3; }
+          mkdir -p "$RUNNER_TEMP/relay"
+          gh release download clip-lab-jabari616-v31-frozen-quality-full20 --repo timeedmonds-maker/104 --pattern 'jabari616-five-cumulative-rings-original-v31-full20-CRF12.mp4' --dir "$RUNNER_TEMP/relay"
+          export RELAY_FILE="$RUNNER_TEMP/relay/jabari616-five-cumulative-rings-original-v31-full20-CRF12.mp4"
+          python3 - <<'PY'
+          import os,hashlib,json,base64,subprocess,pathlib
+          p=pathlib.Path(os.environ['RELAY_FILE'])
+          raw=p.read_bytes()
+          assert len(raw)==14475019
+          assert hashlib.sha256(raw).hexdigest()=='a1fc722173944b29555d5f28d07e87038daf233f4e0f834aeffcbb00c779c562'
+          target='repos/timeedmonds-maker/104/contents/gamepulse/chat_export_616'
+          for i in range(0,len(raw),512000):
+              chunk=base64.b64encode(raw[i:i+512000]).decode()
+              path=f'{target}/chunk_{i//512000:03d}.txt'
+              payload={'branch':'agent/export-jabari616-chat','message':f'temp: private Jabari video transfer chunk {i//512000:03d}',
+                       'content':base64.b64encode((chunk+'\n').encode()).decode()}
+              proc=subprocess.run(['gh','api','-X','PUT',path,'--input','-'],input=json.dumps(payload),text=True,capture_output=True)
+              if proc.returncode:raise RuntimeError(f'PRIVATE_CHUNK_UPLOAD_FAILED_{i//512000:03d}')
+              print('PRIVATE_CHUNK_STORED',i//512000)
+          print('PRIVATE_RELAY_VERIFIED',len(raw),hashlib.sha256(raw).hexdigest())
+          PY
