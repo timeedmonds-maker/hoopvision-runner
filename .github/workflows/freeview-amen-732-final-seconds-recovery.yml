@@ -191,9 +191,19 @@ jobs:
               "message":"data(freeview): private source-authentic Amen Wemby rim-state candidates",
               "content":base64.b64encode(payload).decode("ascii")}))
           PY
-          gh api -X PUT 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_raw_rim_state_candidates.json' \
-            --input "$ROOT/private_rim_put.json" --jq '.content.path' >/dev/null
-          echo EVENT732_PRIVATE_RIM_STATE_COMMITTED
+          PRIVATE_RIM_PATH='repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_raw_rim_state_candidates.json'
+          if gh api "$PRIVATE_RIM_PATH?ref=research/amen-wemby-freeze-spin-20261024" \
+               --jq .content | base64 -d | cmp -s - "$OUT/event732-rim-state.json"; then
+            echo EVENT732_PRIVATE_RIM_STATE_ALREADY_SOURCE_IDENTICAL
+          else
+            python3 - "$ROOT/private_rim_put.json" "$(gh api "$PRIVATE_RIM_PATH?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha)" <<'PY'
+          import json,sys
+          path=sys.argv[1];payload=json.load(open(path));payload["sha"]=sys.argv[2]
+          open(path,"w").write(json.dumps(payload))
+          PY
+            gh api -X PUT "$PRIVATE_RIM_PATH" --input "$ROOT/private_rim_put.json" --jq '.content.path' >/dev/null
+            echo EVENT732_PRIVATE_RIM_STATE_UPDATED_WITH_EXISTING_BLOB_SHA
+          fi
 
           gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_spatial_video_event_link.py?ref=b39ee631fe82ea7f5ae6fd731ac72e85338c7c6c' \
             --jq .content | base64 -d > "$ROOT/spatial_video_join.py"
