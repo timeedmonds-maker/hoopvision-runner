@@ -1,0 +1,134 @@
+# Targeted late-game source recovery; no source records or signed tokens in public artifacts.
+name: Freeview Amen 732 missing Game Pulse final seconds recovery
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/freeview-amen-732-final-seconds-recovery.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: freeview-gamepulse-amen-732-last7
+  cancel-in-progress: false
+jobs:
+  recover:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Guard public runner and private destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0,"tools")
+          from public_content_guard import scan
+          bad=scan([".github/workflows/freeview-amen-732-final-seconds-recovery.yml"])
+          if bad:
+              print("PRIVACY_CONTENT_GUARD_FAILED")
+              raise SystemExit(3)
+          print("PRIVATE_CAPTURE_CONTENT_GUARD_PASSED")
+          PY
+          test -n "$GH_TOKEN" || { echo PRIVATE_RELEASE_TOKEN_MISSING; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Recover only final NBA SDK source windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          mkdir -p "$ROOT/sdk"
+          for file in collector.mjs browser.js index.html package.json; do
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/sdk-season/$file?ref=main" \
+              --jq .content | base64 -d > "$ROOT/sdk/$file"
+          done
+          cd "$ROOT/sdk"
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+          test -f "$ROOT/sdk/node_modules/puppeteer-core/package.json"
+          node collector.mjs --game=0022600009 \
+            --tipoff=2026-10-24T01:30:00Z --start=1792815240000 --count=84
+          OUT="$ROOT/sdk/out/0022600009/1792815240000"
+          test -s "$OUT/raw-slots.jsonl.gz"
+          test -s "$OUT/frames.jsonl.gz"
+          test -s "$OUT/manifest.json"
+          python3 - "$OUT" <<'PY'
+          import gzip,json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1]);m=json.loads((root/"manifest.json").read_text())
+          start=1792815240000; end=start+84*5000-1; event=1792815556484
+          assert m["game_id"]=="0022600009" and m["start_ms"]==start
+          assert m["end_ms"]==end and m["successful_windows"]==84
+          assert m["observed"] is True and m["imputed"] is False
+          stamps=[];player=[];ball=[];amen=[];wemby=[]
+          with gzip.open(root/"frames.jsonl.gz","rt") as f:
+              for line in f:
+                  if not line.strip():continue
+                  row=json.loads(line);ms=row.get("timestamp")
+                  p=row.get("positions") or {}
+                  if not isinstance(ms,int) or not(start<=ms<=end):
+                      raise RuntimeError("RECOVERY_FRAME_OUTSIDE_OBSERVED_SOURCE")
+                  stamps.append(ms)
+                  if any(k!="ball" for k in p):player.append(ms)
+                  if "ball" in p:ball.append(ms)
+                  if "1641708" in p:amen.append(ms)
+                  if "1641705" in p:wemby.append(ms)
+          def nearest(xs):
+              return min((abs(t-event) for t in xs),default=None)
+          gaps={k:nearest(v) for k,v in [
+              ("any_player",player),("ball",ball),("amen",amen),("wembanyama",wemby)]}
+          present=(gaps["ball"] is not None and gaps["ball"]<=3000 and
+                   gaps["amen"] is not None and gaps["amen"]<=3000 and
+                   gaps["wembanyama"] is not None and gaps["wembanyama"]<=3000)
+          qa={"schema":"hoopvision.freeview.gamepulse-event732-late-recovery.v1",
+              "game_id":"0022600009","event_num":732,
+              "official_nba_pbp_utc_ms":event,
+              "source_window_start_utc_ms":start,
+              "source_window_end_utc_ms":end,
+              "source_windows_requested":84,
+              "source_windows_successful":84,
+              "source_native_frame_count":len(stamps),
+              "source_player_frame_count":len(player),
+              "source_ball_frame_count":len(ball),
+              "source_amen_frame_count":len(amen),
+              "source_wembanyama_frame_count":len(wemby),
+              "nearest_observed_frame_gap_ms":gaps,
+              "raw_source_frames_at_event":"PRESENT_NEAR_NBA_PBP" if present else "NOT_VERIFIED_AT_EVENT",
+              "video_pts_aligned":False,
+              "hand_ball_first_touch_certified":False,
+              "same_physical_frame_certified":False,
+              "full_game_certified":False,
+              "provenance":"fresh SDK capture; no imputation; official event UTC is approximate action time, not native video PTS"}
+          (root/"event732-targeted-qa.json").write_text(json.dumps(qa,indent=2)+"\n")
+          print("TARGETED_EVENT732_RECAPTURE",qa["raw_source_frames_at_event"],
+                "native_frames",len(stamps),"nearest_gap_ms",gaps)
+          PY
+          TAG="freeview-gamepulse-0022600009-e732-recovery"
+          if ! gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
+            gh release create "$TAG" --repo timeedmonds-maker/104 \
+              --title 'Original source Game Pulse targeted final-second recovery' \
+              --notes 'Source-only recapture near NBA action 732. No assumption of successful tracking, camera alignment or first hand-ball contact.' \
+              --latest=false >/dev/null
+          fi
+          gh release upload "$TAG" "$OUT/raw-slots.jsonl.gz" \
+            "$OUT/frames.jsonl.gz" "$OUT/manifest.json" \
+            "$OUT/event732-targeted-qa.json" --repo timeedmonds-maker/104 --clobber >/dev/null
+          gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" > "$ROOT/remote_release.json"
+          python3 - "$OUT" "$ROOT/remote_release.json" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1]);assets={x["name"]:x for x in json.load(open(sys.argv[2]))["assets"]}
+          for name in ["raw-slots.jsonl.gz","frames.jsonl.gz","manifest.json","event732-targeted-qa.json"]:
+              digest=hashlib.sha256((root/name).read_bytes()).hexdigest()
+              assert assets[name]["digest"]=="sha256:"+digest,name
+          print("EVENT732_PRIVATE_SOURCE_SHA256_READBACK_PASS")
+          PY
