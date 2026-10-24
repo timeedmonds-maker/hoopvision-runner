@@ -1,0 +1,72 @@
+# Copy two source diagnostic JPGs to the PRIVATE Freeview research branch for independent visual QA.
+# No public artifacts, content, video, signed URLs, or private metadata are committed here.
+name: Amen 732 private visual contact QA panels
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/freeview-amen-732-private-visual-panels.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  visual-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Source and destination privacy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0, 'tools')
+          from public_content_guard import scan
+          p=".github/workflows/freeview-amen-732-private-visual-panels.yml"
+          v=scan([p])
+          if v:
+              print("PRIVATE_REVIEW_GUARD_REJECTED")
+              raise SystemExit(3)
+          print("PRIVATE_REVIEW_GUARD_PASS")
+          PY
+      - name: Private-only source frame review images
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          TAG="freeview-native-0022600009-732"
+          BRANCH="research/amen-wemby-freeze-spin-20261024"
+          gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$ROOT" \
+            --pattern "native-review-broadcast.jpg" --pattern "native-review-left-above-rim.jpg"
+          gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" > "$ROOT/release.json"
+          python3 - "$ROOT" <<'PY'
+          import base64,hashlib,json,subprocess,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          assets={a["name"]:a for a in json.load(open(root/"release.json"))["assets"]}
+          for image in ["native-review-broadcast.jpg","native-review-left-above-rim.jpg"]:
+              img=root/image
+              b=img.read_bytes()
+              assert assets[image]["digest"]=="sha256:"+hashlib.sha256(b).hexdigest(),image
+              dest="hoopvision/freeview/fixtures/amen_732_"+image
+              payload={"message":"test(freeview): add verified native NBA original-frame diagnostic "+image,
+                       "branch":"research/amen-wemby-freeze-spin-20261024",
+                       "content":base64.b64encode(b).decode("ascii")}
+              req=root/"put.json"
+              req.write_text(json.dumps(payload))
+              cp=subprocess.run(["gh","api","-X","PUT",
+                                 "repos/timeedmonds-maker/104/contents/"+dest,
+                                 "--input",str(req)],capture_output=True,text=True)
+              if cp.returncode:
+                  # Never echo request or token-bearing details.
+                  raise RuntimeError("PRIVATE_QA_IMAGE_COMMIT_FAILED_"+str(cp.returncode))
+              print("PRIVATE_QA_IMAGE_COMMITTED",image,len(b))
+          PY
