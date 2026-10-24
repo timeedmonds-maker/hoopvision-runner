@@ -1,4 +1,5 @@
 name: Clip Lab event80 local MP4 handoff smoke
+# Public artifact is a harmless handoff fixture, not private source or tracking.
 on:
   push:
     branches: [main]
