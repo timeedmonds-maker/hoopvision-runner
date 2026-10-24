@@ -41,8 +41,14 @@ jobs:
           set -euo pipefail
           ROOT="$(mktemp -d)"
           trap 'rm -rf "$ROOT"' EXIT
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_hls_ingest_event.py?ref=main' --jq .content | base64 -d > "$ROOT/ingest.py"
+          echo PRIVATE_SCRIPT_DOWNLOAD_START
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_hls_ingest_event.py?ref=main' --jq .content | base64 -d > "$ROOT/ingest.py" || { echo PRIVATE_SCRIPT_DOWNLOAD_FAILED; exit 10; }
+          echo PRIVATE_SCRIPT_DOWNLOAD_BYTES_$(wc -c < "$ROOT/ingest.py")
+          echo PYTHON_RUNTIME_$(python3 --version)
           python3 -m pip install --quiet 'numpy<2' 'opencv-python-headless==4.10.0.84'
+          echo PYTHON_DEPENDENCIES_READY
           command -v ffmpeg
+          echo PRIVATE_SCRIPT_SELFTEST_START
           python3 "$ROOT/ingest.py" --selftest
+          echo PRIVATE_INGEST_START
           python3 "$ROOT/ingest.py"
