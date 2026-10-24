@@ -71,7 +71,7 @@ jobs:
           assert data["player_id"]==os.environ["NBA_PLAYER_ID"]
           assert data["clip_count"]==len(data["clips"])
           assert len({x["event_num"] for x in data["clips"]})==data["clip_count"]
-          assert all(x["clip_url"].startswith("https://clips.nba.com/?gameNo="+data["game_id"]+"&eventNum=") for x in data["clips"])
+          assert all("eventNum="+str(x["event_num"]) in x["clip_url"] for x in data["clips"])
           Path('release-notes.json').write_text(json.dumps(data,separators=(',',':')))
           print("PLAYER_SOURCE_EVENT_CLIPS_VERIFIED",data["game_id"],"event_urls",data["clip_count"],"stints",len(data["on_court_spans"]))
           PY
