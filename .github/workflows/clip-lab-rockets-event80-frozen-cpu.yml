@@ -140,14 +140,37 @@ jobs:
           (root/'cpu_frozen_full20_qa.json').write_text(json.dumps(report,indent=2)+'\n')
           print('ORIGINAL_FROZEN_CPU_PERCEPTION_FULL20_STATE',report['state'],'wall_s',wall)
           PY
-          TAG='clip-lab-hls-0022600009-80'
-          gh release upload "$TAG" "$ROOT/cpu_frozen_full20_qa.json" "$ROOT/full20-probe.log" --repo timeedmonds-maker/104 --clobber
-          if [ -f "$ROOT/output/tracks.csv" ]; then
-            cp "$ROOT/output/tracks.csv" "$ROOT/cpu-full20-tracks.csv"
-            gh release upload "$TAG" "$ROOT/cpu-full20-tracks.csv" --repo timeedmonds-maker/104 --clobber
-          fi
-          if [ -f "$ROOT/output/court_frames.json" ]; then
-            cp "$ROOT/output/court_frames.json" "$ROOT/cpu-full20-court_frames.json"
-            gh release upload "$TAG" "$ROOT/cpu-full20-court_frames.json" --repo timeedmonds-maker/104 --clobber
-          fi
+          # The GitHub App token has private Contents write but a release-upload
+          # redirect may fail. Persist the small tracking/calibration artifacts
+          # directly into PRIVATE 104 as SHA-verified git files.
+          python3 - "$ROOT" <<'PY'
+          import base64,hashlib,json,subprocess,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          files={
+              'gamepulse/clip_lab/qa/event80_frozen_full20_qa.json':root/'cpu_frozen_full20_qa.json',
+              'gamepulse/clip_lab/qa/event80_frozen_full20_tracks.csv':root/'output'/'tracks.csv',
+              'gamepulse/clip_lab/qa/event80_frozen_full20_court_frames.json':root/'output'/'court_frames.json',
+          }
+          for path,src in files.items():
+              if not src.is_file() or not src.stat().st_size:
+                  if 'qa.json' in path:raise RuntimeError('PRIVATE_CPU_QA_MISSING')
+                  print('ORIGINAL_FROZEN_SOURCE_ARTIFACT_MISSING',path.rsplit('/',1)[-1])
+                  continue
+              if src.stat().st_size>900_000:raise RuntimeError('PRIVATE_TRACK_FILE_EXCEEDS_CONTENTS_API_CAP')
+              endpoint='repos/timeedmonds-maker/104/contents/'+path
+              old=subprocess.run(['gh','api',endpoint],capture_output=True,text=True,timeout=25)
+              req={'branch':'main','message':'data(clip-lab): original frozen v3.1 CPU event80 tracking and court evidence',
+                   'content':base64.b64encode(src.read_bytes()).decode()}
+              if old.returncode==0:req['sha']=json.loads(old.stdout)['sha']
+              elif '404' not in old.stderr and 'Not Found' not in old.stderr:
+                  raise RuntimeError('PRIVATE_DESTINATION_INSPECTION_FAILED')
+              pushed=subprocess.run(['gh','api','-X','PUT',endpoint,'--input','-'],
+                  input=json.dumps(req),capture_output=True,text=True,timeout=50)
+              if pushed.returncode:raise RuntimeError('PRIVATE_TRACK_DATA_WRITE_FAILED')
+              verify=subprocess.run(['gh','api',endpoint,'--jq','.content'],
+                  capture_output=True,text=True,check=True,timeout=30)
+              assert hashlib.sha256(base64.b64decode(verify.stdout)).digest()==hashlib.sha256(src.read_bytes()).digest()
+              print('ORIGINAL_FROZEN_PRIVATE_SHA_READBACK_PASS',src.name)
+          PY
           echo ORIGINAL_FROZEN_CPU_FULL20_PRIVATE_QA_PUBLISHED
