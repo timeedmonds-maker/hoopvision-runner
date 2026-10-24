@@ -73,3 +73,33 @@ jobs:
           python3 -m py_compile "$ROOT/player_possession_clips.py" "$ROOT/test_player_possession_clips.py"
           cd "$ROOT"
           python3 -m unittest -v test_player_possession_clips
+
+      - name: Publish Adams complete official possession event clip URLs to private release
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/nba-official"
+          cd "$ROOT"
+          python3 player_possession_clips.py --game 0022600009 --player 203500 --out "$ROOT/player-clips.json"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          data=json.loads(Path('player-clips.json').read_text())
+          assert data['game_id']=='0022600009'
+          assert data['player_id']=='203500'
+          assert len(data['on_court_spans'])>=1
+          assert data['clip_count']>=10
+          assert data['clip_count']==len({x['event_num'] for x in data['clips']})
+          Path('release-notes.json').write_text(json.dumps(data,separators=(',',':')))
+          print("OFFICIAL_ON_COURT_POSSESSION_CLIP_QA_PASS",data['clip_count'],len(data['on_court_spans']))
+          PY
+          TAG=gamepulse-player-possession-clips-0022600009-203500
+          REPO=timeedmonds-maker/104
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$REPO" --notes-file "$ROOT/release-notes.json" >/dev/null
+          else
+            gh release create "$TAG" --repo "$REPO" --title 'Private Rockets Spurs Steven Adams full-game possession-ending NBA links' --notes-file "$ROOT/release-notes.json" --latest=false >/dev/null
+          fi
+          gh release upload "$TAG" "$ROOT/player-clips.json" --repo "$REPO" --clobber >/dev/null
+          test "$(gh api "repos/$REPO/releases/tags/$TAG" --jq .tag_name)" = "$TAG"
+          echo 'PRIVATE_NBA_CLIP_EVIDENCE_RELEASE_READBACK_OK'
