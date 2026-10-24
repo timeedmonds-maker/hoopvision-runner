@@ -55,8 +55,8 @@ jobs:
             git -c "http.extraheader=AUTHORIZATION: basic $AUTH" clone -q \
               --depth 1 --filter=blob:none --sparse --branch "$branch" \
               https://github.com/timeedmonds-maker/104.git "$out"
-            if [ "$branch" = main ]; then dirs='gamepulse/clip_lab hoopvision/freeview'; \
-              else dirs='tools hoopvision/core screen_tracker_nextgen'; fi
+            if [ "$branch" = main ]; then dirs='gamepulse/clip_lab'; \
+              else dirs='tools hoopvision/core hoopvision/freeview screen_tracker_nextgen'; fi
             git -C "$out" -c "http.extraheader=AUTHORIZATION: basic $AUTH" \
               sparse-checkout set $dirs >/dev/null
           done
@@ -76,7 +76,8 @@ jobs:
             sudo apt-get update -qq
             sudo apt-get install -y -qq ffmpeg >/dev/null
           fi
-          PYTHONPATH="$ROOT/private-main" python3 - "$ROOT" <<'PY'
+          python3 -m pip install --quiet 'numpy==1.26.4' 'opencv-python-headless==4.10.0.84'
+          PYTHONPATH="$ROOT/private-frozen" python3 - "$ROOT" <<'PY'
           import sys,hashlib
           from pathlib import Path
           from hoopvision.freeview.fetch_official_multicam import resolve_options,download_hls,probe
