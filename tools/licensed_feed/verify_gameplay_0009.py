@@ -29,18 +29,26 @@ OUTPUT = "gameplay-QA-original-0022600009.json"
 
 
 def gh(*args):
-    result = subprocess.run(["gh", *args], text=True, capture_output=True, timeout=180)
-    if result.returncode:
+    # The shared private-release token may hit transient GitHub secondary limits.
+    # One bulk asset download avoids 27 separate release API listings.
+    import time
+    for attempt in range(6):
+        result = subprocess.run(["gh", *args], text=True, capture_output=True, timeout=240)
+        if result.returncode == 0:
+            return result.stdout
         detail = (result.stderr or "").lower()
         category = ("rate_limit" if "rate limit" in detail or "too many requests" in detail
                     else "not_found" if "404" in detail or "not found" in detail
                     else "authorization" if "401" in detail or "403" in detail
                     else "network" if any(s in detail for s in ("timeout", "connection", "tls"))
                     else "other")
-        # No stderr, request paths, signed URLs, private data or token in logs.
-        print("ORIGINAL_QA_PRIVATE_GITHUB_FAILURE", args[0], category)
-        raise RuntimeError("private_github_" + category)
-    return result.stdout
+        # Never print stderr, paths, source frames, signed URLs or tokens.
+        print("ORIGINAL_QA_PRIVATE_GITHUB_FAILURE", args[0], category,
+              "attempt", attempt + 1, flush=True)
+        if category not in ("rate_limit", "network") or attempt == 5:
+            raise RuntimeError("private_github_" + category)
+        time.sleep(min(90, 15 * (attempt + 1)))
+    raise RuntimeError("private_github_retries_exhausted")
 
 
 def digest(data):
@@ -107,12 +115,14 @@ def audit():
     total_windows = 0
     with tempfile.TemporaryDirectory(prefix="gp-original-qa-") as folder:
         root = Path(folder)
+        gh("release", "download", TAG, "--repo", REPO,
+           "--pattern", "sdk-COMPLETE.json",
+           "--pattern", "sdk-part-*.json",
+           "--pattern", "sdk-part-*.tar.gz", "--dir", folder)
         for part in range(PARTS):
             stem = f"sdk-part-{part:02d}"
             names = (stem + ".json", stem + ".tar.gz")
             for name in names:
-                gh("release", "download", TAG, "--repo", REPO,
-                   "--pattern", name, "--dir", folder)
                 data = (root / name).read_bytes()
                 if assets[name].get("digest") != "sha256:" + digest(data):
                     raise RuntimeError("release_asset_sha256_mismatch")
@@ -171,8 +181,6 @@ def audit():
             for name in names:
                 (root / name).unlink()
         complete_name = "sdk-COMPLETE.json"
-        gh("release", "download", TAG, "--repo", REPO,
-           "--pattern", complete_name, "--dir", folder)
         marker = (root / complete_name).read_bytes()
         if assets[complete_name].get("digest") != "sha256:" + digest(marker):
             raise RuntimeError("completion_marker_sha256_mismatch")
