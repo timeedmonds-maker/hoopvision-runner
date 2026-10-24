@@ -47,3 +47,5 @@ jobs:
           sudo apt-get install -y -qq ffmpeg >/dev/null
           python3 -m pip install --disable-pip-version-check -q 'ultralytics==8.3.228' 'scipy>=1.11,<2' 'numpy<2' 'opencv-python-headless<4.11'
           python3 "$ROOT/cumulative.py"
+
+# Opening Fred floor-anchor correction at private commit 83c8f3c3a0c52b9745881bb36360cd52bc47c189.
