@@ -1,0 +1,143 @@
+# Bounded second-source provenance check. No public data artifacts.
+name: Freeview Amen 732 raw SDK event and live capture audit
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/freeview-amen-732-raw-event-audit.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Private source gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0,"tools")
+          from public_content_guard import scan
+          assert scan([".github/workflows/freeview-amen-732-raw-event-audit.yml"]) == []
+          print("PRIVACY_GATE_PASS")
+          PY
+          test -n "$GH_TOKEN" && test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Audit source event metadata and independent live capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          mkdir -p "$ROOT/target" "$ROOT/live"
+          gh release download 'freeview-gamepulse-0022600009-e732-recovery' \
+            --repo timeedmonds-maker/104 --dir "$ROOT/target"
+          gh release download 'gamepulse-live-sdk-0022600009' \
+            --repo timeedmonds-maker/104 --dir "$ROOT/live" \
+            --pattern 'live-1792815240000.tar.gz' \
+            --pattern 'live-1792815300000.tar.gz'
+          gh api 'repos/timeedmonds-maker/104/releases/tags/freeview-gamepulse-0022600009-e732-recovery' > "$ROOT/target_release.json"
+          gh api 'repos/timeedmonds-maker/104/releases/tags/gamepulse-live-sdk-0022600009' > "$ROOT/live_release.json"
+          python3 - "$ROOT" <<'PY'
+          import collections,gzip,hashlib,io,json,sys,tarfile
+          from pathlib import Path
+          root=Path(sys.argv[1]); target=root/"target";live=root/"live"
+          event=1792815556484
+          def assets(name):
+              obj=json.loads((root/(name+"_release.json")).read_text())
+              return {a["name"]:a["digest"] for a in obj["assets"]}
+          expected=assets("target")
+          for p in target.iterdir():
+              assert expected[p.name]=="sha256:"+hashlib.sha256(p.read_bytes()).hexdigest(),p.name
+          live_expected=assets("live")
+          for p in live.iterdir():
+              assert live_expected[p.name]=="sha256:"+hashlib.sha256(p.read_bytes()).hexdigest(),p.name
+          summary=collections.Counter()
+          meta_fields=collections.Counter()
+          frame_seen=collections.Counter()
+          frame_max_all=None
+          frame_max_with_players=None
+          frame_max_with_ball=None
+          event_slots=[]
+          with gzip.open(target/"raw-slots.jsonl.gz","rt") as f:
+              for line in f:
+                  if not line.strip():continue
+                  rec=json.loads(line)
+                  start=int(rec["from"])
+                  events=rec.get("events") or []
+                  if abs(start-event)<95000:
+                      event_slots.append({"slot_start_ms":start,"source_events":len(events),
+                                          "keyframes":sum(len((e.get("metadata") or {}).get("keyframes") or []) for e in events)})
+                  for e in events:
+                      summary[str(e.get("type","UNSPECIFIED"))]+=1
+                      md=e.get("metadata") or {}
+                      meta_fields.update(md.keys())
+                      for k in md:
+                          if k.lower().endswith(("keyframe","keyframes","position","positions","tracking")):
+                              summary["coordinate_like_metadata_key_"+k]+=1
+                      for f in md.get("keyframes") or []:
+                          if not isinstance(f,dict):continue
+                          ts=f.get("timestamp"); pos=f.get("positions")
+                          if not isinstance(ts,int):continue
+                          frame_seen[ts]+=1
+                          frame_max_all=ts if frame_max_all is None else max(frame_max_all,ts)
+                          if isinstance(pos,dict) and any(k!="ball" for k in pos):
+                              frame_max_with_players=ts if frame_max_with_players is None else max(frame_max_with_players,ts)
+                          if isinstance(pos,dict) and "ball" in pos:
+                              frame_max_with_ball=ts if frame_max_with_ball is None else max(frame_max_with_ball,ts)
+          live_summary=[]
+          for f in sorted(live.glob("*.tar.gz")):
+              with tarfile.open(f,"r:gz") as t:
+                  names=t.getnames()
+                  entry={"asset":f.name,"archive_files":names}
+                  if "manifest.json" in names:
+                      m=json.load(t.extractfile("manifest.json"))
+                      entry.update({k:m.get(k) for k in ("start_ms","unique_keyframes","frames_with_players","frames_with_ball","empty_windows","last_timestamp")})
+                  for frame_file in ("frames.jsonl.gz","frames.jsonl"):
+                      if frame_file in names:
+                          raw=t.extractfile(frame_file).read()
+                          content=gzip.decompress(raw).decode() if frame_file.endswith(".gz") else raw.decode()
+                          rows=[json.loads(x) for x in content.splitlines() if x.strip()]
+                          entry["latest_player_utc_ms"]=max((a["timestamp"] for a in rows
+                             if isinstance(a.get("positions"),dict) and any(k!="ball" for k in a["positions"])),default=None)
+                          entry["latest_ball_utc_ms"]=max((a["timestamp"] for a in rows
+                             if isinstance(a.get("positions"),dict) and "ball" in a["positions"]),default=None)
+                  live_summary.append(entry)
+          report={
+              "schema":"hoopvision.freeview.event732.dual_source_raw_sdk_audit.v1",
+              "event_num":732,"game_id":"0022600009","official_event_utc_ms":event,
+              "targeted_capture_native_unique_timestamp_count":len(frame_seen),
+              "targeted_latest_any_keyframe_utc_ms":frame_max_all,
+              "targeted_latest_player_utc_ms":frame_max_with_players,
+              "targeted_latest_ball_utc_ms":frame_max_with_ball,
+              "event_time_nearest_player_gap_ms":event-frame_max_with_players if frame_max_with_players and frame_max_with_players<=event else None,
+              "event_time_nearest_ball_gap_ms":event-frame_max_with_ball if frame_max_with_ball and frame_max_with_ball<=event else None,
+              "raw_event_types":dict(summary),
+              "metadata_field_counts":dict(meta_fields),
+              "source_slots_within_95s_of_official_event":sorted(event_slots,key=lambda a:a["slot_start_ms"]),
+              "prior_live_source":live_summary,
+              "exact_block_player_ball_positions_certified":False,
+              "source_raw_SHA256_verified":True,
+              "interpretation":"An empty/keyframe-free SDK slot is not a location observation. This audit checks for skipped metadata and independent live source overlap; no filling or interpolation."
+          }
+          (root/"event732-dual-source-audit.json").write_text(json.dumps(report,indent=2)+"\n")
+          print("DUAL_SOURCE_EVENT732_AUDIT",
+                "native_unique",report["targeted_capture_native_unique_timestamp_count"],
+                "latest_player_delta_ms",report["event_time_nearest_player_gap_ms"],
+                "latest_ball_delta_ms",report["event_time_nearest_ball_gap_ms"],
+                "source_slot_count",len(event_slots),
+                "live_parts",len(live_summary))
+          PY
+          TAG='freeview-gamepulse-0022600009-e732-recovery'
+          gh release upload "$TAG" "$ROOT/event732-dual-source-audit.json" --repo timeedmonds-maker/104 --clobber >/dev/null
+          remote="$(gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" \
+              --jq '.assets[] | select(.name=="event732-dual-source-audit.json") | .digest')"
+          test "$remote" = "sha256:$(sha256sum "$ROOT/event732-dual-source-audit.json" | cut -d' ' -f1)"
+          echo 'EVENT732_DUAL_SOURCE_SHA256_PASS'
