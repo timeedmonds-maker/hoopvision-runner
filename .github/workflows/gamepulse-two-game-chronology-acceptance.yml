@@ -97,6 +97,12 @@ jobs:
           else
             QUERY_ARGS=()
           fi
+          # The original Blueprint-only Q1 action #86 names a different
+          # shooter from the official NBA PBP. Quarantine that auxiliary
+          # annotation, never replace the actual NBA scoring event.
+          if [ "$GAME_ID" = '0022600009' ]; then
+            QUERY_ARGS+=(--quarantine-blueprint-shooter-conflicts)
+          fi
           python3 interaction_fusion_2026.py --sdk-dir sdk --pbp pbp.json --view view.json \
             --out interactions.json "${QUERY_ARGS[@]}"
           python3 - <<'PY'
