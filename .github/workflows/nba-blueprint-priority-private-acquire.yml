@@ -78,6 +78,7 @@ jobs:
             echo 'BLUEPRINT_REBUILD_VERIFIED'
           else
             echo 'BLUEPRINT_REBUILD_DEFERRED; PRESERVE_ORIGINAL_AND_STATUS'
+            grep -E '(ValueError|TypeError|KeyError|AssertionError|RuntimeError):' "$RUNNER_TEMP/blueprint-rebuild.log" | sed -E 's/:.*/: details redacted/' | tail -n 1 || true
           fi
           git add data/extensions/nba_blueprint_2026_27
           if git diff --cached --quiet; then
