@@ -36,11 +36,21 @@ jobs:
           python3 tools/public_content_guard.py
           python3 -m py_compile tools/licensed_feed/verify_gameplay_0009.py tools/licensed_feed/verify_gameplay.py
           PYTHONPATH=tools/licensed_feed python3 - <<'PY'
-          from verify_gameplay_0009 import nearest_gap, unix_ms
+          from verify_gameplay_0009 import nearest_gap, unix_ms, observed_slot_diagnostic, BEGIN, SLOT_MS
           assert nearest_gap([], 100) is None
           assert nearest_gap([10, 30, 50], 40) == 10
           assert nearest_gap([10, 30, 50], 50) == 0
           assert unix_ms('2026-10-24T01:30:00Z') == 1792805400000
+          observed = observed_slot_diagnostic(
+              {BEGIN + 10, BEGIN + SLOT_MS + 10},
+              {BEGIN + 20}, BEGIN, BEGIN + 2 * SLOT_MS)
+          assert observed["official_action_span_5s_bins"] == 3
+          assert observed["bins_with_original_player_positions"] == 2
+          assert observed["bins_with_original_ball_position"] == 1
+          assert observed["bins_with_both_player_and_ball"] == 1
+          assert observed["longest_consecutive_bins_without_both"] == 2
+          assert observed["certified"] is False
+          assert observed_slot_diagnostic(set(), set(), None, None)["certified"] is False
           print('ORIGINAL_TEMPORAL_QA_SYNTHETIC_PASS')
           PY
   private-qa:
