@@ -1,0 +1,63 @@
+name: Rockets Spurs original gameplay source QA
+# All licensed frames and QA reports stay in private 104; public logs are categorical.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-rockets-spurs-original-qa.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/gamepulse-rockets-spurs-original-qa.yml'
+      - 'tools/licensed_feed/verify_gameplay_0009.py'
+      - 'tools/public_content_guard.py'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gamepulse-original-0022600009-qa
+  cancel-in-progress: false
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify public-only boundary and synthetic temporal logic
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          python3 -m py_compile tools/licensed_feed/verify_gameplay_0009.py tools/licensed_feed/verify_gameplay.py
+          PYTHONPATH=tools/licensed_feed python3 - <<'PY'
+          from verify_gameplay_0009 import nearest_gap, unix_ms
+          assert nearest_gap([], 100) is None
+          assert nearest_gap([10, 30, 50], 40) == 10
+          assert nearest_gap([10, 30, 50], 50) == 0
+          assert unix_ms('2026-10-24T01:30:00Z') == 1792805400000
+          print('ORIGINAL_TEMPORAL_QA_SYNTHETIC_PASS')
+          PY
+  private-qa:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce private destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          echo 'PRIVATE_DESTINATION_VERIFIED'
+      - name: SHA-audit actual frames against independent official NBA action UTC
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/licensed_feed/verify_gameplay_0009.py

@@ -9,6 +9,8 @@ from pathlib import Path
 ALLOWED_STATIC = {
     ".github/workflows/gamepulse-season-backlog.yml",
     ".github/workflows/gamepulse-rockets-spurs-fusion-merge.yml",
+    ".github/workflows/gamepulse-rockets-spurs-original-qa.yml",
+    "tools/licensed_feed/verify_gameplay_0009.py",
     ".github/workflows/public-nba-gravity-onegame.yml",
     ".github/workflows/nba-blueprint-priority-private-acquire.yml",
     "public_nba_gravity_rockets_game1_2026_27.json",
