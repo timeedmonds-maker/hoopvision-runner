@@ -29,6 +29,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-season-query-coverage-tests.yml",
     ".github/workflows/gamepulse-quarantined-native-labels.yml",
     ".github/workflows/gamepulse-unattributed-native-source.yml",
+    ".github/workflows/gamepulse-unified-native-search.yml",
     ".github/workflows/gamepulse-native-interactions-0095-blueprint-quarantine.yml",
     "tools/licensed_feed/official_pbp_onoff_28.py",
     ".github/workflows/gamepulse-28game-native-pbp-onoff.yml",
