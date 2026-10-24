@@ -54,7 +54,7 @@ jobs:
               --jq .content | base64 -d > "$TMP/hoopvision/freeview/$file"
           done
           echo STAGE_FETCH_PRIVATE_ENGINE
-          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fetch_event_native_multicam.py?ref=8de53ff006cfcc1f1c86ce902699adc830c79be9' \
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fetch_event_native_multicam.py?ref=f905746e080b4bf5d13d671b37ef80c6e3398c59' \
             --jq .content | base64 -d > "$TMP/hoopvision/freeview/fetch_event_native_multicam.py"
           echo STAGE_FETCH_BLUEPRINT
           gh api 'repos/timeedmonds-maker/104/contents/data/extensions/nba_blueprint_2026_27/priority_0022600009_source_status.json?ref=main' \
