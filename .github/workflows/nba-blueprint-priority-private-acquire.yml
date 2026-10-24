@@ -92,6 +92,8 @@ jobs:
             if grep -Fq 'Opening-night shot observations unexpectedly decreased' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_OPENING_NIGHT'; fi
             if grep -Fq 'Unexpected shot type' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_SHOT_TYPE'; fi
             if grep -Fq 'Unexpected shot result' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_SHOT_RESULT'; fi
+            if grep -Fq 'Blueprint exceeds official total game attempts' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_TOTAL_FGA'; fi
+            if grep -Fq 'Spotlight player/heatmap ID mismatch' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_SPOTLIGHT_ID'; fi
             if grep -Fq 'ValueError:' "$RUNNER_TEMP/blueprint-rebuild.log"; then echo 'BLUEPRINT_DIAG_OTHER_VALUE'; fi
           fi
           git add data/extensions/nba_blueprint_2026_27
