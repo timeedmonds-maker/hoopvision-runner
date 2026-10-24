@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/clip-lab-event80-direct-native-frozen.yml",  # audited CPU-only original NBA source, private SDK, final ringed MP4
     ".github/workflows/clip-lab-rockets-event80-frozen-render.yml",  # reviewed: exact frozen source SHA and private-only v3.1 MP4
     ".github/workflows/clip-lab-event80-delivery-smoke.yml",  # test fixture artifact only
     ".github/workflows/clip-lab-rockets-event80-hls.yml",  # reviewed: exact one-event private HLS CPU staging only
@@ -186,6 +187,7 @@ REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
     ".github/workflows/rockets-remaining-sengun-double-clips.yml",
 }
 REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS = {
+    ".github/workflows/clip-lab-event80-direct-native-frozen.yml",  # one final QA-approved annotated MP4, never private source/tracking
     ".github/workflows/clip-lab-rockets-event80-frozen-render.yml",  # ONLY QA-approved ringed MP4 artifact
     ".github/workflows/clip-lab-event80-delivery-smoke.yml",  # harmless test fixture upload
     ".github/workflows/nba-jabari616-ball-handler-media.yml",
