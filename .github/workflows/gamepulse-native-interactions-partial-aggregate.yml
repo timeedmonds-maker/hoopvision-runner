@@ -83,7 +83,31 @@ jobs:
               if gid in frozen_doc["games"]:
                   assert entry==frozen_doc["games"][gid],"IMMUTABLE_ORIGINAL14_CHANGED"
               if gid in current["games"]:
-                  assert entry==current["games"][gid],"PRIOR_SEASON_JOIN_CHANGED"
+                  previous=current["games"][gid]
+                  if gid not in ("0022600009","0022600101"):
+                      assert entry==previous,"PREVIOUS_26_GAME_HASH_OR_SOURCE_DRIFT"
+                  else:
+                      # Only two intentionally rematerialized NBA-PBP-first
+                      # games. Original source labels/runs remain unchanged.
+                      assert (entry["source_native_touch_labels"]==
+                              previous["source_native_touch_labels"] and
+                              entry["team_action_runs"]==previous["team_action_runs"] and
+                              entry["nba_scores_reconciled"] is True), "TWO_GAME_SOURCE_COUNTS_CHANGED"
+                      assert doc["source_policy"]["shot_identity_value_result_priority"]==(
+                          "NBA_OFFICIAL_PBP_OVERRIDES_BLUEPRINT")
+                      assert doc["certified_touch_possessions"]==0
+                      assert doc["temporal_reconciliation"]["utc_quarantined_periods"]==[1]
+                      shot_no=86 if gid=="0022600009" else 109
+                      expected_person="203500" if gid=="0022600009" else "1642366"
+                      shot=[sh for run in doc["possessions"]
+                            for sh in run["shot_events"]
+                            if sh["nba_action_number"]==shot_no]
+                      assert len(shot)==1 and shot[0]["shooter_id"]==expected_person
+                      assert shot[0]["shot_value"]==2 and shot[0]["xfg"] is None
+                      assert shot[0]["source"]=="NBA_OFFICIAL_PBP"
+                      c=doc["quarantined_blueprint_shooter_conflicts"] if gid=="0022600009" else (
+                        doc["quarantined_blueprint_shot_metadata_conflicts"])
+                      assert len(c)==1,"EXPECTED_EXPLICIT_BLUEPRINT_QUARANTINE"
               indexed[gid]=entry
           assert set(frozen_doc["games"]) <= set(indexed)
           assert len(indexed)>=15
