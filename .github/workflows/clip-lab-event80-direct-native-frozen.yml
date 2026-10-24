@@ -10,7 +10,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: event80-direct-source-two-ring-frozen-v31
+  group: event80-direct-source-two-ring-frozen-v31-corrected-20261025
   cancel-in-progress: false
 jobs:
   direct:
