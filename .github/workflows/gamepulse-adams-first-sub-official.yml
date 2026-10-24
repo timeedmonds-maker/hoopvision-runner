@@ -1,0 +1,46 @@
+name: Official NBA Rockets Spurs Adams first-sub evidence
+# This runner is public orchestration only. Official NBA source and all per-event
+# output remain ephemeral/private. No signed camera URLs are printed or stored.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-adams-first-sub-official.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  official:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce private data boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || exit 3
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Obtain reviewed private source validators and NBA camera parser
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/nba-source"
+          for mod in official_pbp_timestamps_2026 official_pbp_allgames_2026 query_adams_first_sub_2026; do
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$mod.py?ref=main" --jq .content |
+              base64 -d > "$RUNNER_TEMP/nba-source/$mod.py"
+          done
+          gh api 'repos/timeedmonds-maker/104/contents/courtcoder/nba_event_angle_discovery.py?ref=courtcoder%2Fintegration' --jq .content |
+            base64 -d > "$RUNNER_TEMP/nba-source/nba_event_angle_discovery.py"
+          python3 -m py_compile "$RUNNER_TEMP/nba-source/"*.py
+          python3 "$RUNNER_TEMP/nba-source/official_pbp_timestamps_2026.py" --selftest
+      - name: Save verified official game PBP and first Adams entry into private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/nba-source"
+          python3 -u query_adams_first_sub_2026.py
