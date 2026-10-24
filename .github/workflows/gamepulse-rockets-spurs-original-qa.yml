@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/gamepulse-rockets-spurs-original-qa.yml'
+      - 'tools/licensed_feed/verify_gameplay_0009.py'
   pull_request:
     paths:
       - '.github/workflows/gamepulse-rockets-spurs-original-qa.yml'
