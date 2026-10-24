@@ -125,3 +125,26 @@ jobs:
               assert assets[file.name]["digest"]=="sha256:"+sha,file.name
           print("PRIVATE_NATIVE_CONTACT_REVIEW_SHA256_READBACK_PASS",len(list(root.iterdir())))
           PY
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/native_contact_window.py?ref=83dd50178d9a68c8cfcfa439f1f9c29838986367' \
+            --jq .content | base64 -d > "$TMP/contact_window.py"
+          python3 "$TMP/contact_window.py" --selftest
+          mkdir -p "$TMP/contact_windows"
+          python3 "$TMP/contact_window.py" --clips "$TMP/src" \
+            --manifest "$TMP/src/source_manifest.json" \
+            --pts "$TMP/src/native_presentation_timestamps.json" \
+            --audio "$TMP/native_audio_sync.json" \
+            --out "$TMP/contact_windows" --broadcast-seed 9.5
+          gh release upload "$TAG" "$TMP/contact_windows/"*.jpg \
+            "$TMP/contact_windows/native_contact_windows.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" > "$TMP/release_receipt_contact.json"
+          python3 - "$TMP/contact_windows" "$TMP/release_receipt_contact.json" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1]);r=json.load(open(sys.argv[2]))
+          assets={a["name"]:a for a in r["assets"]}
+          for file in root.iterdir():
+              sha=hashlib.sha256(file.read_bytes()).hexdigest()
+              assert assets[file.name]["digest"]=="sha256:"+sha,file.name
+          print("PRIVATE_NATIVE_4K_CONTACT_WINDOWS_SHA256_READBACK_PASS",len(list(root.iterdir())))
+          PY
