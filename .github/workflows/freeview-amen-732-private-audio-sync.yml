@@ -148,3 +148,18 @@ jobs:
               assert assets[file.name]["digest"]=="sha256:"+sha,file.name
           print("PRIVATE_NATIVE_4K_CONTACT_WINDOWS_SHA256_READBACK_PASS",len(list(root.iterdir())))
           PY
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/audio_local_contact_refine.py?ref=88baf894a0ee5d75f1c6b9056970f1ea4d1e1511' \
+            --jq .content | base64 -d > "$TMP/local_audio.py"
+          python3 "$TMP/local_audio.py" --selftest
+          python3 "$TMP/local_audio.py" \
+            --clips "$TMP/src" \
+            --source-manifest "$TMP/src/source_manifest.json" \
+            --whole-audio "$TMP/native_audio_sync.json" \
+            --broadcast-seed 9.5 \
+            --out "$TMP/local_audio_qa.json"
+          gh release upload "$TAG" "$TMP/local_audio_qa.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          remote="$(gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" \
+            --jq '.assets[] | select(.name=="local_audio_qa.json") | .digest')"
+          test "$remote" = "sha256:$(sha256sum "$TMP/local_audio_qa.json" | cut -d' ' -f1)"
+          echo PRIVATE_LOCAL_CONTACT_AUDIO_QA_SHA256_PASS
