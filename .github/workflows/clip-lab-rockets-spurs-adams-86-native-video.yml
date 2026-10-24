@@ -45,6 +45,10 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fetch_official_multicam.py?ref=b154a834a95a887226757a4ff0d5b34f69bc55e6' --jq .content | base64 -d > "$ROOT/hoopvision/freeview/fetch_official_multicam.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/games/0022600009.json?ref=main' --jq .content | base64 -d > "$ROOT/official.json"
           python3 -m pip install --quiet --disable-pip-version-check 'numpy<2' opencv-python-headless==4.10.0.84
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
           PYTHONPATH="$ROOT" python3 - "$ROOT" <<'PY'
           import hashlib,json,sys,subprocess
           from pathlib import Path
