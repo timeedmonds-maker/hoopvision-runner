@@ -1,0 +1,55 @@
+name: Game Pulse 28-game official PBP and ONOFF verification
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-28game-native-pbp-onoff.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: private-nba-28game-exact-source-pbp-onoff-qa
+  cancel-in-progress: false
+jobs:
+  original-nba-sources:
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        game: ['0022600006','0022600007','0022600008','0022600009',
+          '0022600094','0022600095','0022600096','0022600097',
+          '0022600098','0022600099','0022600100','0022600101',
+          '0022600102','0022600103']
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify public source guard and private repository boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Recover official game actions and independently validated provider ONOFF
+        run: |
+          set -euo pipefail
+          python3 tools/licensed_feed/official_pbp_onoff_28.py one --game "${{ matrix.game }}"
+  aggregate:
+    needs: original-nba-sources
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Merge only after all 28 game-native sources independently reconcile
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          python3 tools/licensed_feed/official_pbp_onoff_28.py assemble
