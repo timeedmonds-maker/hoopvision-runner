@@ -4,7 +4,9 @@ name: Integrated Pulse PBP to Game Pulse crosswalk integrity
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-28game-possession-tracking-crosswalk.yml']
+    paths:
+      - '.github/workflows/gamepulse-28game-possession-tracking-crosswalk.yml'
+      - 'tools/public_content_guard.py'
   workflow_dispatch:
   schedule:
     - cron: '41 10 * * *'
