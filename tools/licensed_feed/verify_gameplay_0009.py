@@ -31,7 +31,15 @@ OUTPUT = "gameplay-QA-original-0022600009.json"
 def gh(*args):
     result = subprocess.run(["gh", *args], text=True, capture_output=True, timeout=180)
     if result.returncode:
-        raise RuntimeError("private_github_read_or_write_failed")
+        detail = (result.stderr or "").lower()
+        category = ("rate_limit" if "rate limit" in detail or "too many requests" in detail
+                    else "not_found" if "404" in detail or "not found" in detail
+                    else "authorization" if "401" in detail or "403" in detail
+                    else "network" if any(s in detail for s in ("timeout", "connection", "tls"))
+                    else "other")
+        # No stderr, request paths, signed URLs, private data or token in logs.
+        print("ORIGINAL_QA_PRIVATE_GITHUB_FAILURE", args[0], category)
+        raise RuntimeError("private_github_" + category)
     return result.stdout
 
 
