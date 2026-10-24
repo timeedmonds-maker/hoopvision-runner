@@ -173,6 +173,16 @@ jobs:
             --utc-search-from-ms 1792807050000 --utc-search-to-ms 1792807100000 \
             --provisional-preview \
             --out "$ROOT/fused" > "$ROOT/native-fusion.log"
+          python3 - "$ROOT" <<'PY'
+          import csv,sys,json,collections
+          from pathlib import Path
+          root=Path(sys.argv[1]); q=json.loads((root/'fused/frozen_v31_gamepulse_qa.json').read_text()); print('GAMEPULSE_IDENTITY_QA',json.dumps({k:v for k,v in q.items() if k!='possession_intervals'}))
+          rows=list(csv.DictReader((root/'fused/frozen_v31_gamepulse_assignments.csv').open()))
+          for pid in ('1627832','203500'):
+            times=sorted(float(r['time_s']) for r in rows if r['player_id']==pid)
+            per=collections.Counter(int(t) for t in times)
+            print('ASSIGNED_FOOT_SAMPLES',pid,'count',len(times),'range',round(min(times),2) if times else None,round(max(times),2) if times else None,'per_second',sorted(per.items()))
+          PY
           printf '%s\n' '{"schema":"hoopvision.clip-lab.native-last-touch-intervals.v1","possession_intervals":[]}' > "$ROOT/neutral-possession.json"
           PYTHONPATH="$ROOT/private-frozen:$ROOT/private-frozen/tools" \
             python3 "$ROOT/private-main/gamepulse/clip_lab/launch_frozen_ring_only.py" \
@@ -197,6 +207,9 @@ jobs:
           n=int(vs['nb_frames']);assert n>=200 and vs['width']>=640
           ledger=list(csv.DictReader((root/'frame-ledger.csv').open()))
           for pid in ('1627832','203500'):
+            per_s={i:sum(1 for r in ledger if r['player_id']==pid and r['ring_rendered']=='True' and int(float(r['time_s']))==i) for i in range(20)}
+            all_pid=[r for r in ledger if r['player_id']==pid]
+            print('RING_LEDGER_DIAG',pid,'rows',len(all_pid),'per_sec',per_s, 'blank',__import__('collections').Counter(r['blank_reason'] for r in all_pid),flush=True)
             present={int(float(r['output_frame'])) for r in ledger if r['player_id']==pid and r['ring_rendered']=='True'}
             assert len(present)/n>=.98 and 0 in present and n-1 in present, 'FROZEN_RING_END_TO_END_COVERAGE_FAILED'
             missing=sorted(set(range(n))-present);longest=0;length=0;prev=None
