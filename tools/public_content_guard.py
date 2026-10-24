@@ -26,6 +26,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-28game-possession-tracking-crosswalk.yml",
     ".github/workflows/gamepulse-native-interactions-season-missing13.yml",
     ".github/workflows/gamepulse-native-interactions-partial-aggregate.yml",
+    ".github/workflows/gamepulse-native-interactions-0095-blueprint-quarantine.yml",
     "tools/licensed_feed/official_pbp_onoff_28.py",
     ".github/workflows/gamepulse-28game-native-pbp-onoff.yml",
     ".github/workflows/rockets-wemby-opponent-ppp.yml",
