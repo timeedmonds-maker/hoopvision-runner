@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/clip-lab-event80-delivery-smoke.yml",  # test fixture artifact only
     ".github/workflows/clip-lab-rockets-event80-hls.yml",  # reviewed: exact one-event private HLS CPU staging only
     ".github/workflows/clip-lab-rockets-event80-native.yml",  # reviewed: exact event native SDK SHA extraction, private only
     ".github/workflows/clip-lab-rockets-event80-frozen-cpu.yml",  # reviewed: original CPU frozen v3.1 detector, private QA only
@@ -184,6 +185,7 @@ REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
     ".github/workflows/rockets-remaining-sengun-double-clips.yml",
 }
 REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS = {
+    ".github/workflows/clip-lab-event80-delivery-smoke.yml",  # harmless test fixture upload
     ".github/workflows/nba-jabari616-ball-handler-media.yml",
     ".github/workflows/nba-jabari616-ring-export-to-chat.yml",
     ".github/workflows/nba-jabari616-cumulative-receivers.yml",
