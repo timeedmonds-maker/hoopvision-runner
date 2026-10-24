@@ -171,3 +171,12 @@ jobs:
               assert assets[name]["digest"]=="sha256:"+digest,name
           print("EVENT732_PRIVATE_SOURCE_SHA256_READBACK_PASS")
           PY
+
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen_732_raw_rim_state_search.py?ref=f7dc123a403ba0cf742a16794581bdc702ca0a47' \
+            --jq .content | base64 -d > "$ROOT/rim_search.py"
+          python3 "$ROOT/rim_search.py" --selftest
+          python3 "$ROOT/rim_search.py" --input "$OUT/frames.jsonl.gz" --out "$OUT/event732-rim-state.json"
+          gh release upload "$TAG" "$OUT/event732-rim-state.json" --repo timeedmonds-maker/104 --clobber >/dev/null
+          remote="$(gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" --jq '.assets[] | select(.name=="event732-rim-state.json") | .digest')"
+          test "$remote" = "sha256:$(sha256sum "$OUT/event732-rim-state.json" | cut -d' ' -f1)"
+          echo EVENT732_RIM_STATE_SOURCE_SHA256_VERIFIED
