@@ -291,8 +291,36 @@ def audit():
     }
 
 
+def original_qa_blocker_codes(report):
+    """Categorical diagnostics only; never expose original frames or timestamps."""
+    codes = []
+    if report.get("nba_action_reference_origin") != "LIVE_NBA_OFFICIAL":
+        codes.append("FRESH_NBA_ACTION_SOURCE_NOT_VERIFIED")
+    if report.get("independent_nba_final_status") != "final":
+        codes.append("OFFICIAL_FINAL_NOT_VERIFIED")
+    quarters = report.get("independent_nba_quarter_action_coverage") or {}
+    for period in ("1", "2", "3", "4"):
+        q = quarters.get(period) or {}
+        if not q.get("independent_nba_actions_with_utc"):
+            codes.append(f"Q{period}_NBA_UTC_ABSENT")
+        elif not q.get("actions_with_observed_player_frame_within_60s"):
+            codes.append(f"Q{period}_PLAYER_FRAME_NEAR_ACTION_ABSENT")
+    q4 = quarters.get("4") or {}
+    gap = q4.get("last_action_nearest_player_frame_gap_ms")
+    if gap is None:
+        codes.append("Q4_END_PLAYER_FRAME_UNVERIFIED")
+    elif gap > 120_000:
+        codes.append("Q4_END_PLAYER_FRAME_GT_120S")
+    if report.get("observed_unique_player_timestamps", 0) <= 100:
+        codes.append("OBSERVED_PLAYER_SOURCE_INSUFFICIENT")
+    if report.get("observed_unique_ball_timestamps", 0) <= 50:
+        codes.append("OBSERVED_BALL_SOURCE_INSUFFICIENT")
+    return codes or ["TEMPORAL_SCREEN_PASSED_FULL_TRACKING_UNCERTIFIED"]
+
+
 def main():
     report = audit()
+    report["original_source_qa_blockers"] = original_qa_blocker_codes(report)
     with tempfile.TemporaryDirectory(prefix="gp-qa-readback-") as folder:
         root = Path(folder)
         local = root / OUTPUT
@@ -306,6 +334,8 @@ def main():
         if digest((check / OUTPUT).read_bytes()) != expected_sha:
             raise RuntimeError("private_qa_readback_sha256_mismatch")
     print("PRIVATE_ORIGINAL_GAMEPLAY_QA_SAVED", report["temporal_source_coverage"])
+    for code in report["original_source_qa_blockers"]:
+        print("ORIGINAL_QA_BLOCKER", code)
     print("TRACKING_GAMEPLAY_CERTIFIED_FALSE")
 
 
