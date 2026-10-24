@@ -63,7 +63,7 @@ jobs:
           GAMEPULSE_REAL_PBP_PATH="$ROOT/pbp.json" GAMEPULSE_REAL_Q1_NATIVE_FRAMES="$ROOT/q1_native.json" PYTHONPATH="$ROOT:$ROOT/tests" python3 -m unittest discover -v -s "$ROOT/tests" -p test_automatic_tracking_shot_clock_anchors_2026.py
           echo "Universal Game Pulse feature-alignment contract validated; no physical possession counts certified." >> "$GITHUB_STEP_SUMMARY"
           # Automated physics bridge: original SDK ball XYZ, no broadcast download.
-          AUTO_REF=feat/gamepulse-automatic-native-hoop-anchors-20261025
+          AUTO_REF=main
           gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/automatic_native_hoop_anchor_candidates_2026.py?ref=$AUTO_REF" --jq .content |
             base64 -d > "$ROOT/automatic_native_hoop_anchor_candidates_2026.py"
           gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_automatic_native_hoop_anchor_candidates_2026.py?ref=$AUTO_REF" --jq .content |
@@ -127,7 +127,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GAME_ID: ${{ matrix.game }}
-      AUTO_REF: feat/gamepulse-automatic-native-hoop-anchors-20261025
+      AUTO_REF: main
     steps:
       - uses: actions/checkout@v4
         with:
