@@ -145,6 +145,41 @@ def independent_nba():
         return status, periods, "LIVE_NBA_INCOMPLETE"
 
 
+def observed_slot_diagnostic(player_stamps, ball_stamps, first_ms, last_ms):
+    """Count original position-bearing 5s bins; never infer missing observations.
+
+    Official action UTC bounds define a diagnostic span, not gameplay possession
+    boundaries or proof that every intervening slot contains live game action.
+    """
+    if (not isinstance(first_ms, int) or not isinstance(last_ms, int)
+            or last_ms < first_ms):
+        return {"status": "NO_OFFICIAL_ACTION_SPAN", "certified": False}
+    lo = max(0, (first_ms - BEGIN) // SLOT_MS)
+    hi = min(EXPECTED_WINDOWS - 1, (last_ms - BEGIN) // SLOT_MS)
+    if hi < lo:
+        return {"status": "OFFICIAL_ACTION_SPAN_OUTSIDE_CAPTURE", "certified": False}
+    def bins(stamps):
+        return {(t - BEGIN) // SLOT_MS for t in stamps
+                if isinstance(t, int) and BEGIN <= t < BEGIN + EXPECTED_WINDOWS * SLOT_MS
+                and lo <= (t - BEGIN) // SLOT_MS <= hi}
+    players, ball = bins(player_stamps), bins(ball_stamps)
+    both = players & ball
+    longest_missing = run = 0
+    for slot in range(lo, hi + 1):
+        run = 0 if slot in both else run + 1
+        longest_missing = max(longest_missing, run)
+    return {
+        "status": "OBSERVED_TEMPORAL_BINS_ONLY",
+        "certified": False,
+        "official_action_span_5s_bins": hi - lo + 1,
+        "bins_with_original_player_positions": len(players),
+        "bins_with_original_ball_position": len(ball),
+        "bins_with_both_player_and_ball": len(both),
+        "bins_without_both": hi - lo + 1 - len(both),
+        "longest_consecutive_bins_without_both": longest_missing,
+    }
+
+
 def audit():
     release = json.loads(gh("api", f"repos/{REPO}/releases/tags/{TAG}"))
     assets = {a["name"]: a for a in release.get("assets", [])}
@@ -251,6 +286,17 @@ def audit():
             "last_action_nearest_player_frame_gap_ms":
                 nearest_gap(sorted_players, max(times)) if times else None,
         }
+    # Diagnostic only: compare source-bearing bins with original NBA action spans.
+    # An observed bin can still be stoppage time; no interpolation or certification.
+    quarter_observed_slots = {
+        str(period): observed_slot_diagnostic(
+            player_timestamps, ball_timestamps,
+            min(times) if times else None, max(times) if times else None)
+        for period, times in official_periods.items()
+    }
+    entire_capture_slots = observed_slot_diagnostic(
+        player_timestamps, ball_timestamps, BEGIN,
+        BEGIN + EXPECTED_WINDOWS * SLOT_MS - 1)
     q4 = quarter_qa["4"]
     source_verified = (total_windows == EXPECTED_WINDOWS and
                        len(player_timestamps) > 100 and len(ball_timestamps) > 50)
@@ -276,6 +322,13 @@ def audit():
         "nba_action_reference_origin": reference_origin,
         "nba_action_reference_is_fresh_original": reference_origin == "LIVE_NBA_OFFICIAL",
         "independent_nba_quarter_action_coverage": quarter_qa,
+        "observed_original_source_5s_bin_diagnostics": {
+            "entire_capture": entire_capture_slots,
+            "official_quarter_action_spans": quarter_observed_slots,
+            "interpretation": "Original position-bearing 5s timestamp bins, NOT "
+                "scheduled SDK success slots, continuous gameplay, identity, "
+                "shot-release timing or possession certification.",
+        },
         "temporal_source_coverage": "SUPPORTED" if temporal_supported else "INCONCLUSIVE",
         "tracking_gameplay_certified": False,
         "independent_player_team_id_certified": False,
