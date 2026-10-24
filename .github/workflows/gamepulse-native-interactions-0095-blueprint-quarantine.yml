@@ -46,10 +46,10 @@ jobs:
           ROOT="$RUNNER_TEMP/private-fusion"
           mkdir -p "$ROOT"/{sdk,tests}
           for mod in gamepulse_ball_control.py gamepulse_ball_dynamics.py interaction_fusion_2026.py; do
-            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$mod?ref=def8b67ff920e104c358c44fd265c1a03116e7c7" --jq .content |
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$mod?ref=2644bb10832a7cfa23c77e9a59043ca8d4a95199" --jq .content |
               base64 -d > "$ROOT/$mod"
           done
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_interaction_fusion_2026.py?ref=def8b67ff920e104c358c44fd265c1a03116e7c7' --jq .content |
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_interaction_fusion_2026.py?ref=2644bb10832a7cfa23c77e9a59043ca8d4a95199' --jq .content |
             base64 -d > "$ROOT/tests/test_interaction_fusion_2026.py"
           gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/games/$GAME_ID.json?ref=main" --jq .content |
             base64 -d > "$ROOT/pbp.json"
