@@ -28,8 +28,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GAME_ID: ${{ matrix.game }}
-      PRIVATE_REF: main
-      PUBLISH_ENABLED: 'true'
+      PRIVATE_REF: fix/gamepulse-nba-official-advanced-denominators-20261025
+      PUBLISH_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,6 +66,11 @@ jobs:
           gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_pbp_blueprint_authority_real_2026.py?ref=$PRIVATE_REF" --jq .content |
             base64 -d > "$ROOT/tests/test_pbp_blueprint_authority_real_2026.py"
           GAMEPULSE_REAL_PBP_PATH="$ROOT/pbp.json" GAMEPULSE_REAL_VIEW_PATH="$ROOT/view.json" PYTHONPATH="$ROOT" python3 -m unittest discover -s "$ROOT/tests" -p test_pbp_blueprint_authority_real_2026.py -v
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_nba_advanced_ratings_2026.py?ref=$PRIVATE_REF" --jq .content |
+            base64 -d > "$ROOT/official_nba_advanced_ratings_2026.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_official_nba_advanced_ratings_2026.py?ref=$PRIVATE_REF" --jq .content |
+            base64 -d > "$ROOT/tests/test_official_nba_advanced_ratings_2026.py"
+          GAMEPULSE_REAL_PBP_PATH="$ROOT/pbp.json" PYTHONPATH="$ROOT" python3 -m unittest discover -s "$ROOT/tests" -p test_official_nba_advanced_ratings_2026.py -v
       - name: Download only the original SHA-verified private game SDK parts
         id: archives
         shell: bash
