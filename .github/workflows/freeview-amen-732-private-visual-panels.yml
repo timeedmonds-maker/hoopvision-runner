@@ -47,8 +47,10 @@ jobs:
           gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$ROOT" \
             --pattern "contact-window-high-tight.jpg" --pattern "contact-window-left-above-rim.jpg"
           gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" > "$ROOT/release.json"
+          python3 -m pip install --quiet --disable-pip-version-check pillow
           python3 - "$ROOT" <<'PY'
-          import base64,hashlib,json,subprocess,sys
+          import base64,hashlib,json,subprocess,sys,io
+          from PIL import Image
           from pathlib import Path
           root=Path(sys.argv[1])
           assets={a["name"]:a for a in json.load(open(root/"release.json"))["assets"]}
@@ -56,7 +58,13 @@ jobs:
               img=root/image
               b=img.read_bytes()
               assert assets[image]["digest"]=="sha256:"+hashlib.sha256(b).hexdigest(),image
-              dest="hoopvision/freeview/fixtures/amen_732_"+image
+              pic=Image.open(io.BytesIO(b)).convert("RGB")
+              pic.thumbnail((1600,900))
+              buffer=io.BytesIO()
+              pic.save(buffer,format="JPEG",quality=72,optimize=True)
+              b=buffer.getvalue()
+              assert 0<len(b)<900000,(image,len(b))
+              dest="hoopvision/freeview/fixtures/amen_732_small_"+image
               payload={"message":"test(freeview): add verified native NBA original-frame diagnostic "+image,
                        "branch":"research/amen-wemby-freeze-spin-20261024",
                        "content":base64.b64encode(b).decode("ascii")}
@@ -68,5 +76,5 @@ jobs:
               if cp.returncode:
                   # Never echo request or token-bearing details.
                   raise RuntimeError("PRIVATE_QA_IMAGE_COMMIT_FAILED_"+str(cp.returncode))
-              print("PRIVATE_QA_IMAGE_COMMITTED",image,len(b))
+              print("PRIVATE_QA_SMALL_IMAGE_COMMITTED",image,len(b))
           PY
