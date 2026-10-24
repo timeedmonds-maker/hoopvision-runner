@@ -107,7 +107,7 @@ jobs:
           assert base64.b64decode(check)==raw
           print('PRIVATE_AUTO_HOOP_ANCHOR_QA_SHA_READBACK_VERIFIED')
           PY
-          echo "Video-free physical hoop landmark extraction: original 552 SDK frames, three source-to-PBP made-shot matches and stoppage-safe live bracket tested; not yet full-season certified." >> "$GITHUB_STEP_SUMMARY"
+          echo "Two-pass, per-period NBA PBP and physical hoop matching; source orientation learned automatically, conflicting candidates excluded. No video or full possession certification." >> "$GITHUB_STEP_SUMMARY"
 
       - name: No private payload artifacts
         if: always()
