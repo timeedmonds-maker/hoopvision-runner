@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    "tools/licensed_feed/official_pbp_onoff_28.py",
+    ".github/workflows/gamepulse-28game-native-pbp-onoff.yml",
     ".github/workflows/rockets-wemby-opponent-ppp.yml",
     ".github/workflows/freeview-amen-732-private-visual-panels.yml",
     ".github/workflows/freeview-amen-732-private-audio-sync.yml",
