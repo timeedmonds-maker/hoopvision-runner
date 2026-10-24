@@ -1,4 +1,4 @@
-name: Game Pulse Rockets final fastlane — public CPU
+name: Game Pulse Rockets-Spurs full-game recovery — public CPU
 on:
   push:
     branches: [main]
@@ -12,7 +12,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: gamepulse-rockets-final-sdk-direct-recovery2
+  group: gamepulse-rockets-spurs-0022600009-full-recovery
   cancel-in-progress: false
 jobs:
   preflight:
@@ -32,14 +32,14 @@ jobs:
   capture-after-final:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: preflight
-    # The public post-final direct-slot path must finish promptly or fail closed.
+    # Source verified game 0022600009; NBA final required, no fabricated tracking.
     strategy:
       fail-fast: false
-      max-parallel: 6
+      max-parallel: 13
       matrix:
-        part: [7, 8, 9, 10, 11, 12]
+        part: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 100
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,8 +58,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAMEPULSE_PRIORITY_FANOUT: 'true'
           GAMEPULSE_FINAL_FASTLANE: 'true'
-          GAMEPULSE_PRIORITY_ID: '0022600091'
-          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T00:30:00Z'
+          GAMEPULSE_PRIORITY_ID: '0022600009'
+          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-24T01:30:00Z'
           GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
         run: node season_private_release.mjs
   certify-private-complete:
@@ -67,7 +67,7 @@ jobs:
     if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: capture-after-final
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,29 +80,12 @@ jobs:
         run: |
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
-      - name: Avoid conflict with existing part-06 capture
-        env:
-          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          repo=timeedmonds-maker/104
-          tag=gamepulse-sdk-0022600091
-          for i in $(seq 1 45); do
-            if gh release view "$tag" --repo "$repo" --json assets --jq '.assets[].name' | grep -Fxq sdk-part-06.tar.gz; then
-              echo 'PRIORITY_PART_06_REMOTE_PRESENT'
-              exit 0
-            fi
-            sleep 20
-          done
-          echo 'PRIORITY_PART_06_NOT_YET_ARCHIVED'
-          exit 3
       - name: Verify all 13 checkpoints and certify private index
         working-directory: tools/licensed_feed
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAMEPULSE_PRIORITY_FINALIZE: 'true'
           GAMEPULSE_FINAL_FASTLANE: 'true'
-          GAMEPULSE_PRIORITY_ID: '0022600091'
-          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T00:30:00Z'
+          GAMEPULSE_PRIORITY_ID: '0022600009'
+          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-24T01:30:00Z'
         run: node season_private_release.mjs
