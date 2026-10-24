@@ -46,7 +46,28 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg >/dev/null
           python3 -m pip install --disable-pip-version-check -q 'ultralytics==8.3.228' 'scipy>=1.11,<2' 'numpy<2' 'opencv-python-headless<4.11'
-          python3 "$ROOT/cumulative.py"
+          python3 - "$ROOT" <<'PY'
+          import base64,hashlib,os,subprocess,sys
+          from pathlib import Path
+          from urllib.parse import urlsplit,parse_qs
+          root=Path(sys.argv[1])
+          p=subprocess.run(["gh","api","repos/timeedmonds-maker/104/contents/courtcoder/nba_event_angle_discovery.py?ref=courtcoder%2Fintegration","--jq",".content"],capture_output=True,text=True)
+          if p.returncode:raise RuntimeError("ANGLE_PARSER_UNAVAILABLE")
+          (root/"nba_event_angle_discovery.py").write_bytes(base64.b64decode(p.stdout))
+          sys.path.insert(0,str(root))
+          from nba_event_angle_discovery import fetch_event_angles
+          angles=fetch_event_angles("0022600091",616,timeout=22)
+          if angles.get("state")!="AVAILABLE":raise RuntimeError("EVENT_616_REPLAY_UNAVAILABLE")
+          cams=[a for a in angles["angles"] if a["label"]=="Broadcast"]
+          if len(cams)!=1:raise RuntimeError("BROADCAST_CAMERA_MISSING")
+          url=cams[0]["url"];q=urlsplit(url)
+          if q.scheme!="https" or q.hostname!="lrmedia.nba.com" or not q.path.endswith(".m3u8") or "wowzatokenhash" not in parse_qs(q.query):raise RuntimeError("SOURCE_PROVENANCE_FAILED")
+          dst=root/"event616-broadcast.mp4"
+          p=subprocess.run(["ffmpeg","-hide_banner","-loglevel","error","-nostdin","-y","-user_agent","Mozilla/5.0","-i",url,"-t","24","-map","0:v:0","-map","0:a?","-c:v","libx264","-preset","veryfast","-crf","19","-pix_fmt","yuv420p","-c:a","aac","-movflags","+faststart",str(dst)],capture_output=True,timeout=180)
+          if p.returncode or dst.stat().st_size<100000:raise RuntimeError("SOURCE_DECODE_FAILED")
+          print("AUTHENTIC_BROADCAST_SOURCE_SHA256",hashlib.sha256(dst.read_bytes()).hexdigest())
+          PY
+          EVENT616_SOURCE_FILE="$ROOT/event616-broadcast.mp4" python3 "$ROOT/cumulative.py"
 
 # Opening Fred floor-anchor correction at private commit 83c8f3c3a0c52b9745881bb36360cd52bc47c189.
 
