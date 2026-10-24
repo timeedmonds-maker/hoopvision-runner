@@ -71,6 +71,10 @@ jobs:
           python3 -m pip install --quiet 'supervision==0.29.1' ultralytics 'onnxruntime>=1.23.2,<2' pyreadr requests timm pyyaml gdown
           python3 -m pip install --quiet 'rich>=13' 'pydeprecate>=0.8' 'jsonargparse>=4.48,<5' pydantic hydra-core loguru pycocotools matplotlib tqdm orjson httpx
           python3 -m pip install --quiet --no-deps -e "$ROOT/repos/trackers" -e "$ROOT/repos/ode"
+          # Some downstream transitive dependencies reinstall NumPy 2.x after
+          # the initial pin. Restore the original ODE/RF-DETR 1.26 ABI
+          # explicitly without re-resolving the conflicting package metadata.
+          python3 -m pip install --quiet --force-reinstall --no-deps 'numpy==1.26.4'
           PYTHONPATH="$ROOT/repos/nbacv/src" python3 - <<'PY'
           import numpy, supervision, cv2
           import trackers
