@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-wemby-defensive-position.yml",  # CPU-only original NBA source, private source/aggregated results only
     ".github/workflows/clip-lab-event80-direct-native-frozen.yml",  # audited CPU-only original NBA source, private SDK, final ringed MP4
     ".github/workflows/clip-lab-rockets-event80-frozen-render.yml",  # reviewed: exact frozen source SHA and private-only v3.1 MP4
     ".github/workflows/clip-lab-event80-delivery-smoke.yml",  # test fixture artifact only
