@@ -39,6 +39,7 @@ jobs:
                       j=json.loads(raw)
                       row=j.get('single_row_table_data',{})
                       if not isinstance(row,dict) or not {'OffPoss','Points','SecondsPlayed'} <= row.keys():
+                          print('PBP_RESPONSE_SHAPE',state,perspective,'keys',list(j.keys()),'row_fields',list(row.keys()) if isinstance(row,dict) else type(row).__name__,'rows',len(j.get('multi_row_table_data',[])) if isinstance(j.get('multi_row_table_data'),list) else 'NOT_LIST','error',str(j.get('detail',''))[:160])
                           raise ValueError('missing_native_opponent_sufficient_statistics')
                       vals={k:row[k] for k in ('OffPoss','DefPoss','Points','SecondsPlayed','GamesPlayed') if k in row}
                       print('SOURCE',state,perspective,'sha256',hashlib.sha256(raw).hexdigest(),'values',json.dumps(vals,sort_keys=True))
