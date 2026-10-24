@@ -10,43 +10,26 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Resolve NBA public play-by-play
+      - name: Verify NBA public multi-camera clip event pages
         shell: bash
         run: |
           python3 - <<'PY'
-          import json,urllib.request,urllib.error
-          game="0022600009"
-          p="static/json/liveData/playbyplay/playbyplay_"+game+".json"
-          links=[
-            "https://cdn.nba.com/"+p,
-            "https://cdn-uat.nba.com/"+p,
-            "https://cdn.nba.com/"+p+"?_=20261024",
-            "https://data.nba.net/prod/v1/20261023/"+game+"_pbp.json",
-            "https://stats.nba.com/stats/playbyplayv3?EndPeriod=0&GameID="+game+"&StartPeriod=0",
-          ]
-          heads=[
-            {"User-Agent":"Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36","Accept":"application/json","Origin":"https://www.nba.com","Referer":"https://www.nba.com/"},
-            {"User-Agent":"Mozilla/5.0 (compatible; HoopVision NBA formal-source audit)","Accept":"application/json","Referer":"https://www.nba.com/"},
-          ]
-          for url in links:
-            for hi,headers in enumerate(heads):
+          import urllib.request,urllib.error,re,html
+          for ev in (734,732):
+            url="https://clips.nba.com/?gameNo=0022600009&eventNum="+str(ev)+"&source=grs"
+            for agent in ("Mozilla/5.0 (compatible; HoopVision NBA formal-source audit)","Mozilla/5.0"):
               try:
-                req=urllib.request.Request(url,headers=headers)
-                with urllib.request.urlopen(req,timeout=12) as resp:raw=resp.read(1900000)
-                print("FETCH",url,"headers",hi,"size",len(raw))
-                data=json.loads(raw)
-                if "game" in data:actions=data["game"]["actions"]
-                elif "resultSets" in data:
-                  print("OTHER_RESPONSE_KEYS",list(data.keys()));continue
-                else:continue
-                print("ACTION_COUNT",len(actions))
-                for a in actions:
-                  if a.get("period")==4 and "Thompson" in a.get("description","") and "BLOCK" in a.get("description","").upper():
-                    print("BLOCK",json.dumps({k:a.get(k) for k in ["actionNumber","actionId","clock","period","personId","description"]}))
-                for a in actions[-12:]:
-                  print("TAIL",a.get("actionNumber"),a.get("clock"),a.get("description"))
-                raise SystemExit(0)
+                req=urllib.request.Request(url,headers={"User-Agent":agent,"Accept":"text/html","Referer":"https://www.nba.com/"})
+                with urllib.request.urlopen(req,timeout=20) as resp:
+                  status=resp.status; body=resp.read(950000).decode("utf-8","replace")
+                print("CLIP",ev,"http",status,"bytes",len(body),"unavailable",("No video clip available" in body))
+                titles=re.findall(r"<title[^>]*>(.*?)</title>",body,re.I|re.S)
+                print("TITLE",ev,[html.unescape(re.sub(r"<[^>]+>","",x).strip()) for x in titles][:3])
+                options=re.findall(r"<option[^>]*>(.*?)</option>",body,re.I|re.S)
+                print("ANGLE_OPTIONS",ev,[html.unescape(re.sub(r"<[^>]+>","",x).strip()) for x in options][:24])
+                print("HAS_PLAYER_NAME",ev,("Thompson" in body))
+                print("HAS_HLS",ev,("lrmedia.nba.com" in body))
+                break
               except Exception as e:
-                print("FETCH_ERROR",url,"header",hi,str(e)[:150])
-          raise SystemExit(1)
+                print("CLIP_ERROR",ev,str(e)[:250])
           PY
