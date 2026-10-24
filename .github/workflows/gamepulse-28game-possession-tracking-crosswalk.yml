@@ -214,6 +214,19 @@ jobs:
                           suspects.append((a["nba_action_number"],a["period"],round(sec,2),diff))
                   elif not options:missing+=1
                   else:multiple+=1
+              focus=(191,192) if gid=="0022600101" else (18,20,31,43,91,116,129,140,163,507,751)
+              for a in nba["actions"]:
+                  if a["nba_action_number"] not in focus:continue
+                  sec=a["game_clock_ms_remaining"]/1000
+                  nearby=sorted((p for p in candidates if p[0]==a["period"]
+                    and abs(p[1]-sec)<=2),key=lambda p:abs(p[1]-sec))
+                  print("ESPN_SUSPECT_SOURCE_CROSSWALK",gid,
+                     "nba_action",a["nba_action_number"],"period",a["period"],
+                     "nba_clock_ms",a["game_clock_ms_remaining"],
+                     "nba_scores",(a["score_home"],a["score_away"]),
+                     "nba_utc",a["official_timeActual_utc_ms"],
+                     "espn_candidates",[(x[1],x[2],x[3],x[4],x[5].get("scoringPlay"),
+                                       (x[5].get("type") or {}).get("text")) for x in nearby[:7]])
               print("ESPN_INDEPENDENT_EVENT_UTC_CROSSWALK",gid,
                     "eligible_scoring_events",sum(a["action_type"] in ("2pt","3pt","freethrow") for a in nba["actions"]),
                     "espn_play_candidates",len(candidates),
