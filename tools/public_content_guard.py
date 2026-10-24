@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/rockets-spurs-q1-sdk-recovery.yml",
     ".github/workflows/gamepulse-unresolved-official-onoff-watch.yml",
     "tools/licensed_feed/pbpstats_missing_onoff_fallback.py",
     ".github/workflows/gamepulse-pbpstats-missing-game-fallback.yml",
