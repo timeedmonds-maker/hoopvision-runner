@@ -111,7 +111,7 @@ jobs:
               --nbacv-src "$ROOT/repos/nbacv/src" \
               --analysis-fps 6 --court-fps 2 --number-fps 1 \
               --start-s 0 --end-s 20.3 --court-device cpu \
-              > "$ROOT/probe.log" 2>&1
+              > "$ROOT/full20-probe.log" 2>&1
           RC=$?
           set -e
           END="$(date +%s)"
@@ -121,20 +121,23 @@ jobs:
           root=Path(sys.argv[1]);rc=int(sys.argv[2]);wall=int(sys.argv[3])
           out=root/'output'
           files={name:(out/name).exists() for name in ('tracks.csv','court_frames.json','qa.json')}
+          track_rows=max(0,len((out/'tracks.csv').read_text().splitlines())-1) if files['tracks.csv'] else 0
+          court_frame_count=len(json.loads((out/'court_frames.json').read_text())) if files['court_frames.json'] else 0
+
           report={'schema':'hoopvision.clip-lab.frozen-v31-cpu-perception-full20.v1',
                   'game_id':'0022600009','event':86,'source':'original frozen v3.1 adams_screen_prod_v3.py',
                   'source_clip':'private NBA event86 Broadcast 20.45s',
                   'cpu_only':True,'gpu_used':False,'pilot_seconds':20.3,
                   'analysis_fps':6,'court_fps':2,'elapsed_wall_s':wall,
-                  'return_code':rc,'files':files,
-                  'state':'CPU_ORIGINAL_FROZEN_TRACKER_FULL20_PASS' if rc==0 and files['tracks.csv'] else 'CPU_ORIGINAL_FROZEN_TRACKER_FULL20_FAILED',
+                  'return_code':rc,'files':files,'track_rows':track_rows,'court_frame_count':court_frame_count,
+                  'state':'CPU_ORIGINAL_FROZEN_TRACKER_FULL20_PASS' if rc==0 and track_rows>=8 and court_frame_count>=3 else 'CPU_ORIGINAL_FROZEN_TRACKER_FULL20_FAILED',
                   'blackwell_required':None,
                   'next':'Validate both tracked physical paths and camera geometry across entire 20s source; then select ROI 8.2s and apply original frozen ring presentation'}
           (root/'cpu_frozen_full20_qa.json').write_text(json.dumps(report,indent=2)+'\n')
           print('ORIGINAL_FROZEN_CPU_PERCEPTION_FULL20_STATE',report['state'],'wall_s',wall)
           PY
           TAG='clip-lab-rockets-spurs-0022600009-e86-broadcast'
-          gh release upload "$TAG" "$ROOT/cpu_frozen_probe_qa.json" "$ROOT/probe.log" --repo timeedmonds-maker/104 --clobber
+          gh release upload "$TAG" "$ROOT/cpu_frozen_probe_qa.json" "$ROOT/full20-probe.log" --repo timeedmonds-maker/104 --clobber
           if [ -f "$ROOT/output/tracks.csv" ]; then
             cp "$ROOT/output/tracks.csv" "$ROOT/cpu-full20-tracks.csv"
             gh release upload "$TAG" "$ROOT/cpu-pilot-tracks.csv" --repo timeedmonds-maker/104 --clobber
