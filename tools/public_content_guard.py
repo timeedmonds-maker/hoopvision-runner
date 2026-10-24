@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/clip-lab-rockets-spurs-adams-86-video-sync.yml",
     ".github/workflows/clip-lab-rockets-spurs-adams-86-native-video.yml",
     ".github/workflows/freeview-amen-732-final-seconds-recovery.yml",
     ".github/workflows/rockets-spurs-q1-sdk-recovery.yml",
