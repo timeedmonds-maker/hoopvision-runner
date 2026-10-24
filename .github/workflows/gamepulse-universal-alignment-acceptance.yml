@@ -1,0 +1,46 @@
+name: Game Pulse universal measurement to possession alignment acceptance
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-universal-alignment-acceptance.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: gamepulse-universal-crossmodal-alignment-qa
+  cancel-in-progress: false
+jobs:
+  verify-universal-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REF: feat/gamepulse-universal-touch-possession-join-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Confirm audited public/private boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_SOURCE_AUTH_MISSING; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Verify generic feature types and original NBA event source
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/universal"
+          mkdir -p "$ROOT/tests"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/universal_possession_alignment_2026.py?ref=$PRIVATE_REF" --jq .content |
+            base64 -d > "$ROOT/universal_possession_alignment_2026.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_universal_possession_alignment_2026.py?ref=$PRIVATE_REF" --jq .content |
+            base64 -d > "$ROOT/tests/test_universal_possession_alignment_2026.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/games/0022600009.json?ref=main" --jq .content |
+            base64 -d > "$ROOT/pbp.json"
+          python3 -m py_compile "$ROOT/universal_possession_alignment_2026.py"
+          GAMEPULSE_REAL_PBP_PATH="$ROOT/pbp.json" PYTHONPATH="$ROOT" python3 -m unittest discover -v -s "$ROOT/tests" -p test_universal_possession_alignment_2026.py
+          echo "Universal Game Pulse feature-alignment contract validated; no physical possession counts certified." >> "$GITHUB_STEP_SUMMARY"
+      - name: No private payload artifacts
+        if: always()
+        run: echo 'All original source data remains private; no public source artifacts.' >> "$GITHUB_STEP_SUMMARY"
