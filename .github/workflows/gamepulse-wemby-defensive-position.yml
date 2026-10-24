@@ -1,5 +1,5 @@
 name: Integrated Pulse Wembanyama halfcourt defensive XY comparison
-# Approved NBA database CPU analysis; raw NBA SDK data stay in private 104 and ephemeral memory.
+# Reviewed, allowlisted private-only NBA Game Pulse XY CPU analysis. No raw frames in public files/logs.
 on:
   push:
     branches: [main]
