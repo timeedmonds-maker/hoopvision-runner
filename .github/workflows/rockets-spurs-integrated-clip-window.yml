@@ -1,0 +1,102 @@
+name: Rockets Spurs integrated Pulse exact clip window (CPU)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/rockets-spurs-integrated-clip-window.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: rockets-spurs-integrated-clip-window-20261025
+  cancel-in-progress: false
+jobs:
+  private-window:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify source boundary and private credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_CREDENTIAL_MISSING; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          echo PRIVATE_SOURCE_CONFIRMED
+      - name: Read the integrated private SQLite rather than partial live capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/pulse-exact-clip"
+          mkdir -p "$ROOT"
+          gh release download gamepulse-fusion-2026-27 --repo timeedmonds-maker/104 --dir "$ROOT" --pattern gamepulse-fusion.sqlite3.gz --clobber
+          export CLIP_ROOT="$ROOT"
+          python3 - <<'PY'
+          import os,subprocess,hashlib,json,gzip,sqlite3,base64,time
+          from pathlib import Path
+          root=Path(os.environ['CLIP_ROOT'])
+          repo='timeedmonds-maker/104'
+          source=root/'gamepulse-fusion.sqlite3.gz'
+          release=json.loads(subprocess.check_output(['gh','api',f'repos/{repo}/releases/tags/gamepulse-fusion-2026-27'],text=True))
+          asset=next(x for x in release['assets'] if x['name']==source.name)
+          if asset.get('digest')!='sha256:'+hashlib.sha256(source.read_bytes()).hexdigest():
+              raise RuntimeError('INTEGRATED_SOURCE_SHA_MISMATCH')
+          dbpath=root/'fusion.sqlite3'
+          with gzip.open(source,'rb') as inp,dbpath.open('wb') as out:
+              while True:
+                  buf=inp.read(8*1024*1024)
+                  if not buf:break
+                  out.write(buf)
+          conn=sqlite3.connect(f'file:{dbpath}?mode=ro',uri=True)
+          gid='0022600009'
+          q=conn.execute('SELECT COUNT(*),MIN(timestamp_ms),MAX(timestamp_ms) FROM frames WHERE game_id=?',(gid,)).fetchone()
+          if q[0]<1000:raise RuntimeError('INTEGRATED_GAME_HAS_NO_TRACKING')
+          # Official Q1 05:21 foul = 1792807117264, Q1 05:14 Adams layup = 1792807163608.
+          # The video has an 8.2s screen recording, NOT 46s continuous real-time UTC.
+          start,end=1792807100000,1792807200000
+          rows=[]
+          for t,raw,full,ball in conn.execute('SELECT timestamp_ms,positions_json,exact_5v5,ball_observed FROM frames WHERE game_id=? AND timestamp_ms>=? AND timestamp_ms<? ORDER BY timestamp_ms',(gid,start,end)):
+              pos=json.loads(raw)
+              rows.append({'utc_ms':int(t),'positions':pos,'exact_5v5':bool(full),'ball_observed':bool(ball)})
+          conn.close()
+          both=sum('201142' in r['positions'] and '203500' in r['positions'] for r in rows)
+          only_d=sum('201142' in r['positions'] for r in rows)
+          only_a=sum('203500' in r['positions'] for r in rows)
+          with_ball=sum('ball' in r['positions'] for r in rows)
+          report={'schema':'hoopvision.integrated-pulse-clip-window.v1',
+            'game_id':gid,'source':'SHA_VERIFIED_PRIVATE_INTEGRATED_PULSE_SQLITE',
+            'source_asset_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),
+            'source_total_frames':q[0],'source_first_utc_ms':q[1],'source_last_utc_ms':q[2],
+            'requested_utc_window_ms':[start,end],
+            'observed_window_frames':len(rows),'frames_durant':only_d,'frames_adams':only_a,
+            'frames_both_players':both,'frames_ball':with_ball,
+            'window_first_utc_ms':rows[0]['utc_ms'] if rows else None,
+            'window_last_utc_ms':rows[-1]['utc_ms'] if rows else None,
+            'video_pts_alignment':'NOT_YET_CERTIFIED',
+            'court_to_pixel_projection':'NOT_YET_CERTIFIED',
+            'green_possession':'NOT_YET_CERTIFIED',
+            'status':'NATIVE_XYZ_AVAILABLE_VIDEO_ALIGNMENT_REQUIRED' if both>0 else 'NO_BOTH_PLAYER_XYZ_IN_EXACT_WINDOW'}
+          data={'report':report,'frames':rows}
+          raw=(json.dumps(data,separators=(',',':'))+'\n').encode()
+          if len(raw)>900000:
+              # Keep complete counts and an explicit bounded sample; never silently truncate.
+              report['status']='OVER_900KB_PRIVATE_SOURCE_NEEDS_CHUNKED_OUTPUT'
+              data={'report':report,'frames':rows[:300]}
+              raw=(json.dumps(data,separators=(',',':'))+'\n').encode()
+          target=f'repos/{repo}/contents/gamepulse/status/rockets_spurs_integrated_clip_window_20261025.json'
+          for attempt in range(4):
+              prior=subprocess.run(['gh','api',target],text=True,capture_output=True)
+              payload={'branch':'main','message':'qa(gamepulse): source-hashed exact Rockets Spurs Q1 tracking window from integrated database',
+                       'content':base64.b64encode(raw).decode()}
+              if prior.returncode==0:payload['sha']=json.loads(prior.stdout)['sha']
+              elif '404' not in prior.stderr and 'Not Found' not in prior.stderr:raise RuntimeError('PRIVATE_READ_FAILED')
+              p=subprocess.run(['gh','api','-X','PUT',target,'--input','-'],input=json.dumps(payload),capture_output=True,text=True)
+              if p.returncode==0:break
+              time.sleep(attempt+1)
+          else:raise RuntimeError('PRIVATE_SOURCE_WRITE_FAILED')
+          print('INTEGRATED_SOURCE_WINDOW_QA',json.dumps({k:v for k,v in report.items() if k not in ('source_asset_sha256',)},sort_keys=True))
+          PY
