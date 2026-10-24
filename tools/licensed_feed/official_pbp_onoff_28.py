@@ -143,48 +143,75 @@ def assemble():
     assert original["schema"]==SCHEMA and old["source_game_count"]==14
     merged=dict(original["games"])
     manifest=dict(old["games"])
-    missing=[]
+    outstanding={}
     for gid in NEW_GAMES:
         report=private_json(f"{PREFIX}/native_28_qa/games/{gid}.json",True)
-        if not report or not (report["nba_provider_onoff_certified"] and report["formal_pbp_certified"]):
-            missing.append(gid);continue
-        doc=private_json(f"{PREFIX}/onoff/games/{gid}.json")
-        events=private_json(f"{PREFIX}/official_pbp_timing/games/{gid}.json")
-        if doc["schema"]!=SCHEMA or events["schema"]!=FORMAL or events["game_id"]!=gid:
-            missing.append(gid);continue
-        raw=private_bytes(f"{PREFIX}/onoff/games/{gid}.json")
-        merged[gid]={"path":f"{PREFIX}/onoff/games/{gid}.json","sha256":hashlib.sha256(raw).hexdigest(),
-            "official_fives":len(doc["official_lineups"]),
-            "matched_tracking_fives":doc["matched_qualified_tracking_lineups"],
-            "player_onoff_verified":doc["verified_player_onoff"],
-            "official_possession_rows":doc["official_possession_values_available"],
-            "nba_provider_ppp_fives":report.get("nba_provider_ppp_lineups",0)}
-        manifest[gid]={"game_id":gid,"state":events["state"],
-            "action_records":len(events["actions"]),
-            "source_file":f"{PREFIX}/official_pbp_timing/games/{gid}.json",
-            "source_pbp_sha256":events["source_provenance"]["nba_pbp_sha256"],
-            "official_final":events["official_final"],"video_pts_certified":0}
-    complete=set(merged)==set(fusion["games"]) and set(manifest)==set(fusion["games"])
+        reasons=[]
+        if not report or not report.get("formal_pbp_certified"):
+            reasons.append("OFFICIAL_NBA_PBP_NOT_VERIFIED")
+        else:
+            events=private_json(f"{PREFIX}/official_pbp_timing/games/{gid}.json",True)
+            if (not events or events.get("schema")!=FORMAL or events.get("game_id")!=gid
+                or len(events.get("actions",[]))<300
+                or events.get("qa",{}).get("nba_score_reconciled_to_boxscore") is not True):
+                reasons.append("OFFICIAL_NBA_PBP_QA_FAILED")
+            else:
+                manifest[gid]={"game_id":gid,"state":events["state"],
+                  "action_records":len(events["actions"]),
+                  "source_file":f"{PREFIX}/official_pbp_timing/games/{gid}.json",
+                  "source_pbp_sha256":events["source_provenance"]["nba_pbp_sha256"],
+                  "official_final":events["official_final"],"video_pts_certified":0}
+        if not report or not report.get("nba_provider_onoff_certified"):
+            reasons.append("NBA_GAME_SCOPED_ONOFF_NOT_VERIFIED")
+        else:
+            doc=private_json(f"{PREFIX}/onoff/games/{gid}.json",True)
+            if (not doc or doc.get("schema")!=SCHEMA or doc.get("game_id")!=gid
+                or doc.get("verified_player_onoff",0)<=0
+                or doc.get("official_possession_values_available",0)<=0):
+                reasons.append("NBA_PROVIDER_ONOFF_FILE_QA_FAILED")
+            else:
+                raw=private_bytes(f"{PREFIX}/onoff/games/{gid}.json")
+                merged[gid]={"path":f"{PREFIX}/onoff/games/{gid}.json",
+                    "sha256":hashlib.sha256(raw).hexdigest(),
+                    "official_fives":len(doc["official_lineups"]),
+                    "matched_tracking_fives":doc["matched_qualified_tracking_lineups"],
+                    "player_onoff_verified":doc["verified_player_onoff"],
+                    "official_possession_rows":doc["official_possession_values_available"],
+                    "nba_provider_ppp_fives":report.get("nba_provider_ppp_lineups",0)}
+        if reasons:
+            outstanding[gid]={"reasons":reasons,
+                "provider_source_qa":(report or {}).get("onoff_source_qa",{})}
+    full_timing=set(manifest)==set(fusion["games"])
+    full_onoff=set(merged)==set(fusion["games"])
+    # Publish the verified official game-clock material independently, even if
+    # a distinct NBA advanced-stats endpoint is temporarily missing data.
+    event_index={"schema":"gamepulse.formal-nba-official-event-clock-28game.v1",
+        "source_frozen_original_14":"gamepulse/fusion/official_pbp_timing/index.json",
+        "game_count":len(manifest),"complete_28":full_timing,
+        "games":manifest,"possession_boundary_time_certified":False,
+        "shot_release_video_sync_certified":False}
+    save_json(f"{PREFIX}/official_pbp_timing/index-2026-27-expanded.json",event_index)
+    # Keep the original 14-game ON/OFF index and all original result files intact.
+    onoff_index={"schema":SCHEMA,"source_frozen_original_14":OFFICIAL_INDEX,
+        "game_count":len(merged),"complete_28":full_onoff,
+        "source_policy":"NBA provider lineup possessions/efficiencies and independently verified ONOFF; never frame-derived PPP",
+        "native_possession_chain_certified":False,"games":merged}
+    save_json(f"{PREFIX}/onoff/index-2026-27-expanded.json",onoff_index)
     status={"schema":"gamepulse.native-official-28game-integration-qa.v1",
         "checked_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "fusion_game_count":len(fusion["games"]), "provider_onoff_games":len(merged),
-        "nba_formal_pbp_games":len(manifest),"missing_new_games":missing,
+        "fusion_game_count":len(fusion["games"]),
+        "provider_onoff_games":len(merged),"nba_formal_pbp_games":len(manifest),
+        "missing_new_games":outstanding,
         "native_gamepulse_possessions_certified":0,
         "provider_rating_ppp_not_native_event_chain":True,
-        "all_28_verified":complete}
+        "all_28_verified":full_onoff and full_timing}
     save_json(f"{PREFIX}/native_28_qa/season_status.json",status)
-    if not complete:
-        print("INCOMPLETE_28GAME_INDEPENDENT_NBA_SOURCE",json.dumps(status))
-        raise RuntimeError("PRIVATE_28GAME_ONOFF_PBP_NOT_FULLY_VERIFIED")
-    # Do NOT overwrite frozen 14-game QA or its original index.
-    save_json(f"{PREFIX}/onoff/index-2026-27-expanded.json",{
-       "schema":SCHEMA,"source_frozen_original_14":OFFICIAL_INDEX,
-       "source_policy":"NBA official game-scoped five-player PPP via efficiency/100, NOT source-event possession boundaries",
-       "game_count":28,"games":merged})
-    save_json(f"{PREFIX}/official_pbp_timing/index-2026-27-expanded.json",{
-       "schema":"gamepulse.formal-nba-official-event-clock-28game.v1",
-       "game_count":28,"games":manifest,"possession_boundary_time_certified":False})
-    print("OFFICIAL_NBA_ONOFF_AND_PBP_28GAME_PRIVATE_SEARCH_VERIFIED",json.dumps(status))
+    print("NBA_ORIGINAL_SOURCE_PRIVATE_INDEX_QA",json.dumps({
+        "official_event_games":len(manifest),"provider_onoff_games":len(merged),
+        "full_pbp":full_timing,"full_onoff":full_onoff,"outstanding":sorted(outstanding)}))
+    if not status["all_28_verified"]:
+        raise RuntimeError("NBA_PROVIDER_ONOFF_STILL_INCOMPLETE_PRESERVED_VERIFIED_PARTIAL_INDEX")
+    print("OFFICIAL_NBA_PBP_AND_ONOFF_28GAME_PRIVATE_SEARCH_VERIFIED")
 
 def main():
     p=argparse.ArgumentParser()
