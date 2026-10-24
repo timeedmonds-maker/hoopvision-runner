@@ -12,6 +12,10 @@ on:
       - 'tools/licensed_feed/verify_gameplay_0009.py'
       - 'tools/public_content_guard.py'
   workflow_dispatch:
+  # Private release token was secondarily rate-limited on 2026-10-24.
+  # Retry on free public CPU after a cooling interval; QA remains fail-closed.
+  schedule:
+    - cron: '31 14 * * *'
 permissions:
   contents: read
 concurrency:
