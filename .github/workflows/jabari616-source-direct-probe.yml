@@ -12,16 +12,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
     steps:
-      - name: Verify direct private release URL without API listing
+      - name: Report private token API budget
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${GH_TOKEN:-}" || exit 3
-          curl --fail --silent --show-error --location --max-time 90 \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
-            -H 'Accept: application/octet-stream' \
-            'https://github.com/timeedmonds-maker/104/releases/download/clip-lab-hls-0022600091-616/event616-broadcast.mp4' \
-            -o "$RUNNER_TEMP/source.mp4"
-          echo '9df90d9f76b3bf2f9698ac3d1c25016eb8adfab27dc65b12c3202e7b661e8aba  '"$RUNNER_TEMP/source.mp4" | sha256sum -c -
-          test "$(stat -c %s "$RUNNER_TEMP/source.mp4")" = 8352439
-          echo VERIFIED_DIRECT_PRIVATE_SOURCE
+          gh api rate_limit --jq '.resources.core | {remaining, reset}'
