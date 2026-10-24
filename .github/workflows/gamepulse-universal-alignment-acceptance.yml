@@ -112,3 +112,105 @@ jobs:
       - name: No private payload artifacts
         if: always()
         run: echo 'All original source data remains private; no public source artifacts.' >> "$GITHUB_STEP_SUMMARY"
+
+
+  full-game-source-hoop-qa:
+    name: Original full-game CPU hoop-anchor QA (${{ matrix.game }})
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ['0022600009','0022600101']
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME_ID: ${{ matrix.game }}
+      AUTO_REF: feat/gamepulse-automatic-native-hoop-anchors-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify private source boundary
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || exit 3
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Fetch and SHA-verify 13 original private SDK archive parts
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/original-full-sdk"
+          mkdir -p "$ROOT/sdk"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/automatic_native_hoop_anchor_candidates_2026.py?ref=$AUTO_REF" --jq .content |
+            base64 -d > "$ROOT/automatic_native_hoop_anchor_candidates_2026.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/games/$GAME_ID.json?ref=main" --jq .content |
+            base64 -d > "$ROOT/pbp.json"
+          gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME_ID" > "$ROOT/release.json"
+          gh release download "gamepulse-sdk-$GAME_ID" --repo timeedmonds-maker/104 --pattern 'sdk-part-??.tar.gz' --dir "$ROOT/sdk" >/dev/null
+          python3 - <<'PY'
+          import hashlib,json,os,re
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'original-full-sdk'
+          release=json.loads((root/'release.json').read_text())
+          expected={a['name']:a['digest'] for a in release['assets']
+                 if re.fullmatch(r'sdk-part-\d{2}\.tar\.gz',a['name'])}
+          found=sorted((root/'sdk').glob('sdk-part-??.tar.gz'))
+          assert len(expected)==len(found)==13,'ORIGINAL_13_SDK_PART_COVERAGE_FAILED'
+          for file in found:
+              h=hashlib.sha256()
+              with file.open('rb') as f:
+                  for data in iter(lambda:f.read(1048576),b''):h.update(data)
+              assert expected[file.name]=='sha256:'+h.hexdigest(),'PRIVATE_SDK_SHA_MISMATCH'
+          pbp=json.loads((root/'pbp.json').read_text())
+          assert pbp['game_id']==os.environ['GAME_ID']
+          print('PRIVATE_ORIGINAL_SDK_ALL_13_SHA_VERIFIED')
+          PY
+      - name: Detect basket events from native ball XYZ for every quarter
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/original-full-sdk"
+          args=()
+          for archive in "$ROOT"/sdk/sdk-part-??.tar.gz; do
+            args+=(--sdk-part "$archive")
+          done
+          python3 -m py_compile "$ROOT/automatic_native_hoop_anchor_candidates_2026.py"
+          python3 "$ROOT/automatic_native_hoop_anchor_candidates_2026.py" --pbp "$ROOT/pbp.json" "${args[@]}" --all-periods --out "$ROOT/fullgame_qa.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'original-full-sdk'
+          j=json.loads((root/'fullgame_qa.json').read_text())
+          assert j['game_id']==os.environ['GAME_ID']
+          assert j['run_scope']=='FULL_GAME_ALL_PERIODS'
+          assert len(j['periods'])>=4
+          assert j['matched_made_fg']<=j['nba_made_fg']
+          assert j['clock_anchors_are_independently_certified'] is False
+          assert j['video_required'] is False
+          print('FULL_GAME_AUTOMATED_HOOP_QA',
+                j['game_id'],'matched',j['matched_made_fg'],
+                'eligible_makes',j['nba_made_fg'],
+                'brackets',j['bracket_candidates'],
+                'qualified_periods',j['qualified_candidate_periods'])
+          PY
+      - name: Save source evidence QA in private 104 only
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/original-full-sdk"
+          python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'original-full-sdk'
+          raw=(root/'fullgame_qa.json').read_bytes()
+          dest='repos/timeedmonds-maker/104/contents/gamepulse/fusion/qa/automatic_hoop_anchor_fullgame_'+os.environ['GAME_ID']+'_20261025.json'
+          old=subprocess.run(['gh','api',dest],capture_output=True,text=True)
+          payload={'branch':'main','message':'qa(gamepulse): full-game video-free native basket and official PBP clock anchor candidates',
+                   'content':base64.b64encode(raw).decode()}
+          if old.returncode==0:payload['sha']=json.loads(old.stdout)['sha']
+          elif '404' not in old.stderr and 'Not Found' not in old.stderr:
+              raise RuntimeError('PRIVATE_FULL_GAME_QA_READ_ERROR')
+          put=subprocess.run(['gh','api','-X','PUT',dest,'--input','-'],
+                input=json.dumps(payload),capture_output=True,text=True)
+          if put.returncode:raise RuntimeError('PRIVATE_FULL_GAME_QA_PUBLISH_ERROR')
+          assert base64.b64decode(subprocess.check_output(['gh','api',dest,'--jq','.content']))==raw
+          print('ORIGINAL_FULL_GAME_AUTOMATED_CLOCK_QA_PRIVATE_READBACK_VERIFIED')
+          PY
