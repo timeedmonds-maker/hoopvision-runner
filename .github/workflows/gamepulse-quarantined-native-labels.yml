@@ -25,7 +25,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GAME_ID: ${{ matrix.game }}
       PRIVATE_REPO: timeedmonds-maker/104
-      SOURCE_REF: 3d1adf72eaee46c02ef63feef2169cec60ccf140
+      SOURCE_REF: main
     steps:
       - uses: actions/checkout@v4
         with:
