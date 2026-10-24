@@ -192,8 +192,9 @@ jobs:
                   stamp=p.get("wallclock")
                   if not stamp:continue
                   try:
-                      secs=float(v["value"]) if v.get("value") is not None else (
-                        lambda a:int(a[-2])+60*int(a[-3]))(re.split(r"[:.]",v["displayValue"]))
+                      clock_string=str(v.get("displayValue") or "")
+                      clock_parts=clock_string.split(":")
+                      secs=(60*int(clock_parts[0])+float(clock_parts[1])) if len(clock_parts)==2 else float(clock_string)
                       utc=int(datetime.datetime.fromisoformat(stamp.replace("Z","+00:00")).timestamp()*1000)
                       home=int(p["homeScore"]);away=int(p["awayScore"])
                       candidates.append((int(pd["number"]),secs,home,away,utc,p))
