@@ -18,15 +18,15 @@ jobs:
           set -euo pipefail
           test -n "${GH_TOKEN:-}" || { echo PRIVATE_TOKEN_MISSING; exit 3; }
           mkdir -p "$RUNNER_TEMP/relay"
-          gh release download clip-lab-jabari616-v31-frozen-quality-full20 --repo timeedmonds-maker/104 --pattern 'jabari616-five-cumulative-rings-original-v31-full20-CRF12.mp4' --dir "$RUNNER_TEMP/relay"
+          gh release download clip-lab-jabari616-v31-steady-floor-fred-start --repo timeedmonds-maker/104 --pattern 'jabari616-five-cumulative-rings-original-v31-full20-CRF12.mp4' --dir "$RUNNER_TEMP/relay"
           export RELAY_FILE="$RUNNER_TEMP/relay/jabari616-five-cumulative-rings-original-v31-full20-CRF12.mp4"
           python3 - <<'PY'
           import os,hashlib,json,base64,subprocess,pathlib
           p=pathlib.Path(os.environ['RELAY_FILE'])
           raw=p.read_bytes()
-          assert len(raw)==14475019
-          assert hashlib.sha256(raw).hexdigest()=='a1fc722173944b29555d5f28d07e87038daf233f4e0f834aeffcbb00c779c562'
-          target='repos/timeedmonds-maker/104/contents/gamepulse/chat_export_616'
+          assert len(raw)==15513981
+          assert hashlib.sha256(raw).hexdigest()=='3806a27b58f6c061753c5d36086d3dd638e4f19aa8b86dac6f5c0a3e5a10449b'
+          target='repos/timeedmonds-maker/104/contents/gamepulse/chat_export_616_v2'
           for i in range(0,len(raw),512000):
               chunk=base64.b64encode(raw[i:i+512000]).decode()
               path=f'{target}/chunk_{i//512000:03d}.txt'
