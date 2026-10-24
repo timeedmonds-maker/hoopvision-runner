@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/clip-lab-adams86-original-frozen-cpu-full20.yml",
     ".github/workflows/clip-lab-event86-view-quality-cpu.yml",
     ".github/workflows/clip-lab-adams86-xfg-source-quality.yml",
     ".github/workflows/clip-lab-adams86-original-frozen-cpu-tracker-probe.yml",
