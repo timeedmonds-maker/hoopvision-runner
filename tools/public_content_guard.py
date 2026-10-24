@@ -131,6 +131,7 @@ REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
     ".github/workflows/gamepulse-rockets-sengun-hub-qa.yml": "e9a8a41ab0d8b6ecf390d2fb847a8d2351765dbe",
     ".github/workflows/nba-jabari616-ball-handler-media.yml": "779830fa72713804709cc6455a91c702586c784b",
     ".github/workflows/nba-jabari616-pulse-frozen-ring-render.yml": "e0e9621b82a6da6f31bf27cbeb71232403fd346b",
+    ".github/workflows/gamepulse-wemby-advanced-boxscore-0022600009.yml": "0aab6eb3a993d9d6a88776bad4a233029748c7ef",
     ".github/workflows/nba-jabari616-ring-export-to-chat.yml": "f63f723f34e03b12723389b1e84b3eb6de5b4e6e",
     ".github/workflows/rockets-durant-double-team-clip-verification.yml": "2d9573e710d1ad19e7ee68a202f35a8775cb4503",
     ".github/workflows/rockets-durant-reviewed-halfcourt-v5.yml": "bdb6e1d1062dff439c19ca85c8191c71a9aaecc8",
