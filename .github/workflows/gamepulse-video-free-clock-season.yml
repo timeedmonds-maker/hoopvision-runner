@@ -1,4 +1,5 @@
 name: Game Pulse season video-free physical clock anchor index
+# Second source-complete historical backfill pass: preserve daily scheduled due-selector
 on:
   schedule:
     - cron: '18 8 * * *'
