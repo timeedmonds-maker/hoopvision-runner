@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/rockets-wemby-opponent-ppp.yml",
     ".github/workflows/freeview-amen-732-private-visual-panels.yml",
     ".github/workflows/freeview-amen-732-private-audio-sync.yml",
     ".github/workflows/freeview-amen-732-private-native.yml",
