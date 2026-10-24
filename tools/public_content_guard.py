@@ -32,6 +32,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-28game-possession-tracking-crosswalk.yml",
     ".github/workflows/gamepulse-native-interactions-season-missing13.yml",
     ".github/workflows/gamepulse-two-game-chronology-acceptance.yml",
+    ".github/workflows/gamepulse-nba-official-advanced-ratings.yml",
     ".github/workflows/clip-lab-rockets-event80-hls.yml",
     ".github/workflows/gamepulse-native-interactions-partial-aggregate.yml",
     ".github/workflows/gamepulse-season-query-coverage-tests.yml",
