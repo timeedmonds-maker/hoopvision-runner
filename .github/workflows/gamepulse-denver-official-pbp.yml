@@ -5,6 +5,11 @@ on:
   push:
     branches: [main]
     paths: ['.github/workflows/gamepulse-denver-official-pbp.yml']
+  schedule:
+    - cron: '23 17 * * *'
+  workflow_run:
+    workflows: ['Game Pulse complete season backlog']
+    types: [completed]
   workflow_dispatch:
     inputs:
       game_id:
@@ -24,6 +29,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   materialize:
+    if: github.event_name != 'schedule' && github.event_name != 'workflow_run'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -100,3 +106,42 @@ jobs:
           assert json.loads(remote["body"])["clip_count"]==json.loads(local.read_text())["clip_count"]
           print("PRIVATE_NBA_EVENT_LINKS_SHA256_READBACK_PASS")
           PY
+  season-index:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Protect private player evidence and source inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Fetch trusted season-index source into temporary runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/nba-season-clips"
+          mkdir -p "$ROOT"
+          for mod in official_pbp_timestamps_2026.py player_possession_clips.py index_all_player_possession_clips.py; do
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$mod?ref=main" --jq .content |
+              base64 -d > "$ROOT/$mod"
+          done
+          python3 -m py_compile "$ROOT/"*.py
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_player_possession_clips.py?ref=main' --jq .content |
+            base64 -d > "$ROOT/test_player_possession_clips.py"
+          cd "$ROOT"
+          python3 -m unittest -q test_player_possession_clips
+      - name: Privately index every verified season game without repeat source downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/nba-season-clips"
+          cd "$ROOT"
+          python3 -u index_all_player_possession_clips.py --limit 40
