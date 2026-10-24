@@ -70,18 +70,29 @@ jobs:
           assert m["end_ms"]==end and m["successful_windows"]==84
           assert m["observed"] is True and m["imputed"] is False
           stamps=[];player=[];ball=[];amen=[];wemby=[]
+          outside=[];malformed=0
           with gzip.open(root/"frames.jsonl.gz","rt") as f:
               for line in f:
                   if not line.strip():continue
                   row=json.loads(line);ms=row.get("timestamp")
                   p=row.get("positions") or {}
-                  if not isinstance(ms,int) or not(start<=ms<=end):
-                      raise RuntimeError("RECOVERY_FRAME_OUTSIDE_OBSERVED_SOURCE")
+                  if not isinstance(ms,int) or not isinstance(p,dict):
+                      malformed+=1
+                      continue
+                  if not(start<=ms<=end):
+                      # Source slot events can include keyframes outside requested
+                      # boundaries; keep original bytes, never count as target data.
+                      outside.append(ms)
+                      continue
                   stamps.append(ms)
                   if any(k!="ball" for k in p):player.append(ms)
                   if "ball" in p:ball.append(ms)
                   if "1641708" in p:amen.append(ms)
                   if "1641705" in p:wemby.append(ms)
+          if malformed:
+              raise RuntimeError("INVALID_SOURCE_KEYFRAME_SCHEMA")
+          if len(stamps)+len(outside)!=m["unique_keyframes"]:
+              raise RuntimeError("NATIVE_KEYFRAME_COUNT_MISMATCH")
           def nearest(xs):
               return min((abs(t-event) for t in xs),default=None)
           gaps={k:nearest(v) for k,v in [
@@ -97,6 +108,11 @@ jobs:
               "source_windows_requested":84,
               "source_windows_successful":84,
               "source_native_frame_count":len(stamps),
+              "out_of_window_source_keyframes":len(outside),
+              "out_of_window_first_ms":min(outside) if outside else None,
+              "out_of_window_last_ms":max(outside) if outside else None,
+              "in_window_first_ms":min(stamps) if stamps else None,
+              "in_window_last_ms":max(stamps) if stamps else None,
               "source_player_frame_count":len(player),
               "source_ball_frame_count":len(ball),
               "source_amen_frame_count":len(amen),
@@ -110,7 +126,8 @@ jobs:
               "provenance":"fresh SDK capture; no imputation; official event UTC is approximate action time, not native video PTS"}
           (root/"event732-targeted-qa.json").write_text(json.dumps(qa,indent=2)+"\n")
           print("TARGETED_EVENT732_RECAPTURE",qa["raw_source_frames_at_event"],
-                "native_frames",len(stamps),"nearest_gap_ms",gaps)
+                "in_window_frames",len(stamps),"out_of_window_frames",len(outside),
+                "nearest_gap_ms",gaps)
           PY
           TAG="freeview-gamepulse-0022600009-e732-recovery"
           if ! gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
