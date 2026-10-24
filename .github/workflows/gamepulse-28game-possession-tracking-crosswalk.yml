@@ -1,4 +1,4 @@
-name: Integrated Pulse PBP to Game Pulse crosswalk integrity
+name: Integrated Pulse exact 28-game PBP and native-touch source crosswalk
 # Only CPU, private 104 data stays in ephemeral runner and private 104 outputs.
 # Validate canonical source SHA checks and source-clock quarantine after the lookup patch.
 # Public runner persists NO licensed raw tracking/player/event payload.
@@ -261,10 +261,10 @@ jobs:
           assert j['game_count'] >= 28, 'CURRENT_SEASON_GAME_COUNT_REGRESSION'
           assert j['official_pbp_games_indexed']==j['game_count']
           assert j['official_pbp_games_validated']+len(j['official_pbp_clock_anomaly_games'])==j['game_count']
-          assert set(j['official_pbp_clock_anomaly_games']) <= {'0022600009','0022600101'}
+          assert j['official_pbp_clock_anomaly_games']=={}
           assert j['tracking_game_views_indexed']==j['game_count']
-          assert j['native_touch_action_run_crosswalk_games']>=26
-          assert set(j['native_touch_action_run_crosswalk_missing_games']) <= {'0022600009','0022600101'}
+          assert j['native_touch_action_run_crosswalk_games']==28
+          assert j['native_touch_action_run_crosswalk_missing_games']==[]
           assert j['native_source_touch_labels_in_joined_games']==(
               j['native_touch_start_records_joined']+
               j['native_source_touch_labels_unattributed'])
@@ -275,8 +275,8 @@ jobs:
               j['native_touch_start_records_joined']+
               j['unassigned_native_source_labels_searchable_in_dedicated_index']+
               j['quarantined_source_only_tracking_native_labels'])
-          assert j['quarantined_source_only_tracking_search_games']==2
-          assert j['quarantined_source_only_tracking_native_labels']>0
+          assert j['quarantined_source_only_tracking_search_games']==0
+          assert j['quarantined_source_only_tracking_native_labels']==0
           assert j['unattributed_records_omitted_from_source_event_search'] is True
           assert j['physical_nba_possessions_certified']==0
           assert (j['native_touch_action_run_crosswalk_games']+
@@ -297,7 +297,7 @@ jobs:
             read -r gid period event <<< "$spec"
             python3 "$WORK/gamepulse/fusion/season_possession_tracking_crosswalk_2026.py" \
               --root "$WORK" --game "$gid" --period "$period" --action "$event" |
-              python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["joined_run"] is None; assert r["physical_possession_certified"] is False; assert "official_timeActual_utc_ms" not in r["nba_official_action"]; assert r["join_state"]=="SOURCE_ACTION_AVAILABLE_TRACKING_JOIN_QUARANTINED"'
+              python3 -c 'import json,sys; r=json.load(sys.stdin); assert r["physical_possession_certified"] is False; assert "official_timeActual_utc_ms" not in r["nba_official_action"]; assert r["joined_run"] is not None; assert r["joined_run"]["touches"]==[]; assert r["joined_run"]["absolute_timing_certified"] is False; assert r["join_state"]=="OFFICIAL_ACTION_RUN_SOURCE_UTC_QUARANTINED"'
           done
           echo 'NBA_QUARANTINED_GAME_EVENT_LOOKUP_PASSED'
       - name: Save SHA-verified report privately and nowhere public
