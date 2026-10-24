@@ -181,6 +181,7 @@ jobs:
               --court-frames "$ROOT/original-tracking/court_frames.json" \
               --occlusion-tracks "$ROOT/original-tracking/tracks.csv" \
               --possession-events "$ROOT/neutral-possession.json" \
+              --max-interp-gap .28 --hold-s .14 \
               --ring-max-interp-gap .28 --ring-hold-s .14 \
               --frame-ledger "$ROOT/frame-ledger.csv" \
               --out "$ROOT/event80-fred-adams-original-frozen-v31.mp4" \
