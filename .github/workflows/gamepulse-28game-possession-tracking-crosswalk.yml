@@ -260,6 +260,10 @@ jobs:
           assert j['tracking_game_views_indexed']==j['game_count']
           assert j['native_touch_action_run_crosswalk_games']>=26
           assert set(j['native_touch_action_run_crosswalk_missing_games']) <= {'0022600009','0022600101'}
+          assert j['native_source_touch_labels_in_joined_games']==(
+              j['native_touch_start_records_joined']+
+              j['native_source_touch_labels_unattributed'])
+          assert j['unattributed_records_omitted_from_source_event_search'] is True
           assert j['physical_nba_possessions_certified']==0
           assert (j['native_touch_action_run_crosswalk_games']+
                   len(j['native_touch_action_run_crosswalk_missing_games'])==
