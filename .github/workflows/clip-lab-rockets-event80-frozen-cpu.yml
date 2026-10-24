@@ -34,6 +34,15 @@ jobs:
           print('ORIGINAL_FROZEN_CPU_PROBE_PUBLIC_BOUNDARY_PASS')
           PY
           test -n "${GH_TOKEN:-}" || exit 3
+          # The rate_limit endpoint does not spend private GitHub REST quota.
+          # Never rerun the costly original CPU inference when the auth quota
+          # cannot also publish its results safely.
+          QUOTA="$(gh api rate_limit --jq '.resources.core.remaining' 2>/dev/null || echo 0)"
+          if [ "$QUOTA" -lt 100 ]; then
+            RESET="$(gh api rate_limit --jq '.resources.core.reset' 2>/dev/null || echo 0)"
+            echo "PRIVATE_GITHUB_AUTH_QUOTA_NOT_READY reset_unix=$RESET"
+            exit 7
+          fi
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
       - name: Install exact frozen v3.1 fast physical-tracking dependencies
         shell: bash
