@@ -44,8 +44,18 @@ jobs:
           mkdir -p "$ROOT/tools" "$ROOT/hoopvision/core" "$ROOT/screen_tracker_nextgen" "$ROOT/gamepulse/clip_lab"
           touch "$ROOT/hoopvision/__init__.py" "$ROOT/hoopvision/core/__init__.py" "$ROOT/screen_tracker_nextgen/__init__.py"
           TAG='clip-lab-hls-0022600009-80'
+          # Use an authenticated direct release download as the primary
+          # transport when the shared private REST API budget is exhausted.
+          # Signed source/authorization data must never enter public logs.
           for name in event80-broadcast.mp4 native.json manifest.json; do
-            gh release download "$TAG" --repo timeedmonds-maker/104 --pattern "$name" --dir "$ROOT" >/dev/null || { echo EXPECTED_PRIVATE_MEDIA_UNAVAILABLE; exit 4; }
+            code="$(curl --silent --show-error --location --max-time 70 \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -o "$ROOT/$name" -w '%{http_code}' \
+              "https://github.com/timeedmonds-maker/104/releases/download/$TAG/$name" || true)"
+            if [ "$code" != '200' ]; then
+              echo PRIVATE_ORIGINAL_MEDIA_DIRECT_AUTH_UNAVAILABLE
+              exit 4
+            fi
           done
           # Frozen worker stores private tracking & homography only inside 104.
           for item in \
