@@ -1,5 +1,6 @@
 name: Integrated Pulse finish 28-game unassigned source-label search
 # Free public CPU only; no licensed player data or search output written publicly.
+# Re-index the two NBA-first changed source hashes and regenerate the 28-game unassigned manifest.
 on:
   push:
     branches: [main]
