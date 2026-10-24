@@ -8,7 +8,7 @@ on:
   schedule:
     - cron: '23 17 * * *'
   workflow_run:
-    workflows: ['Game Pulse complete season backlog']
+    workflows: ['Game Pulse complete season backlog', 'Game Pulse private team game player search refresh']
     types: [completed]
   workflow_dispatch:
     inputs:
