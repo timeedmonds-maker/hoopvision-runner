@@ -10,7 +10,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: event80-direct-source-two-ring-frozen-v31-corrected-20261025
+  group: event80-direct-source-two-ring-frozen-v31-shot-synced-20261025
   cancel-in-progress: false
 jobs:
   direct:
@@ -190,7 +190,7 @@ jobs:
             --courts "$ROOT/original-tracking/court_frames.json" \
             --qa "$ROOT/fused/frozen_v31_gamepulse_qa.json" \
             --assignments "$ROOT/fused/frozen_v31_gamepulse_assignments.csv" \
-            --fps 30 --duration-s "$DURATION" > "$ROOT/tracklet-qa.json"
+            --fps 30 --duration-s "$DURATION" --event-video-time-s 6.5 > "$ROOT/tracklet-qa.json"
           echo ADAPTIVE_VISIBLE_FEET_RECONCILED
           cat "$ROOT/tracklet-qa.json"
           printf '%s\n' '{"schema":"hoopvision.clip-lab.native-last-touch-intervals.v1","possession_intervals":[]}' > "$ROOT/neutral-possession.json"
