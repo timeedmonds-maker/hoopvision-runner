@@ -163,3 +163,52 @@ jobs:
             --jq '.assets[] | select(.name=="local_audio_qa.json") | .digest')"
           test "$remote" = "sha256:$(sha256sum "$TMP/local_audio_qa.json" | cut -d' ' -f1)"
           echo PRIVATE_LOCAL_CONTACT_AUDIO_QA_SHA256_PASS
+
+          gh release download "$TAG" --repo timeedmonds-maker/104 \
+            --dir "$TMP/src" --pattern 'native_contact_windows.json'
+          gh release download 'freeview-gamepulse-0022600009-e732-recovery' \
+            --repo timeedmonds-maker/104 --dir "$TMP/src" \
+            --pattern 'frames.jsonl.gz'
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_event_source_bracket.py?ref=e6afced72e9223bc35856af3f07f2ecef4865847' \
+            --jq .content | base64 -d > "$TMP/amen732_bracket.py"
+          mkdir -p "$TMP/amen732_event_bracket"
+          python3 "$TMP/amen732_bracket.py" \
+            --root "$TMP/src" --out "$TMP/amen732_event_bracket" --shift -0.42
+          gh release upload "$TAG" \
+            "$TMP/amen732_event_bracket/"*.jpg \
+            "$TMP/amen732_event_bracket/event732-contact-bracket-qa.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" > "$TMP/amen732_event_bracket/receipt.json"
+          python3 - "$TMP/amen732_event_bracket" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          assets={v["name"]:v for v in json.loads((root/"receipt.json").read_text())["assets"]}
+          files=[v for v in root.iterdir() if v.name!="receipt.json"]
+          for file in files:
+              digest=hashlib.sha256(file.read_bytes()).hexdigest()
+              assert assets[file.name]["digest"]=="sha256:"+digest,file.name
+          qa=json.loads((root/"event732-contact-bracket-qa.json").read_text())
+          assert len(qa["source_video_views"])>=5
+          assert len(qa["original_tracking_contact_time_window"])>=5
+          assert qa["first_touch_frame"]=="PENDING_VISUAL_CROSS_VIEW_AND_3D_RAY_QA"
+          print("EVENT732_SOURCE_TRACKING_BRACKET_SHA_VERIFIED",len(files),
+                "six_video_views",len(qa["source_video_views"]),
+                "source_tracking_frames",len(qa["original_tracking_contact_time_window"]))
+          PY
+          python3 - "$TMP/amen732_event_bracket/event732-contact-bracket-qa.json" "$TMP/amen732_event_bracket/private_put.json" <<'PY'
+          import base64,json,sys
+          from pathlib import Path
+          source=Path(sys.argv[1]).read_bytes()
+          assert len(source)<200000
+          Path(sys.argv[2]).write_text(json.dumps({
+              "branch":"research/amen-wemby-freeze-spin-20261024",
+              "message":"data(freeview): original six camera video and source tracking contact bracket",
+              "content":base64.b64encode(source).decode("ascii")
+          }))
+          PY
+          gh api -X PUT \
+             'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_contact_bracket_qa.json' \
+             --input "$TMP/amen732_event_bracket/private_put.json" \
+             --jq '.content.path' >/dev/null
+          echo PRIVATE_3D_CONTACT_BRACKET_QA_COMMITTED
