@@ -1,4 +1,5 @@
 name: Game Pulse unresolved official ONOFF source retry
+# Retain source failure as missing, never fabricate native possessions.
 on:
   push:
     branches: [main]
