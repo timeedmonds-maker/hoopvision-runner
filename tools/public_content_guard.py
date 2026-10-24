@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/clip-lab-rockets-event80-hls.yml",  # reviewed: exact one-event private HLS CPU staging only
     ".github/workflows/clip-lab-encrypted-event86-handoff.yml",
     "tools/clip_lab_public_handoff_cert.pem",
     ".github/workflows/clip-lab-artifact-handoff-smoke.yml",
