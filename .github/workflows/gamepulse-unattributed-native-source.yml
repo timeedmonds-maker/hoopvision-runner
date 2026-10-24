@@ -1,4 +1,4 @@
-name: Integrated Pulse recover unassigned original SDK source labels
+name: Integrated Pulse finish 28-game unassigned source-label search
 # Free public CPU only; no licensed player data or search output written publicly.
 on:
   push:
@@ -19,32 +19,8 @@ jobs:
       max-parallel: 4
       matrix:
         game:
-          - '0022600001'
-          - '0022600002'
-          - '0022600003'
-          - '0022600004'
-          - '0022600005'
-          - '0022600006'
-          - '0022600007'
-          - '0022600008'
-          - '0022600085'
-          - '0022600086'
-          - '0022600087'
-          - '0022600088'
-          - '0022600089'
-          - '0022600090'
-          - '0022600091'
-          - '0022600092'
-          - '0022600093'
-          - '0022600094'
-          - '0022600095'
-          - '0022600096'
-          - '0022600097'
-          - '0022600098'
-          - '0022600099'
-          - '0022600100'
-          - '0022600102'
-          - '0022600103'
+          - '0022600009'
+          - '0022600101'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
@@ -185,7 +161,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Assemble full private 26-game unmatched-source-label search manifest
+      - name: Assemble full private 28-game unmatched-source-label search manifest
         shell: bash
         run: |
           set -euo pipefail
@@ -217,7 +193,7 @@ jobs:
                  "unassigned_native_labels":native,
                  "source_labels":doc["source_native_distinct_labels"]}
               total+=native;observed+=doc["source_native_distinct_labels"]
-          assert len(records)==26,"EXPECTED_ALL_26_VERIFIED_PBP_RUN_GAMES"
+          assert len(records)==28,"EXPECTED_ALL_28_VERIFIED_PBP_RUN_GAMES"
           result={"schema":"gamepulse.unassigned-original-native-season-index.v1",
                   "season":"2026-27","game_count":len(records),"games":records,
                   "unassigned_source_native_labels":total,
@@ -228,7 +204,7 @@ jobs:
           endpoint="repos/"+repo+"/contents/gamepulse/fusion/index/unassigned_native_labels/index-2026-27.json"
           for attempt in range(12):
               old=gh(endpoint,check=False)
-              payload={"branch":"main","message":"data(gamepulse): original native unassigned touch search across 26 games",
+              payload={"branch":"main","message":"data(gamepulse): original native unassigned touch search across 28 games",
                        "content":base64.b64encode(data).decode()}
               if old.returncode==0:
                   prev=json.loads(old.stdout)
