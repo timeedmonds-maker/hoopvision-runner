@@ -1,4 +1,5 @@
 name: Game Pulse complete season backlog
+# Certified private tracking only; public runner executes code, not publishes source data.
 on:
   push:
     branches: [main]
