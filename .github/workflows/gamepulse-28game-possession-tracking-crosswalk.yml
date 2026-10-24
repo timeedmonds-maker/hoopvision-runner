@@ -136,7 +136,8 @@ jobs:
             gamepulse/fusion/index/index.json \
             gamepulse/fusion/official_pbp_timing/index-2026-27-expanded.json \
             gamepulse/fusion/index/interactions/index-2026-27.json \
-            gamepulse/fusion/onoff/index-2026-27-expanded.json; do
+            gamepulse/fusion/onoff/index-2026-27-expanded.json \
+            gamepulse/fusion/index/quarantined_native_labels/index-2026-27.json; do
               fetch_private "$src" "$SOURCE_COMMIT"
           done
           python3 -m py_compile "$WORK/gamepulse/fusion/season_possession_tracking_crosswalk_2026.py"
@@ -158,6 +159,8 @@ jobs:
               print("gamepulse/fusion/official_pbp_timing/games/"+gid+".json")
           for gid in doc['joined']:
               print("gamepulse/fusion/index/interactions/"+gid+".json")
+          for gid in ("0022600009","0022600101"):
+              print("gamepulse/fusion/index/quarantined_native_labels/"+gid+".json")
           PY
           while IFS= read -r src; do
             fetch_private "$src" "$SOURCE_COMMIT"
@@ -263,6 +266,9 @@ jobs:
           assert j['native_source_touch_labels_in_joined_games']==(
               j['native_touch_start_records_joined']+
               j['native_source_touch_labels_unattributed'])
+          assert j['season_game_searchable_tracking_tiers_total']==j['game_count']
+          assert j['quarantined_source_only_tracking_search_games']==2
+          assert j['quarantined_source_only_tracking_native_labels']>0
           assert j['unattributed_records_omitted_from_source_event_search'] is True
           assert j['physical_nba_possessions_certified']==0
           assert (j['native_touch_action_run_crosswalk_games']+
