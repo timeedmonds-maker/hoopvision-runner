@@ -55,9 +55,17 @@ jobs:
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
           test -f "$ROOT/sdk/node_modules/puppeteer-core/package.json"
-          node collector.mjs --game=0022600009 \
-            --tipoff=2026-10-24T01:30:00Z --start=1792815240000 --count=84
           OUT="$ROOT/sdk/out/0022600009/1792815240000"
+          mkdir -p "$OUT"
+          TAG="freeview-gamepulse-0022600009-e732-recovery"
+          if gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
+            gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$OUT" \
+              --pattern 'raw-slots.jsonl.gz' --pattern 'frames.jsonl.gz' --pattern 'manifest.json'
+            echo EVENT732_REUSE_SHA_VERIFIED_PRIVATE_ORIGINAL_SOURCE
+          else
+            node collector.mjs --game=0022600009 \
+              --tipoff=2026-10-24T01:30:00Z --start=1792815240000 --count=84
+          fi
           test -s "$OUT/raw-slots.jsonl.gz"
           test -s "$OUT/frames.jsonl.gz"
           test -s "$OUT/manifest.json"
@@ -94,9 +102,21 @@ jobs:
           if len(stamps)+len(outside)!=m["unique_keyframes"]:
               raise RuntimeError("NATIVE_KEYFRAME_COUNT_MISMATCH")
           def nearest(xs):
-              return min((abs(t-event) for t in xs),default=None)
-          gaps={k:nearest(v) for k,v in [
-              ("any_player",player),("ball",ball),("amen",amen),("wembanyama",wemby)]}
+              if not xs:return None
+              ts=min(xs,key=lambda t:abs(t-event))
+              return abs(ts-event)
+          def nearest_signed(xs):
+              if not xs:return None
+              ts=min(xs,key=lambda t:abs(t-event))
+              return ts-event
+          series={"any_player":player,"ball":ball,"amen":amen,"wembanyama":wemby}
+          gaps={k:nearest(v) for k,v in series.items()}
+          signed_gaps={k:nearest_signed(v) for k,v in series.items()}
+          event_bounds={k:{"before":sum(t<event for t in v),
+                          "after":sum(t>event for t in v),
+                          "last_before_utc_ms":max((t for t in v if t<event),default=None),
+                          "first_after_utc_ms":min((t for t in v if t>event),default=None)}
+                        for k,v in series.items()}
           present=(gaps["ball"] is not None and gaps["ball"]<=3000 and
                    gaps["amen"] is not None and gaps["amen"]<=3000 and
                    gaps["wembanyama"] is not None and gaps["wembanyama"]<=3000)
@@ -118,6 +138,8 @@ jobs:
               "source_amen_frame_count":len(amen),
               "source_wembanyama_frame_count":len(wemby),
               "nearest_observed_frame_gap_ms":gaps,
+              "nearest_signed_frame_delta_ms":signed_gaps,
+              "event_before_after_source_observation_counts":event_bounds,
               "raw_source_frames_at_event":"PRESENT_NEAR_NBA_PBP" if present else "NOT_VERIFIED_AT_EVENT",
               "video_pts_aligned":False,
               "hand_ball_first_touch_certified":False,
@@ -127,7 +149,7 @@ jobs:
           (root/"event732-targeted-qa.json").write_text(json.dumps(qa,indent=2)+"\n")
           print("TARGETED_EVENT732_RECAPTURE",qa["raw_source_frames_at_event"],
                 "in_window_frames",len(stamps),"out_of_window_frames",len(outside),
-                "nearest_gap_ms",gaps)
+                "nearest_gap_ms",gaps,"signed_nearest_ms",signed_gaps)
           PY
           TAG="freeview-gamepulse-0022600009-e732-recovery"
           if ! gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
