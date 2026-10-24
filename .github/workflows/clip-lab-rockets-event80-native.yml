@@ -1,4 +1,4 @@
-name: Clip Lab private original NBA player positions for event80
+name: Clip Lab private original NBA player positions for event80 — rerun
 # Original SDK bytes and target-player tracking data remain only in private 104.
 on:
   push:
