@@ -49,3 +49,5 @@ jobs:
           python3 "$ROOT/cumulative.py"
 
 # Opening Fred floor-anchor correction at private commit 83c8f3c3a0c52b9745881bb36360cd52bc47c189.
+
+# Enforce first-frame Fred visibility at private commit 1e33246085ac3cb6229a4affe95a22c849f00c63.
