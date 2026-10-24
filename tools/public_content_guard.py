@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    "tools/licensed_feed/pbpstats_missing_onoff_fallback.py",
+    ".github/workflows/gamepulse-pbpstats-missing-game-fallback.yml",
     ".github/workflows/gamepulse-28game-source-assemble.yml",
     "tools/licensed_feed/official_pbp_onoff_28.py",
     ".github/workflows/gamepulse-28game-native-pbp-onoff.yml",
