@@ -1,105 +1,102 @@
-name: Game Pulse official NBA event verification
-# Fetch current official NBA event clocks and boxscore; private indexes only.
-# Corrected 2026 feed ordering is resolved in private source with period/clock first.
+name: Integrated Pulse player possession clip index
+# Public CPU orchestrator. Per-player result data and full NBA event lists are
+# stored only in the private repository's releases, never public artifacts.
 on:
   push:
     branches: [main]
     paths: ['.github/workflows/gamepulse-denver-official-pbp.yml']
   workflow_dispatch:
+    inputs:
+      game_id:
+        description: Official NBA game ID
+        type: string
+        required: true
+        default: '0022600009'
+      player_id:
+        description: Official NBA player ID
+        type: string
+        required: true
+        default: '203500'
 permissions:
   contents: read
+concurrency:
+  group: pulse-player-clips-${{ inputs.game_id || '0022600009' }}-${{ inputs.player_id || '203500' }}
+  cancel-in-progress: false
 jobs:
-  official:
+  materialize:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      NBA_GAME_ID: ${{ inputs.game_id || '0022600009' }}
+      NBA_PLAYER_ID: ${{ inputs.player_id || '203500' }}
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Enforce no public private-data output
-        run: python3 tools/public_content_guard.py
-      - name: Load trusted strict official validator into ephemeral runner
+      - name: Enforce private results and public workflow policy
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${GH_TOKEN:-}" || exit 3
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          [[ "$NBA_GAME_ID" =~ ^00[0-9]{8}$ ]]
+          [[ "$NBA_PLAYER_ID" =~ ^[1-9][0-9]{0,11}$ ]]
+      - name: Load trusted private-source read-only clip query
+        shell: bash
+        run: |
+          set -euo pipefail
           ROOT="$RUNNER_TEMP/nba-official"
           mkdir -p "$ROOT"
-          for module in official_pbp_timestamps_2026 official_pbp_allgames_2026; do
-            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$module.py?ref=main" --jq .content | base64 -d > "$ROOT/$module.py"
+          for mod in official_pbp_timestamps_2026.py player_possession_clips.py; do
+            gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/$mod?ref=main" --jq .content | base64 -d > "$ROOT/$mod"
           done
-          python3 -m py_compile "$ROOT/"*.py
-          python3 "$ROOT/official_pbp_timestamps_2026.py" --selftest
-      - name: Verify exact NBA official game clock, timeActual, final score and SHA
-        shell: bash
-        run: |
-          set -euo pipefail
-          PYTHONPATH="$RUNNER_TEMP/nba-official" python3 - <<'PY'
-          from official_pbp_allgames_2026 import certify_game
-          from official_pbp_timestamps_2026 import publish
-          game="0022600007"
-          result=certify_game(game,["DEN","OKC"])
-          if result["qa"]["nba_action_records"]<300:
-              raise RuntimeError("OFFICIAL_PBP_INCOMPLETE")
-          if result["qa"]["nba_actions_with_formal_utc"]==0:
-              raise RuntimeError("OFFICIAL_PBP_UTC_UNAVAILABLE")
-          if not result["qa"]["nba_score_reconciled_to_boxscore"]:
-              raise RuntimeError("OFFICIAL_PBP_FINAL_SCORE_NOT_RECONCILED")
-          print("OFFICIAL_PBP_SOURCE_VERIFIED_READ_ONLY",result["qa"]["nba_action_records"])
-          PY
-
-      - name: Certify Rockets Spurs official substitutions and private multi-angle lookup
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$RUNNER_TEMP/nba-official"
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/query_adams_first_sub_2026.py?ref=main' --jq .content |
-            base64 -d > "$ROOT/query_adams_first_sub_2026.py"
-          gh api 'repos/timeedmonds-maker/104/contents/courtcoder/nba_event_angle_discovery.py?ref=courtcoder%2Fintegration' --jq .content |
-            base64 -d > "$ROOT/nba_event_angle_discovery.py"
-          python3 -m py_compile "$ROOT/query_adams_first_sub_2026.py" "$ROOT/nba_event_angle_discovery.py"
-          cd "$ROOT"
-          python3 -u query_adams_first_sub_2026.py --read-only
-
-      - name: Regression-test reusable player possession clip query
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$RUNNER_TEMP/nba-official"
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/player_possession_clips.py?ref=main' --jq .content | base64 -d > "$ROOT/player_possession_clips.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_player_possession_clips.py?ref=main' --jq .content | base64 -d > "$ROOT/test_player_possession_clips.py"
-          python3 -m py_compile "$ROOT/player_possession_clips.py" "$ROOT/test_player_possession_clips.py"
+          python3 -m py_compile "$ROOT/"*.py
           cd "$ROOT"
-          python3 -m unittest -v test_player_possession_clips
-
-      - name: Publish Adams complete official possession event clip URLs to private release
+          python3 -m unittest -q test_player_possession_clips
+      - name: Build source-verified full-game player possessions and NBA clip references
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$RUNNER_TEMP/nba-official"
           cd "$ROOT"
-          python3 player_possession_clips.py --game 0022600009 --player 203500 --out "$ROOT/player-clips.json"
+          python3 player_possession_clips.py --game "$NBA_GAME_ID" --player "$NBA_PLAYER_ID" --out "$ROOT/player-clips.json"
           python3 - <<'PY'
-          import json
+          import json,os
           from pathlib import Path
           data=json.loads(Path('player-clips.json').read_text())
-          assert data['game_id']=='0022600009'
-          assert data['player_id']=='203500'
-          assert len(data['on_court_spans'])>=1
-          assert data['clip_count']>=10
-          assert data['clip_count']==len({x['event_num'] for x in data['clips']})
+          assert data["game_id"]==os.environ["NBA_GAME_ID"]
+          assert data["player_id"]==os.environ["NBA_PLAYER_ID"]
+          assert data["clip_count"]==len(data["clips"])
+          assert len({x["event_num"] for x in data["clips"]})==data["clip_count"]
+          assert all(x["clip_url"].startswith("https://clips.nba.com/?gameNo="+data["game_id"]+"&eventNum=") for x in data["clips"])
           Path('release-notes.json').write_text(json.dumps(data,separators=(',',':')))
-          print("OFFICIAL_ON_COURT_POSSESSION_CLIP_QA_PASS",data['clip_count'],len(data['on_court_spans']))
+          print("PLAYER_SOURCE_EVENT_CLIPS_VERIFIED",data["game_id"],"event_urls",data["clip_count"],"stints",len(data["on_court_spans"]))
           PY
-          TAG=gamepulse-player-possession-clips-0022600009-203500
+      - name: Publish result only to canonical private repository and SHA-readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/nba-official"
+          TAG="gamepulse-player-possession-clips-$NBA_GAME_ID-$NBA_PLAYER_ID"
           REPO=timeedmonds-maker/104
           if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
             gh release edit "$TAG" --repo "$REPO" --notes-file "$ROOT/release-notes.json" >/dev/null
           else
-            gh release create "$TAG" --repo "$REPO" --title 'Private Rockets Spurs Steven Adams full-game possession-ending NBA links' --notes-file "$ROOT/release-notes.json" --latest=false >/dev/null
+            gh release create "$TAG" --repo "$REPO" --title "Private official NBA player possession clip references" --notes-file "$ROOT/release-notes.json" --latest=false >/dev/null
           fi
           gh release upload "$TAG" "$ROOT/player-clips.json" --repo "$REPO" --clobber >/dev/null
-          test "$(gh api "repos/$REPO/releases/tags/$TAG" --jq .tag_name)" = "$TAG"
-          echo 'PRIVATE_NBA_CLIP_EVIDENCE_RELEASE_READBACK_OK'
+          python3 - <<'PY'
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          tag=f"gamepulse-player-possession-clips-{os.environ['NBA_GAME_ID']}-{os.environ['NBA_PLAYER_ID']}"
+          raw=subprocess.check_output(["gh","api",f"repos/timeedmonds-maker/104/releases/tags/{tag}"])
+          remote=json.loads(raw)
+          local=Path(os.environ["RUNNER_TEMP"])/"nba-official/player-clips.json"
+          assets={x["name"]:x for x in remote["assets"]}
+          assert assets["player-clips.json"]["digest"]=="sha256:"+hashlib.sha256(local.read_bytes()).hexdigest()
+          assert json.loads(remote["body"])["clip_count"]==json.loads(local.read_text())["clip_count"]
+          print("PRIVATE_NBA_EVENT_LINKS_SHA256_READBACK_PASS")
+          PY
