@@ -1,0 +1,89 @@
+name: NBA Blueprint priority private acquisition
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nba-blueprint-priority-private-acquire.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nba-blueprint-priority-private-acquire
+  cancel-in-progress: false
+jobs:
+  fetch-original-to-private:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GID: '0022600009'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public repository boundary and private token
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test "$GITHUB_REPOSITORY" = "timeedmonds-maker/hoopvision-runner"
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          echo 'PUBLIC_CPU_PRIVATE_DESTINATION_VERIFIED'
+      - name: Acquire priority NBA original and rebuild only within ephemeral private checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPO="$RUNNER_TEMP/private-blueprint"
+          git -c credential.helper= clone --quiet --depth 1 --filter=blob:none --sparse "https://x-access-token:${GH_TOKEN}@github.com/timeedmonds-maker/104.git" "$REPO"
+          cd "$REPO"
+          git sparse-checkout set scripts data/extensions/nba_blueprint_2026_27 data/extensions/nba_shot_difficulty_2026_27
+          python3 - <<'PY'
+          import json, os, sys
+          from pathlib import Path
+          sys.path.insert(0, str(Path('scripts').resolve()))
+          from update_nba_blueprint_daily_2026_27 import read_report, canonical, BASE
+          gid=os.environ['GID']
+          dest=BASE/'games'/gid/'blueprint_report_raw.json'
+          status={'nba_game_id':gid,'source_url':'https://www.nba.com/inside-the-game/blueprint/'+gid}
+          try:
+              report,meta=read_report(gid)
+              fresh=canonical(report)
+              if dest.exists() and dest.read_text(encoding='utf-8')!=fresh:
+                  raise ValueError('Existing priority source differs; preserve old source, manual source-revision audit required')
+              dest.parent.mkdir(parents=True,exist_ok=True)
+              if not dest.exists(): dest.write_text(fresh,encoding='utf-8')
+              status.update({'state':'ORIGINAL_ACQUIRED','shot_rows':len(report['shot_difficulty']['shotDifficulty']),'page_build':meta.get('page_build')})
+              matching=[s for s in report['shot_difficulty']['shotDifficulty']
+                         if str(s.get('shooter',{}).get('playerId'))=='1641705'
+                         and str(s.get('defender',{}).get('playerId'))=='1641708'
+                         and int(s.get('period',0))==4]
+              status['matched_shooter_defender_shots']=len(matching)
+              status['original_matching_shots']=matching
+          except Exception as e:
+              status.update({'state':'NBA_SOURCE_NOT_RETRIEVED','error_type':type(e).__name__,'reason':str(e)[:280]})
+          target=BASE/'priority_0022600009_source_status.json'
+          target.parent.mkdir(parents=True,exist_ok=True)
+          target.write_text(json.dumps(status,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          print('PRIORITY_SOURCE_ATTEMPT_RECORDED_PRIVATELY')
+          PY
+          python3 scripts/build_nba_blueprint_2026_27.py > "$RUNNER_TEMP/blueprint-rebuild.log" 2>&1
+          python3 scripts/build_nba_blueprint_2026_27.py --validate-only > "$RUNNER_TEMP/blueprint-validation.log" 2>&1
+          git add data/extensions/nba_blueprint_2026_27
+          if git diff --cached --quiet; then
+            echo 'PRIVATE_DATA_ALREADY_CURRENT'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit --quiet -m 'data(blueprint): source-verified priority game capture and shot index'
+          for try in 1 2 3; do
+            git fetch --quiet origin main
+            git rebase --quiet origin/main
+            if git -c credential.helper= push --quiet origin HEAD:main; then
+              echo 'BLUEPRINT_PRIVATE_WRITE_COMPLETE'
+              exit 0
+            fi
+          done
+          echo 'PRIVATE_WRITE_FAILED'
+          exit 1
