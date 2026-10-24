@@ -51,7 +51,14 @@ def put(path,blob):
         except RuntimeError:
             if attempt==4:raise
             time.sleep(attempt+1)
-    readback=private_bytes(path)
+    readback=None
+    for attempt in range(6):
+        try:
+            readback=private_bytes(path)
+            if readback is not None:break
+        except RuntimeError:
+            if attempt==5:raise
+        time.sleep(1+attempt)
     if hashlib.sha256(readback).digest()!=hashlib.sha256(blob).digest():
         raise RuntimeError("PRIVATE_SHA_READBACK_FAILED")
     return "VERIFIED_PRIVATE_SHA"
@@ -79,7 +86,17 @@ def validate_one(gid,root):
              "source_scope":"NBA official game-scoped lineup rating and PBP score/clock; no inferred tracking possessions"}
     failed=False
     try:
-        qa,details=validate_game(source)
+        for attempt in range(3):
+            qa,details=validate_game(source)
+            teams=list(qa.get("teams",{}).values())
+            if (qa.get("official_lineup_rows",0)>0 and qa.get("player_onoff_verified",0)>0
+                and all(t.get("official_single_game_scope_verified") and t.get("official_full_game_lineup_time_covered")
+                        and t.get("onoff_conflicts")==0 for t in teams) and len(teams)==2):break
+            if attempt<2:time.sleep(3+attempt)
+        summary["onoff_source_qa"]={team:{k:meta.get(k) for k in (
+            "official_5man","onoff_verified_players","official_single_game_scope_verified",
+            "official_full_game_lineup_time_covered","onoff_conflicts","lineup_error","onoff_error")}
+            for team,meta in qa.get("teams",{}).items()}
         ok=(qa.get("official_lineup_rows",0)>0 and qa.get("player_onoff_verified",0)>0
           and not qa.get("player_onoff_conflicts")
           and all(t.get("official_single_game_scope_verified") is True
