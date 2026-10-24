@@ -9,6 +9,7 @@ from pathlib import Path
 ALLOWED_STATIC = {
     ".github/workflows/clip-lab-rockets-event80-hls.yml",  # reviewed: exact one-event private HLS CPU staging only
     ".github/workflows/clip-lab-rockets-event80-native.yml",  # reviewed: exact event native SDK SHA extraction, private only
+    ".github/workflows/clip-lab-rockets-event80-frozen-cpu.yml",  # reviewed: original CPU frozen v3.1 detector, private QA only
     ".github/workflows/clip-lab-encrypted-event86-handoff.yml",
     "tools/clip_lab_public_handoff_cert.pem",
     ".github/workflows/clip-lab-artifact-handoff-smoke.yml",
