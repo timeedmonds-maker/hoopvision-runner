@@ -2,6 +2,7 @@ name: Integrated Pulse exact 28-game PBP and native-touch source crosswalk
 # Only CPU, private 104 data stays in ephemeral runner and private 104 outputs.
 # Validate canonical source SHA checks and source-clock quarantine after the lookup patch.
 # Public runner persists NO licensed raw tracking/player/event payload.
+# Recheck all 28 official-event and native-source indexes after NBA-first Blueprint reconciliation.
 on:
   push:
     branches: [main]
