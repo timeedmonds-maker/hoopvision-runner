@@ -524,7 +524,9 @@ jobs:
               else:raise RuntimeError('private_search_write_retries_exhausted')
               check=read(path)
               assert check==data
-          save('gamepulse/fusion/index/interactions/index-2026-27.json',manifest)
+          # Keep this legacy fifteen-game smoke as a historical artifact; never
+          # overwrite the expanding canonical full-season interaction manifest.
+          save('gamepulse/fusion/index/interactions/index-15game-cavs-legacy.json',manifest)
           save('gamepulse/fusion/queries/cavs_15game_search_smoke.json',result)
           print('CAVS_FIFTEEN_GAME_SEARCH_SHA_VERIFIED',len(retained),
                 'cavs_native_touches',retained[gid]['source_native_touch_labels'],
