@@ -39,26 +39,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo STAGE_TOKEN_PRESENT_CHECK
           test -n "$GH_TOKEN" || { echo PRIVATE_TOKEN_MISSING; exit 3; }
+          echo STAGE_PRIVATE_REPO_CHECK
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          echo STAGE_PRIVATE_REPO_OK
           TMP="$(mktemp -d)"
           trap 'rm -rf "$TMP"' EXIT
           mkdir -p "$TMP/hoopvision/freeview" "$TMP/evidence"
           touch "$TMP/hoopvision/__init__.py" "$TMP/hoopvision/freeview/__init__.py"
+          echo STAGE_FETCH_PRIVATE_HELPERS
           for file in fetch_official_multicam.py provenance_engine.py; do
             gh api "repos/timeedmonds-maker/104/contents/hoopvision/freeview/$file?ref=b154a834a95a887226757a4ff0d5b34f69bc55e6" \
               --jq .content | base64 -d > "$TMP/hoopvision/freeview/$file"
           done
+          echo STAGE_FETCH_PRIVATE_ENGINE
           gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fetch_event_native_multicam.py?ref=9d93273a1612fbf0430b6def74a6b1f2078d80c6' \
             --jq .content | base64 -d > "$TMP/hoopvision/freeview/fetch_event_native_multicam.py"
+          echo STAGE_FETCH_BLUEPRINT
           gh api 'repos/timeedmonds-maker/104/contents/data/extensions/nba_blueprint_2026_27/priority_0022600009_source_status.json?ref=main' \
             --jq .content | base64 -d > "$TMP/blueprint.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/qa/0022600009.json?ref=main' \
             --jq .content | base64 -d > "$TMP/pulse-qa.json"
+          echo STAGE_DEPENDENCIES
           python3 -m pip install --quiet --disable-pip-version-check 'numpy<2' opencv-python-headless==4.10.0.84
           command -v ffmpeg
           command -v ffprobe
+          echo STAGE_SELFTEST
           PYTHONPATH="$TMP" python3 -m hoopvision.freeview.fetch_event_native_multicam --selftest
+          echo STAGE_NATIVE_SOURCE
           PYTHONPATH="$TMP" python3 -m hoopvision.freeview.fetch_event_native_multicam \
             --game 0022600009 --event 732 \
             --blueprint "$TMP/blueprint.json" --pulse-qa "$TMP/pulse-qa.json" \
