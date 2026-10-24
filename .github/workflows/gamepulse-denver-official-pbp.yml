@@ -1,5 +1,6 @@
 name: Game Pulse Denver independently certified official NBA PBP
 # Fetch current official NBA event clocks and boxscore; private indexes only.
+# Corrected 2026 feed ordering is resolved in private source with period/clock first.
 on:
   push:
     branches: [main]
