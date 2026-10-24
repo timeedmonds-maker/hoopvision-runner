@@ -75,7 +75,8 @@ jobs:
                         "utc_regressions",utc_regressions,
                         "source_sha256",hashlib.sha256(raw).hexdigest())
               except Exception as err:
-                  print("OFFICIAL_NBA_SOURCE_RECHECK_UNAVAILABLE",gid,type(err).__name__)
+                  print("OFFICIAL_NBA_SOURCE_RECHECK_UNAVAILABLE",gid,type(err).__name__,
+                        "http_status",getattr(err,"code",None))
           PY
       - name: Retrieve only required original private 104 indexes into ephemeral temp
         shell: bash
