@@ -41,7 +41,10 @@ jobs:
             base64 -d > "$ROOT/pbp.json"
           python3 -m py_compile "$ROOT/universal_possession_alignment_2026.py"
           GAMEPULSE_REAL_PBP_PATH="$ROOT/pbp.json" PYTHONPATH="$ROOT" python3 -m unittest discover -v -s "$ROOT/tests" -p test_universal_possession_alignment_2026.py
-          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/universal_native_frame_bridge_2026.py?ref=$PRIVATE_REF" --jq .content |
+          STREAM_REF=feat/gamepulse-auto-clock-in-canonical-stream-20261025
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/automatic_clock_feature_search_2026.py?ref=$STREAM_REF" --jq .content |
+            base64 -d > "$ROOT/automatic_clock_feature_search_2026.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/universal_native_frame_bridge_2026.py?ref=$STREAM_REF" --jq .content |
             base64 -d > "$ROOT/universal_native_frame_bridge_2026.py"
           gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_universal_native_frame_bridge_2026.py?ref=$PRIVATE_REF" --jq .content |
             base64 -d > "$ROOT/tests/test_universal_native_frame_bridge_2026.py"
@@ -72,7 +75,7 @@ jobs:
             base64 -d > "$ROOT/native_q1.json"
           # All tracking feature kinds share this SAME automatic clock
           # correspondence. Candidate output cannot publish true ORtg.
-          SEARCH_REF=feat/gamepulse-automatic-clock-universal-feature-search-20261025
+          SEARCH_REF=feat/gamepulse-auto-clock-in-canonical-stream-20261025
           gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/automatic_clock_feature_search_2026.py?ref=$SEARCH_REF" --jq .content |
             base64 -d > "$ROOT/automatic_clock_feature_search_2026.py"
           gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_automatic_clock_feature_search_2026.py?ref=$SEARCH_REF" --jq .content |
