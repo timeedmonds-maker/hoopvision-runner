@@ -28,8 +28,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GAME_ID: ${{ matrix.game }}
-      PRIVATE_REF: fix/gamepulse-reconcile-two-games-20261025
-      PUBLISH_ENABLED: 'false'
+      PRIVATE_REF: main
+      PUBLISH_ENABLED: 'true'
     steps:
       - uses: actions/checkout@v4
         with:
