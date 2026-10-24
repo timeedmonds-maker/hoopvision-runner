@@ -162,6 +162,66 @@ jobs:
           while IFS= read -r src; do
             fetch_private "$src" "$SOURCE_COMMIT"
           done < "$RUNNER_TEMP/private-paths.txt"
+      - name: Cross-validate suspect NBA event times with independent ESPN wallclocks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import collections,datetime,json,os,re,statistics
+          from pathlib import Path
+          from urllib.request import Request,urlopen
+          root=Path(os.environ["RUNNER_TEMP"])/"pulse-private"
+          for gid,eid in (("0022600009","401909096"),("0022600101","401909850")):
+              nba=json.loads((root/("gamepulse/fusion/official_pbp_timing/games/"+gid+".json")).read_text())
+              url="https://site.api.espn.com/apis/site/v2/sports/basketball/nba/summary?event="+eid
+              request=Request(url,headers={"User-Agent":"Mozilla/5.0",
+                    "Accept":"application/json","Referer":"https://www.espn.com/"})
+              with urlopen(request,timeout=30) as reply: doc=json.loads(reply.read(8_000_000))
+              plays=doc["plays"]
+              if isinstance(plays,dict):plays=plays["plays"]
+              if not plays:raise RuntimeError("ESPN_INDEPENDENT_PLAY_BY_PLAY_EMPTY")
+              example=plays[0]
+              print("ESPN_PLAY_FIELD_SHAPE",gid,
+                    "keys",sorted(example.keys()),
+                    "clock_keys",sorted((example.get("clock") or {}).keys()),
+                    "period_keys",sorted((example.get("period") or {}).keys()),
+                    "wallclock_present",bool(example.get("wallclock")))
+              candidates=[]
+              for p in plays:
+                  v=p.get("clock") or {}; pd=p.get("period") or {}
+                  stamp=p.get("wallclock")
+                  if not stamp:continue
+                  try:
+                      secs=float(v["value"]) if v.get("value") is not None else (
+                        lambda a:int(a[-2])+60*int(a[-3]))(re.split(r"[:.]",v["displayValue"]))
+                      utc=int(datetime.datetime.fromisoformat(stamp.replace("Z","+00:00")).timestamp()*1000)
+                      home=int(p["homeScore"]);away=int(p["awayScore"])
+                      candidates.append((int(pd["number"]),secs,home,away,utc,p))
+                  except (KeyError,ValueError,TypeError,IndexError):continue
+              matched=[];suspects=[];missing=0;multiple=0
+              for a in nba["actions"]:
+                  if a["action_type"] not in ("2pt","3pt","freethrow"):continue
+                  sec=a["game_clock_ms_remaining"]/1000
+                  options=[q for q in candidates if q[0]==a["period"]
+                     and abs(q[1]-sec)<=0.75
+                     and q[2]==a["score_home"] and q[3]==a["score_away"]
+                     and q[5].get("scoringPlay") is True]
+                  if len(options)==1:
+                      diff=a["official_timeActual_utc_ms"]-options[0][4]
+                      matched.append(abs(diff))
+                      if abs(diff)>5000:
+                          suspects.append((a["nba_action_number"],a["period"],round(sec,2),diff))
+                  elif not options:missing+=1
+                  else:multiple+=1
+              print("ESPN_INDEPENDENT_EVENT_UTC_CROSSWALK",gid,
+                    "eligible_scoring_events",sum(a["action_type"] in ("2pt","3pt","freethrow") for a in nba["actions"]),
+                    "espn_play_candidates",len(candidates),
+                    "unique_scoring_identity_matches",len(matched),
+                    "unmatched",missing,"ambiguous",multiple,
+                    "matched_median_abs_delta_ms",statistics.median(matched) if matched else None,
+                    "abs_delta_over_5s",len(suspects),
+                    "late_or_conflicting_action_numbers",str(suspects[:24]))
+          PY
       - name: Enforce full season official events and correct native-touch crosswalk
         shell: bash
         run: |
