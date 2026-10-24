@@ -1,0 +1,96 @@
+# Relative native NBA audio offsets only. Source MP4, timings and QA remain private.
+name: Amen 732 private native audio sync preflight
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/freeview-amen-732-private-audio-sync.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: freeview-amen-732-private-audio-sync
+  cancel-in-progress: false
+jobs:
+  native-audio:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public content boundary
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0,'tools')
+          from public_content_guard import scan
+          p='.github/workflows/freeview-amen-732-private-audio-sync.yml'
+          problems=scan([p])
+          if problems:
+              for code,path in problems:print("PRIVATE_AUDIO_BOUNDARY_REJECTED",code,path)
+              raise SystemExit(3)
+          print("PRIVATE_AUDIO_BOUNDARY_PASS")
+          PY
+      - name: Source-local CPU audio preflight and private QA upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          TMP="$(mktemp -d)"
+          trap 'rm -rf "$TMP"' EXIT
+          mkdir -p "$TMP/src"
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/audio_sync_native.py?ref=04bdbf1097eea70e4cdf0fd861fdde2b07eb40a6' \
+            --jq .content | base64 -d > "$TMP/native_sync.py"
+          echo PRIVATE_SYNC_SOURCE_VERIFIED
+          python3 -m pip install --quiet --disable-pip-version-check 'numpy<2'
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          python3 - "$TMP/native_sync.py" <<'PY'
+          import importlib.util,sys,numpy as np
+          spec=importlib.util.spec_from_file_location("sync",sys.argv[1])
+          m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
+          x=np.zeros(1000);x[200]=1;x[300]=.8;x[401]=.6
+          y=np.zeros_like(x);y[12:]=x[:-12]
+          lag,quality=m.fft_lag(x,y,50)
+          assert lag==12 and quality>0.1,(lag,quality)
+          print("NATIVE_AUDIO_FFT_LAG_SELFTEST_PASS")
+          PY
+          TAG="freeview-native-0022600009-732"
+          gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$TMP/src" \
+            --pattern '*.mp4' --pattern 'source_manifest.json'
+          python3 - "$TMP/src/source_manifest.json" "$TMP/config.json" <<'PY'
+          import json,sys
+          m=json.load(open(sys.argv[1]))
+          assert m["event"]["game_id"]=="0022600009"
+          assert m["event"]["event_num"]==732
+          feeds=m["feeds"]
+          assert len(feeds)>=3 and feeds[0]["label"]=="Broadcast"
+          assert all(f["media_placeholder_rejected"] for f in feeds)
+          json.dump({"angles":[{"label":f["label"],"file":f["file"]} for f in feeds]},open(sys.argv[2],"w"))
+          print("SIX_VIEW_SOURCE_MANIFEST_VALIDATED",len(feeds))
+          PY
+          python3 "$TMP/native_sync.py" --config "$TMP/config.json" --clips "$TMP/src" \
+            --reference Broadcast --sample-rate 8000 --max-lag-seconds 2.0 \
+            --min-edge-quality 0.10 --out "$TMP/native_audio_sync.json" \
+            > "$TMP/private_audio_sync.log"
+          python3 - "$TMP/native_audio_sync.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]))
+          assert a["coarse_audio_only"] is True
+          assert a["first_hand_ball_contact_certified"] is False
+          assert len(a["angles"])>=3
+          print("RELATIVE_AUDIO_GRAPH_COMPUTED",len(a["angles"]),a["selected_edge_count"])
+          PY
+          gh release upload "$TAG" "$TMP/native_audio_sync.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          remote="$(gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" \
+             --jq '.assets[] | select(.name=="native_audio_sync.json") | .digest')"
+          test "$remote" = "sha256:$(sha256sum "$TMP/native_audio_sync.json" | cut -d' ' -f1)"
+          echo PRIVATE_NATIVE_AUDIO_SYNC_SHA256_READBACK_PASS
