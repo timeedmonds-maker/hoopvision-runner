@@ -145,6 +145,11 @@ def independent_nba():
         return status, periods, "LIVE_NBA_INCOMPLETE"
 
 
+def frame_position_presence(positions):
+    """Player and ball keys must coexist in one original SDK frame."""
+    return (any(pid != "ball" for pid in positions), "ball" in positions)
+
+
 def observed_slot_diagnostic(player_stamps, ball_stamps, first_ms, last_ms):
     """Count original position-bearing 5s bins; never infer missing observations.
 
@@ -243,8 +248,7 @@ def audit():
                             raise RuntimeError("invalid_source_frame")
                         n_frames += 1
                         timestamps.add(stamp)
-                        has_player = any(pid != "ball" for pid in pos)
-                        has_ball = "ball" in pos
+                        has_player, has_ball = frame_position_presence(pos)
                         if has_player:
                             n_player += 1
                             player_timestamps.add(stamp)
