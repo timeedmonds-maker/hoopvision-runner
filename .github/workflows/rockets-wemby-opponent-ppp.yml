@@ -1,5 +1,5 @@
 name: Verify Rockets PPP vs Wembanyama on
-# Independent native possession query, validated against both team final scores.
+# Independent native possession query, validated against both team final scores. Recheck provider one-row shape.
 on:
   push:
     branches: [main]
