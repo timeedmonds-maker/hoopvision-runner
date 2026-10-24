@@ -11,7 +11,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: gamepulse-rockets-independent-private-finalizer
+  group: gamepulse-rockets-spurs-original-0022600009-finalizer
   cancel-in-progress: true
 jobs:
   preflight:
@@ -54,8 +54,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAMEPULSE_PRIORITY_FANOUT: 'true'
           GAMEPULSE_FINAL_FASTLANE: 'true'
-          GAMEPULSE_PRIORITY_ID: '0022600091'
-          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T00:30:00Z'
+          GAMEPULSE_PRIORITY_ID: '0022600009'
+          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-24T01:30:00Z'
           GAMEPULSE_PRIORITY_PART: ${{ matrix.part }}
         run: node season_private_release.mjs
   finalize:
@@ -81,6 +81,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAMEPULSE_PRIORITY_FINALIZE: 'true'
           GAMEPULSE_FINAL_FASTLANE: 'true'
-          GAMEPULSE_PRIORITY_ID: '0022600091'
-          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-22T00:30:00Z'
+          GAMEPULSE_PRIORITY_ID: '0022600009'
+          GAMEPULSE_PRIORITY_TIPOFF: '2026-10-24T01:30:00Z'
         run: node season_private_release.mjs
