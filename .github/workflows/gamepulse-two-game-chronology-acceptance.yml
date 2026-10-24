@@ -28,8 +28,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GAME_ID: ${{ matrix.game }}
-      PRIVATE_REF: main
-      PUBLISH_ENABLED: 'true'
+      PRIVATE_REF: fix/gamepulse-nba-pbp-authority-blueprint-20261025
+      PUBLISH_ENABLED: 'false'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,6 +63,9 @@ jobs:
           gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_two_game_chronology_reconciliation_2026.py?ref=$PRIVATE_REF" --jq .content |
             base64 -d > "$ROOT/tests/test_two_game_chronology_reconciliation_2026.py"
           GAMEPULSE_REAL_PBP_PATH="$ROOT/pbp.json" PYTHONPATH="$ROOT" python3 -m unittest discover -s "$ROOT/tests" -p test_two_game_chronology_reconciliation_2026.py -v
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_pbp_blueprint_authority_real_2026.py?ref=$PRIVATE_REF" --jq .content |
+            base64 -d > "$ROOT/tests/test_pbp_blueprint_authority_real_2026.py"
+          GAMEPULSE_REAL_PBP_PATH="$ROOT/pbp.json" GAMEPULSE_REAL_VIEW_PATH="$ROOT/view.json" PYTHONPATH="$ROOT" python3 -m unittest discover -s "$ROOT/tests" -p test_pbp_blueprint_authority_real_2026.py -v
       - name: Download only the original SHA-verified private game SDK parts
         id: archives
         shell: bash
@@ -97,12 +100,7 @@ jobs:
           else
             QUERY_ARGS=()
           fi
-          # The original Blueprint-only Q1 action #86 names a different
-          # shooter from the official NBA PBP. Quarantine that auxiliary
-          # annotation, never replace the actual NBA scoring event.
-          if [ "$GAME_ID" = '0022600009' ]; then
-            QUERY_ARGS+=(--quarantine-blueprint-shooter-conflicts)
-          fi
+          # No manual exception flag. NBA PBP overrides Blueprint by default.
           python3 interaction_fusion_2026.py --sdk-dir sdk --pbp pbp.json --view view.json \
             --out interactions.json "${QUERY_ARGS[@]}"
           python3 - <<'PY'
@@ -116,6 +114,19 @@ jobs:
           assert all(not p["certified_complete_possession"] for p in x["possessions"])
           assert sum(x["teams"].values())==len(x["possessions"])
           assert set(x["teams"])=={v["team"] for v in x["official_final"].values()}
+          assert x["source_policy"]["shot_identity_value_result_priority"]=="NBA_OFFICIAL_PBP_OVERRIDES_BLUEPRINT"
+          shots={shot["nba_action_number"]:shot for p in x["possessions"] for shot in p["shot_events"]}
+          if os.environ["GAME_ID"]=="0022600009":
+              assert len(x["quarantined_blueprint_shooter_conflicts"])==1
+              assert len(x["quarantined_blueprint_shot_metadata_conflicts"])==0
+              assert shots[86]["shooter_id"]=="203500" and shots[86]["xfg"] is None
+              assert shots[86]["shot_value"]==2 and shots[86]["made"]==1
+          else:
+              assert len(x["quarantined_blueprint_shooter_conflicts"])==0
+              assert len(x["quarantined_blueprint_shot_metadata_conflicts"])==1
+              assert shots[109]["shooter_id"]=="1642366"
+              assert shots[109]["shot_value"]==2 and shots[109]["made"]==0
+              assert shots[109]["xfg"] is None
           print("PRIVATE_SOURCE_FUSION_ACCEPTED_NO_UNVERIFIED_CERTIFICATION")
           PY
       - name: Persist only to private canonical 104 with post-write SHA check
