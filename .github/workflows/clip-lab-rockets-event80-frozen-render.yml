@@ -30,7 +30,12 @@ jobs:
           print('ORIGINAL_RING_PRIVATE_MEDIA_BOUNDARY_PASS')
           PY
           test -n "${GH_TOKEN:-}" || { echo PRIVATE_SOURCE_AUTH_NOT_AVAILABLE; exit 3; }
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          # git smart HTTP uses the existing scoped private token without
+          # consuming the exhausted shared GitHub REST API request quota.
+          export GIT_TERMINAL_PROMPT=0
+          AUTH="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          git -c "http.extraheader=AUTHORIZATION: basic $AUTH" ls-remote --exit-code             https://github.com/timeedmonds-maker/104.git refs/heads/main >/dev/null 2>&1             || { echo PRIVATE_GIT_AUTH_UNAVAILABLE; exit 3; }
+          unset AUTH
       - name: Load SHA-pinned original Broadcast, native Pulse and frozen physical evidence
         shell: bash
         run: |
