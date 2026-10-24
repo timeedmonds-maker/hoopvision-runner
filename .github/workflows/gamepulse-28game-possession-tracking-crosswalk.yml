@@ -305,7 +305,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import base64,hashlib,json,os,subprocess
+          import base64,hashlib,json,os,subprocess,time
           from pathlib import Path
           repo=os.environ['PRIVATE_REPO']
           path='gamepulse/fusion/season_possession_tracking_crosswalk_verified.json'
@@ -317,20 +317,27 @@ jobs:
               if check and r.returncode:
                   raise RuntimeError('PRIVATE_REPOSITORY_API_OPERATION_FAILED')
               return r
-          previous=gh(endpoint,check=False)
-          payload={'branch':'main','message':
-                   'data(gamepulse): validated season PBP native-touch crosswalk [skip ci]',
-                   'content':base64.b64encode(raw).decode()}
-          if previous.returncode==0:
-              obj=json.loads(previous.stdout)
-              old=base64.b64decode(obj['content'])
-              if old==raw:
-                  print('PRIVATE_CROSSWALK_QA_UNCHANGED');raise SystemExit(0)
-              payload['sha']=obj['sha']
-          elif '404' not in previous.stderr:
-              raise RuntimeError('PRIVATE_CROSSWALK_PREVIOUS_READ_FAILED')
-          response=gh('-X','PUT',endpoint,'--input','-',
-                      input=json.dumps(payload))
+          for attempt in range(12):
+              previous=gh(endpoint,check=False)
+              payload={'branch':'main','message':
+                       'data(gamepulse): validated season PBP native-touch crosswalk [skip ci]',
+                       'content':base64.b64encode(raw).decode()}
+              if previous.returncode==0:
+                  obj=json.loads(previous.stdout)
+                  if base64.b64decode(obj['content'])==raw:
+                      print('PRIVATE_CROSSWALK_QA_UNCHANGED');raise SystemExit(0)
+                  payload['sha']=obj['sha']
+              elif '404' not in previous.stderr and 'Not Found' not in previous.stderr:
+                  raise RuntimeError('PRIVATE_CROSSWALK_PREVIOUS_READ_FAILED')
+              response=gh('-X','PUT',endpoint,'--input','-',
+                          input=json.dumps(payload),check=False)
+              if response.returncode==0:
+                  break
+              if not any(code in response.stderr for code in ('409','422','429','500','502','503')):
+                  raise RuntimeError('PRIVATE_CROSSWALK_PUBLISH_NONRETRYABLE_ERROR')
+              time.sleep(min(2+attempt*2,17))
+          else:
+              raise RuntimeError('PRIVATE_CROSSWALK_PUBLISH_CONCURRENT_WRITES_EXHAUSTED')
           blob=json.loads(response.stdout)['content']['sha']
           saved=json.loads(gh('repos/'+repo+'/git/blobs/'+blob).stdout)
           observed=base64.b64decode(saved['content'])
