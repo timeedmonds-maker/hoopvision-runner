@@ -67,3 +67,14 @@ jobs:
             'GPU_used':False,'player_detection_included':False,
             'renderer_blob':'9fac8a8915b90bbd9bd1235532c297c35da77ca2'}))
           PY
+
+          # Additional CPU acceptance: source-private Q1 Durant/Adams Game Pulse fusion.
+          # Public logs contain test status only, never original player XYZ.
+          mkdir -p "$ROOT/bridge/positions"
+          REF_BRIDGE='feat%2Fclip-lab-frozen-v31-native-cpu-bridge-20261025'
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/frozen_v31_gamepulse_bridge.py?ref=$REF_BRIDGE" --jq .content | base64 -d > "$ROOT/bridge/frozen_v31_gamepulse_bridge.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/test_frozen_v31_gamepulse_bridge.py?ref=$REF_BRIDGE" --jq .content | base64 -d > "$ROOT/bridge/test_frozen_v31_gamepulse_bridge.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/test_frozen_v31_native_real_source.py?ref=$REF_BRIDGE" --jq .content | base64 -d > "$ROOT/bridge/test_frozen_v31_native_real_source.py"
+          gh api "repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/positions/0022600009_q1_durant_adams.json?ref=main" --jq .content | base64 -d > "$ROOT/bridge/positions/0022600009_q1_durant_adams.json"
+          PYTHONPATH="$ROOT/bridge" python3 -m unittest discover -s "$ROOT/bridge" -p 'test_frozen_v31*.py' -v
+          echo FROZEN_V31_GAMEPULSE_CPU_BRIDGE_AND_REAL_SOURCE_TESTS_PASS
