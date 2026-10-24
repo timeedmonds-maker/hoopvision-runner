@@ -1,0 +1,30 @@
+name: Game Pulse official source 28-game private index rebuild
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-28game-source-assemble.yml']
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Game Pulse 28-game official PBP and ONOFF verification']
+    types: [completed]
+permissions:
+  contents: read
+concurrency:
+  group: verified-private-28game-pbp-onoff-index-materialization
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Guard public runner, materialize only source-verified native NBA indexes privately
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          python3 tools/licensed_feed/official_pbp_onoff_28.py assemble
