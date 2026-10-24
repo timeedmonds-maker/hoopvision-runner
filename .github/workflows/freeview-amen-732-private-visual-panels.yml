@@ -45,7 +45,7 @@ jobs:
           TAG="freeview-native-0022600009-732"
           BRANCH="research/amen-wemby-freeze-spin-20261024"
           gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$ROOT" \
-            --pattern "contact-window-high-tight.jpg" --pattern "contact-window-left-above-rim.jpg"
+            --pattern "event732-contact-bracket-*.jpg"
           gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" > "$ROOT/release.json"
           python3 -m pip install --quiet --disable-pip-version-check pillow
           python3 - "$ROOT" <<'PY'
@@ -54,7 +54,7 @@ jobs:
           from pathlib import Path
           root=Path(sys.argv[1])
           assets={a["name"]:a for a in json.load(open(root/"release.json"))["assets"]}
-          for image in ["contact-window-high-tight.jpg","contact-window-left-above-rim.jpg"]:
+          for image in sorted(n for n in assets if n.startswith("event732-contact-bracket-") and n.endswith(".jpg")):
               img=root/image
               b=img.read_bytes()
               assert assets[image]["digest"]=="sha256:"+hashlib.sha256(b).hexdigest(),image
