@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 official ten-player to NBA episode integration
+name: Integrated Pulse 28-game official ten-player NBA field episode integration
 on:
   push:
     branches: [main]
@@ -11,13 +11,13 @@ jobs:
     timeout-minutes: 35
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 3
       matrix:
-        game_id: ['0022600009']
+        game_id: ['0022600001', '0022600002', '0022600003', '0022600004', '0022600005', '0022600006', '0022600007', '0022600008', '0022600009', '0022600085', '0022600086', '0022600087', '0022600088', '0022600089', '0022600090', '0022600091', '0022600092', '0022600093', '0022600094', '0022600095', '0022600096', '0022600097', '0022600098', '0022600099', '0022600100', '0022600101', '0022600102', '0022600103']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PIN: 3ad535c1b6a88bc7b8010bea42cb8d4de969e0f5
+      PIN: d921d032e1c6130ce4dd7b08688f3e063249be25
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
       GAME_ID: ${{ matrix.game_id }}
     steps:
@@ -83,7 +83,7 @@ jobs:
           set -euo pipefail
           cd "$WORK"
           python3 - <<'PY'
-          import base64,json,os,subprocess
+          import base64,json,os,subprocess,time
           from pathlib import Path
           d=json.load(open("result.json"));c=d["counts"]
           assert c["original_unique_frames"]>1000
@@ -96,17 +96,22 @@ jobs:
           raw=(json.dumps(d,sort_keys=True,indent=2)+"\n").encode()
           item={"branch":os.environ["BRANCH"],"message":"data(gamepulse): source-verified NBA lineup original XYZ pilot",
                 "content":base64.b64encode(raw).decode()}
-          existing=subprocess.run(["gh","api",uri+"?ref="+os.environ["BRANCH"]],capture_output=True,text=True)
-          if existing.returncode==0:
-            old=json.loads(existing.stdout)
-            if base64.b64decode(old["content"])==raw:
-              print("PRIVATE_QA_UNCHANGED");raise SystemExit(0)
-            item["sha"]=old["sha"]
-          elif "404" not in existing.stderr and "Not Found" not in existing.stderr:
-            raise ValueError("PRIVATE_QA_LOOKUP_FAILURE")
-          put=subprocess.run(["gh","api","--method","PUT",uri,"--input","-"],
-                             input=json.dumps(item),text=True,capture_output=True)
-          if put.returncode:raise ValueError("PRIVATE_QA_WRITE_FAILURE")
+          for attempt in range(8):
+            existing=subprocess.run(["gh","api",uri+"?ref="+os.environ["BRANCH"]],capture_output=True,text=True)
+            if existing.returncode==0:
+              old=json.loads(existing.stdout)
+              if base64.b64decode(old["content"])==raw:
+                print("PRIVATE_QA_UNCHANGED");raise SystemExit(0)
+              item["sha"]=old["sha"]
+            elif "404" in existing.stderr or "Not Found" in existing.stderr:
+              item.pop("sha",None)
+            else:
+              raise ValueError("PRIVATE_QA_LOOKUP_FAILURE")
+            put=subprocess.run(["gh","api","--method","PUT",uri,"--input","-"],
+                               input=json.dumps(item),text=True,capture_output=True)
+            if put.returncode==0:break
+            if attempt==7:raise ValueError("PRIVATE_QA_WRITE_FAILURE_AFTER_RETRIES")
+            time.sleep(0.6*(attempt+1))
           print("PRIVATE_QA_COMMITTED")
           print("SAFE_COUNTS",json.dumps({k:c.get(k,0) for k in
                 ("original_unique_frames","PROVISIONAL_CLOCK_OFFICIAL_LINEUP",
