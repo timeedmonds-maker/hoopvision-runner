@@ -87,3 +87,36 @@ jobs:
           fi
           gh api -X PUT "$DEST" --input "$TMP/put.json" --jq .content.sha >/dev/null
           echo PRIVATE_EVENT732_SOURCE_BALL_TRACK_AUDIT_COMMITTED
+
+          cp "$TMP/pixels.py" "$TMP/amen732_native_ball_pixels.py"
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_ball_bidirectional_consensus.py?ref=45451091dbab50fdc162db9fb3c0257499e75eec' \
+            --jq .content | base64 -d > "$TMP/consensus.py"
+          python3 "$TMP/consensus.py" --selftest
+          python3 "$TMP/consensus.py" --root "$TMP/original" \
+            --out "$TMP/qa/event732-ball-two-seed-consensus.json"
+          gh release upload "$TAG" "$TMP/qa/event732-ball-two-seed-consensus.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          remote="$(gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" \
+            --jq '.assets[] | select(.name=="event732-ball-two-seed-consensus.json") | .digest')"
+          test "$remote" = "sha256:$(sha256sum "$TMP/qa/event732-ball-two-seed-consensus.json" | cut -d' ' -f1)"
+          echo NBA_BALL_TWO_SEED_SHA256_READBACK_PASS
+          python3 - "$TMP/qa/event732-ball-two-seed-consensus.json" "$TMP/put_dual.json" <<'PY'
+          import base64,json,sys
+          from pathlib import Path
+          body=Path(sys.argv[1]).read_bytes()
+          assert len(body)<200000
+          Path(sys.argv[2]).write_text(json.dumps({
+            "branch":"research/amen-wemby-freeze-spin-20261024",
+            "message":"qa: two-seed consensus for original NBA ball tracks",
+            "content":base64.b64encode(body).decode()}))
+          PY
+          DEST='repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_ball_two_seed_consensus.json'
+          if gh api "$DEST?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha >/dev/null 2>&1; then
+            python3 - "$TMP/put_dual.json" "$(gh api "$DEST?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha)" <<'PY'
+          import json,sys
+          p=sys.argv[1];o=json.load(open(p));o["sha"]=sys.argv[2]
+          open(p,"w").write(json.dumps(o))
+          PY
+          fi
+          gh api -X PUT "$DEST" --input "$TMP/put_dual.json" --jq .content.sha >/dev/null
+          echo PRIVATE_EVENT732_BALL_CONSENSUS_COMMITTED
