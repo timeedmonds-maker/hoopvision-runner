@@ -1,4 +1,4 @@
-name: Clip Lab original NBA SDK Fred-green and Adams-Durant disambiguation
+name: Clip Lab verified Game Pulse three-player and frozen possession persistence
 on:
   push:
     branches: [main]
@@ -81,6 +81,16 @@ jobs:
                 q['median_original_adams_source_disagreement_cm'],
                 g['possession_intervals'][0]['end_s'])
           PY
+      - name: Persist SHA-backed three-player native and frozen possession input privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/clip-lab-private"
+          gh release upload clip-lab-hls-0022600009-80 \
+            "$ROOT/three-player-native-private.json#event80-three-player-original-gamepulse.json" \
+            "$ROOT/fred-native-frozen-green-interval.json#event80-fred-native-v31-green.json" \
+            --repo timeedmonds-maker/104 --clobber
+          echo THREE_PLAYER_DURANT_EXCLUSION_NATIVE_AND_FROZEN_GREEN_INPUT_PRIVATE
       - uses: actions/upload-artifact@v4
         if: ${{ success() }}
         with:
