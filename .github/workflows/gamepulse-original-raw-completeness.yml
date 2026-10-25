@@ -19,9 +19,10 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GAME_ID: ${{ matrix.game }}
       PRIVATE_REPO: timeedmonds-maker/104
-      AUDIT_PIN: 91ab4894d412a7b9a1b38c8e5b06122cbe72c4e2
-      CONTINUITY_PIN: 5cb53be35186c603af60fb2c9c1ed2ba7c3ff01d
-      MOTION_PIN: c60aeccb20e4c800c32b3baaa01ea91db78a8678
+      AUDIT_PIN: 93266712687260b762ae459784717b7a5e7cdbd2
+      CONTINUITY_PIN: 3676e23d77d014b31fa8a02c25b76d838f057579
+      MOTION_PIN: 39300c98b8400c14cc2bb9d6f0d0c347815c5b72
+      HOOP_PIN: f51f10a54a5d58ec6590bd7390dd4d37bc85b397
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,11 +38,14 @@ jobs:
           gh api "repos/$PRIVATE_REPO/contents/gamepulse/fusion/audit_original_sdk_raw_vs_simplified_frames_2026.py?ref=$AUDIT_PIN" --jq .content | base64 -d > "$RUNNER_TEMP/pulse/audit.py"
           gh api "repos/$PRIVATE_REPO/contents/gamepulse/fusion/audit_original_sdk_raw_continuity_2026.py?ref=$CONTINUITY_PIN" --jq .content | base64 -d > "$RUNNER_TEMP/pulse/continuity.py"
           gh api "repos/$PRIVATE_REPO/contents/gamepulse/fusion/audit_original_sdk_ball_motion_2026.py?ref=$MOTION_PIN" --jq .content | base64 -d > "$RUNNER_TEMP/pulse/motion.py"
+          gh api "repos/$PRIVATE_REPO/contents/gamepulse/fusion/audit_original_sdk_hoop_event_coverage_2026.py?ref=$HOOP_PIN" --jq .content | base64 -d > "$RUNNER_TEMP/pulse/hoop.py"
+          gh api "repos/$PRIVATE_REPO/contents/gamepulse/fusion/qa/auto_physics/${GAME_ID:0:8}/$GAME_ID.json?ref=main" --jq .content | base64 -d > "$RUNNER_TEMP/pulse/hoop_qa.json"
           gh api "repos/$PRIVATE_REPO/releases/tags/gamepulse-sdk-$GAME_ID" > "$RUNNER_TEMP/pulse/release.json"
           gh release download "gamepulse-sdk-$GAME_ID" --repo "$PRIVATE_REPO" --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/pulse/raw"
           python3 "$RUNNER_TEMP/pulse/audit.py" --game-id "$GAME_ID" --archive-dir "$RUNNER_TEMP/pulse/raw" --release-json "$RUNNER_TEMP/pulse/release.json" --out "$RUNNER_TEMP/pulse/coverage.json"
           python3 "$RUNNER_TEMP/pulse/continuity.py" --game-id "$GAME_ID" --archive-dir "$RUNNER_TEMP/pulse/raw" --release-json "$RUNNER_TEMP/pulse/release.json" --out "$RUNNER_TEMP/pulse/continuity.json"
           python3 "$RUNNER_TEMP/pulse/motion.py" --game-id "$GAME_ID" --archive-dir "$RUNNER_TEMP/pulse/raw" --release-json "$RUNNER_TEMP/pulse/release.json" --out "$RUNNER_TEMP/pulse/motion.json"
+          python3 "$RUNNER_TEMP/pulse/hoop.py" --game-id "$GAME_ID" --archive-dir "$RUNNER_TEMP/pulse/raw" --release-json "$RUNNER_TEMP/pulse/release.json" --hoop-qa "$RUNNER_TEMP/pulse/hoop_qa.json" --out "$RUNNER_TEMP/pulse/hoop_coverage.json"
           python3 - <<'PY'
           import json,os
           from pathlib import Path
