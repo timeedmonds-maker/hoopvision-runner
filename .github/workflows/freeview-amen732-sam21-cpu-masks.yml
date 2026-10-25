@@ -52,7 +52,7 @@ jobs:
             --pattern 'native_presentation_timestamps.json'; }
           download_source || { sleep 65; download_source; } || { sleep 125; download_source; }
           test -s "$TMP/input/source_manifest.json"
-          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_sam21_ball_mask_cpu.py?ref=70792f6ed18e35f1ff5cfca5e2c9314c8f6a5c96' \
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_sam21_ball_mask_cpu.py?ref=af98752b804140323b0f9c2018c7b1dc43ffdc6f' \
             --jq .content | base64 -d > "$TMP/script.py"
           python3 -m pip install --quiet --disable-pip-version-check \
             'numpy<2' 'opencv-python-headless==4.10.0.84' 'pillow>=10,<12' \
@@ -74,7 +74,7 @@ jobs:
           python3 "$TMP/script.py" \
             --root "$TMP/input" --checkpoint "$TMP/model/sam2.1_hiera_tiny.pt" \
             --out "$TMP/out" --model-commit "$MODEL_COMMIT"
-          python3 - "$TMP/out/event732-native-sam21-mask-qa.json" <<'PY'
+          python3 - "$TMP/out/event732-native-sam21-mask-qa-v2.json" <<'PY'
           import json,sys
           o=json.load(open(sys.argv[1]))
           assert len(o["native_masks"])==4
@@ -88,7 +88,7 @@ jobs:
           import json,sys,cv2
           from pathlib import Path
           root,out=map(Path,sys.argv[1:])
-          qa=json.loads((out/'event732-native-sam21-mask-qa.json').read_text())
+          qa=json.loads((out/'event732-native-sam21-mask-qa-v2.json').read_text())
           src=json.loads((root/'source_manifest.json').read_text())
           feed={r['label']:r for r in src['feeds']}
           for label,item in qa['native_masks'].items():
@@ -108,7 +108,7 @@ jobs:
               cv2.rectangle(frame,(0,0),(960,43),(15,15,20),-1)
               cv2.putText(frame,label+' | '+item['mask_state']+' | ORIGINAL RGB',
                           (13,29),cv2.FONT_HERSHEY_SIMPLEX,.61,(245,245,245),2,cv2.LINE_AA)
-              name='amen732-sam21-overlay-'+label.lower().replace(' ','-')+'.jpg'
+              name='amen732-sam21-v2-overlay-'+label.lower().replace(' ','-')+'.jpg'
               assert cv2.imwrite(str(out/name),frame,[cv2.IMWRITE_JPEG_QUALITY,88])
               print('SAM21_VISUAL_QA_FRAME_PREPARED',label,item['mask_state'])
           PY
@@ -131,8 +131,8 @@ jobs:
           from pathlib import Path
           out=Path(sys.argv[1]);branch='research/amen-wemby-freeze-spin-20261024'
           prefix='repos/timeedmonds-maker/104/contents/'
-          files=[out/'event732-native-sam21-mask-qa.json']
-          files+=sorted(out.glob('amen732-sam21-overlay-*.jpg'))
+          files=[out/'event732-native-sam21-mask-qa-v2.json']
+          files+=sorted(out.glob('amen732-sam21-v2-overlay-*.jpg'))
           assert len(files)==5
           for src in files:
               dest='hoopvision/freeview/fixtures/'+src.name
