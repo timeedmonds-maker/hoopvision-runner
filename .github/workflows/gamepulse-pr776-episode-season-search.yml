@@ -2,7 +2,7 @@ name: Integrated Pulse PR776 official NBA episode XYZ season search
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-pr776-episode-season-search.yml']
+    paths: ['.github/workflows/gamepulse-pr776-episode-season-search.yml', 'tools/public_content_guard.py']
 permissions:
   contents: read
 jobs:
