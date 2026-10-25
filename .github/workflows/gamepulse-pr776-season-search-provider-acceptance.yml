@@ -196,7 +196,7 @@ jobs:
               s=json.loads(raw_s);u=json.loads(raw_u);p=json.loads(raw_p)
               assert p['source_provenance']['nba_pbp_sha256']==pi['source_pbp_sha256']
               result=build(p,s,u)
-              raw_result=(json.dumps(result,sort_keys=True,separators=(',',':'))+'\\n').encode()
+              raw_result=(json.dumps(result,sort_keys=True,separators=(',',':'))+'\n').encode()
               (out/(gid+'.json')).write_bytes(raw_result)
               game_manifest[gid]={'sha256':hashlib.sha256(raw_result).hexdigest(),
                   'original_touch_labels':snap['original_touch_labels'],
@@ -232,7 +232,7 @@ jobs:
               'new_native_xyz_observations_processed':0,
               'nba_record_utc_cannot_certify_physical_boundary':True,
               'research_candidates_do_not_count_as_accepted_physical_possessions':True}
-          (out/'index.json').write_text(json.dumps(index,sort_keys=True,indent=2)+'\\n')
+          (out/'index.json').write_text(json.dumps(index,sort_keys=True,indent=2)+'\n')
           from query_terminal_window_recovery_2026 import query
           example=query(out,gid='0022600009',player='1627832',limit=25)
           assert example['matches_total']>=1
