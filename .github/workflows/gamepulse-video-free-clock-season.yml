@@ -1,5 +1,5 @@
 name: Game Pulse season video-free physical clock anchor index
-# Second source-complete historical backfill pass: preserve daily scheduled due-selector
+# 36-game source backfill: preserve daily due selector and SHA-verified private originals
 on:
   schedule:
     - cron: '18 8 * * *'
@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/gamepulse-video-free-clock-season.yml'
+      - 'tools/public_content_guard.py'
 permissions:
   contents: read
 concurrency:
