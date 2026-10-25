@@ -1,7 +1,6 @@
-name: Clip Lab event80 direct source frozen v3.1 two rings
-# CPU-only: original NBA Broadcast and native SDK are fetched ephemerally.
-# Enabled after independent content-guard review; no private media artifact.
-# Private engine source is fetched by Git smart HTTP, not copied to public repo.
+name: Clip Lab event80 exact original frozen v3.1 rings
+# Public CPU workflow invokes original private frozen renderer; no private engine
+# source, native Game Pulse frame coordinates, or private credentials are published.
 on:
   push:
     branches: [main]
@@ -10,230 +9,164 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: event80-direct-source-two-ring-frozen-v31-shot-synced-20261025
+  group: clip-lab-event80-exact-v31-render
   cancel-in-progress: false
 jobs:
-  direct:
+  render:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 25
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      GAMEPULSE_FINAL_FASTLANE: 'true'
-      OMP_NUM_THREADS: '4'
-      OPENBLAS_NUM_THREADS: '4'
       PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      OMP_NUM_THREADS: '3'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Public security and private Git proof
+      - name: Public content guard and private source access
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           from tools.public_content_guard import scan
           assert not scan(['.github/workflows/clip-lab-event80-direct-native-frozen.yml'])
-          print('PUBLIC_PRIVATE_BOUNDARY_PASS')
+          print('PUBLIC_PRIVATE_SOURCE_BOUNDARY_PASS')
           PY
-          test -n "$GH_TOKEN" || exit 3
-          export GIT_TERMINAL_PROMPT=0
-          AUTH="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          git -c "http.extraheader=AUTHORIZATION: basic $AUTH" ls-remote --exit-code \
-            https://github.com/timeedmonds-maker/104.git refs/heads/main >/dev/null 2>&1
-          unset AUTH
-          echo PRIVATE_GIT_SMART_HTTP_PASS
-      - name: Get existing private canonical source without GitHub REST API
+          test -n "$GH_TOKEN"
+      - name: Download pinned original CourtCoder v3.1 ring engine and manual preview feet
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$RUNNER_TEMP/e80"
+          ROOT="$RUNNER_TEMP/v31"
           mkdir -p "$ROOT"
-          export GIT_TERMINAL_PROMPT=0
           AUTH="$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          for branch in main courtcoder/integration; do
-            if [ "$branch" = main ]; then out="$ROOT/private-main"; else out="$ROOT/private-frozen"; fi
-            git -c "http.extraheader=AUTHORIZATION: basic $AUTH" clone -q \
-              --depth 1 --filter=blob:none --sparse --branch "$branch" \
-              https://github.com/timeedmonds-maker/104.git "$out"
-            if [ "$branch" = main ]; then dirs='gamepulse/clip_lab'; \
-              else dirs='tools hoopvision/core hoopvision/freeview screen_tracker_nextgen'; fi
-            git -C "$out" -c "http.extraheader=AUTHORIZATION: basic $AUTH" \
-              sparse-checkout set $dirs >/dev/null
-          done
+          export GIT_TERMINAL_PROMPT=0
+          git -c "http.extraheader=AUTHORIZATION: basic $AUTH" clone -q \
+            --depth 1 --filter=blob:none --sparse --branch courtcoder/integration \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/locked"
+          git -C "$ROOT/locked" -c "http.extraheader=AUTHORIZATION: basic $AUTH" sparse-checkout set \
+            tools hoopvision/core hoopvision/freeview screen_tracker_nextgen >/dev/null
+          git -c "http.extraheader=AUTHORIZATION: basic $AUTH" clone -q \
+            --depth 1 --filter=blob:none --sparse --branch main \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/canonical"
+          git -C "$ROOT/canonical" -c "http.extraheader=AUTHORIZATION: basic $AUTH" sparse-checkout set gamepulse/clip_lab >/dev/null
           unset AUTH
-          python3 -m py_compile "$ROOT/private-main/gamepulse/clip_lab/extract_native_event.py" \
-            "$ROOT/private-main/gamepulse/clip_lab/frozen_v31_gamepulse_bridge.py" \
-            "$ROOT/private-main/gamepulse/clip_lab/prepare_frozen_physical.py" \
-            "$ROOT/private-main/gamepulse/clip_lab/launch_frozen_ring_only.py" \
-            "$ROOT/private-main/gamepulse/clip_lab/adaptive_frozen_visual_tracking.py" \
-            "$ROOT/private-frozen/screen_tracker_nextgen/render_all_player_labels.py"
-          echo ORIGINAL_PRIVATE_SOURCE_NO_REST_DOWNLOAD_VERIFIED
-      - name: Reacquire original NBA Broadcast HLS and native Game Pulse SDK evidence
+          python3 -m py_compile "$ROOT/canonical/gamepulse/clip_lab/launch_frozen_ring_only.py" \
+            "$ROOT/locked/screen_tracker_nextgen/render_all_player_labels.py"
+          echo PRIVATE_FROZEN_ENGINE_AND_PREVIEW_ANCHORS_PRESENT
+      - name: Obtain clean official NBA Broadcast rather than old annotated footage
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$RUNNER_TEMP/e80"
-          if ! command -v ffmpeg >/dev/null; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq ffmpeg >/dev/null
-          fi
-          python3 -m pip install --quiet 'numpy==1.26.4' 'opencv-python-headless==4.10.0.84'
-          PYTHONPATH="$ROOT/private-frozen" python3 - "$ROOT" <<'PY'
-          import sys,hashlib
+          ROOT="$RUNNER_TEMP/v31"
+          python3 -m pip install --quiet numpy==1.26.4 opencv-python-headless==4.10.0.84 \
+            pandas==2.2.3 scipy pillow requests
+          PYTHONPATH="$ROOT/locked" python3 - "$ROOT" <<'PY'
+          import sys,subprocess,hashlib
           from pathlib import Path
           from hoopvision.freeview.fetch_official_multicam import resolve_options,download_hls,probe
           root=Path(sys.argv[1])
           opts=resolve_options('0022600009',80)
-          if 'Broadcast' not in opts:raise RuntimeError('OFFICIAL_BROADCAST_NOT_LISTED')
-          video=root/'event80-broadcast.mp4'
-          download_hls(opts['Broadcast'],video)
-          info=probe(video)
-          if info['width']<640 or info['height']<360 or info['fps']<24 or not (8<=info['duration_s']<=25):
-              raise RuntimeError('ORIGINAL_BROADCAST_MEDIA_DECODE_GATE_FAILED')
-          print('ORIGINAL_NBA_HLS_BROADCAST_DECODED',info['width'],info['height'],round(info['duration_s'],3))
+          if 'Broadcast' not in opts:
+              raise RuntimeError('original NBA Broadcast angle is unavailable')
+          src=root/'clean-broadcast.mp4'
+          download_hls(opts['Broadcast'],src)
+          info=probe(src)
+          assert info['width']==960 and info['height']==540 and info['fps']>=29
+          assert 18<float(info['duration_s'])<24
+          print('ORIGINAL_BROADCAST_OBTAINED',info,'sha256',hashlib.sha256(src.read_bytes()).hexdigest())
           PY
-          printf '%s\n' '{"game_id":"0022600009","account_id":"nba","program_id":"companion-0022600009-positions","start_ms":1792807050000,"count":18,"part":0}' > "$ROOT/native-job.json"
-          (cd tools/licensed_feed && npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/ && npm install --ignore-scripts --no-audit --no-fund --silent)
-          node tools/licensed_feed/capture.mjs "$ROOT/native-job.json" "$ROOT/sdk-source" > "$ROOT/sdk-capture.log" 2>&1 \
-            || { echo ORIGINAL_NBA_SDK_CAPTURE_UNAVAILABLE; exit 4; }
-          test -s "$ROOT/sdk-source/checkpoint.tar.gz"
-          CHECKPOINT_SHA="$(sha256sum "$ROOT/sdk-source/checkpoint.tar.gz" | awk '{print $1}')"
-          python3 "$ROOT/private-main/gamepulse/clip_lab/extract_native_event.py" \
-            --checkpoint "$ROOT/sdk-source/checkpoint.tar.gz" \
-            --game-id 0022600009 --event-num 80 --event-utc-ms 1792807093640 \
-            --players 1627832,203500 --sha256 "$CHECKPOINT_SHA" --out "$ROOT/native.json"
-          echo ORIGINAL_TWO_PLAYER_NATIVE_SDK_RECAPTURED_AND_SHA_VERIFIED
-      - name: Original frozen CPU player and NBA court calibration
+      - name: Render exact locked v3.1 annular rings on human-verified visual shoes
         shell: bash
         run: |
           set -euo pipefail
-          ROOT="$RUNNER_TEMP/e80"
-          mkdir -p "$ROOT/models" "$ROOT/repos" "$ROOT/original-tracking"
-          for item in \
-            'trackers https://github.com/roboflow/trackers.git 3fb83d1618f29b7fdd4617757b6894e4ec71146d' \
-            'ode https://github.com/ortizeg/object-detection-eval.git bcf6279073af042c3a5084a041f6c5d8e71e6af1' \
-            'nbacv https://github.com/cyrushadavi1/nba_video_analysis_v2.git b7b115c7ace11348512c0ebfb679b48cad35f1fb'; do
-            read -r name url commit <<< "$item"
-            git init -q "$ROOT/repos/$name"
-            git -C "$ROOT/repos/$name" remote add origin "$url"
-            git -C "$ROOT/repos/$name" fetch -q --depth 1 origin "$commit"
-            git -C "$ROOT/repos/$name" checkout -q --detach FETCH_HEAD
+          ROOT="$RUNNER_TEMP/v31"
+          python3 - "$ROOT" <<'PY'
+          import csv,sys,hashlib
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          locked=root/'locked/tools/locked_broadcast_screen_v5_rings.py'
+          b=locked.read_bytes()
+          blob=hashlib.sha1(b'blob '+str(len(b)).encode()+b'\0'+b).hexdigest()
+          assert blob=='9fac8a8915b90bbd9bd1235532c297c35da77ca2', 'LOCKED_RING_ART_CHANGED'
+          source=root/'canonical/gamepulse/clip_lab/fixtures/event80_manual_preview_anchors_20261025.csv'
+          rows=list(csv.DictReader(source.open()))
+          assert len(rows)==271 and int(rows[0]['frame'])==0 and int(rows[-1]['frame'])==270
+          fields=['time_s','team','player_id','player_name','x1','y1','x2','y2',
+                  'physical_path_id','physical_component_id','source_track_id',
+                  'safe','clip_global_authorized','ring_authorized',
+                  'floor_anchor_x','floor_anchor_y']
+          dst=root/'frozen-exact-assignments.csv'
+          with dst.open('w',newline='') as f:
+            w=csv.DictWriter(f,fieldnames=fields);w.writeheader()
+            for v in rows:
+              t=float(v['time_s'])
+              for pid,name,xkey,ykey in [(203500,'Steven Adams','adams_x','adams_y'),
+                                          (1627832,'Fred VanVleet','fred_x','fred_y')]:
+                x,y=float(v[xkey]),float(v[ykey])
+                # Display bbox is only a lower-body depth proxy. Foot is
+                # separately controlled by the independently reviewed anchor.
+                # Keep median body height below locked scale reference 129.6 px
+                # to retain canonical Broadcast size, exactly as in frozen v3.1.
+                bw=52 if pid==203500 else 44
+                bh=100 if pid==203500 else 93
+                w.writerow(dict(time_s=t,team='HOU',player_id=pid,player_name=name,
+                  x1=x-bw/2,y1=y-bh,x2=x+bw/2,y2=y,
+                  physical_path_id=f'manual-foot:{pid}',physical_component_id=f'manual-foot:{pid}',
+                  source_track_id=f'manual-foot:{pid}',safe=True,clip_global_authorized=True,
+                  ring_authorized=True,floor_anchor_x=x,floor_anchor_y=y))
+          print('FROZEN_SOURCE_GIT_BLOB_VERIFIED',blob)
+          print('MANUAL_VISUAL_FEET_ONLY',len(rows),'source_native_not_screen_projected')
+          PY
+          PYTHONPATH="$ROOT/locked:$ROOT/locked/tools" python3 \
+            "$ROOT/canonical/gamepulse/clip_lab/launch_frozen_ring_only.py" \
+            "$ROOT/locked/screen_tracker_nextgen/render_all_player_labels.py" \
+            --source "$ROOT/clean-broadcast.mp4" \
+            --assignments "$ROOT/frozen-exact-assignments.csv" \
+            --paths "$ROOT/frozen-exact-assignments.csv" \
+            --occlusion-tracks "$ROOT/frozen-exact-assignments.csv" \
+            --start-s 0 --end-s 9.0 \
+            --max-interp-gap .30 --hold-s .14 \
+            --ring-max-interp-gap .30 --ring-hold-s .14 \
+            --frame-ledger "$ROOT/frozen-v31-ledger.csv" \
+            --out "$ROOT/event80-exact-frozen-v31-fred-adams.mp4" \
+            > "$ROOT/render.log" 2>&1 \
+            || { tail -80 "$ROOT/render.log";exit 6; }
+          tail -12 "$ROOT/render.log"
+      - name: Validate every ring frame and create QA preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/v31"
+          python3 - "$ROOT" <<'PY'
+          import csv,sys,json,subprocess
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          video=root/'event80-exact-frozen-v31-fred-adams.mp4'
+          out=subprocess.check_output(['ffprobe','-v','error','-show_streams',
+              '-select_streams','v:0','-of','json',str(video)],text=True)
+          stream=json.loads(out)['streams'][0]
+          assert stream['width']==960 and stream['height']==540 and stream['codec_name']=='h264'
+          n=int(stream['nb_frames'])
+          ledger=list(csv.DictReader((root/'frozen-v31-ledger.csv').open()))
+          for pid in ('1627832','203500'):
+            ok={int(float(x['output_frame'])) for x in ledger
+                if x['player_id']==pid and x['ring_rendered']=='True'}
+            print('ORIGINAL_FROZEN_RING_COVERAGE',pid,len(ok),n,round(len(ok)/n,4))
+            assert len(ok)/n>=0.995 and 0 in ok and n-1 in ok
+          print('EXACT_ORIGINAL_FROZEN_V31_ALL_FRAMES_QA_PASS')
+          PY
+          mkdir -p "$ROOT/qa"
+          for T in 0 2 4 6 8; do
+            ffmpeg -y -v error -ss "$T" -i "$ROOT/event80-exact-frozen-v31-fred-adams.mp4" \
+              -frames:v 1 "$ROOT/qa/t${T}.jpg"
           done
-          rm -f "$ROOT/repos/nbacv/src/nbacv/jersey.py" "$ROOT/repos/nbacv/scripts/bench_jersey_ocr.py"
-          python3 -m pip install -q 'numpy==1.26.4' pandas scipy pillow opencv-python-headless==4.10.0.84
-          python3 -m pip install -q 'supervision==0.29.1' ultralytics 'onnxruntime>=1.23.2,<2' pyreadr requests timm pyyaml gdown
-          python3 -m pip install -q 'rich>=13' 'pydeprecate>=0.8' 'jsonargparse>=4.48,<5' pydantic hydra-core loguru pycocotools matplotlib tqdm orjson httpx
-          python3 -m pip install -q --no-deps -e "$ROOT/repos/trackers" -e "$ROOT/repos/ode"
-          python3 -m pip install -q --force-reinstall --no-deps 'numpy==1.26.4'
-          curl -L --fail --retry 3 --silent --show-error \
-            'https://huggingface.co/ortizeg/basketball-rf-detr-m-640/resolve/main/rfdetr_m_640.onnx' \
-            -o "$ROOT/models/rfdetr_m_640.onnx"
-          test "$(sha256sum "$ROOT/models/rfdetr_m_640.onnx" | cut -d' ' -f1)" = '708789b50c42b5265cced64276a8beb1b7f294d324f954d359fd8a2d01f5a939'
-          curl -L --fail --retry 3 --silent --show-error \
-            'https://huggingface.co/AnzeZ/basketball-court-yolo11m-pose/resolve/main/best.pt' \
-            -o "$ROOT/models/court_yolo11m_pose.pt"
-          export HOOPVISION_IDENTITY_ONLY=1 HOOPVISION_TRACKING_ANALYSIS_ONLY=1
-          PYTHONPATH="$ROOT/private-frozen:$ROOT/private-frozen/tools:$ROOT/repos/nbacv/src" \
-            python3 "$ROOT/private-frozen/tools/adams_screen_prod_v3.py" \
-              --game 0022600009 --event 80 --source-file "$ROOT/event80-broadcast.mp4" \
-              --out "$ROOT/original-tracking" \
-              --detector-onnx "$ROOT/models/rfdetr_m_640.onnx" \
-              --object-eval-src "$ROOT/repos/ode/src" \
-              --court-model "$ROOT/models/court_yolo11m_pose.pt" \
-              --nbacv-src "$ROOT/repos/nbacv/src" \
-              --analysis-fps 6 --court-fps 2 --number-fps 1 \
-              --start-s 0 --end-s 20.3 --court-device cpu \
-              > "$ROOT/frozen-tracker.log" 2>&1 \
-              || { echo ORIGINAL_FROZEN_BODY_OR_COURT_INFERENCE_FAILED; exit 5; }
-          python3 - "$ROOT" <<'PY'
-          import json,sys,csv
-          from pathlib import Path
-          root=Path(sys.argv[1])/'original-tracking'
-          rows=list(csv.DictReader((root/'tracks.csv').open()))
-          court=json.loads((root/'court_frames.json').read_text())
-          assert len(rows)>=8 and sum(r.get('H') is not None for r in court)>=3
-          print('ORIGINAL_FROZEN_PHYSICAL_TRACK_AND_COURT_PASS',len(rows),len(court))
-          PY
-      - name: Fuse native IDs to original visual feet and render unchanged v3.1 rings
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$RUNNER_TEMP/e80"
-          DURATION="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$ROOT/event80-broadcast.mp4")"
-          python3 "$ROOT/private-main/gamepulse/clip_lab/prepare_frozen_physical.py" \
-            --tracks "$ROOT/original-tracking/tracks.csv" \
-            --courts "$ROOT/original-tracking/court_frames.json" \
-            --output "$ROOT/physical_paths.csv" --fps 30 --duration-s "$DURATION" \
-            > "$ROOT/physical-qa.json"
-          python3 "$ROOT/private-main/gamepulse/clip_lab/frozen_v31_gamepulse_bridge.py" \
-            --native "$ROOT/native.json" \
-            --frozen-physical-paths "$ROOT/physical_paths.csv" \
-            --frozen-court-frames "$ROOT/original-tracking/court_frames.json" \
-            --target-players '1627832:Fred VanVleet,203500:Steven Adams' \
-            --fps 30 --duration-s "$DURATION" \
-            --utc-search-from-ms 1792807050000 --utc-search-to-ms 1792807100000 \
-            --provisional-preview \
-            --out "$ROOT/fused" > "$ROOT/native-fusion.log"
-          python3 - "$ROOT" <<'PY'
-          import csv,sys,json,collections
-          from pathlib import Path
-          root=Path(sys.argv[1]); q=json.loads((root/'fused/frozen_v31_gamepulse_qa.json').read_text()); print('GAMEPULSE_IDENTITY_QA',json.dumps({k:v for k,v in q.items() if k!='possession_intervals'}))
-          rows=list(csv.DictReader((root/'fused/frozen_v31_gamepulse_assignments.csv').open()))
-          for pid in ('1627832','203500'):
-            times=sorted(float(r['time_s']) for r in rows if r['player_id']==pid)
-            per=collections.Counter(int(t) for t in times)
-            print('ASSIGNED_FOOT_SAMPLES',pid,'count',len(times),'range',round(min(times),2) if times else None,round(max(times),2) if times else None,'per_second',sorted(per.items()))
-          PY
-          python3 "$ROOT/private-main/gamepulse/clip_lab/adaptive_frozen_visual_tracking.py" \
-            --native "$ROOT/native.json" \
-            --physical "$ROOT/physical_paths.csv" \
-            --courts "$ROOT/original-tracking/court_frames.json" \
-            --qa "$ROOT/fused/frozen_v31_gamepulse_qa.json" \
-            --assignments "$ROOT/fused/frozen_v31_gamepulse_assignments.csv" \
-            --fps 30 --duration-s "$DURATION" --event-video-time-s 6.5 > "$ROOT/tracklet-qa.json"
-          echo ADAPTIVE_VISIBLE_FEET_RECONCILED
-          cat "$ROOT/tracklet-qa.json"
-          printf '%s\n' '{"schema":"hoopvision.clip-lab.native-last-touch-intervals.v1","possession_intervals":[]}' > "$ROOT/neutral-possession.json"
-          PYTHONPATH="$ROOT/private-frozen:$ROOT/private-frozen/tools" \
-            python3 "$ROOT/private-main/gamepulse/clip_lab/launch_frozen_ring_only.py" \
-              "$ROOT/private-frozen/screen_tracker_nextgen/render_all_player_labels.py" \
-              --source "$ROOT/event80-broadcast.mp4" \
-              --end-s 9.6 \
-              --assignments "$ROOT/fused/frozen_v31_gamepulse_assignments.csv" \
-              --paths "$ROOT/fused/frozen_v31_gamepulse_assignments.csv" \
-              --court-frames "$ROOT/original-tracking/court_frames.json" \
-              --occlusion-tracks "$ROOT/original-tracking/tracks.csv" \
-              --possession-events "$ROOT/neutral-possession.json" \
-              --max-interp-gap .28 --hold-s .14 \
-              --ring-max-interp-gap .28 --ring-hold-s .14 \
-              --frame-ledger "$ROOT/frame-ledger.csv" \
-              --out "$ROOT/event80-fred-adams-original-frozen-v31.mp4" \
-              > "$ROOT/frozen-render.log" 2>&1 || { echo ORIGINAL_FROZEN_COMPOSITOR_FAILED; exit 6; }
-          python3 - "$ROOT" <<'PY'
-          import csv,json,subprocess,sys
-          from pathlib import Path
-          root=Path(sys.argv[1]);vid=root/'event80-fred-adams-original-frozen-v31.mp4'
-          info=json.loads(subprocess.run(['ffprobe','-v','error','-show_entries','stream=nb_frames,width,height,codec_type','-show_entries','format=duration','-of','json',str(vid)],capture_output=True,text=True,check=True).stdout)
-          vs=next(s for s in info['streams'] if s['codec_type']=='video')
-          n=int(vs['nb_frames']);assert n>=200 and vs['width']>=640
-          ledger=list(csv.DictReader((root/'frame-ledger.csv').open()))
-          for pid in ('1627832','203500'):
-            per_s={i:sum(1 for r in ledger if r['player_id']==pid and r['ring_rendered']=='True' and int(float(r['time_s']))==i) for i in range(20)}
-            all_pid=[r for r in ledger if r['player_id']==pid]
-            print('RING_LEDGER_DIAG',pid,'rows',len(all_pid),'per_sec',per_s, 'blank',__import__('collections').Counter(r['blank_reason'] for r in all_pid),flush=True)
-            present={int(float(r['output_frame'])) for r in ledger if r['player_id']==pid and r['ring_rendered']=='True'}
-            assert len(present)/n>=.98 and 0 in present and n-1 in present, 'FROZEN_RING_END_TO_END_COVERAGE_FAILED'
-            missing=sorted(set(range(n))-present);longest=0;length=0;prev=None
-            for x in missing:
-                length=length+1 if prev is not None and x==prev+1 else 1
-                longest=max(longest,length);prev=x
-            assert longest<=3,'FLOOR_RING_INTERIOR_FLICKER_TOO_LONG'
-          print('ORIGINAL_TWO_PLAYER_V31_RINGED_MP4_CONTINUITY_PASS',n)
-          PY
       - uses: actions/upload-artifact@v4
         if: ${{ always() }}
         with:
-          name: clip-lab-event80-original-frozen-v31-chat-mp4
-          path: ${{ runner.temp }}/e80/event80-fred-adams-original-frozen-v31.mp4
-          retention-days: 1
+          name: clip-lab-event80-exact-frozen-v31-two-rings-mp4
+          path: |
+            ${{ runner.temp }}/v31/event80-exact-frozen-v31-fred-adams.mp4
+            ${{ runner.temp }}/v31/qa/*.jpg
           if-no-files-found: ignore
+          retention-days: 2
