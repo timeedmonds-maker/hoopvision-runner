@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 three-case original native XYZ recovery
+name: Integrated Pulse PR776 official ten-player to NBA episode integration
 on:
   push:
     branches: [main]
@@ -13,11 +13,11 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        game_id: ['0022600003', '0022600004', '0022600086']
+        game_id: ['0022600009']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PIN: 3f1620040cbec0aacec0324bc8f71826806ff1e8
+      PIN: e4cdf6b3300c2793b8a572de287facb6f1bce8be
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
       GAME_ID: ${{ matrix.game_id }}
     steps:
@@ -36,16 +36,18 @@ jobs:
           echo "WORK=$ROOT" >> "$GITHUB_ENV"
           for path in \
             gamepulse/fusion/provisional_official_lineup_native_xyz_2026.py \
+            gamepulse/fusion/official_lineup_episode_clock_candidates_2026.py \
             gamepulse/fusion/official_lineup_trajectory_2026.py \
             gamepulse/fusion/original_sdk_xyz_clock_chain_aggregation_2026.py \
             gamepulse/fusion/automatic_clock_feature_search_2026.py \
             gamepulse/fusion/universal_possession_alignment_2026.py \
-            gamepulse/fusion/tests/test_provisional_official_lineup_native_xyz_2026.py; do
+            gamepulse/fusion/tests/test_provisional_official_lineup_native_xyz_2026.py \
+            gamepulse/fusion/tests/test_official_lineup_episode_clock_candidates_2026.py; do
             gh api "repos/$PRIVATE_REPO/contents/$path?ref=$PIN" --jq .content |
               base64 -d > "$ROOT/$(basename "$path")"
           done
           (cd "$ROOT" && python3 -m py_compile *.py &&
-           python3 -m unittest -v test_provisional_official_lineup_native_xyz_2026)
+           python3 -m unittest -v test_provisional_official_lineup_native_xyz_2026 test_official_lineup_episode_clock_candidates_2026)
       - name: SHA-verified original 13-part SDK pilot
         shell: bash
         run: |
@@ -57,7 +59,8 @@ jobs:
           test "$(find sdk -name 'sdk-part-*.tar.gz' | wc -l)" -eq 13
           for pair in "gamepulse/fusion/official_lineup_clock/index.json:index.json" \
                       "gamepulse/fusion/official_lineup_clock/games/$GAME_ID.json:official.json" \
-                      "gamepulse/fusion/qa/auto_physics/${GAME_ID:0:8}/$GAME_ID.json:auto.json"; do
+                      "gamepulse/fusion/qa/auto_physics/${GAME_ID:0:8}/$GAME_ID.json:auto.json" \
+                      "gamepulse/fusion/materialized/nba_episode_tracking_pr776_20261025/$GAME_ID.json:episodes.json"; do
             path="$(echo "$pair" | cut -d: -f1)"
             dst="$(echo "$pair" | cut -d: -f2)"
             gh api "repos/$PRIVATE_REPO/contents/$path?ref=$PIN" --jq .content |
@@ -72,6 +75,7 @@ jobs:
           python3 provisional_official_lineup_native_xyz_2026.py \
             --game-id "$GAME_ID" --official-lineup official.json \
             --auto-qa auto.json --release-json release.json --archive-dir sdk \
+            --episode-view episodes.json \
             --out result.json
       - name: Publish private-only source QA
         shell: bash
@@ -84,9 +88,11 @@ jobs:
           d=json.load(open("result.json"));c=d["counts"]
           assert c["original_unique_frames"]>1000
           assert c["original_ball_xyz_frames"]>1000
-          assert c["PROVISIONAL_CLOCK_OFFICIAL_LINEUP"]>=0
+          assert c["PROVISIONAL_CLOCK_OFFICIAL_LINEUP"]>0
+          assert c["nba_field_PROVISIONAL_UNIQUE_NBA_SOURCE_FIELD_EPISODE"]>0
+          assert d["nba_field_episodes_considered"]>100
           assert d["physical_possessions_certified"]==0 and not d["original_coordinates_exported"]
-          uri=("repos/"+os.environ["PRIVATE_REPO"]+"/contents/gamepulse/fusion/qa/official_native_lineup_xyz_bridge_"+os.environ["GAME_ID"]+"_20261026.json")
+          uri=("repos/"+os.environ["PRIVATE_REPO"]+"/contents/gamepulse/fusion/qa/official_native_episode_xyz_bridge_"+os.environ["GAME_ID"]+"_20261026.json")
           raw=(json.dumps(d,sort_keys=True,indent=2)+"\n").encode()
           item={"branch":os.environ["BRANCH"],"message":"data(gamepulse): source-verified NBA lineup original XYZ pilot",
                 "content":base64.b64encode(raw).decode()}
