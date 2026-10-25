@@ -158,7 +158,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
-    ".github/workflows/gamepulse-pr776-official-native-xyz-bridge.yml": "568eba75bd05d98fb53bbf921f3b9a03fac1b1b1",  # reviewed: private 13-part SDK, source-independent tests, private-only aggregate XYZ QA
+    ".github/workflows/gamepulse-pr776-official-native-xyz-bridge.yml": "bfff7805d3833a6d76beca6573a8e1a33aecc88a",  # reviewed: private 13-part SDK, source-independent tests, private-only aggregate XYZ QA
     ".github/workflows/gamepulse-official-lineup-clock-28.yml": "5e3ff52f3cf5825f4457c8dcea9ba72f828d7c28",  # reviewed: 28-game official PBP/provider CPU, private-only identities and aggregate public QA
     ".github/workflows/gamepulse-rockets-official-five-recovery.yml": "8f01ef993d7285ffce8c03e2ff2d1dc349f0b20e",  # reviewed: official NBA provider, private-only result; aggregate logs
     ".github/workflows/clip-lab-sengun-hawks-hls.yml": "cc7f972f9d51cc7aafe10fa71f0b395638bbed74",  # reviewed: NBA public event probe, metadata-only logs, no artifacts
