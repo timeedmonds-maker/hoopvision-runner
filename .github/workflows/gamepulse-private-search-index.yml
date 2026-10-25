@@ -9,6 +9,9 @@ on:
   schedule:
     - cron: '23 7 * * *'
   workflow_dispatch:
+  workflow_run:
+    workflows: ['Game Pulse Oct 24 final-game private SDK fastlane']
+    types: [completed]
 permissions:
   contents: read
 concurrency:
