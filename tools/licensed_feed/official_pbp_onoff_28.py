@@ -19,6 +19,9 @@ NEW_GAMES=["0022600006","0022600007","0022600008","0022600009",
 "0022600094","0022600095","0022600096","0022600097","0022600098",
 "0022600099","0022600100","0022600101","0022600102","0022600103"]
 
+FINAL8_GAMES=["0022600104","0022600105","0022600106","0022600107",
+              "0022600108","0022600109","0022600110","0022600111"]
+
 def command(*args,inp=None,allow_not_found=False):
     p=subprocess.run(["gh","api",*args],input=inp,text=True,capture_output=True,timeout=140)
     if p.returncode:
@@ -74,7 +77,7 @@ def load_code(root):
     sys.path.insert(0,str(root))
 
 def validate_one(gid,root):
-    assert gid in NEW_GAMES
+    assert gid in (NEW_GAMES+FINAL8_GAMES)
     source=private_json(f"{PREFIX}/index/games/{gid}.json")
     assert source["game"]["game_id"]==gid and source["game"]["tracking_frames"]>0
     load_code(root)
@@ -218,14 +221,77 @@ def assemble():
         raise RuntimeError("NBA_PROVIDER_ONOFF_STILL_INCOMPLETE_PRESERVED_VERIFIED_PARTIAL_INDEX")
     print("OFFICIAL_NBA_PBP_AND_ONOFF_28GAME_PRIVATE_SEARCH_VERIFIED")
 
+def assemble36():
+    """Merge verified final eight with the frozen 28; source failures stay explicit."""
+    fusion=private_json(f"{PREFIX}/index/index.json")
+    events=private_json(f"{PREFIX}/official_pbp_timing/index-2026-27-expanded.json")
+    prior=private_json(f"{PREFIX}/onoff/index-2026-27-expanded.json")
+    assert set(fusion["games"])==set(events["games"]) and len(fusion["games"])==36
+    assert len(prior["games"]) in (28,36)
+    assert set(prior["games"]).issubset(fusion["games"])
+    old28={gid:value for gid,value in prior["games"].items() if gid not in FINAL8_GAMES}
+    assert len(old28)==28, "FROZEN_28_PROVIDER_DATA_MISSING"
+    merged=dict(prior["games"])
+    missing={}
+    for gid in FINAL8_GAMES:
+        qa=private_json(f"{PREFIX}/native_28_qa/games/{gid}.json",True)
+        reasons=[]
+        if not qa or not qa.get("nba_provider_onoff_certified"):
+            reasons.append("INDEPENDENT_NBA_GAME_ONOFF_PROVIDER_UNVERIFIED")
+        if not qa or not qa.get("formal_pbp_certified"):
+            reasons.append("INDEPENDENT_NBA_FORMAL_PBP_UNVERIFIED")
+        doc=private_json(f"{PREFIX}/onoff/games/{gid}.json",True)
+        if doc is None or doc.get("schema")!=SCHEMA or doc.get("game_id")!=gid:
+            reasons.append("SOURCE_SCOPED_NBA_ONOFF_DOCUMENT_NOT_PRESENT")
+        elif not doc.get("verified_player_onoff",0)>0 or not doc.get("official_possession_values_available",0)>0:
+            reasons.append("NBA_ONOFF_LINEUP_OR_POSSESSION_COVERAGE_UNVERIFIED")
+        if reasons:
+            missing[gid]={"reasons":reasons,"provider_source_qa":(qa or {}).get("onoff_source_qa",{})}
+            continue
+        assert gid in events["games"] and events["games"][gid]["action_records"]>=300
+        path=f"{PREFIX}/onoff/games/{gid}.json"
+        raw=private_bytes(path)
+        merged[gid]={"path":path,"sha256":hashlib.sha256(raw).hexdigest(),
+            "official_fives":len(doc["official_lineups"]),
+            "matched_tracking_fives":doc["matched_qualified_tracking_lineups"],
+            "player_onoff_verified":doc["verified_player_onoff"],
+            "official_possession_rows":doc["official_possession_values_available"],
+            "nba_provider_ppp_fives":qa.get("nba_provider_ppp_lineups",0)}
+    complete=len(merged)==36 and not missing
+    result={"schema":SCHEMA,"source_frozen_original_14":OFFICIAL_INDEX,
+        "source_prior_28":"gamepulse/fusion/onoff/index-2026-27-expanded.json",
+        "season":"2026-27","through_us_game_date":"2026-10-24",
+        "game_count":len(merged),"complete_36":complete,
+        "source_policy":"Independent NBA game-scoped lineup, ONOFF and possession denominator; not derived from tracking frame counts",
+        "native_possession_chain_certified":False,
+        "prior_28_preserved":all(merged.get(gid)==row for gid,row in old28.items()),
+        "games":merged}
+    assert result["prior_28_preserved"]
+    save_json(f"{PREFIX}/onoff/index-2026-27-through-20261024.json",result)
+    status={"schema":"gamepulse.native-official-36game-integration-qa.v1",
+        "checked_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "fusion_game_count":36,"official_pbp_games":36,
+        "nba_provider_onoff_games":len(merged),"missing_new_games":missing,
+        "all_36_verified":complete,"native_gamepulse_possessions_certified":0}
+    save_json(f"{PREFIX}/native_36_qa/season_status.json",status)
+    print("PRIVATE_NBA_36GAME_INDEPENDENT_ONOFF",json.dumps({
+        "verified":len(merged),"missing":sorted(missing),"complete":complete}))
+    if not complete:
+        raise RuntimeError("NBA_GAME_SCOPED_PROVIDER_INCOMPLETE_PRESERVE_VERIFIED_PARTIAL_COVERAGE")
+    # Upgrade only once all eight game-scoped NBA provider sources are verified;
+    # preserve the frozen 28 source metadata byte-equivalently.
+    save_json(f"{PREFIX}/onoff/index-2026-27-expanded.json",result)
+    print("PRIVATE_NBA_ONOFF_36_GAME_SEASON_VERIFIED")
+
 def main():
     p=argparse.ArgumentParser()
-    p.add_argument("operation",choices=["one","assemble"])
+    p.add_argument("operation",choices=["one","assemble","assemble36"])
     p.add_argument("--game")
     a=p.parse_args()
     if a.operation=="one":
-        assert a.game in NEW_GAMES
+        assert a.game in (NEW_GAMES+FINAL8_GAMES)
         from tempfile import TemporaryDirectory
         with TemporaryDirectory() as t:validate_one(a.game,Path(t))
+    elif a.operation=="assemble36":assemble36()
     else:assemble()
 if __name__=="__main__":main()
