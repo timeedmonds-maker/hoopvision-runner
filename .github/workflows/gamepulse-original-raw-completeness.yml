@@ -1,5 +1,5 @@
 name: Integrated Pulse original raw tracking completeness
-# Security reviewed and explicitly allowlisted; SHA-verified aggregates only.
+# Security reviewed: original SHA-verified aggregate QA only.
 on:
   push:
     branches: [main]
