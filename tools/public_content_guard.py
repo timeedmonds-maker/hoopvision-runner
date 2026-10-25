@@ -159,7 +159,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
-    ".github/workflows/gamepulse-pr776-native-event-windows.yml": "4cdc833e5b13d417d0e85260e1b11a87d5868f10",  # reviewed private NBA/native guarded research windows no raw SDK coordinates
+    ".github/workflows/gamepulse-pr776-native-event-windows.yml": "f98c6f958260ee926d83a075c4abe93797b037b3",  # reviewed private NBA/native guarded research windows no raw SDK coordinates
     ".github/workflows/gamepulse-pr776-private-event-xyz.yml": "4179f50689e99a428784a33cece548ea80e4e44a",  # private-only SHA-verified SDK event subset; no coordinates in public logs
     ".github/workflows/gamepulse-pr776-event-first-36.yml": "5af8507e5d2274ac13c9fdf9d5a9568ae778cf65",  # reviewed: 36-game private read-only source-graded event query, aggregate private receipt
     ".github/workflows/gamepulse-pr776-clock-shadow-study.yml": "844ff228aecad1a2537d4d986329e7b498d015bc",  # reviewed: private SHA-pinned clock QA, no raw source export or physical certification
