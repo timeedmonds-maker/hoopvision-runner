@@ -1,4 +1,5 @@
 name: Game Pulse Blueprint private fusion searchable x-man warehouse
+# 2026-10-26: original SDK season catch-up from 28 to 36 verified archived games, keep private source and old scientific gates.
 # Recheck SHA-safe GitHub private archive writes and ON/OFF WOWY source-gated PPP.
 # Public runner CPU only. Licensed XYZ and all generated outputs go exclusively
 # to PRIVATE 104 Releases; no public artifacts or data-bearing logs.
@@ -31,24 +32,31 @@ jobs:
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN" || { echo 'PRIVATE_FUSION_CREDENTIAL_UNAVAILABLE'; exit 3; }
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
-      - name: Check 15-game source readiness and avoid redundant expensive rebuilds
+      - name: Gate on verified 36-game original SDK catalog; do not rebuild earlier validated snapshot
         id: ready
         shell: bash
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
-          catalog=$(gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json' --jq '.content' | base64 -d)
-          if ! jq -e '.game_count >= 15 and .games["0022600006"].index_state == "VERIFIED_ARCHIVE_INDEX"' <<< "$catalog" >/dev/null; then
-            echo 'needed=false' >> "$GITHUB_OUTPUT"
-            echo 'WAIT_FOR_SOURCE_COMPLETE_AND_15_GAME_CATALOG'
-          elif gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/games/0022600006.json' >/dev/null 2>&1; then
-            echo 'needed=false' >> "$GITHUB_OUTPUT"
-            echo 'CAVS_FUSION_SEARCH_VIEW_ALREADY_PRESENT'
-          else
-            echo 'needed=true' >> "$GITHUB_OUTPUT"
-            echo 'CAVS_BLUEPRINT_FUSION_REFRESH_READY'
-          fi
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-auto-refresh-provisional.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season36-catalog.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/index.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season36-existing.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])
+          cat=json.loads((root/"season36-catalog.json").read_text())
+          old=json.loads((root/"season36-existing.json").read_text())
+          expected=set(["0022600104","0022600105","0022600106","0022600107","0022600108","0022600109","0022600110","0022600111"])
+          assert cat["season"]=="2026-27" and cat["game_count"]==36
+          assert len(cat["games"])==36 and expected.issubset(cat["games"])
+          assert all(g["index_state"]=="VERIFIED_ARCHIVE_INDEX" and g.get("source_signature")
+                     for g in cat["games"].values()), "UNCERTIFIED_ARCHIVE_IN_CATALOG"
+          assert set(old["games"]).issubset(cat["games"]) and len(old["games"])>=28, "EXISTING_INDEX_NOT_PRESERVED"
+          print("36_GAME_PRIVATE_SOURCE_GATE_PASSED",len(old["games"]),"existing",len(cat["games"]),"verified")
+          with open(os.environ["GITHUB_OUTPUT"],"a") as handle:
+              handle.write("needed="+("false" if len(old["games"])==36 else "true")+"\\n")
+          PY
       - name: Download private integration code and run synthetic tests
         if: steps.ready.outputs.needed == 'true'
         shell: bash
@@ -60,7 +68,7 @@ jobs:
             base64 -d > "$ROOT/build.py"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tests/test_fusion.py?ref=main' --jq .content |
             base64 -d > "$ROOT/tests/test_fusion.py"
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27.json?ref=main' --jq .content |
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-auto-refresh-provisional.json?ref=main' --jq .content |
             base64 -d > "$ROOT/gamepulse-catalog.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/materialize.py?ref=main' --jq .content |
             base64 -d > "$ROOT/materialize.py"
@@ -88,11 +96,11 @@ jobs:
           assert db.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
           games=db.execute("SELECT COUNT(*) FROM games").fetchone()[0]
           rows=db.execute("SELECT COUNT(*) FROM frames").fetchone()[0]
-          assert games>=15 and rows>100000
+          assert games==36 and rows>900000
           assert db.execute("SELECT COUNT(*) FROM lineups_xman WHERE x BETWEEN 1 AND 5").fetchone()[0]>0
           db.close()
           report=json.loads((folder/"gamepulse-fusion.sqlite3.manifest.json").read_text())
-          assert report["game_count"]==games
+          assert report["game_count"]==games and len(report["game_coverage"])==36
           assert report["total_frames"]==rows
           assert report["canonical_source_verified"]>=14, "ORIGINAL_14_BLUEPRINT_SOURCE_LOST"
           assert report["canonical_source_deferred"]<=games-14, "ORIGINAL_14_BLUEPRINT_SOURCE_DEFERRED"
@@ -145,7 +153,7 @@ jobs:
           root=Path(os.environ["RUNNER_TEMP"])/"gamepulse-fusion/search-views"
           manifest=json.loads((root/"index.json").read_text())
           assert manifest["schema"]=="gamepulse.blueprint-chat-search.v1"
-          assert len(manifest["games"])>=15 and "0022600006" in manifest["games"]
+          assert len(manifest["games"])==36 and "0022600111" in manifest["games"]
           assert manifest["contains_raw_XYZ"] is False
           files=[(root/(gid+".json"),entry["path"])
                  for gid,entry in sorted(manifest["games"].items())]
@@ -182,7 +190,7 @@ jobs:
           root=Path(os.environ["RUNNER_TEMP"])/"gamepulse-fusion/onoff"
           m=json.loads((root/"index.json").read_text())
           assert m["schema"]=="gamepulse.2026-27-onoff-ppp.v1"
-          assert len(m["games"])>=15 and "0022600006" in m["games"]
+          assert len(m["games"])==36 and "0022600111" in m["games"]
           assert m["xman_onoff_rows"]>=11104
           assert m["native_5v5_samples"]>=144442
           assert m["no_fabrication"] is True
@@ -255,7 +263,17 @@ jobs:
           previous=subprocess.run(["gh","api",target],capture_output=True,text=True)
           payload={"message":"chore(gamepulse): update private Blueprint x-man search status",
                    "branch":"main","content":base64.b64encode((json.dumps(state,indent=2)+"\n").encode()).decode()}
-          if previous.returncode==0:payload["sha"]=json.loads(previous.stdout)["sha"]
+          if previous.returncode==0:
+              saved=json.loads(previous.stdout)
+              previous_status=json.loads(base64.b64decode(saved["content"]))
+              for key in ("official_pbp_verified_games","nba_provider_onoff_verified_games",
+                          "official_pbp_index","nba_provider_onoff_index",
+                          "original_source_onoff_qa","independently_certified_full_possession_chains",
+                          "possession_qa_state"):
+                  if key in previous_status and key not in state:
+                      state[key]=previous_status[key]
+              payload["content"]=base64.b64encode((json.dumps(state,indent=2)+"\\n").encode()).decode()
+              payload["sha"]=saved["sha"]
           elif previous.returncode!=1:raise RuntimeError("private_status_lookup_failed")
           result=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
                                 input=json.dumps(payload),capture_output=True,text=True)
