@@ -1,4 +1,4 @@
-name: Integrated Pulse 28-game official NBA lineup to original XYZ CPU
+name: Integrated Pulse PR776 three-case original native XYZ recovery
 on:
   push:
     branches: [main]
@@ -11,13 +11,13 @@ jobs:
     timeout-minutes: 35
     strategy:
       fail-fast: false
-      max-parallel: 4
+      max-parallel: 1
       matrix:
-        game_id: ['0022600001', '0022600002', '0022600003', '0022600004', '0022600005', '0022600006', '0022600007', '0022600008', '0022600009', '0022600085', '0022600086', '0022600087', '0022600088', '0022600089', '0022600090', '0022600091', '0022600092', '0022600093', '0022600094', '0022600095', '0022600096', '0022600097', '0022600098', '0022600099', '0022600100', '0022600101', '0022600102', '0022600103']
+        game_id: ['0022600003', '0022600004', '0022600086']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PIN: baa593bf73752bf27851e83b7e398f6875cb65c0
+      PIN: 41150054d071b66bd39e88d883c5d7bc07308181
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
       GAME_ID: ${{ matrix.game_id }}
     steps:
