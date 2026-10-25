@@ -64,3 +64,24 @@ jobs:
             --jq '.assets[] | select(.name=="event732-cotracker3-rightslash-research.json") | .digest')"
           test "$remote" = "sha256:$(sha256sum "$TMP/qa/event732-cotracker3-rightslash-research.json" | cut -d' ' -f1)"
           echo NBA_COTRACKER3_PRIVATE_RESEARCH_SHA256_PASS
+
+          python3 - "$TMP/qa/event732-cotracker3-rightslash-research.json" "$TMP/put.json" <<'PY'
+          import base64,json,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_bytes()
+          assert len(raw)<180000
+          Path(sys.argv[2]).write_text(json.dumps({
+              "branch":"research/amen-wemby-freeze-spin-20261024",
+              "message":"research: bounded right-slash source CoTracker3 predicted point trajectories",
+              "content":base64.b64encode(raw).decode("ascii")}))
+          PY
+          DEST='repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_cotracker3_rightslash_research.json'
+          if gh api "$DEST?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha >/dev/null 2>&1; then
+            python3 - "$TMP/put.json" "$(gh api "$DEST?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha)" <<'PY'
+          import json,sys
+          path=sys.argv[1];data=json.load(open(path));data["sha"]=sys.argv[2]
+          open(path,"w").write(json.dumps(data))
+          PY
+          fi
+          gh api -X PUT "$DEST" --input "$TMP/put.json" --jq .content.sha >/dev/null
+          echo COTRACKER3_PRIVATE_REVIEW_FIXTURE_COMMITTED
