@@ -76,3 +76,36 @@ export function summarize(parts,manifests){
  }
  return sum;
 }
+
+/**
+ * Archive completeness (all requested 5s HTTP slots returned) is not the same as
+ * tracking completeness (usable NBA player positions within game minutes).
+ * Restrict this source-coverage warning to the five middle 25-minute parts:
+ * late postgame empty SDK responses must never be called missing gameplay.
+ * Fail closed on sparse gameplay rather than inventing coordinates.
+ */
+export function diagnoseTrackingCoverage(parts,manifests){
+ if(parts.length!==manifests.length||parts.length===0)
+  throw Error('coverage_manifest_count_mismatch');
+ const middle=parts.map((job,i)=>({part:job.part,
+  frames:manifests[i]?.frames_with_players,
+  ball:manifests[i]?.frames_with_ball,
+  empty:manifests[i]?.empty_windows,
+  windows:job.count}))
+  .filter(x=>x.part>=1&&x.part<=5);
+ if(!middle.length)return {state:'INSUFFICIENT_MIDDLE_GAME_EVIDENCE',
+   suspicious_parts:[],middle_part_frame_baseline:null};
+ if(middle.some(x=>!Number.isSafeInteger(x.frames)||x.frames<0||
+   !Number.isSafeInteger(x.ball)||x.ball<0||
+   !Number.isSafeInteger(x.empty)||x.empty<0))
+   throw Error('invalid_tracking_coverage_counts');
+ const frames=middle.map(x=>x.frames).sort((a,b)=>a-b);
+ const baseline=frames[Math.floor(frames.length/2)];
+ const suspicious_parts=middle.filter(x=>
+   x.frames<Math.max(100,Math.floor(baseline*0.2))&&x.empty>=Math.floor(x.windows*0.5))
+   .map(x=>x.part);
+ return {state:suspicious_parts.length?'SUSPECTED_SOURCE_TRACKING_GAPS':
+  'NO_SEVERE_MIDDLE_PART_GAPS_DETECTED',
+  middle_part_frame_baseline:baseline,suspicious_parts,
+  review_scope:'NATIVE_SOURCE_OBSERVATION_ONLY_NOT_PHYSICAL_POSSESSION_CERTIFICATION'};
+}
