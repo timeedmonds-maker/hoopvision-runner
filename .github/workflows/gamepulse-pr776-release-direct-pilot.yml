@@ -1,4 +1,4 @@
-name: Game Pulse original SDK direct-release integrity connectivity pilot
+name: Game Pulse private SDK release Basic credential integrity pilot
 on:
   push:
     branches: [main]
@@ -24,7 +24,7 @@ jobs:
           test -n "$asset_url"
           echo "PRIVATE_RELEASE_GRAPHQL_DOWNLOAD_URL_RESOLVED"
           curl -fsSL --max-time 50 --retry 2 \
-            -H "Authorization: Bearer $GH_TOKEN" \
+            -u "x-access-token:$GH_TOKEN" \
             -H "Accept: application/octet-stream" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "$asset_url" \
