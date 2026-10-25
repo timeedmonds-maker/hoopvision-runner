@@ -49,10 +49,10 @@ jobs:
             --pattern 'native_presentation_timestamps.json'
           gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_sam21_ball_mask_cpu.py?ref=70792f6ed18e35f1ff5cfca5e2c9314c8f6a5c96' \
             --jq .content | base64 -d > "$TMP/script.py"
-          python3 "$TMP/script.py" --selftest
           python3 -m pip install --quiet --disable-pip-version-check \
             'numpy<2' 'opencv-python-headless==4.10.0.84' 'pillow>=10,<12' \
             'hydra-core>=1.3,<1.4' 'iopath>=0.1.10,<0.2'
+          python3 "$TMP/script.py" --selftest
           python3 -m pip install --quiet --disable-pip-version-check \
             'torch==2.5.1' 'torchvision==0.20.1' \
             --index-url 'https://download.pytorch.org/whl/cpu'
