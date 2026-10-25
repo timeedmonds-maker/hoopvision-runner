@@ -24,7 +24,16 @@ jobs:
                   print("OFFICIAL_PBP_HTTP",f.status)
                   doc=json.load(f)
           except Exception as e:
-              print("OFFICIAL_PBP_FETCH_ERROR",repr(e));sys.exit(2)
+              print("OFFICIAL_PBP_FETCH_ERROR",repr(e))
+              for probe in [1,200,280,300,330,350,380,400,420,450,500]:
+                  pu=f"https://clips.nba.com/?gameNo={game}&eventNum={probe}&source=grs"
+                  try:
+                      with urllib.request.urlopen(urllib.request.Request(pu,headers={"User-Agent":"Mozilla/5.0","Referer":"https://clips.nba.com/"}),timeout=8) as r:
+                          t=r.read(500000).decode("utf-8","replace")
+                          m=re.search(r"<title>(.*?)</title>",t,re.I|re.S)
+                          print("PROBE",probe,r.status,"TITLE",html.unescape(m.group(1) if m else "")[:140],"HAS_HLS",(".m3u8" in t),"BODY_HINT",t[:70])
+                  except Exception as ex:print("PROBE",probe,"ERROR",repr(ex))
+              sys.exit(2)
           if str(doc.get("game",{}).get("gameId"))!=game: raise ValueError("PBP_GAME_MISMATCH")
           actions=doc["game"]["actions"]
           print("OFFICIAL_ACTIONS",len(actions))
