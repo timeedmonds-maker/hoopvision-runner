@@ -35,7 +35,7 @@ jobs:
                           print("EVENT_SCAN",probe,title[:160])
                           if not (("Clock:07:56" in title or "Clock:7:56" in title) and "sengun" in title.lower() and "dunk" in title.lower()): continue
                           opts=[]
-                          for o in re.finditer(r'<option\\s+value="([^"]+)"([^>]*)>(.*?)</option>',t,re.I|re.S):
+                          for o in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',t,re.I|re.S):
                               stream=html.unescape(o.group(1).strip())
                               label=re.sub(r"<[^>]+>","",html.unescape(o.group(3))).strip()
                               if ".m3u8" not in stream or "lrmedia.nba.com" not in stream:continue
@@ -81,7 +81,7 @@ jobs:
           except Exception as e:
               print("CLIPS_FETCH_ERROR",repr(e));sys.exit(4)
           options=[];seen=set()
-          for m in re.finditer(r'<option\\s+value="([^"]+)"([^>]*)>(.*?)</option>',page,re.I|re.S):
+          for m in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',page,re.I|re.S):
               stream=html.unescape(m.group(1).strip())
               label=re.sub(r"<[^>]+>","",html.unescape(m.group(3))).strip()
               if "lrmedia.nba.com" not in stream or ".m3u8" not in stream:continue
