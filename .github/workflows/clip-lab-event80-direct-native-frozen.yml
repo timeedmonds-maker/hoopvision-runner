@@ -1,4 +1,4 @@
-name: Clip Lab event80 native geometry scale and court registration test
+name: Clip Lab original NBA SDK Fred-green and Adams-Durant disambiguation
 on:
   push:
     branches: [main]
@@ -53,167 +53,40 @@ jobs:
           python3 -m py_compile "$ROOT/canonical/gamepulse/clip_lab/shot_window_native_diagnostic.py" \
             "$ROOT/canonical/gamepulse/clip_lab/frozen_v31_gamepulse_bridge.py"
           echo SOURCE_SHA_AND_PRIVATE_FROZEN_EVIDENCE_VERIFIED
-      - name: Test independent units and clock offsets on first nine seconds
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$RUNNER_TEMP/clip-lab-private"
-          python3 "$ROOT/canonical/gamepulse/clip_lab/shot_window_native_diagnostic.py" \
-            --native "$ROOT/native.json" --physical "$ROOT/physical_paths.csv" \
-            --courts "$ROOT/court_frames.json" \
-            --event-video-s 6.5 --end-s 9.0 \
-            --out "$ROOT/shot-window-diagnostic.json"
-          python3 - "$ROOT" <<'PY'
-          import json,sys
-          from pathlib import Path
-          q=json.loads((Path(sys.argv[1])/'shot-window-diagnostic.json').read_text())
-          assert q['screen_feet_source']=='ORIGINAL_FROZEN_V31_TRACKER'
-          assert q['render_authorized'] is False
-          print('FROZEN_SHOT_COURT_TRANSLATION_PROBES',len(q['independent_frozen_vs_native_court_translation_probes']))
-          PY
-      - name: Verify rejection of uncertified Adams ring drift and frozen geometry
+      - name: Verify independent 3-player Game Pulse against both original SDK captures
         shell: bash
         run: |
           set -euo pipefail
           ROOT="$RUNNER_TEMP/clip-lab-private"
           cd "$ROOT/canonical/gamepulse/clip_lab"
-          python3 -m unittest -v test_shot_window_render_gate.py
-          python3 shot_window_render_gate.py \
-            --diagnostic "$ROOT/shot-window-diagnostic.json" \
-            --out "$ROOT/native-shot-render-gate.json"
-          python3 - "$ROOT/native-shot-render-gate.json" <<'PY'
-          import json,sys
-          q=json.load(open(sys.argv[1]))
-          assert q['status']=='BLOCKED', 'Current unapproved camera calibration unexpectedly passed'
-          assert 'INSUFFICIENT_FULL_SHOT_PLAYER_PAIR_COVERAGE' in q['reasons']
-          assert 'UNCERTAIN_SECOND_8_PLAYER_203500' in q['reasons']
-          print('FROZEN_RING_PLAYER_DRIFT_FAIL_CLOSED_VERIFIED')
-          PY
-      - name: Inspect original frozen camera homographies over post-shot pan
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$RUNNER_TEMP/clip-lab-private"
-          gh release download clip-lab-hls-0022600009-80 \
-            --repo timeedmonds-maker/104 --pattern event80-broadcast.mp4 --dir "$ROOT"
-          echo '05dfdeaa6ae7654b2e2201142744b9ebc6dcf5e0bc535f90e7a5c54eea634734  '"$ROOT/event80-broadcast.mp4" | sha256sum -c
-          python3 -m pip install --quiet opencv-python-headless==4.10.0.84
-          python3 -m py_compile "$ROOT/canonical/gamepulse/clip_lab/qa_frozen_court_projection.py"
-          python3 "$ROOT/canonical/gamepulse/clip_lab/qa_frozen_court_projection.py" \
-            --source "$ROOT/event80-broadcast.mp4" \
-            --courts "$ROOT/court_frames.json" --out "$ROOT/qa"
-          python3 "$ROOT/canonical/gamepulse/clip_lab/event80_court_paint_gate.py" \
-            --video "$ROOT/event80-broadcast.mp4" \
-            --courts "$ROOT/court_frames.json" \
-            --out "$ROOT/qa/key-paint-qa.json"
-          python3 - "$ROOT/qa/key-paint-qa.json" <<'PY'
-          import json,sys
-          q=json.load(open(sys.argv[1]))
-          assert q['samples']>=7, 'UNSUPPORTED_PIXEL_SAMPLE_COUNT'
-          assert q['status']=='REJECTED_MISREGISTERED_NBA_KEY', 'COURT_QA_ASSUMPTION_CHANGED_REVIEW_REQUIRED'
-          print('MISREGISTERED_FROZEN_H_INDEPENDENTLY_CAUGHT',q['median_dark_fraction'],q['samples'])
-          PY
-          echo ORIGINAL_FROZEN_CAMERA_GEOMETRY_QA_EXPORT_READY
-      - name: Propagate verified frozen camera H through NBA Broadcast pans
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$RUNNER_TEMP/clip-lab-private"
-          python3 "$ROOT/canonical/gamepulse/clip_lab/orb_repair_original_court.py" \
-            --video "$ROOT/event80-broadcast.mp4" \
-            --courts "$ROOT/court_frames.json" \
-            --out "$ROOT/court_frames_orb_repaired.json" \
-            --qa "$ROOT/orb-camera-qa.json" --end-s 9.0
-          python3 "$ROOT/canonical/gamepulse/clip_lab/event80_court_paint_gate.py" \
-            --video "$ROOT/event80-broadcast.mp4" \
-            --courts "$ROOT/court_frames_orb_repaired.json" \
-            --out "$ROOT/qa/key-paint-repaired.json"
-          python3 "$ROOT/canonical/gamepulse/clip_lab/prepare_frozen_physical.py" \
-            --tracks "$ROOT/tracks.csv" \
-            --courts "$ROOT/court_frames_orb_repaired.json" \
-            --output "$ROOT/physical_paths_orb_repaired.csv" \
-            --fps 30 --duration-s 19.52
-          python3 "$ROOT/canonical/gamepulse/clip_lab/shot_window_native_diagnostic.py" \
-            --native "$ROOT/native.json" \
-            --physical "$ROOT/physical_paths_orb_repaired.csv" \
-            --courts "$ROOT/court_frames_orb_repaired.json" \
-            --event-video-s 6.5 --end-s 9.0 \
-            --out "$ROOT/orb-shot-diagnostic.json"
+          python3 -m py_compile event80_green_possession.py verified_three_player_source.py
+          python3 event80_green_possession.py \
+            --native-q1 "$ROOT/canonical/gamepulse/clip_lab/positions/0022600009_q1_durant_adams.json" \
+            --out "$ROOT/fred-native-frozen-green-interval.json"
+          python3 verified_three_player_source.py \
+            --event80 "$ROOT/native.json" \
+            --q1 "$ROOT/canonical/gamepulse/clip_lab/positions/0022600009_q1_durant_adams.json" \
+            --merged "$ROOT/three-player-native-private.json" \
+            --qa "$ROOT/three-player-crosscheck.json"
           python3 - "$ROOT" <<'PY'
           import json,sys
           from pathlib import Path
-          root=Path(sys.argv[1])
-          before=json.loads((root/'shot-window-diagnostic.json').read_text())
-          after=json.loads((root/'orb-shot-diagnostic.json').read_text())
-          qa=json.loads((root/'orb-camera-qa.json').read_text())
-          paint=json.loads((root/'qa/key-paint-repaired.json').read_text())
-          def sample(d):
-            q=[x for x in d['basis_max_coverage'] if x['cm_per_native_unit']==2.54 and x['origin_mode']=='centre']
-            return max([x['max_coverage'] for x in q],default=0)
-          assert qa['original_model_not_modified'] and qa['identity_not_assigned'] and qa['ring_art_not_modified']
-          assert paint['ring_render_authorized'] is False
-          print('FROZEN_NATIVE_COURT_REPAIR_COMPARISON',json.dumps({
-            'sampled_camera_calibrations_repaired':qa['corrected_samples'],
-            'trusted_ORB_camera_edges':qa['accepted_camera_pairs'],
-            'camera_paint_status':paint['status'],
-            'original_player_pair_coverage':sample(before),
-            'repaired_player_pair_coverage':sample(after)
-          },sort_keys=True))
-          PY
-      - name: Compare model paint size alignment against Game Pulse player coverage
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$RUNNER_TEMP/clip-lab-private"
-          python3 -m pip install --quiet scipy==1.11.4
-          python3 "$ROOT/canonical/gamepulse/clip_lab/experimental_spurs_paint_registration.py" \
-            --video "$ROOT/event80-broadcast.mp4" \
-            --courts "$ROOT/court_frames.json" \
-            --out "$ROOT/court_frames_paint_experimental.json" \
-            --qa "$ROOT/paint-affine-qa.json"
-          python3 "$ROOT/canonical/gamepulse/clip_lab/prepare_frozen_physical.py" \
-            --tracks "$ROOT/tracks.csv" \
-            --courts "$ROOT/court_frames_paint_experimental.json" \
-            --output "$ROOT/physical_paint_experimental.csv" \
-            --fps 30 --duration-s 19.52
-          python3 "$ROOT/canonical/gamepulse/clip_lab/shot_window_native_diagnostic.py" \
-            --native "$ROOT/native.json" \
-            --physical "$ROOT/physical_paint_experimental.csv" \
-            --courts "$ROOT/court_frames_paint_experimental.json" \
-            --event-video-s 6.5 --end-s 9.0 \
-            --out "$ROOT/paint-shot-diagnostic.json"
-          python3 - "$ROOT" <<'PY'
-          import json,sys
-          from pathlib import Path
-          root=Path(sys.argv[1])
-          base=json.loads((root/'shot-window-diagnostic.json').read_text())
-          paint=json.loads((root/'paint-shot-diagnostic.json').read_text())
-          geo=json.loads((root/'paint-affine-qa.json').read_text())
-          def cov(q):
-            options=[r for r in q['basis_max_coverage'] if r['cm_per_native_unit']==2.54 and r['origin_mode']=='centre']
-            return max((r['max_coverage'] for r in options),default=0.)
-          assert geo['render_authorized'] is False and geo['locked_ring_art_unchanged']
-          print('GEOMETRIC_SCALE_EXPERIMENT_RESULT',json.dumps({
-            'court_key_footprint_IoU_before':geo['median_iou_before'],
-            'court_key_footprint_IoU_after':geo['median_iou_after'],
-            'camera_frames_repaired':geo['corrected'],
-            'source_native_pair_coverage':cov(base),
-            'experimental_native_pair_coverage':cov(paint)},sort_keys=True))
+          p=Path(sys.argv[1])
+          q=json.loads((p/'three-player-crosscheck.json').read_text())
+          g=json.loads((p/'fred-native-frozen-green-interval.json').read_text())
+          assert q['joined_utc_frames']>=25 and q['render_authorized'] is False
+          assert g['possession_intervals'][0]['player_id']==1627832
+          assert 6.2<=g['possession_intervals'][0]['end_s']<=6.8
+          print('ORIGINAL_FROZEN_GREEN_AND_DURANT_EXCLUSION_EVIDENCE_ACCEPTED',
+                q['median_original_adams_source_disagreement_cm'],
+                g['possession_intervals'][0]['end_s'])
           PY
       - uses: actions/upload-artifact@v4
         if: ${{ success() }}
         with:
-          name: event80-frozen-nba-pulse-aggregate-diagnostic
+          name: event80-frozen-three-player-native-possession-qa
           path: |
-            ${{ runner.temp }}/clip-lab-private/shot-window-diagnostic.json
-            ${{ runner.temp }}/clip-lab-private/native-shot-render-gate.json
-            ${{ runner.temp }}/clip-lab-private/qa/*.jpg
-            ${{ runner.temp }}/clip-lab-private/qa/court-frame-qa.json
-            ${{ runner.temp }}/clip-lab-private/qa/key-paint-qa.json
-            ${{ runner.temp }}/clip-lab-private/qa/key-paint-repaired.json
-            ${{ runner.temp }}/clip-lab-private/orb-camera-qa.json
-            ${{ runner.temp }}/clip-lab-private/orb-shot-diagnostic.json
-            ${{ runner.temp }}/clip-lab-private/paint-affine-qa.json
-            ${{ runner.temp }}/clip-lab-private/paint-shot-diagnostic.json
+            ${{ runner.temp }}/clip-lab-private/fred-native-frozen-green-interval.json
+            ${{ runner.temp }}/clip-lab-private/three-player-crosscheck.json
           if-no-files-found: error
           retention-days: 2
