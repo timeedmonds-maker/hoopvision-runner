@@ -120,3 +120,20 @@ jobs:
           fi
           gh api -X PUT "$DEST" --input "$TMP/put_dual.json" --jq .content.sha >/dev/null
           echo PRIVATE_EVENT732_BALL_CONSENSUS_COMMITTED
+
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_two_strata_ptz_qa.py?ref=80b8e4edfa9feaf2519057679cfc888695e3a93b' \
+            --jq .content | base64 -d > "$TMP/ptz.py"
+          python3 "$TMP/ptz.py" --selftest
+          python3 "$TMP/ptz.py" --root "$TMP/original" \
+            --out "$TMP/qa/event732-independent-static-ptz.json"
+          gh release upload "$TAG" "$TMP/qa/event732-independent-static-ptz.json" \
+            --repo timeedmonds-maker/104 --clobber >/dev/null
+          remote="$(gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" \
+            --jq '.assets[] | select(.name=="event732-independent-static-ptz.json") | .digest')"
+          test "$remote" = "sha256:$(sha256sum "$TMP/qa/event732-independent-static-ptz.json" | cut -d' ' -f1)"
+          echo PTZ_HELDOUT_SOURCE_SHA256_PASS
+          python3 - "$TMP/qa/event732-independent-static-ptz.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]))
+          print("PTZ_NATIVE_REAL_CASE",[(c["label"],c["independent_static_strata_passed"]) for c in a["camera_motion_qa"]])
+          PY
