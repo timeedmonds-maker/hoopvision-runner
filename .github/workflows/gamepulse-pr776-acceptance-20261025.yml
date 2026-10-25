@@ -18,7 +18,7 @@ jobs:
       - name: Retrieve pinned private PR source and 28 original games
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-          PIN: 13c53342454a13d015654673ab93b8ba0f2fa88d
+          PIN: c973c5db5df490904c483f1269f2b9f41b277f6a
         shell: bash
         run: |
           set -euo pipefail
