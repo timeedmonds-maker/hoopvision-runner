@@ -44,13 +44,25 @@ jobs:
           TMP="$(mktemp -d)"
           trap 'rm -rf "$TMP"' EXIT
           mkdir -p "$TMP/input" "$TMP/model" "$TMP/out"
-          # GitHub shared token may be temporarily rate-limited by unrelated jobs.
-          # Bound retries before touching any GPU/model work.
-          download_source() { gh release download 'freeview-native-0022600009-732' \
+          # Fail fast and identify whether the private token can read this release.
+          # Never upload private NBA media or tokens into public logs/artifacts.
+          if gh api repos/timeedmonds-maker/104 --jq .private >/dev/null 2>&1; then
+            echo NBA_PRIVATE_REPO_TOKEN_READ_PASS
+          else
+            echo NBA_PRIVATE_REPO_TOKEN_READ_BLOCKED
+            exit 42
+          fi
+          if gh api repos/timeedmonds-maker/104/releases/tags/freeview-native-0022600009-732 \
+              --jq .tag_name >/dev/null 2>&1; then
+            echo NBA_PRIVATE_RELEASE_TOKEN_READ_PASS
+          else
+            echo NBA_PRIVATE_RELEASE_TOKEN_READ_BLOCKED
+            exit 43
+          fi
+          gh release download 'freeview-native-0022600009-732' \
             --repo timeedmonds-maker/104 --dir "$TMP/input" \
             --pattern '*.mp4' --pattern 'source_manifest.json' \
-            --pattern 'native_presentation_timestamps.json'; }
-          download_source || { sleep 65; download_source; } || { sleep 125; download_source; }
+            --pattern 'native_presentation_timestamps.json'
           test -s "$TMP/input/source_manifest.json"
           gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_sam21_ball_mask_cpu.py?ref=af98752b804140323b0f9c2018c7b1dc43ffdc6f' \
             --jq .content | base64 -d > "$TMP/script.py"
