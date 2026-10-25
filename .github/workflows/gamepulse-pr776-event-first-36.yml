@@ -145,7 +145,7 @@ jobs:
           cd "$SOURCE_ROOT"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
-          git add gamepulse/fusion/qa/event_first_lookup_36game_acceptance_20261026.json
+          git add gamepulse/fusion/qa/event_first_lookup_36game_exact_action_acceptance_20261026.json
           git diff --cached --check
           git commit -qm "data(gamepulse): prove 36-game official action lookup with 28 original native QA source statuses"
           git push -q origin "HEAD:$BRANCH"
