@@ -25,14 +25,29 @@ jobs:
                   doc=json.load(f)
           except Exception as e:
               print("OFFICIAL_PBP_FETCH_ERROR",repr(e))
-              for probe in [1,200,280,300,330,350,380,400,420,450,500]:
+              for probe in range(421,451):
                   pu=f"https://clips.nba.com/?gameNo={game}&eventNum={probe}&source=grs"
                   try:
-                      with urllib.request.urlopen(urllib.request.Request(pu,headers={"User-Agent":"Mozilla/5.0","Referer":"https://clips.nba.com/"}),timeout=8) as r:
-                          t=r.read(500000).decode("utf-8","replace")
+                      with urllib.request.urlopen(urllib.request.Request(pu,headers={"User-Agent":"Mozilla/5.0","Referer":"https://clips.nba.com/"}),timeout=12) as r:
+                          t=r.read(700000).decode("utf-8","replace")
                           m=re.search(r"<title>(.*?)</title>",t,re.I|re.S)
-                          print("PROBE",probe,r.status,"TITLE",html.unescape(m.group(1) if m else "")[:140],"HAS_HLS",(".m3u8" in t),"BODY_HINT",t[:70])
-                  except Exception as ex:print("PROBE",probe,"ERROR",repr(ex))
+                          title=html.unescape(m.group(1) if m else "")
+                          print("EVENT_SCAN",probe,title[:160])
+                          if not (("Clock:07:56" in title or "Clock:7:56" in title) and "sengun" in title.lower() and "dunk" in title.lower()): continue
+                          opts=[]
+                          for o in re.finditer(r'<option\\s+value="([^"]+)"([^>]*)>(.*?)</option>',t,re.I|re.S):
+                              stream=html.unescape(o.group(1).strip())
+                              label=re.sub(r"<[^>]+>","",html.unescape(o.group(3))).strip()
+                              if ".m3u8" not in stream or "lrmedia.nba.com" not in stream:continue
+                              opts.append({"label":label,"hls_url":stream,"page_selected":"selected" in o.group(2).lower()})
+                          print("CONFIRMED_EVENT_NUMBER",probe)
+                          print("CONFIRMED_REPLAY_PAGE",pu)
+                          print("HLS_CAMERA_COUNT",len(opts))
+                          for angle in opts:print("HLS_CAMERA",json.dumps(angle,ensure_ascii=False))
+                          with open("sengun-hawks-hls-result.json","w") as outfile:
+                              json.dump({"game_id":game,"event_num":probe,"clips_page_title":title,"replay_page":pu,"angles":opts},outfile,indent=2,ensure_ascii=False)
+                          sys.exit(0 if opts else 5)
+                  except Exception as ex:print("EVENT_SCAN_ERROR",probe,repr(ex))
               sys.exit(2)
           if str(doc.get("game",{}).get("gameId"))!=game: raise ValueError("PBP_GAME_MISMATCH")
           actions=doc["game"]["actions"]
