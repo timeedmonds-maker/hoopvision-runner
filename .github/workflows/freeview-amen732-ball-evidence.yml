@@ -45,7 +45,7 @@ jobs:
           gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$TMP/original" \
             --pattern '*.mp4' --pattern 'source_manifest.json' \
             --pattern 'native_presentation_timestamps.json'
-          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_native_ball_pixels.py?ref=2fdee73b0ae5abd009649d9eb4d38dac9a6e8521' \
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_native_ball_pixels.py?ref=bebf7d6f9597b72a2c994be343c7fec96f362c64' \
              --jq .content | base64 -d > "$TMP/pixels.py"
           python3 -m pip install --quiet --disable-pip-version-check 'numpy<2' opencv-python-headless==4.10.0.84
           python3 "$TMP/pixels.py" --selftest
