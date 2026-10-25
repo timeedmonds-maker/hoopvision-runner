@@ -1,0 +1,140 @@
+name: Integrated Pulse 28-game season search and real NBA provider acceptance
+# Public CPU only. Private game, tracking and provider JSON stays in ephemeral storage.
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/gamepulse-pr776-season-search-provider-acceptance.yml'
+permissions:
+  contents: read
+jobs:
+  nba-season-search:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PIN: 575a6f82c5adc230635f1d3b3a3fdba834b65ece
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fetch source-pinned private indices, scripts and original NBA provider games
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_SOURCE_TOKEN_NOT_CONFIGURED'; exit 3; }
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          ROOT="$RUNNER_TEMP/pulse-private"
+          mkdir -p "$ROOT"
+          echo "PULSE_ROOT=$ROOT" >> "$GITHUB_ENV"
+          get_private () {
+            local path="$1"
+            mkdir -p "$(dirname "$ROOT/$path")"
+            gh api "repos/$PRIVATE_REPO/contents/$path?ref=$PIN" --jq .content |
+              base64 --decode > "$ROOT/$path"
+            test -s "$ROOT/$path" || exit 4
+          }
+          for f in \
+            gamepulse/fusion/query_nba_episode_season_2026.py \
+            gamepulse/fusion/query_nba_episode_tracking_2026.py \
+            gamepulse/fusion/nba_provider_onoff_source_2026.py \
+            gamepulse/fusion/official_nba_advanced_ratings_2026.py \
+            gamepulse/fusion/tests/test_query_nba_episode_season_2026.py \
+            gamepulse/fusion/tests/test_nba_provider_onoff_source_2026.py \
+            gamepulse/fusion/tests/test_query_nba_episode_tracking_2026.py \
+            gamepulse/fusion/tests/test_query_nba_episode_tracking_index_2026.py \
+            gamepulse/fusion/tests/test_nba_possession_tracking_crosswalk_2026.py \
+            gamepulse/fusion/nba_possession_tracking_crosswalk_2026.py \
+            gamepulse/fusion/onoff/index-2026-27-expanded.json \
+            gamepulse/fusion/materialized/nba_episode_tracking_pr776_20261025/index.json; do
+            get_private "$f"
+          done
+          python3 - "$ROOT" <<'PY'
+          import json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          p=root/'gamepulse/fusion/materialized/nba_episode_tracking_pr776_20261025/index.json'
+          o=root/'gamepulse/fusion/onoff/index-2026-27-expanded.json'
+          index=json.loads(p.read_bytes());prov=json.loads(o.read_bytes())
+          assert index['schema']=='gamepulse.nba-source-episode-tracking-season-index.v1'
+          assert prov['schema']=='gamepulse.official-nba-onoff-tracking-reconciled.v1'
+          assert len(index['games'])==28 and len(prov['games'])==27
+          assert set(prov['games']) <= set(index['games'])
+          paths=[
+              'gamepulse/fusion/materialized/nba_episode_tracking_pr776_20261025/'+g+'.json'
+              for g in sorted(index['games'])
+          ] + [prov['games'][g]['path'] for g in sorted(prov['games'])]
+          (root/'files-to-fetch.txt').write_text('\n'.join(paths)+'\n')
+          print('PRIVATE_SOURCE_MANIFESTS_FOUND',len(index['games']),len(prov['games']))
+          PY
+          while IFS= read -r path; do
+            get_private "$path"
+          done < "$ROOT/files-to-fetch.txt"
+          echo 'ORIGINAL_PRIVATE_SOURCE_FETCH_COMPLETE'
+      - name: Run Python acceptance and all 27 real NBA provider snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset GH_TOKEN
+          export PYTHONPATH="$PULSE_ROOT/gamepulse/fusion:$PULSE_ROOT/gamepulse/fusion/tests"
+          python3 -m compileall -q "$PULSE_ROOT/gamepulse/fusion"
+          for pattern in \
+            test_query_nba_episode_season_2026.py \
+            test_nba_provider_onoff_source_2026.py \
+            test_query_nba_episode_tracking_2026.py \
+            test_query_nba_episode_tracking_index_2026.py; do
+            python3 -m unittest discover \
+              -s "$PULSE_ROOT/gamepulse/fusion/tests" -p "$pattern" -v
+          done
+          python3 - "$PULSE_ROOT" <<'PY'
+          import json,sys
+          from pathlib import Path
+          from query_nba_episode_tracking_2026 import read_indexed_view
+          from nba_provider_onoff_source_2026 import load, INDEX
+          from query_nba_episode_season_2026 import search
+          root=Path(sys.argv[1])
+          snap=root/'gamepulse/fusion/materialized/nba_episode_tracking_pr776_20261025'
+          index=json.loads((snap/'index.json').read_bytes())
+          onoff=json.loads((root/INDEX).read_bytes())
+          totals={'episodes':0,'linked':0,'unassigned':0,'labels':0}
+          for gid in index['games']:
+              view=read_indexed_view(snap,gid)
+              totals['episodes']+=len(view['episodes'])
+              totals['linked']+=view['source_action_run_touch_labels_reused']
+              totals['unassigned']+=view['original_unassigned_touch_labels_retained']
+              totals['labels']+=view['original_source_touch_labels_preserved']
+          assert totals=={'episodes':5819,'linked':12557,'unassigned':11553,'labels':24110}
+          verified=0
+          for gid,rec in sorted(onoff['games'].items()):
+              doc=json.loads((root/rec['path']).read_bytes())
+              rows=doc['player_onoff']
+              assert len(rows)==rec['player_onoff_verified']
+              for player in rows:
+                  accepted=load(root,gid,player['player_id'],player['team'],
+                                allow_missing_player=True)
+                  assert accepted['status']=='VERIFIED_NBA_GAME_SCOPED_ONOFF_SNAPSHOT'
+                  assert accepted['rates']['net_rating_on'] is not None
+                  assert accepted['not_derived_from_tracking']
+                  verified+=1
+          assert verified==sum(rec['player_onoff_verified']
+                               for rec in onoff['games'].values())
+          assert verified==623, 'ORIGINAL_PROVIDER_PLAYER_ROW_COUNT_CHANGED'
+          q=search(snap,team='HOU',player_id='1627832',provider_root=root,limit=20)
+          assert q['captured_games_in_snapshot']==28
+          assert q['games_in_requested_scope']>0
+          assert q['official_provider']['source_provider_games_with_verified_player_rows']>=1
+          assert q['official_provider']['season_aggregate_onoff_rate'] is None
+          assert q['independently_certified_physical_possessions']==0
+          assert len(q['episodes'])<=20
+          print('PRIVATE_28_GAME_CROSS_GAME_SEARCH_ACCEPTED',
+                'game_scope',q['games_in_requested_scope'],
+                'native_episode_matches',q['matching_nba_source_field_episodes'],
+                'observed_focal_labels',q['observed_focal_original_touch_labels'],
+                'verified_provider_game_rows',q['official_provider']['source_provider_games_with_verified_player_rows'])
+          print('PRIVATE_27_GAME_PROVIDER_ONOFF_ACCEPTED',
+                'games',len(onoff['games']),'verified_rows',verified,
+                'snapshots_sha_checked',28,'source_episodes',totals['episodes'])
+          PY
+          echo 'SEASON_SEARCH_AND_PROVIDER_ACCEPTANCE_PASSED'
