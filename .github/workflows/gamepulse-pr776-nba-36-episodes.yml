@@ -35,7 +35,7 @@ jobs:
           GIT_ASKPASS="$RUNNER_TEMP/askpass-36" GIT_TERMINAL_PROMPT=0 \
             git clone -q --depth=1 --filter=blob:none --sparse --branch "$BRANCH" \
                 "https://github.com/$PRIVATE.git" "$RUNNER_TEMP/ep36"
-          git -C "$RUNNER_TEMP/ep36" sparse-checkout set gamepulse/fusion
+          GIT_ASKPASS="$RUNNER_TEMP/askpass-36" GIT_TERMINAL_PROMPT=0 git -C "$RUNNER_TEMP/ep36" sparse-checkout set gamepulse/fusion
           GIT_ASKPASS="$RUNNER_TEMP/askpass-36" GIT_TERMINAL_PROMPT=0 \
             git -C "$RUNNER_TEMP/ep36" fetch -q --depth=1 origin main:refs/remotes/origin/main
           echo "WORK=$RUNNER_TEMP/ep36" >> "$GITHUB_ENV"
