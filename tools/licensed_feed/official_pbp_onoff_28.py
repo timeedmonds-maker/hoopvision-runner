@@ -139,6 +139,11 @@ def assemble():
     original=private_json(OFFICIAL_INDEX)
     old=private_json("gamepulse/fusion/official_pbp_timing/index.json")
     fusion=private_json("gamepulse/fusion/index/index.json")
+    if len(fusion["games"])>28:
+        # Frozen 28-game acceptance must never downgrade a separately certified
+        # larger season event index or erase added game coverage.
+        print("FROZEN_28_ASSEMBLY_SKIPPED_NEWER_SEASON_INDEX_PRESERVED",len(fusion["games"]))
+        return
     assert len(fusion["games"])==28
     assert original["schema"]==SCHEMA and old["source_game_count"]==14
     merged=dict(original["games"])
