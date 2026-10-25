@@ -1,4 +1,4 @@
-name: Clip Lab event80 original-frozen court-offset probe
+name: Clip Lab event80 frozen-native shot export safety gate
 on:
   push:
     branches: [main]
@@ -71,6 +71,24 @@ jobs:
           assert q['render_authorized'] is False
           print('FROZEN_SHOT_COURT_TRANSLATION_PROBES',len(q['independent_frozen_vs_native_court_translation_probes']))
           PY
+      - name: Verify rejection of uncertified Adams ring drift and frozen geometry
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/clip-lab-private"
+          cd "$ROOT/canonical/gamepulse/clip_lab"
+          python3 -m unittest -v test_shot_window_render_gate.py
+          python3 shot_window_render_gate.py \
+            --diagnostic "$ROOT/shot-window-diagnostic.json" \
+            --out "$ROOT/native-shot-render-gate.json"
+          python3 - "$ROOT/native-shot-render-gate.json" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q['status']=='BLOCKED', 'Current unapproved camera calibration unexpectedly passed'
+          assert 'INSUFFICIENT_FULL_SHOT_PLAYER_PAIR_COVERAGE' in q['reasons']
+          assert 'UNCERTAIN_SECOND_8_PLAYER_203500' in q['reasons']
+          print('FROZEN_RING_PLAYER_DRIFT_FAIL_CLOSED_VERIFIED')
+          PY
       - name: Inspect original frozen camera homographies over post-shot pan
         shell: bash
         run: |
@@ -91,6 +109,7 @@ jobs:
           name: event80-frozen-nba-pulse-aggregate-diagnostic
           path: |
             ${{ runner.temp }}/clip-lab-private/shot-window-diagnostic.json
+            ${{ runner.temp }}/clip-lab-private/native-shot-render-gate.json
             ${{ runner.temp }}/clip-lab-private/qa/*.jpg
             ${{ runner.temp }}/clip-lab-private/qa/court-frame-qa.json
           if-no-files-found: error
