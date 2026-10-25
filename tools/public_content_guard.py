@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-rockets-spurs-native-advanced.yml",  # reviewed: CPU, private original NBA source and private-only source publish
     ".github/workflows/gamepulse-pr776-season-search-provider-acceptance.yml",  # reviewed ephemeral private NBA source retrieval and aggregate-only QA
     ".github/workflows/gamepulse-pr776-acceptance-20261025.yml",  # reviewed CPU-only pinned SHA private fetch; no public data outputs
     ".github/workflows/gamepulse-wemby-defensive-position.yml",  # CPU-only original NBA source, private source/aggregated results only
