@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 28-game native NBA event clock windows
+name: Integrated Pulse PR776 28-game native NBA clock windows v2
 on:
   push:
     branches: [main]
