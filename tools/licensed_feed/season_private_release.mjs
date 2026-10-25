@@ -4,7 +4,7 @@ import {createHash} from 'node:crypto';
 import {copyFileSync,existsSync,mkdtempSync,readFileSync,rmSync,writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {planGame,parseSchedule,selectDue,summarize} from './season_core.mjs';
+import {planGame,parseSchedule,selectDue,summarize,diagnoseTrackingCoverage} from './season_core.mjs';
 
 const REPO='timeedmonds-maker/104';
 const PUBLIC='timeedmonds-maker/hoopvision-runner';
@@ -224,13 +224,17 @@ async function archiveGame(game,index,capture){
  const sum=summarize(plan.parts,reports);
  if(sum.windows!==plan.windows||plan.windows!==3720||plan.parts.length!==13)
   throw Error('full_game_coverage_failed');
+ const coverage=diagnoseTrackingCoverage(plan.parts,reports);
+ const hasSufficientObservations=sum.players>100&&sum.ball>50;
  const done={schema:'gamepulse-fullgame-manifest.v1',game_id:game.id,
   tipoff_utc:new Date(game.start).toISOString(),planned_start_ms:plan.begin,
   planned_end_exclusive_ms:plan.end,expected_windows:plan.windows,
   successful_windows:sum.windows,parts:plan.parts.length,
   sum_frames_with_players:sum.players,sum_frames_with_ball:sum.ball,
   empty_windows:sum.empty,data_class:'observed; no missing coordinates imputed',
-  acceptance:sum.players>100&&sum.ball>50?'complete_with_QA':'complete_with_missingness_warning',
+  tracking_coverage_qa:coverage,
+  acceptance:!hasSufficientObservations?'complete_with_missingness_warning':
+   coverage.suspicious_parts.length?'complete_with_tracking_gaps':'complete_with_QA',
   completed_at:new Date().toISOString()};
  const dir=temp();
  try{
