@@ -15,7 +15,7 @@ jobs:
       GAME_ID: '0022600009'
       PRIVATE_REPO: timeedmonds-maker/104
       BIDIR_PIN: 0ddecc9351dc86ced2ed9e27c7cbbb5c974e46fb
-      LINEUP_PIN: 1cb88117186c138b8245c35e0ce878501aaca714
+      LINEUP_PIN: ca6e756a6c5fbd5daf51354a629eb6fa3f934384
     steps:
       - uses: actions/checkout@v4
         with:
@@ -39,3 +39,20 @@ jobs:
           gh api "repos/$PRIVATE_REPO/releases/tags/gamepulse-sdk-$GAME_ID" > "$RUNNER_TEMP/pulse/release.json"
           gh release download "gamepulse-sdk-$GAME_ID" --repo "$PRIVATE_REPO" --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/pulse/raw"
           python3 "$RUNNER_TEMP/pulse/official_lineup_trajectory_2026.py" --game-id "$GAME_ID" --archive-dir "$RUNNER_TEMP/pulse/raw" --release-json "$RUNNER_TEMP/pulse/release.json" --roster "$RUNNER_TEMP/pulse/roster.json" --pbp "$RUNNER_TEMP/pulse/pbp.json" --hoop-qa "$RUNNER_TEMP/pulse/hoop_qa.json" --out "$RUNNER_TEMP/pulse/official_lineup_result.json"
+          # Publish identity-only diagnostic into the existing private PR; never stdout or a public artifact.
+          python3 - <<'PY'
+          import base64,json,os
+          from pathlib import Path
+          folder=Path(os.environ["RUNNER_TEMP"])/"pulse"
+          raw=(folder/"official_lineup_result.json").read_bytes()
+          result=json.loads(raw)
+          assert result["game_id"]==os.environ["GAME_ID"]
+          assert len(result["private_conflict_details"])==result["counts"]["independent_anchor_lineup_disagreements"]
+          assert all("xyz" not in json.dumps(row).lower() for row in result["private_conflict_details"])
+          payload={"branch":"research/gamepulse-clock-boundary-integrity-20261025",
+                   "message":"qa(gamepulse): retain private Rockets original-source lineup conflict evidence",
+                   "content":base64.b64encode(raw).decode()}
+          (folder/"private_publication.json").write_text(json.dumps(payload))
+          PY
+          gh api --method PUT "repos/$PRIVATE_REPO/contents/gamepulse/fusion/qa/rockets_original_lineup_conflicts_0022600009_20261026.json" --input "$RUNNER_TEMP/pulse/private_publication.json" >/dev/null
+          echo "PRIVATE_CONFLICT_QA_PUBLISHED game=$GAME_ID"
