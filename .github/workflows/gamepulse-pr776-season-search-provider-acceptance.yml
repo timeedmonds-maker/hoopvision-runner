@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PIN: 852cc149dbc22a8b67307ac2ee7d35b5d9318b9b
+      PIN: c9cb35ff2aa24b25d09336e622023188dd0c9d42
     steps:
       - uses: actions/checkout@v4
         with:
@@ -175,7 +175,7 @@ jobs:
           ids=sorted(snapshot['games'])
           assert len(ids)==28 and set(ids)==set(unassigned_index['games'])==set(pbp_index['games'])
           def fetch_private(path):
-              args=['gh','api','repos/timeedmonds-maker/104/contents/'+path+'?ref=852cc149dbc22a8b67307ac2ee7d35b5d9318b9b','--jq','.content']
+              args=['gh','api','repos/timeedmonds-maker/104/contents/'+path+'?ref=c9cb35ff2aa24b25d09336e622023188dd0c9d42','--jq','.content']
               reply=subprocess.run(args,capture_output=True,text=True,timeout=90,check=True)
               return base64.b64decode(reply.stdout)
           totals=collections.Counter()
