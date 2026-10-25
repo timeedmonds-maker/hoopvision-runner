@@ -88,7 +88,7 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$RUNNER_TEMP/clip-lab-private"
-          python3 "$ROOT/canonical/gamepulse/clip_lab/three_player_durant_exclusion.py" \
+          (cd "$ROOT/canonical/gamepulse/clip_lab" && python3 -m unittest -v test_independent_durant_render_gate.py)\n          python3 "$ROOT/canonical/gamepulse/clip_lab/three_player_durant_exclusion.py" \
             --native "$ROOT/three-player-native-private.json" \
             --physical "$ROOT/physical_paths.csv" \
             --courts "$ROOT/court_frames.json" \
