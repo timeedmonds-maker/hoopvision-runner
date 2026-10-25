@@ -341,11 +341,95 @@ export function assertContext(env){
     env.GH_TOKEN.length<30)
   throw Error('unauthorized_private_collection');
 }
+
+/** One-time, original NBA SDK recapture of the known thin GSW-PHX midgame.
+ * The original 13 release checkpoints MUST NOT be overwritten. This is an
+ * independent second read with private-only SHA evidence and a bounded scope.
+ */
+async function probeGswPhoenixGap(capture){
+ const gid='0022600111',original='gamepulse-sdk-'+gid;
+ const recovered='gamepulse-sdk-recovery-'+gid+'-20261026';
+ const game={id:gid,start:Date.parse('2026-10-25T02:00:00Z')};
+ const plan=planGame(game);
+ if(Date.now()>game.start+7*24*3600000)throw Error('source_recheck_window_expired');
+ if(names(recovered)?.has('recheck-COMPLETE.json'))return;
+ ensure(recovered);
+ const reports=[];
+ for(const part of [4,5,6]){
+  const job=plan.parts[part],base='sdk-part-'+String(part).padStart(2,'0');
+  const dir=temp(),oldDir=temp(),verify=temp();
+  try{
+   const old=JSON.parse(readFileSync(download(original,base+'.json',oldDir),'utf8'));
+   if(old.game_id!==gid||old.part!==part||old.start_ms!==job.start_ms||
+      old.successful_windows!==job.count)throw Error('old_recovery_source_identity_conflict');
+   process.env.GAMEPULSE_FINAL_FASTLANE='true';
+   let fresh=null,sourceState='NO_FRESH_SOURCE_AVAILABLE';
+   try{
+    await capture(job,dir);
+    fresh=JSON.parse(readFileSync(join(dir,'manifest.json'),'utf8'));
+    summarize([job],[fresh]);
+    sourceState='SOURCE_READBACK_VALID';
+   }catch(e){
+    const safe=/^[a-z_]+$/.test(e?.message||'')?e.message:'source_read_unavailable';
+    sourceState=safe;
+   }finally{delete process.env.GAMEPULSE_FINAL_FASTLANE;}
+   const better=!!fresh&&fresh.frames_with_players>old.frames_with_players;
+   const qa={schema:'gamepulse.private-original-sdk-recovery.v1',
+    game_id:gid,part,attempt_utc:new Date().toISOString(),
+    source_status:sourceState,original_immutable:true,
+    original:{frames_with_players:old.frames_with_players,
+     frames_with_ball:old.frames_with_ball,empty_windows:old.empty_windows,
+     archive_sha256:old.archive_sha256},
+    retry:fresh?{frames_with_players:fresh.frames_with_players,
+     frames_with_ball:fresh.frames_with_ball,empty_windows:fresh.empty_windows}:null,
+    real_tracking_improvement:better,physical_possessions_certified:0};
+   if(better){
+    const archive=join(dir,'recovery-part-'+String(part).padStart(2,'0')+'.tar.gz');
+    copyFileSync(join(dir,'checkpoint.tar.gz'),archive);
+    uploadOrExisting(recovered,archive,'recovery-part-'+String(part).padStart(2,'0')+'.tar.gz');
+    const saved=download(recovered,'recovery-part-'+String(part).padStart(2,'0')+'.tar.gz',verify);
+    if(sha(saved)!==sha(archive))throw Error('private_recovery_sha_readback_failed');
+    qa.retry.archive_sha256=sha(archive);
+   }
+   const name='recheck-part-'+String(part).padStart(2,'0')+'.json';
+   const file=join(dir,name);writeFileSync(file,JSON.stringify(qa)+'\n');
+   uploadOrExisting(recovered,file,name);
+   const check=download(recovered,name,verify);
+   if(sha(check)!==sha(file))throw Error('private_recheck_manifest_sha_disagrees');
+   reports.push(qa);
+   console.log('PRIVATE_NATIVE_GSW_PHOENIX_RECHECK',part,'recovered_more',better);
+  }finally{
+   rmSync(dir,{recursive:true,force:true});
+   rmSync(oldDir,{recursive:true,force:true});
+   rmSync(verify,{recursive:true,force:true});
+  }
+ }
+ const finished=temp(),readback=temp();
+ try{
+  const marker=join(finished,'recheck-COMPLETE.json');
+  writeFileSync(marker,JSON.stringify({schema:'gamepulse.private-source-recheck-complete.v1',
+   game_id:gid,parts:reports.map(r=>r.part),
+   improved_parts:reports.filter(r=>r.real_tracking_improvement).map(r=>r.part),
+   source_limited_parts:reports.filter(r=>r.source_status!=='SOURCE_READBACK_VALID').map(r=>r.part),
+   original_archive_unchanged:true,physical_possessions_certified:0})+'\n');
+  uploadOrExisting(recovered,marker,'recheck-COMPLETE.json');
+  if(sha(download(recovered,'recheck-COMPLETE.json',readback))!==sha(marker))
+   throw Error('private_recheck_terminal_sha_disagrees');
+  console.log('PRIVATE_NATIVE_GSW_PHOENIX_RECHECK_SHA_PASSED',
+   reports.filter(r=>r.real_tracking_improvement).length,'improved_parts');
+ }finally{
+  rmSync(finished,{recursive:true,force:true});
+  rmSync(readback,{recursive:true,force:true});
+ }
+}
+
 export async function run(){
  assertContext({...process.env,GH_TOKEN:TOKEN});
  delete process.env.GH_TOKEN;
  // All third-party imports occur only after GH_TOKEN leaves process.env.
  const {capture}=await import('./capture.mjs');
+ if(process.env.GITHUB_EVENT_NAME==='push'&&process.env.GAMEPULSE_PRODUCTION_ENABLED==='true'&&
+    process.env.GAMEPULSE_PRIORITY_FANOUT!=='true')await probeGswPhoenixGap(capture);
  if(process.env.GAMEPULSE_PRIORITY_FANOUT==='true'){
   if(PILOT||process.env.GITHUB_EVENT_NAME!=='push')throw Error('priority_context_invalid');
   const game={id:process.env.GAMEPULSE_PRIORITY_ID,start:Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'')};
