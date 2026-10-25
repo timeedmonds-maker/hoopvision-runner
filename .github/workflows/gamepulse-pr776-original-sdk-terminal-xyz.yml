@@ -12,7 +12,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PIN: 1719d3ad5540b9d7ac4f36f59d45d562b656eb08
+      PIN: b0282a65140e049f28fa7a01d7a0e122d3440c59
       GAME_ID: '0022600009'
     steps:
       - uses: actions/checkout@v4
@@ -30,6 +30,8 @@ jobs:
           echo "XYZ_ROOT=$ROOT" >> "$GITHUB_ENV"
           for name in \
             gamepulse/fusion/terminal_window_original_sdk_raw_xyz_pilot_2026.py \
+            gamepulse/fusion/regrade_original_sdk_terminal_window_duration_2026.py \
+            gamepulse/fusion/tests/test_original_sdk_terminal_duration_guard_2026.py \
             gamepulse/fusion/materialized/terminal_window_recovery_pr776_20261025/0022600009.json \
             gamepulse/fusion/index/games/0022600009.json; do
             mkdir -p "$(dirname "$ROOT/$name")"
@@ -53,6 +55,14 @@ jobs:
             --roster "$XYZ_ROOT/gamepulse/fusion/index/games/$GAME_ID.json" \
             --archive-dir "$XYZ_ROOT/sdk" --release-json "$XYZ_ROOT/release.json" \
             --out "$XYZ_ROOT/original_sdk_xyz_terminal_pilot.json"
+          export PYTHONPATH="$XYZ_ROOT/gamepulse/fusion"
+          python3 -m unittest discover \
+            -s "$XYZ_ROOT/gamepulse/fusion/tests" \
+            -p 'test_original_sdk_terminal_duration_guard_2026.py' -v
+          python3 "$XYZ_ROOT/gamepulse/fusion/regrade_original_sdk_terminal_window_duration_2026.py" \
+            --windows "$XYZ_ROOT/gamepulse/fusion/materialized/terminal_window_recovery_pr776_20261025/$GAME_ID.json" \
+            --raw-xyz-pilot "$XYZ_ROOT/original_sdk_xyz_terminal_pilot.json" \
+            --out "$XYZ_ROOT/original_sdk_xyz_duration_guard.json"
           python3 - <<'PY'
           import json,os
           from pathlib import Path
@@ -67,6 +77,14 @@ jobs:
           print('PRIVATE_RAW_SDK_FRAME_QA_PASSED',
                 x['counts']['native_source_unique_frames'],
                 x['counts']['native_frames_unique_research_window_candidate'])
+          guard=json.loads((Path(os.environ['XYZ_ROOT'])/'original_sdk_xyz_duration_guard.json').read_bytes())
+          assert guard['all_source_logged_utc_contained_original_frames']==26349
+          assert guard['provisional_duration_consistent_original_frames']==4755
+          assert guard['provisional_duration_consistent_original_ball_frames']==4690
+          assert guard['provisional_duration_consistent_original_player_xyz_observations']==44452
+          assert guard['independently_certified_original_tracking_possessions']==0
+          print('STOPPAGE_AND_GAMECLOCK_DURATION_GUARD_PASSED',
+                guard['provisional_duration_consistent_original_frames'])
           PY
       - name: Persist source-verified one-game raw XYZ candidate coverage in private PR
         shell: bash
@@ -77,7 +95,7 @@ jobs:
           from pathlib import Path
           repo=os.environ['PRIVATE_REPO'];pin=os.environ['PIN']
           branch='research/gamepulse-clock-boundary-integrity-20261025'
-          target='gamepulse/fusion/materialized/terminal_window_recovery_pr776_20261025/raw_xyz_0022600009_pilot.json'
+          target='gamepulse/fusion/materialized/terminal_window_recovery_pr776_20261025/raw_xyz_0022600009_duration_guard.json'
           def get(path,method='GET',body=None):
               command=['gh','api','repos/'+repo+'/'+path]
               if method!='GET':command+=['-X',method,'--input','-']
@@ -87,14 +105,14 @@ jobs:
               return json.loads(p.stdout)
           ref='git/ref/heads/'+branch
           assert get(ref)['object']['sha']==pin,'PR_BRANCH_MOVED'
-          raw=(Path(os.environ['XYZ_ROOT'])/'original_sdk_xyz_terminal_pilot.json').read_bytes()
+          raw=(Path(os.environ['XYZ_ROOT'])/'original_sdk_xyz_duration_guard.json').read_bytes()
           blob=get('git/blobs','POST',{'encoding':'base64','content':base64.b64encode(raw).decode()})
           assert blob['sha']==hashlib.sha1(b'blob '+str(len(raw)).encode()+bytes([0])+raw).hexdigest()
           tree=get('git/commits/'+pin)['tree']['sha']
           updated=get('git/trees','POST',{'base_tree':tree,'tree':[
               {'path':target,'mode':'100644','type':'blob','sha':blob['sha']}]})
           commit=get('git/commits','POST',{
-              'message':'data(gamepulse): true original SDK ball and player XYZ terminal-window research pilot 0022600009',
+              'message':'data(gamepulse): source-graded SDK XYZ elapsed-time stopped-clock guard 0022600009',
               'tree':updated['sha'],'parents':[pin]})
           assert get(ref)['object']['sha']==pin,'PR_CONCURRENT_UPDATE'
           result=get('git/refs/heads/'+branch,'PATCH',{'sha':commit['sha'],'force':False})
