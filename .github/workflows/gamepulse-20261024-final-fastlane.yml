@@ -1,4 +1,5 @@
 name: Game Pulse Oct 24 final-game private SDK fastlane
+# Reviewed exact-path public content guard allowlist is active (2026-10-25).
 # One-off 2026-10-24 US slate; only NBA-official-final games; original observations privately SHA archived in 104.
 on:
   push:
