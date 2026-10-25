@@ -153,6 +153,30 @@ jobs:
           assert len(rows)>=8 and sum(r.get('H') is not None for r in court)>=3
           print('ORIGINAL_FROZEN_PHYSICAL_TRACK_AND_COURT_PASS',len(rows),len(court))
           PY
+      - name: Preserve private frozen tracks and diagnose shot-time native matching
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/e80"
+          DURATION="$(ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 "$ROOT/event80-broadcast.mp4")"
+          python3 "$ROOT/private-main/gamepulse/clip_lab/prepare_frozen_physical.py" \
+            --tracks "$ROOT/original-tracking/tracks.csv" \
+            --courts "$ROOT/original-tracking/court_frames.json" \
+            --output "$ROOT/physical_paths.csv" --fps 30 --duration-s "$DURATION"
+          python3 "$ROOT/private-main/gamepulse/clip_lab/shot_window_native_diagnostic.py" \
+            --native "$ROOT/native.json" --physical "$ROOT/physical_paths.csv" \
+            --courts "$ROOT/original-tracking/court_frames.json" \
+            --event-video-s 6.5 --end-s 9.0 \
+            --out "$ROOT/shot-window-qa.json"
+          # These three source-evidence files are stored ONLY in the private canonical
+          # repository release. No raw tracking or native frames in public runner artifacts.
+          gh release upload clip-lab-hls-0022600009-80 \
+            "$ROOT/original-tracking/tracks.csv#event80-frozen-original-tracks.csv" \
+            "$ROOT/original-tracking/court_frames.json#event80-frozen-original-court-frames.json" \
+            "$ROOT/physical_paths.csv#event80-frozen-physical-paths.csv" \
+            "$ROOT/shot-window-qa.json#event80-shot-window-diagnostic.json" \
+            --repo timeedmonds-maker/104 --clobber
+          echo PRIVATE_SOURCE_EVIDENCE_PERSISTED_NO_PUBLIC_COORDINATE_ARTIFACT
       - name: Fuse native IDs to original visual feet and render unchanged v3.1 rings
         shell: bash
         run: |
