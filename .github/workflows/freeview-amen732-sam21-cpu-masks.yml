@@ -83,6 +83,35 @@ jobs:
           print("SAM21_SOURCE_MASK_QA_COMPLETE",[(k,v["mask_state"])
                 for k,v in o["native_masks"].items()])
           PY
+          # Diagnostic overlays retain original NBA RGB; derived artifacts remain PRIVATE.
+          python3 - "$TMP/input" "$TMP/out" <<'PY'
+          import json,sys,cv2
+          from pathlib import Path
+          root,out=map(Path,sys.argv[1:])
+          qa=json.loads((out/'event732-native-sam21-mask-qa.json').read_text())
+          src=json.loads((root/'source_manifest.json').read_text())
+          feed={r['label']:r for r in src['feeds']}
+          for label,item in qa['native_masks'].items():
+              cap=cv2.VideoCapture(str(root/feed[label]['file']))
+              try:
+                  cap.set(cv2.CAP_PROP_POS_FRAMES,item['native_frame_index'])
+                  ok,frame=cap.read()
+                  assert ok and frame.shape[:2]==(540,960),label
+              finally:
+                  cap.release()
+              mask=cv2.imread(str(out/item['mask_file']),cv2.IMREAD_GRAYSCALE)
+              assert mask is not None and mask.shape==frame.shape[:2]
+              edges=cv2.Canny(mask,100,180)
+              frame[edges>0]=(40,220,40)
+              x,y=item['visual_point_seed_xy']
+              cv2.drawMarker(frame,(x,y),(0,255,255),cv2.MARKER_CROSS,18,2)
+              cv2.rectangle(frame,(0,0),(960,43),(15,15,20),-1)
+              cv2.putText(frame,label+' | '+item['mask_state']+' | ORIGINAL RGB',
+                          (13,29),cv2.FONT_HERSHEY_SIMPLEX,.61,(245,245,245),2,cv2.LINE_AA)
+              name='amen732-sam21-overlay-'+label.lower().replace(' ','-')+'.jpg'
+              assert cv2.imwrite(str(out/name),frame,[cv2.IMWRITE_JPEG_QUALITY,88])
+              print('SAM21_VISUAL_QA_FRAME_PREPARED',label,item['mask_state'])
+          PY
           TAG='freeview-native-0022600009-732'
           gh release upload "$TAG" "$TMP/out/"* \
             --repo timeedmonds-maker/104 --clobber >/dev/null
@@ -95,4 +124,33 @@ jobs:
           for p in root.iterdir():
               assert assets[p.name]["digest"]=="sha256:"+hashlib.sha256(p.read_bytes()).hexdigest(),p.name
           print("SAM21_FOUR_NATIVE_MASKS_PRIVATE_SHA256_PASS")
+          PY
+          # Store an independently browsable private QA receipt and native-image overlays.
+          python3 - "$TMP/out" <<'PY'
+          import base64,json,subprocess,sys
+          from pathlib import Path
+          out=Path(sys.argv[1]);branch='research/amen-wemby-freeze-spin-20261024'
+          prefix='repos/timeedmonds-maker/104/contents/'
+          files=[out/'event732-native-sam21-mask-qa.json']
+          files+=sorted(out.glob('amen732-sam21-overlay-*.jpg'))
+          assert len(files)==5
+          for src in files:
+              dest='hoopvision/freeview/fixtures/'+src.name
+              data={'branch':branch,
+                    'message':'qa: source NBA Amen mask visual check '+src.name,
+                    'content':base64.b64encode(src.read_bytes()).decode('ascii')}
+              old=subprocess.run(['gh','api',prefix+dest+'?ref='+branch],
+                                 capture_output=True,text=True)
+              if old.returncode==0:
+                  oldobj=json.loads(old.stdout)
+                  if base64.b64decode(oldobj.get('content','').replace('\n',''))==src.read_bytes():
+                      print('SAM21_PRIVATE_QA_UNCHANGED',src.name)
+                      continue
+                  data['sha']=oldobj['sha']
+              req=out/'_private_put.json';req.write_text(json.dumps(data))
+              result=subprocess.run(['gh','api','-X','PUT',prefix+dest,'--input',str(req)],
+                                    capture_output=True,text=True)
+              req.unlink(missing_ok=True)
+              assert result.returncode==0,(src.name,result.stderr[-300:])
+              print('SAM21_PRIVATE_QA_COMMITTED',src.name,len(src.read_bytes()))
           PY
