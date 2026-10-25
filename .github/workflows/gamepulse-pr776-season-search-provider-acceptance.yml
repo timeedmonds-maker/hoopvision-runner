@@ -138,3 +138,5 @@ jobs:
                 'snapshots_sha_checked',28,'source_episodes',totals['episodes'])
           PY
           echo 'SEASON_SEARCH_AND_PROVIDER_ACCEPTANCE_PASSED'
+
+# Accepted public/private guard entry present. Re-run original-source verification.
