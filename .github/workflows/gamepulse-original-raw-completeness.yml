@@ -23,7 +23,7 @@ jobs:
       CONTINUITY_PIN: 3676e23d77d014b31fa8a02c25b76d838f057579
       MOTION_PIN: 39300c98b8400c14cc2bb9d6f0d0c347815c5b72
       HOOP_PIN: 94ab9b5e08db77a6e5c47102461df277452388a8
-      FRESHNESS_PIN: 5473611378f583cc3fc492bfdb9b09224a75b947
+      FRESHNESS_PIN: 75e5583cbc2bc6eb076ed49a67d0dbf5f34ba3e4
     steps:
       - uses: actions/checkout@v4
         with:
