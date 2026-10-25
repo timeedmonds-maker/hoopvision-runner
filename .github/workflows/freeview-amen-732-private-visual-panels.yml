@@ -43,9 +43,8 @@ jobs:
           root=Path(sys.argv[1])
           m=json.loads((root/"source_manifest.json").read_text())
           ts=json.loads((root/"native_presentation_timestamps.json").read_text())
-          picks={"High Tight":[225,228],"Left Above Rim":[239,242],
-                 "Left Slash":[213,216],"Right Slash":[203,206],
-                 "Broadcast":[272,275],"Right Above Rim":[231,234]}
+          picks={"High Tight":[230,232,234,236],"Left Above Rim":[244,246,248,250],
+                 "Left Slash":[218,220,222,224],"Right Slash":[208,210,212,214]}
           files={r["label"]:r for r in m["feeds"]}
           assert m["event"]["event_num"]==732 and len(files)>=6
           branch="research/amen-wemby-freeze-spin-20261024"
@@ -82,17 +81,17 @@ jobs:
                       print('PRIVATE_NATIVE_CONTACT_FRAME',label,index,round(pts,4))
               finally:
                   cap.release()
-          report={"schema":"freeview.amen732.native_12_contact_stills.v1",
+          report={"schema":"freeview.amen732.native_16_contact_stills_round2.v1",
                   "game_id":"0022600009","event_num":732,
                   "camera_views":frames,"frame_accuracy":"REAL_NATIVE_RGB_DECODED",
                   "same_physical_state_across_cameras":"PENDING_VISUAL_VERIFICATION",
                   "single_correct_contact_frame":"PENDING","3d_camera_calibration":"PENDING"}
           data=(json.dumps(report,indent=2)+'\n').encode()
-          name='hoopvision/freeview/fixtures/amen732_native_contact_stills.json'
+          name='hoopvision/freeview/fixtures/amen732_native_contact_stills_round2.json'
           payload={'branch':branch,'message':'qa: source native event 732 frame index evidence',
                    'content':base64.b64encode(data).decode()}
           put=root/'put.json';put.write_text(json.dumps(payload))
           cp=subprocess.run(['gh','api','-X','PUT',repo+name,'--input',str(put)],capture_output=True,text=True)
           assert cp.returncode==0,'PRIVATE_NATIVE_FRAME_RECEIPT_COMMIT_FAILED'
-          print('EVENT732_NATIVE_12_STILLS_PRIVATE_COMMITTED',len(frames))
+          print('EVENT732_NATIVE_16_STILLS_ROUND2_PRIVATE_COMMITTED',len(frames))
           PY
