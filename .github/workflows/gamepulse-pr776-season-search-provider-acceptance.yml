@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PIN: c9cb35ff2aa24b25d09336e622023188dd0c9d42
+      PIN: ab54bd722c80c8f92d922cc318fd2ac627d31faa
     steps:
       - uses: actions/checkout@v4
         with:
@@ -154,6 +154,7 @@ jobs:
           for f in \
             gamepulse/fusion/universal_possession_alignment_2026.py \
             gamepulse/fusion/build_terminal_window_recovery_v2_2026.py \
+            gamepulse/fusion/query_terminal_window_recovery_2026.py \
             gamepulse/fusion/tests/test_universal_possession_alignment_2026.py \
             gamepulse/fusion/tests/test_terminal_window_source_2026.py \
             gamepulse/fusion/index/unassigned_native_labels/index-2026-27.json \
@@ -175,10 +176,13 @@ jobs:
           ids=sorted(snapshot['games'])
           assert len(ids)==28 and set(ids)==set(unassigned_index['games'])==set(pbp_index['games'])
           def fetch_private(path):
-              args=['gh','api','repos/timeedmonds-maker/104/contents/'+path+'?ref=c9cb35ff2aa24b25d09336e622023188dd0c9d42','--jq','.content']
+              args=['gh','api','repos/timeedmonds-maker/104/contents/'+path+'?ref=ab54bd722c80c8f92d922cc318fd2ac627d31faa','--jq','.content']
               reply=subprocess.run(args,capture_output=True,text=True,timeout=90,check=True)
               return base64.b64decode(reply.stdout)
           totals=collections.Counter()
+          out=root/'terminal_window_candidate_output'
+          out.mkdir(exist_ok=False)
+          game_manifest={}
           for gid in ids:
               snap=snapshot['games'][gid]
               ua=unassigned_index['games'][gid]
@@ -192,6 +196,13 @@ jobs:
               s=json.loads(raw_s);u=json.loads(raw_u);p=json.loads(raw_p)
               assert p['source_provenance']['nba_pbp_sha256']==pi['source_pbp_sha256']
               result=build(p,s,u)
+              raw_result=(json.dumps(result,sort_keys=True,separators=(',',':'))+'\\n').encode()
+              (out/(gid+'.json')).write_bytes(raw_result)
+              game_manifest[gid]={'sha256':hashlib.sha256(raw_result).hexdigest(),
+                  'original_touch_labels':snap['original_touch_labels'],
+                  'source_nba_pbp_sha256':pi['source_pbp_sha256'],
+                  'source_crosswalk_sha256':snap['sha256'],
+                  'source_unassigned_sha256':ua['sha256']}
               assert result['original_native_touch_labels_preserved']==snap['original_touch_labels']
               assert result['previously_linked_unique_terminal_candidates']+result['previously_linked_unresolved']==snap['reused_touch_labels']
               assert result['originally_unassigned']==snap['unassigned_touch_labels']
@@ -213,8 +224,71 @@ jobs:
           assert totals['terminal_window_count']==5781
           assert totals['originally_unassigned']==11553
           assert totals['previously_linked_unique_terminal_candidates']+totals['previously_linked_unresolved']==12557
+          index={'schema':'gamepulse.terminal-window-original-native-28game-index.v1',
+              'source_private_branch_sha':'ab54bd722c80c8f92d922cc318fd2ac627d31faa',
+              'original_games':28,'games':game_manifest,
+              'totals':dict(sorted(totals.items())),
+              'new_verified_native_touch_assignments':0,
+              'new_native_xyz_observations_processed':0,
+              'nba_record_utc_cannot_certify_physical_boundary':True,
+              'research_candidates_do_not_count_as_accepted_physical_possessions':True}
+          (out/'index.json').write_text(json.dumps(index,sort_keys=True,indent=2)+'\\n')
+          from query_terminal_window_recovery_2026 import query
+          example=query(out,gid='0022600009',player='1627832',limit=25)
+          assert example['matches_total']>=1
+          assert example['new_certified_tracking_possession_memberships']==0
+          print('PRIVATE_TERMINAL_WINDOW_SEARCH_SMOKE_PASSED',
+                example['game_id'],example['matches_total'])
           print('REAL_28_GAME_TERMINAL_WINDOW_SOURCE_AUDIT',json.dumps(dict(sorted(totals.items())),sort_keys=True))
           print('POSSESSION_ENDING_EVENT_28_GAME_QA_PASSED')
+          PY
+
+      - name: Publish 29 source-graded NBA terminal tracking views to private PR atomically
+        shell: bash
+        run: |
+          set -euo pipefail
+          export OUT_DIR="$PULSE_ROOT/terminal_window_candidate_output"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess
+          from pathlib import Path
+          repo=os.environ['PRIVATE_REPO']
+          pin=os.environ['PIN']
+          branch='research/gamepulse-clock-boundary-integrity-20261025'
+          root=Path(os.environ['OUT_DIR'])
+          files=sorted(root.glob('*.json'))
+          assert len(files)==29,'EXPECTED_28_GAMES_PLUS_INDEX'
+          def gh(path,method='GET',body=None):
+              cmd=['gh','api',f'repos/{repo}/{path}']
+              if method!='GET':cmd+=['-X',method,'--input','-']
+              output=subprocess.run(cmd,
+                  input=json.dumps(body) if body is not None else None,
+                  capture_output=True,text=True,timeout=110)
+              if output.returncode:
+                  raise RuntimeError('PRIVATE_GITHUB_WRITE_FAILED:'+path+':'+output.stderr[-300:])
+              return json.loads(output.stdout)
+          ref='git/ref/heads/'+branch
+          assert gh(ref)['object']['sha']==pin,'PR_BRANCH_HEAD_MOVED'
+          base_tree=gh('git/commits/'+pin)['tree']['sha']
+          prefix='gamepulse/fusion/materialized/terminal_window_recovery_pr776_20261025/'
+          entries=[]
+          for path in files:
+              raw=path.read_bytes()
+              blob=gh('git/blobs','POST',
+                  {'content':base64.b64encode(raw).decode(),'encoding':'base64'})
+              correct_sha=hashlib.sha1(b'blob '+str(len(raw)).encode()+bytes([0])+raw).hexdigest()
+              assert blob['sha']==correct_sha,'BLOB_SOURCE_INTEGRITY_FAILED'
+              entries.append({'path':prefix+path.name,
+                  'mode':'100644','type':'blob','sha':blob['sha']})
+          tree=gh('git/trees','POST',{'base_tree':base_tree,'tree':entries})
+          new=gh('git/commits','POST',{
+              'message':'data(gamepulse): 28 NBA terminal windows with original native touch evidence and provenance',
+              'tree':tree['sha'],'parents':[pin]})
+          assert gh(ref)['object']['sha']==pin,'CONCURRENT_SOURCE_PR_UPDATE'
+          updated=gh('git/refs/heads/'+branch,'PATCH',
+                     {'sha':new['sha'],'force':False})
+          assert updated['object']['sha']==new['sha']
+          print('PRIVATE_TERMINAL_WINDOW_ATOMIC_PUBLICATION',
+                'files',len(files),'sha',new['sha'])
           PY
 
 # Accepted public/private guard entry present. Re-run original-source verification.
