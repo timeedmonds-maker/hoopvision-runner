@@ -123,8 +123,8 @@ jobs:
         run: |
           set -euo pipefail
           cd "$PRIVATE_ROOT"
-          PYTHONPATH=gamepulse/fusion python3 -m unittest -v \
-            gamepulse/fusion/tests/test_official_lineup_clock_intervals_2026.py
+          PYTHONPATH=gamepulse/fusion python3 -m unittest discover -v \
+            -s gamepulse/fusion/tests -p "test_official_lineup_clock_intervals_2026.py"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
           git add gamepulse/fusion/official_lineup_clock/index.json \
