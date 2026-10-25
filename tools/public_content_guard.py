@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/amen732-cotracker3-source-research.yml",
     ".github/workflows/freeview-amen732-ball-evidence.yml",
     ".github/workflows/gamepulse-original-raw-completeness.yml",  # reviewed: SHA-pinned original source read-only aggregate QA, no raw data publication
     ".github/workflows/gamepulse-pr776-original-sdk-terminal-xyz.yml",  # reviewed: one real private NBA SDK game, original SHA, aggregate-only logs
