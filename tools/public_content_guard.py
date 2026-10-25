@@ -162,7 +162,7 @@ REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
     ".github/workflows/gamepulse-pr776-private-event-xyz.yml": "4179f50689e99a428784a33cece548ea80e4e44a",  # private-only SHA-verified SDK event subset; no coordinates in public logs
     ".github/workflows/gamepulse-pr776-event-first-36.yml": "5af8507e5d2274ac13c9fdf9d5a9568ae778cf65",  # reviewed: 36-game private read-only source-graded event query, aggregate private receipt
     ".github/workflows/gamepulse-pr776-clock-shadow-study.yml": "844ff228aecad1a2537d4d986329e7b498d015bc",  # reviewed: private SHA-pinned clock QA, no raw source export or physical certification
-    ".github/workflows/gamepulse-pr776-release-direct-pilot.yml": "629e167892af2f9148d8d3f21eb09990b4cc0f27",  # reviewed private release download, no public artifact or coordinates
+    ".github/workflows/gamepulse-pr776-release-direct-pilot.yml": "5cd5cc5b299537a12f13a549e8f978b168a88b2a",  # reviewed private release download, no public artifact or coordinates
     ".github/workflows/gamepulse-video-free-clock-season.yml": "50f57ae8e3e6db0523dd25246110664b846441da",  # reviewed: original SHA-checked NBA SDK made-hoop QA only, private writes
     ".github/workflows/gamepulse-pr776-nba-36-episodes.yml": "edf6cce97c6db0d4b3775d172116813a6eb73aae",  # reviewed: private sparse source, full 36 SHA episode replay, old 28 preserved
     ".github/workflows/gamepulse-pr776-official-36game-expansion.yml": "a87ef5db6b672f78322fe49f4f9b46923cc17780",  # reviewed: private sparse git only; NBA official PBP/provider, 8-game addition, no public source files
