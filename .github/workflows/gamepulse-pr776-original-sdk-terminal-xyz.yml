@@ -101,3 +101,5 @@ jobs:
           assert result['object']['sha']==commit['sha']
           print('PRIVATE_ORIGINAL_SDK_XYZ_FRAME_PILOT_COMMITTED',commit['sha'])
           PY
+
+# Run after reviewed public/private licensed frame boundary policy approval
