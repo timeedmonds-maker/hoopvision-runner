@@ -1,4 +1,4 @@
-name: Clip Lab event80 frozen-native shot export safety gate
+name: Clip Lab event80 frozen camera paint independent acceptance
 on:
   push:
     branches: [main]
@@ -102,6 +102,17 @@ jobs:
           python3 "$ROOT/canonical/gamepulse/clip_lab/qa_frozen_court_projection.py" \
             --source "$ROOT/event80-broadcast.mp4" \
             --courts "$ROOT/court_frames.json" --out "$ROOT/qa"
+          python3 "$ROOT/canonical/gamepulse/clip_lab/event80_court_paint_gate.py" \
+            --video "$ROOT/event80-broadcast.mp4" \
+            --courts "$ROOT/court_frames.json" \
+            --out "$ROOT/qa/key-paint-qa.json"
+          python3 - "$ROOT/qa/key-paint-qa.json" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q['samples']>=7, 'UNSUPPORTED_PIXEL_SAMPLE_COUNT'
+          assert q['status']=='REJECTED_MISREGISTERED_NBA_KEY', 'COURT_QA_ASSUMPTION_CHANGED_REVIEW_REQUIRED'
+          print('MISREGISTERED_FROZEN_H_INDEPENDENTLY_CAUGHT',q['median_dark_fraction'],q['samples'])
+          PY
           echo ORIGINAL_FROZEN_CAMERA_GEOMETRY_QA_EXPORT_READY
       - uses: actions/upload-artifact@v4
         if: ${{ success() }}
@@ -112,5 +123,6 @@ jobs:
             ${{ runner.temp }}/clip-lab-private/native-shot-render-gate.json
             ${{ runner.temp }}/clip-lab-private/qa/*.jpg
             ${{ runner.temp }}/clip-lab-private/qa/court-frame-qa.json
+            ${{ runner.temp }}/clip-lab-private/qa/key-paint-qa.json
           if-no-files-found: error
           retention-days: 2
