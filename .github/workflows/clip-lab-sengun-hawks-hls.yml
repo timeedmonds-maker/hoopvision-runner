@@ -84,14 +84,6 @@ jobs:
               seen.add((label,stream))
               options.append({"label":label,"hls_url":stream,"page_selected":"selected" in m.group(2).lower()})
           print("HLS_CAMERA_COUNT",len(options))
-          for a in options:print("HLS_CAMERA",json.dumps(a,ensure_ascii=False))
-          report={"game_id":game,"event_num":event,"description":x.get("description"),"quarter":3,"clock":x.get("clock"),"score_houston":71,"score_atlanta":54,"replay_page":replay,"checked_utc":datetime.datetime.now(datetime.timezone.utc).isoformat(),"angles":options}
-          with open("sengun-hawks-hls-result.json","w") as f:json.dump(report,f,indent=2,ensure_ascii=False)
+          for a in options:print("HLS_CAMERA_LABEL",json.dumps({"label":a["label"],"page_selected":a["page_selected"]},ensure_ascii=False))
           if not options:sys.exit(5)
           PY
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: clip-lab-sengun-hawks-official-hls
-          path: sengun-hawks-hls-result.json
-          retention-days: 1

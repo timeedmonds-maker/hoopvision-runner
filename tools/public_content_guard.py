@@ -156,6 +156,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/clip-lab-sengun-hawks-hls.yml": "35451bc2417ae7f8af06fb05e5c9c19e7c85223c",  # reviewed: NBA public event probe, metadata-only logs, no artifacts
     ".github/workflows/clip-lab-frozen-ring-sprites.yml": "a002f86a91280330248438f837bb2d5e7c51d99c",  # inspected: only generated RGBA ring sprites and metadata uploaded
     ".github/workflows/clip-lab-rockets-219-hls.yml": "16d9d45f0d718271049b894adbdf8375b9d22b5d",
     ".github/workflows/clip-lab-rockets-new-double-346-hls.yml": "330309713345d92819ebf61f46ca39fc7d7df969",
@@ -190,6 +191,7 @@ REVIEWED_HANDOFF_CERT_GIT_BLOB_SHA = {
 }
 
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
+    ".github/workflows/clip-lab-sengun-hawks-hls.yml",  # pinned, public clips origin only; no raw URL output or artifacts
     ".github/workflows/clip-lab-rockets-219-hls.yml",
     ".github/workflows/clip-lab-rockets-new-double-346-hls.yml",
     ".github/workflows/clip-lab-rockets-new-double-353-hls.yml",
