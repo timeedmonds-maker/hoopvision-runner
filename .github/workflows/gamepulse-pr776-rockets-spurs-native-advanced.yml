@@ -152,3 +152,5 @@ jobs:
               raise SystemExit('INDEPENDENT_PROVIDER_DISAGREES_WITH_RETAINED_REFERENCE')
           print('NBA_OFFICIAL_FULL_P1_PROVIDER_RECONCILIATION_PASSED')
           PY
+
+# First-source capture triggered after public content guard allowlist review
