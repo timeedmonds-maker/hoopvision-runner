@@ -137,3 +137,24 @@ jobs:
           a=json.load(open(sys.argv[1]))
           print("PTZ_NATIVE_REAL_CASE",[(c["label"],c["independent_static_strata_passed"]) for c in a["camera_motion_qa"]])
           PY
+
+          python3 - "$TMP/qa/event732-independent-static-ptz.json" "$TMP/put_ptz.json" <<'PY'
+          import base64,json,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_bytes()
+          assert len(raw)<500000
+          Path(sys.argv[2]).write_text(json.dumps({
+              "branch":"research/amen-wemby-freeze-spin-20261024",
+              "message":"qa: six original NBA static-depth heldout PTZ transforms",
+              "content":base64.b64encode(raw).decode("ascii")}))
+          PY
+          DEST='repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_native_ptz_two_strata.json'
+          if gh api "$DEST?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha >/dev/null 2>&1; then
+            python3 - "$TMP/put_ptz.json" "$(gh api "$DEST?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha)" <<'PY'
+          import json,sys
+          path=sys.argv[1];data=json.load(open(path));data["sha"]=sys.argv[2]
+          open(path,"w").write(json.dumps(data))
+          PY
+          fi
+          gh api -X PUT "$DEST" --input "$TMP/put_ptz.json" --jq .content.sha >/dev/null
+          echo EVENT732_PT_Z_PRIVATE_FIXTURE_COMMITTED
