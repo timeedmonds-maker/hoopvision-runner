@@ -84,7 +84,7 @@ jobs:
           payload={"schema":"gamepulse.rockets.official-five-source-recovery.v1",
                    "game_id":os.environ["GAME_ID"],
                    "source_commit":os.environ["PRIVATE_PIN"],
-                   "provider_qa":qa,
+                   "source_qa":qa,
                    "official_lineups":result["lineup_compared"],
                    "conflict_classification":categories,
                    "conflict_details":rows,
