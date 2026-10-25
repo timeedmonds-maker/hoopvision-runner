@@ -58,23 +58,44 @@ jobs:
             &&Date.parse(g.tipoff)>=Date.parse('2026-10-24T21:00:00Z')
             &&Date.parse(g.tipoff)<Date.parse('2026-10-25T04:00:00Z')
             &&Date.parse(g.tipoff)<=now);
-          const missing=ready.filter(g=>cat.games[g.id]?.index_state!=='VERIFIED_ARCHIVE_INDEX')
+          // Only request missing original SDK parts. Prior verified parts are
+          // immutable private assets; never re-fetch or overwrite their source.
+          const candidates=ready.filter(g=>cat.games[g.id]?.index_state!=='VERIFIED_ARCHIVE_INDEX')
             .sort((a,b)=>Date.parse(a.tipoff)-Date.parse(b.tipoff));
-          if(missing.length>8||missing.some(g=>now-Date.parse(g.tipoff)>7*86400000))
+          if(candidates.length>8||candidates.some(g=>now-Date.parse(g.tipoff)>7*86400000))
             throw Error('backlog_outside_bounded_authenticated_fanout');
-          const parts=missing.flatMap(g=>Array.from({length:13},(_,part)=>({...g,part})));
-          appendFileSync(process.env.GITHUB_OUTPUT,'games='+JSON.stringify({include:missing})+'\n');
-          appendFileSync(process.env.GITHUB_OUTPUT,'parts='+JSON.stringify({include:parts})+'\n');
-          appendFileSync(process.env.GITHUB_OUTPUT,'count='+missing.length+'\n');
-          console.log('FINAL_READY',ready.length,'VERIFIED',Object.keys(cat.games).length,'MISSING',missing.length,'PARTS',parts.length);
-          console.log('MISSING_GAME_IDS',missing.map(x=>x.id).join(','));
+          const incomplete=[],parts=[];
+          let completed=0,reusedParts=0;
+          for(const game of candidates){
+            const r=await fetch('https://api.github.com/repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-'+game.id,{
+              headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json',
+                'User-Agent':'reviewed-gamepulse-private-archive-readback'},
+              signal:AbortSignal.timeout(30000)});
+            if(r.status!==404&&!r.ok)throw Error('private_archive_discovery_denied_'+r.status);
+            const names=new Set(r.status===404?[]:((await r.json()).assets||[]).map(x=>x.name));
+            if(names.has('sdk-COMPLETE.json')){completed++;continue;}
+            incomplete.push(game);
+            for(let part=0;part<13;part++){
+              const base='sdk-part-'+String(part).padStart(2,'0');
+              if(names.has(base+'.tar.gz')&&names.has(base+'.json')){reusedParts++;continue;}
+              parts.push({...game,part});
+            }
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT,'games='+JSON.stringify({include:incomplete})+'\\n');
+          appendFileSync(process.env.GITHUB_OUTPUT,'parts='+JSON.stringify({include:parts})+'\\n');
+          appendFileSync(process.env.GITHUB_OUTPUT,'count='+incomplete.length+'\\n');
+          console.log('FINAL_READY',ready.length,'VERIFIED',Object.keys(cat.games).length,
+            'ALREADY_COMPLETE',completed,'PARTS_REUSED',reusedParts,
+            'GAMES_INCOMPLETE',incomplete.length,'PARTS_TO_CAPTURE',parts.length);
+          console.log('INCOMPLETE_GAME_IDS',incomplete.map(x=>x.id).join(','));
+
           JS
   capture:
     needs: discover
     if: needs.discover.outputs.count != '0'
     strategy:
       fail-fast: false
-      max-parallel: 13
+      max-parallel: 8
       matrix: ${{ fromJSON(needs.discover.outputs.parts) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 105
