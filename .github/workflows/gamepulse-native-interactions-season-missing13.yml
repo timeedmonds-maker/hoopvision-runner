@@ -1,4 +1,4 @@
-name: Integrated Pulse native SDK to official PBP missing-13 source fusion
+name: Integrated Pulse native SDK and official NBA PBP 36-game season completion
 # Respect NBA one-of-one technical FT scoring outside current possession owner.
 # Public/free GitHub-hosted CPU; all SDK archives, individual player and
 # possession records, coordinates, receipts and query outputs stay private 104.
@@ -12,7 +12,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: integrated-pulse-new13-source-native-touch-fusion
+  group: integrated-pulse-final8-source-native-touch-fusion
   cancel-in-progress: false
 jobs:
   game-fusion:
@@ -23,19 +23,14 @@ jobs:
       max-parallel: 4
       matrix:
         game:
-          - '0022600007'
-          - '0022600008'
-          - '0022600009'
-          - '0022600094'
-          - '0022600095'
-          - '0022600096'
-          - '0022600097'
-          - '0022600098'
-          - '0022600099'
-          - '0022600100'
-          - '0022600101'
-          - '0022600102'
-          - '0022600103'
+          - '0022600104'
+          - '0022600105'
+          - '0022600106'
+          - '0022600107'
+          - '0022600108'
+          - '0022600109'
+          - '0022600110'
+          - '0022600111'
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GAME_ID: ${{ matrix.game }}
@@ -223,7 +218,9 @@ jobs:
                     "0022600090","0022600091","0022600092","0022600093",
                     "0022600094","0022600095","0022600096","0022600097",
                     "0022600098","0022600099","0022600100","0022600101",
-                    "0022600102","0022600103")
+                    "0022600102","0022600103",
+                    "0022600104","0022600105","0022600106","0022600107",
+                    "0022600108","0022600109","0022600110","0022600111")
           def req(*args,input=None):
               r=subprocess.run(["gh","api",*args],input=input,stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE,text=True,timeout=100)
@@ -238,7 +235,7 @@ jobs:
           assert source["game_count"]==14
           assert set(source["games"])<=set(expected)
           base,_,_=read(target)
-          assert set(base["games"])<=set(expected)
+          assert len(base["games"])==28 and set(base["games"])<=set(expected),"ORIGINAL_28_PRESERVATION_GATE"
           assert all(base["games"].get(g)==v for g,v in source["games"].items()),"FROZEN_ORIGINAL14_MUTATED"
           records={}
           for gid in expected:
@@ -259,17 +256,17 @@ jobs:
           updated=dict(base)
           updated["game_count"]=len(expected)
           updated["games"]={g:records[g] for g in sorted(records)}
-          updated["status"]="SOURCE_NATIVE_TOUCH_PBP_BLUEPRINT_28_GAME_SEARCH_ACTION_RUN_GRAIN"
+          updated["status"]="SOURCE_NATIVE_TOUCH_PBP_BLUEPRINT_36_GAME_SEARCH_ACTION_RUN_GRAIN"
           updated["certified_full_touch_possessions"]=0
           updated["original_14_preserved"]=True
-          updated["notice"]="28 source-native lastTouch indexes joined to official NBA action runs, NOT individually certified physical possessions."
+          updated["notice"]="36 source-native lastTouch indexes joined to official NBA action runs, NOT individually certified physical possessions."
           blob=(json.dumps(updated,indent=2,sort_keys=True)+"\n").encode()
           for attempt in range(12):
               _,old,old_sha=read(target)
               if old==blob:
-                  print("PRIVATE_28_GAME_NATIVE_TOUCH_INDEX_ALREADY_COMPLETE")
+                  print("PRIVATE_36_GAME_NATIVE_TOUCH_INDEX_ALREADY_COMPLETE")
                   raise SystemExit(0)
-              payload={"branch":"main","message":"data(gamepulse): index all 28 original SDK touch and official PBP runs",
+              payload={"branch":"main","message":"data(gamepulse): index all 36 original SDK touch and official PBP runs",
                        "content":base64.b64encode(blob).decode(),"sha":old_sha}
               p=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
                                input=json.dumps(payload),capture_output=True,text=True,timeout=100)
@@ -278,7 +275,7 @@ jobs:
                   saved=req("repos/"+repo+"/git/blobs/"+new_sha)
                   restored=base64.b64decode(saved["content"])
                   assert restored==blob and hashlib.sha256(restored).digest()==hashlib.sha256(blob).digest()
-                  print("PRIVATE_28_GAME_NATIVE_TOUCH_INDEX_SHA_VERIFIED",
+                  print("PRIVATE_36_GAME_NATIVE_TOUCH_INDEX_SHA_VERIFIED",
                         "games",len(expected),"runs",sum(v["team_action_runs"] for v in records.values()))
                   break
               time.sleep(attempt+1)
