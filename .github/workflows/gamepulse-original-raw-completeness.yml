@@ -1,0 +1,39 @@
+name: Integrated Pulse original raw tracking completeness
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-original-raw-completeness.yml']
+permissions:
+  contents: read
+jobs:
+  audit-rockets-spurs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME_ID: '0022600009'
+      PRIVATE_REPO: timeedmonds-maker/104
+      AUDIT_PIN: 91ab4894d412a7b9a1b38c8e5b06122cbe72c4e2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Download source and run SHA-verified read-only raw slot audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          mkdir -p "$RUNNER_TEMP/pulse/raw"
+          gh api "repos/$PRIVATE_REPO/contents/gamepulse/fusion/audit_original_sdk_raw_vs_simplified_frames_2026.py?ref=$AUDIT_PIN" --jq .content | base64 -d > "$RUNNER_TEMP/pulse/audit.py"
+          gh api "repos/$PRIVATE_REPO/releases/tags/gamepulse-sdk-$GAME_ID" > "$RUNNER_TEMP/pulse/release.json"
+          gh release download "gamepulse-sdk-$GAME_ID" --repo "$PRIVATE_REPO" --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/pulse/raw"
+          python3 "$RUNNER_TEMP/pulse/audit.py" --game-id "$GAME_ID" --archive-dir "$RUNNER_TEMP/pulse/raw" --release-json "$RUNNER_TEMP/pulse/release.json" --out "$RUNNER_TEMP/pulse/coverage.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          result=json.loads((Path(os.environ["RUNNER_TEMP"])/"pulse/coverage.json").read_text())
+          assert result["counts"]["distinct_native_timestamps"]==34979
+          print("SOURCE_RAW_COMPLETENESS_AGGREGATE_ONLY",json.dumps(result["counts"],sort_keys=True))
+          PY
