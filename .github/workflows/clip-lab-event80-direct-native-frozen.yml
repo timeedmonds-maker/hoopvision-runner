@@ -1,4 +1,4 @@
-name: Clip Lab event80 recover original frozen court geometry with ORB
+name: Clip Lab event80 native geometry scale and court registration test
 on:
   push:
     branches: [main]
@@ -160,6 +160,46 @@ jobs:
             'repaired_player_pair_coverage':sample(after)
           },sort_keys=True))
           PY
+      - name: Compare model paint size alignment against Game Pulse player coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/clip-lab-private"
+          python3 -m pip install --quiet scipy==1.11.4
+          python3 "$ROOT/canonical/gamepulse/clip_lab/experimental_spurs_paint_registration.py" \
+            --video "$ROOT/event80-broadcast.mp4" \
+            --courts "$ROOT/court_frames.json" \
+            --out "$ROOT/court_frames_paint_experimental.json" \
+            --qa "$ROOT/paint-affine-qa.json"
+          python3 "$ROOT/canonical/gamepulse/clip_lab/prepare_frozen_physical.py" \
+            --tracks "$ROOT/tracks.csv" \
+            --courts "$ROOT/court_frames_paint_experimental.json" \
+            --output "$ROOT/physical_paint_experimental.csv" \
+            --fps 30 --duration-s 19.52
+          python3 "$ROOT/canonical/gamepulse/clip_lab/shot_window_native_diagnostic.py" \
+            --native "$ROOT/native.json" \
+            --physical "$ROOT/physical_paint_experimental.csv" \
+            --courts "$ROOT/court_frames_paint_experimental.json" \
+            --event-video-s 6.5 --end-s 9.0 \
+            --out "$ROOT/paint-shot-diagnostic.json"
+          python3 - "$ROOT" <<'PY'
+          import json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          base=json.loads((root/'shot-window-diagnostic.json').read_text())
+          paint=json.loads((root/'paint-shot-diagnostic.json').read_text())
+          geo=json.loads((root/'paint-affine-qa.json').read_text())
+          def cov(q):
+            options=[r for r in q['basis_max_coverage'] if r['cm_per_native_unit']==2.54 and r['origin_mode']=='centre']
+            return max((r['max_coverage'] for r in options),default=0.)
+          assert geo['render_authorized'] is False and geo['locked_ring_art_unchanged']
+          print('GEOMETRIC_SCALE_EXPERIMENT_RESULT',json.dumps({
+            'court_key_footprint_IoU_before':geo['median_iou_before'],
+            'court_key_footprint_IoU_after':geo['median_iou_after'],
+            'camera_frames_repaired':geo['corrected'],
+            'source_native_pair_coverage':cov(base),
+            'experimental_native_pair_coverage':cov(paint)},sort_keys=True))
+          PY
       - uses: actions/upload-artifact@v4
         if: ${{ success() }}
         with:
@@ -173,5 +213,7 @@ jobs:
             ${{ runner.temp }}/clip-lab-private/qa/key-paint-repaired.json
             ${{ runner.temp }}/clip-lab-private/orb-camera-qa.json
             ${{ runner.temp }}/clip-lab-private/orb-shot-diagnostic.json
+            ${{ runner.temp }}/clip-lab-private/paint-affine-qa.json
+            ${{ runner.temp }}/clip-lab-private/paint-shot-diagnostic.json
           if-no-files-found: error
           retention-days: 2
