@@ -1,5 +1,6 @@
 name: Game Pulse verified failed checkpoints source retry
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -257,6 +258,14 @@ jobs:
             writeFileSync(receipt,JSON.stringify(summary)+'\n');
             if(gh(['release','upload',tag,receipt,'--repo','timeedmonds-maker/104','--clobber']).status!==0)
               throw Error('private_probe_receipt_save_failed');
+            // Even empty-source evidence must have an independently read-back
+            // digest: a successful upload exit alone is not proof of storage.
+            const receiptListing=gh(['api','repos/timeedmonds-maker/104/releases/tags/'+tag]);
+            if(receiptListing.status!==0)throw Error('private_probe_receipt_readback_failed');
+            const remoteReceipt=JSON.parse(receiptListing.stdout).assets.find(a=>a.name===base+'.json');
+            const receiptDigest='sha256:'+createHash('sha256').update(readFileSync(receipt)).digest('hex');
+            if(remoteReceipt?.digest!==receiptDigest)throw Error('private_probe_receipt_digest_mismatch');
+            console.log('PRIVATE_CAVS_SOURCE_RECEIPT_SHA_VERIFIED',label,receiptDigest);
             const archive=join(work,'checkpoint.tar.gz');
             if(summary.active_play_source_usable && existsSync(archive)){
               const name=base+'.tar.gz';
