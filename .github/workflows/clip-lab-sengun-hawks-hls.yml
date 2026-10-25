@@ -43,6 +43,11 @@ jobs:
                           print("CONFIRMED_EVENT_NUMBER",probe)
                           print("CONFIRMED_REPLAY_PAGE",pu)
                           print("HLS_CAMERA_COUNT",len(opts))
+                          if not opts:
+                              print("HLS_DEBUG", "m3u8",t.lower().count(".m3u8"),"lrmedia",t.count("lrmedia.nba.com"),"option",t.lower().count("<option"))
+                              for needle in (".m3u8","lrmedia.nba.com","<option","<source"):
+                                  i=t.lower().find(needle.lower())
+                                  print("HLS_NEEDLE",needle,i,repr(t[max(0,i-350):i+400]) if i>=0 else "")
                           for angle in opts:print("HLS_CAMERA",json.dumps(angle,ensure_ascii=False))
                           with open("sengun-hawks-hls-result.json","w") as outfile:
                               json.dump({"game_id":game,"event_num":probe,"clips_page_title":title,"replay_page":pu,"angles":opts},outfile,indent=2,ensure_ascii=False)
