@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PIN: 575a6f82c5adc230635f1d3b3a3fdba834b65ece
+      PIN: 852cc149dbc22a8b67307ac2ee7d35b5d9318b9b
     steps:
       - uses: actions/checkout@v4
         with:
@@ -138,5 +138,83 @@ jobs:
                 'snapshots_sha_checked',28,'source_episodes',totals['episodes'])
           PY
           echo 'SEASON_SEARCH_AND_PROVIDER_ACCEPTANCE_PASSED'
+
+      - name: Verify 28 original PBP ending-event windows and source-native tracking partitions
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$PULSE_ROOT"
+          get_private () {
+            local path="$1"
+            mkdir -p "$(dirname "$ROOT/$path")"
+            gh api "repos/$PRIVATE_REPO/contents/$path?ref=$PIN" --jq .content |
+              base64 --decode > "$ROOT/$path"
+            test -s "$ROOT/$path"
+          }
+          for f in \
+            gamepulse/fusion/universal_possession_alignment_2026.py \
+            gamepulse/fusion/build_terminal_window_recovery_v2_2026.py \
+            gamepulse/fusion/tests/test_universal_possession_alignment_2026.py \
+            gamepulse/fusion/tests/test_terminal_window_source_2026.py \
+            gamepulse/fusion/index/unassigned_native_labels/index-2026-27.json \
+            gamepulse/fusion/official_pbp_timing/index-2026-27-expanded.json; do
+              get_private "$f"
+          done
+          export PYTHONPATH="$ROOT/gamepulse/fusion:$ROOT/gamepulse/fusion/tests"
+          python3 -m py_compile "$ROOT/gamepulse/fusion/build_terminal_window_recovery_v2_2026.py"
+          python3 -m unittest discover -s "$ROOT/gamepulse/fusion/tests" \
+            -p 'test_terminal_window_source_2026.py' -v
+          python3 - "$ROOT" <<'PY'
+          import base64,collections,hashlib,json,subprocess,sys
+          from pathlib import Path
+          from build_terminal_window_recovery_v2_2026 import build
+          root=Path(sys.argv[1]);base=root/'gamepulse/fusion'
+          snapshot=json.loads((base/'materialized/nba_episode_tracking_pr776_20261025/index.json').read_bytes())
+          unassigned_index=json.loads((base/'index/unassigned_native_labels/index-2026-27.json').read_bytes())
+          pbp_index=json.loads((base/'official_pbp_timing/index-2026-27-expanded.json').read_bytes())
+          ids=sorted(snapshot['games'])
+          assert len(ids)==28 and set(ids)==set(unassigned_index['games'])==set(pbp_index['games'])
+          def fetch_private(path):
+              args=['gh','api','repos/timeedmonds-maker/104/contents/'+path+'?ref=852cc149dbc22a8b67307ac2ee7d35b5d9318b9b','--jq','.content']
+              reply=subprocess.run(args,capture_output=True,text=True,timeout=90,check=True)
+              return base64.b64decode(reply.stdout)
+          totals=collections.Counter()
+          for gid in ids:
+              snap=snapshot['games'][gid]
+              ua=unassigned_index['games'][gid]
+              pi=pbp_index['games'][gid]
+              raw_s=(base/'materialized/nba_episode_tracking_pr776_20261025'/snap['path']).read_bytes()
+              raw_u=fetch_private(ua['path'])
+              raw_p=fetch_private(pi['source_file'])
+              assert hashlib.sha256(raw_s).hexdigest()==snap['sha256']
+              assert hashlib.sha256(raw_u).hexdigest()==ua['sha256']
+              assert hashlib.sha256(raw_p).hexdigest()==snap['source_hashes']['pbp']
+              s=json.loads(raw_s);u=json.loads(raw_u);p=json.loads(raw_p)
+              assert p['source_provenance']['nba_pbp_sha256']==pi['source_pbp_sha256']
+              result=build(p,s,u)
+              assert result['original_native_touch_labels_preserved']==snap['original_touch_labels']
+              assert result['previously_linked_unique_terminal_candidates']+result['previously_linked_unresolved']==snap['reused_touch_labels']
+              assert result['originally_unassigned']==snap['unassigned_touch_labels']
+              assert result['new_certified_native_touch_memberships']==0
+              for key in ['terminal_window_count','original_native_touch_labels_preserved','previously_linked_unique_terminal_candidates','previously_linked_unresolved','originally_unassigned','new_research_only_source_utc_window_candidates']:
+                  totals[key]+=result[key]
+              totals['linked_time_candidate_agrees']+=result['qa_counts'].get('linked_utc_candidate_agrees_with_existing_chain',0)
+              totals['linked_time_candidate_disagrees']+=result['qa_counts'].get('linked_utc_candidate_disagrees_with_existing_chain',0)
+              totals['linked_time_candidate_unmatched']+=result['qa_counts'].get('linked_utc_candidate_not_unique',0)
+              if gid=='0022600009':
+                  import copy
+                  altered=copy.deepcopy(u)
+                  altered['unassigned_touches'][0]['player_id']='POISONED_SOURCE_PLAYER'
+                  try:build(p,s,altered)
+                  except ValueError as exc:
+                      assert 'UNASSIGNED_ORIGINAL_IDENTITY_CONFLICT' in str(exc)
+                  else:raise AssertionError('SOURCE_ID_CORRUPTION_ACCEPTED')
+          assert totals['original_native_touch_labels_preserved']==24110
+          assert totals['terminal_window_count']==5781
+          assert totals['originally_unassigned']==11553
+          assert totals['previously_linked_unique_terminal_candidates']+totals['previously_linked_unresolved']==12557
+          print('REAL_28_GAME_TERMINAL_WINDOW_SOURCE_AUDIT',json.dumps(dict(sorted(totals.items())),sort_keys=True))
+          print('POSSESSION_ENDING_EVENT_28_GAME_QA_PASSED')
+          PY
 
 # Accepted public/private guard entry present. Re-run original-source verification.
