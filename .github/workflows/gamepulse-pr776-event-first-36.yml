@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 D1 36-game exact-action acceptance
+name: Integrated Pulse PR776 D1 36-game native-window query acceptance
 on:
   push:
     branches: [main]
@@ -64,6 +64,8 @@ jobs:
                   'pending_native_QA_games':0,'event_source_sha_verified':0,
                   'action_lineup_ambiguous_count':0,
                   'unique_official_ten_at_exact_action_clock':0,
+                  'games_with_pinned_native_time_windows':0,
+                  'games_with_unknown_native_time_windows':0,
                   'selected_qualified_native_episodes':0,
                   'physical_possessions_certified':0}
           receipts={}
@@ -77,6 +79,9 @@ jobs:
               assert q['physical_possessions_certified']==0
               is_native=gid in nindex['games']
               assert q['native_qa_available'] is is_native
+              assert q['native_source_window_index_loaded'] is is_native
+              counts['games_with_pinned_native_time_windows']+=bool(is_native)
+              counts['games_with_unknown_native_time_windows']+=not is_native
               if not is_native:
                   assert all(x['tracking']['status']=='NATIVE_XYZ_QA_NOT_MATERIALIZED'
                              and x['tracking']['candidate_frames'] is None
@@ -116,6 +121,8 @@ jobs:
           assert counts['games']==36 and counts['official_nba_episodes']==7524
           assert counts['native_QA_games']==28 and counts['pending_native_QA_games']==8
           assert counts['unique_official_ten_at_exact_action_clock']==36
+          assert counts['games_with_pinned_native_time_windows']==28
+          assert counts['games_with_unknown_native_time_windows']==8
           # At least one real qualified original native episode must be selectable
           gid='0022600009'
           qap='gamepulse/fusion/qa/official_native_episode_xyz_bridge_0022600009_20261026.json'
@@ -126,6 +133,9 @@ jobs:
           assert rock['episodes'] and rock['episodes'][0]['tracking']['status']=='PROVISIONAL_NATIVE_EPISODE_QA'
           assert rock['episodes'][0]['tracking']['complete_ten_plus_ball_candidate_frames']>0
           assert not rock['raw_original_sdk_coordinates_in_this_output']
+          assert rock['episodes'][0]['tracking']['native_episode_window_state']==(
+              'PROVISIONAL_EXTRACTABLE_NATIVE_TIME_WINDOWS')
+          assert len(rock['episodes'][0]['tracking']['native_episode_extraction_windows'])>0
           counts['selected_qualified_native_episodes']+=1
           print('PRIVATE_SOURCE_GRADED_EVENT_D1_ACCEPTANCE',json.dumps(counts,sort_keys=True))
           result={'schema':'gamepulse.36game-event-first-query-acceptance.v1',
@@ -134,7 +144,7 @@ jobs:
                   'independent_native_clock_accuracy_accepted':False,
                   'physical_possessions_certified':0,
                   'source_original_sdk_coordinates_exported':False}
-          path=Path('gamepulse/fusion/qa/event_first_lookup_36game_exact_action_acceptance_20261026.json')
+          path=Path('gamepulse/fusion/qa/event_first_lookup_36game_native_window_acceptance_20261026.json')
           if path.exists():raise FileExistsError('REFUSE_EXISTING_D1_ACCEPTANCE_OVERWRITE')
           path.write_text(json.dumps(result,sort_keys=True,indent=2)+'\n')
           PY
@@ -145,7 +155,7 @@ jobs:
           cd "$SOURCE_ROOT"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
-          git add gamepulse/fusion/qa/event_first_lookup_36game_exact_action_acceptance_20261026.json
+          git add gamepulse/fusion/qa/event_first_lookup_36game_native_window_acceptance_20261026.json
           git diff --cached --check
           git commit -qm "data(gamepulse): prove 36-game official action lookup with 28 original native QA source statuses"
           git push -q origin "HEAD:$BRANCH"
