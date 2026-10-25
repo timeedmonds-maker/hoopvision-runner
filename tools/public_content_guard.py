@@ -150,6 +150,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/clip-lab-frozen-ring-sprites.yml": "a002f86a91280330248438f837bb2d5e7c51d99c",  # inspected: only generated RGBA ring sprites and metadata uploaded
     ".github/workflows/clip-lab-rockets-219-hls.yml": "16d9d45f0d718271049b894adbdf8375b9d22b5d",
     ".github/workflows/clip-lab-rockets-new-double-346-hls.yml": "330309713345d92819ebf61f46ca39fc7d7df969",
     ".github/workflows/clip-lab-rockets-new-double-353-hls.yml": "0fe06a115dd1f2c18c74a1be28753f1d63d41a44",
@@ -197,6 +198,11 @@ REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS = {
     ".github/workflows/nba-jabari616-ball-handler-media.yml",
     ".github/workflows/nba-jabari616-ring-export-to-chat.yml",
     ".github/workflows/nba-jabari616-cumulative-receivers.yml",
+}
+# Reviewed immutable sprite export produces only generated RGBA PNG atlases and metadata;
+# no source positions, tracking frames, or raw private SDK observations are uploaded.
+REVIEWED_PUBLIC_SPRITE_EXPORT_WORKFLOWS = {
+    ".github/workflows/clip-lab-frozen-ring-sprites.yml",
 }
 ALLOWED_PREFIXES = {"bridge_outbox/"}
 FORBIDDEN_PREFIXES = {
@@ -268,6 +274,7 @@ def scan(paths: list[str]) -> list[tuple[str, str]]:
                 # raw tracking or canonical private database records.
                 if (code == "ACTIONS_ARTIFACT_UPLOAD" and
                     (rel in REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS
+                     or rel in REVIEWED_PUBLIC_SPRITE_EXPORT_WORKFLOWS
                      or rel in REVIEWED_ARTIFACT_HANDOFF_GIT_BLOB_SHA)):
                     continue
                 # Existing exact-blob NBA clip locator workflows contain the
