@@ -83,6 +83,31 @@ jobs:
                 q['median_original_adams_source_disagreement_cm'],
                 g['possession_intervals'][0]['end_s'])
           PY
+      - name: Reject Adams-to-Durant track swaps using native three-player negative evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/clip-lab-private"
+          python3 "$ROOT/canonical/gamepulse/clip_lab/three_player_durant_exclusion.py" \
+            --native "$ROOT/three-player-native-private.json" \
+            --physical "$ROOT/physical_paths.csv" \
+            --courts "$ROOT/court_frames.json" \
+            --end-s 9.0 --out "$ROOT/three-player-negative-qa.json"
+          python3 - "$ROOT" <<'PY'
+          import json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          q=json.loads((root/'three-player-negative-qa.json').read_text())
+          assert q['render_authorized'] is False
+          assert q['physical_track_identity_certified'] is False
+          assert q['native_to_screen_ring_projection_allowed'] is False
+          assert q['negative_player']==201142
+          assert q['target_players']==[1627832,203500]
+          assert q['clock_orient_hypotheses']>5
+          print('DURANT_EXCLUSION_ORIGINAL_FROZEN_DIAGNOSTIC',
+                q['maximum_durant_exclusion_coverage'],
+                q['maximum_pair_coverage'],q['sampled_buckets'])
+          PY
       - name: Persist SHA-backed three-player native and frozen possession input privately
         shell: bash
         run: |
@@ -100,5 +125,6 @@ jobs:
           path: |
             ${{ runner.temp }}/clip-lab-private/fred-native-frozen-green-interval.json
             ${{ runner.temp }}/clip-lab-private/three-player-crosscheck.json
+            ${{ runner.temp }}/clip-lab-private/three-player-negative-qa.json
           if-no-files-found: error
           retention-days: 2
