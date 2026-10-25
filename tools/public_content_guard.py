@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-original-raw-completeness.yml",  # reviewed: SHA-pinned original source read-only aggregate QA, no raw data publication
     ".github/workflows/gamepulse-pr776-original-sdk-terminal-xyz.yml",  # reviewed: one real private NBA SDK game, original SHA, aggregate-only logs
     ".github/workflows/gamepulse-pr776-rockets-spurs-native-advanced.yml",  # reviewed: CPU, private original NBA source and private-only source publish
     ".github/workflows/gamepulse-pr776-season-search-provider-acceptance.yml",  # reviewed ephemeral private NBA source retrieval and aggregate-only QA
