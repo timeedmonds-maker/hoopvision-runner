@@ -43,9 +43,7 @@ jobs:
                           print("CONFIRMED_EVENT_NUMBER",probe)
                           print("CONFIRMED_REPLAY_PAGE",pu)
                           print("HLS_CAMERA_COUNT",len(opts))
-                          for angle in opts:print("HLS_CAMERA",json.dumps(angle,ensure_ascii=False))
-                          with open("sengun-hawks-hls-result.json","w") as outfile:
-                              json.dump({"game_id":game,"event_num":probe,"clips_page_title":title,"replay_page":pu,"angles":opts},outfile,indent=2,ensure_ascii=False)
+                          for angle in opts:print("HLS_CAMERA_LABEL",json.dumps({"label":angle["label"],"page_selected":angle["page_selected"]},ensure_ascii=False))
                           sys.exit(0 if opts else 5)
                   except Exception as ex:print("EVENT_SCAN_ERROR",probe,repr(ex))
               sys.exit(2)
