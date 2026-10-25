@@ -130,3 +130,5 @@ jobs:
                 'native_touches',t['original_native_labels'])
           PY
           echo 'PR776_SOURCE_TESTS_COMPLETE'
+
+# source-integrity acceptance rerun after reviewed public allowlist authorization
