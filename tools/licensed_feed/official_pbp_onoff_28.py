@@ -54,17 +54,17 @@ def put(path,blob):
         except RuntimeError:
             if attempt==4:raise
             time.sleep(attempt+1)
-    readback=None
-    for attempt in range(6):
+    # GitHub Contents may briefly return the previous blob after a successful
+    # PUT. Poll for the expected digest; never treat one stale read as corruption.
+    for attempt in range(12):
         try:
             readback=private_bytes(path)
-            if readback is not None:break
+            if readback is not None and hashlib.sha256(readback).digest()==hashlib.sha256(blob).digest():
+                return "VERIFIED_PRIVATE_SHA"
         except RuntimeError:
-            if attempt==5:raise
-        time.sleep(1+attempt)
-    if hashlib.sha256(readback).digest()!=hashlib.sha256(blob).digest():
-        raise RuntimeError("PRIVATE_SHA_READBACK_FAILED")
-    return "VERIFIED_PRIVATE_SHA"
+            if attempt==11:raise
+        time.sleep(min(1+attempt,8))
+    raise RuntimeError("PRIVATE_SHA_READBACK_FAILED")
 
 def save_json(path,data):
     return put(path,(json.dumps(data,sort_keys=True,ensure_ascii=False,separators=(",",":"))+"\n").encode())
