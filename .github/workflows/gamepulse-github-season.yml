@@ -1,4 +1,5 @@
 name: Game Pulse public CPU season private Release worker
+# 2026-10-25 UTC operator catch-up: reconcile completed Oct 24 US fixture original-source archive in private 104.
 # 2026-10-24: Retire expired game-specific push fanout; keep scheduled private fullgame due-selector.
 run-name: NBA Game Pulse public CPU private season archive
 on:
