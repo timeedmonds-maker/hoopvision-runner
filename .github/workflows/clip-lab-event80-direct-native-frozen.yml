@@ -1,4 +1,4 @@
-name: Clip Lab verified Game Pulse three-player and frozen possession persistence
+name: Clip Lab frozen v3.1 original NBA Durant-exclusion tests
 on:
   push:
     branches: [main]
@@ -60,6 +60,8 @@ jobs:
           ROOT="$RUNNER_TEMP/clip-lab-private"
           cd "$ROOT/canonical/gamepulse/clip_lab"
           python3 -m py_compile event80_green_possession.py verified_three_player_source.py
+          python3 -m py_compile guard_adams_not_durant.py test_guard_adams_not_durant.py
+          python3 -m unittest -v test_guard_adams_not_durant.py
           python3 event80_green_possession.py \
             --native-q1 "$ROOT/canonical/gamepulse/clip_lab/positions/0022600009_q1_durant_adams.json" \
             --out "$ROOT/fred-native-frozen-green-interval.json"
