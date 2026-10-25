@@ -159,6 +159,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/gamepulse-pr776-clock-shadow-study.yml": "844ff228aecad1a2537d4d986329e7b498d015bc",  # reviewed: private SHA-pinned clock QA, no raw source export or physical certification
     ".github/workflows/gamepulse-pr776-release-direct-pilot.yml": "629e167892af2f9148d8d3f21eb09990b4cc0f27",  # reviewed private release download, no public artifact or coordinates
     ".github/workflows/gamepulse-video-free-clock-season.yml": "50f57ae8e3e6db0523dd25246110664b846441da",  # reviewed: original SHA-checked NBA SDK made-hoop QA only, private writes
     ".github/workflows/gamepulse-pr776-nba-36-episodes.yml": "edf6cce97c6db0d4b3775d172116813a6eb73aae",  # reviewed: private sparse source, full 36 SHA episode replay, old 28 preserved
