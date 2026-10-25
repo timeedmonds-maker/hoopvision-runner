@@ -55,7 +55,7 @@ jobs:
           assert set(old["games"]).issubset(cat["games"]) and len(old["games"])>=28, "EXISTING_INDEX_NOT_PRESERVED"
           print("36_GAME_PRIVATE_SOURCE_GATE_PASSED",len(old["games"]),"existing",len(cat["games"]),"verified")
           with open(os.environ["GITHUB_OUTPUT"],"a") as handle:
-              handle.write("needed="+("false" if len(old["games"])==36 else "true")+"\\n")
+              handle.write("needed="+("false" if len(old["games"])==36 else "true")+"\n")
           PY
       - name: Download private integration code and run synthetic tests
         if: steps.ready.outputs.needed == 'true'
@@ -272,7 +272,7 @@ jobs:
                           "possession_qa_state"):
                   if key in previous_status and key not in state:
                       state[key]=previous_status[key]
-              payload["content"]=base64.b64encode((json.dumps(state,indent=2)+"\\n").encode()).decode()
+              payload["content"]=base64.b64encode((json.dumps(state,indent=2)+"\n").encode()).decode()
               payload["sha"]=saved["sha"]
           elif previous.returncode!=1:raise RuntimeError("private_status_lookup_failed")
           result=subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
