@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 D1 36-game native-window query acceptance
+name: Integrated Pulse PR776 D1 36-game lossless-window query acceptance
 on:
   push:
     branches: [main]
@@ -144,7 +144,7 @@ jobs:
                   'independent_native_clock_accuracy_accepted':False,
                   'physical_possessions_certified':0,
                   'source_original_sdk_coordinates_exported':False}
-          path=Path('gamepulse/fusion/qa/event_first_lookup_36game_native_window_acceptance_20261026.json')
+          path=Path('gamepulse/fusion/qa/event_first_lookup_36game_lossless_window_acceptance_20261026.json')
           if path.exists():raise FileExistsError('REFUSE_EXISTING_D1_ACCEPTANCE_OVERWRITE')
           path.write_text(json.dumps(result,sort_keys=True,indent=2)+'\n')
           PY
@@ -155,7 +155,7 @@ jobs:
           cd "$SOURCE_ROOT"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
-          git add gamepulse/fusion/qa/event_first_lookup_36game_native_window_acceptance_20261026.json
+          git add gamepulse/fusion/qa/event_first_lookup_36game_lossless_window_acceptance_20261026.json
           git diff --cached --check
           git commit -qm "data(gamepulse): prove 36-game official action lookup with 28 original native QA source statuses"
           git push -q origin "HEAD:$BRANCH"
