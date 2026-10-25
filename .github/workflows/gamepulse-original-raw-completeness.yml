@@ -22,7 +22,7 @@ jobs:
       AUDIT_PIN: 93266712687260b762ae459784717b7a5e7cdbd2
       CONTINUITY_PIN: 3676e23d77d014b31fa8a02c25b76d838f057579
       MOTION_PIN: 39300c98b8400c14cc2bb9d6f0d0c347815c5b72
-      HOOP_PIN: f51f10a54a5d58ec6590bd7390dd4d37bc85b397
+      HOOP_PIN: 94ab9b5e08db77a6e5c47102461df277452388a8
     steps:
       - uses: actions/checkout@v4
         with:
