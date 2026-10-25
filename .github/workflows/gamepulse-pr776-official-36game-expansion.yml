@@ -1,4 +1,4 @@
-name: Integrated Pulse official 36-game lineup clock expansion
+name: Integrated Pulse official 36-game overtime-safe lineup expansion
 on:
   push:
     branches: [main]
