@@ -15,6 +15,7 @@ jobs:
       GAME_ID: '0022600009'
       PRIVATE_REPO: timeedmonds-maker/104
       AUDIT_PIN: 91ab4894d412a7b9a1b38c8e5b06122cbe72c4e2
+      CONTINUITY_PIN: 5cb53be35186c603af60fb2c9c1ed2ba7c3ff01d
     steps:
       - uses: actions/checkout@v4
         with:
@@ -28,9 +29,11 @@ jobs:
           test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
           mkdir -p "$RUNNER_TEMP/pulse/raw"
           gh api "repos/$PRIVATE_REPO/contents/gamepulse/fusion/audit_original_sdk_raw_vs_simplified_frames_2026.py?ref=$AUDIT_PIN" --jq .content | base64 -d > "$RUNNER_TEMP/pulse/audit.py"
+          gh api "repos/$PRIVATE_REPO/contents/gamepulse/fusion/audit_original_sdk_raw_continuity_2026.py?ref=$CONTINUITY_PIN" --jq .content | base64 -d > "$RUNNER_TEMP/pulse/continuity.py"
           gh api "repos/$PRIVATE_REPO/releases/tags/gamepulse-sdk-$GAME_ID" > "$RUNNER_TEMP/pulse/release.json"
           gh release download "gamepulse-sdk-$GAME_ID" --repo "$PRIVATE_REPO" --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/pulse/raw"
           python3 "$RUNNER_TEMP/pulse/audit.py" --game-id "$GAME_ID" --archive-dir "$RUNNER_TEMP/pulse/raw" --release-json "$RUNNER_TEMP/pulse/release.json" --out "$RUNNER_TEMP/pulse/coverage.json"
+          python3 "$RUNNER_TEMP/pulse/continuity.py" --game-id "$GAME_ID" --archive-dir "$RUNNER_TEMP/pulse/raw" --release-json "$RUNNER_TEMP/pulse/release.json" --out "$RUNNER_TEMP/pulse/continuity.json"
           python3 - <<'PY'
           import json,os
           from pathlib import Path
