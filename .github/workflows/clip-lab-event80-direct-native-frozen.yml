@@ -59,7 +59,7 @@ jobs:
           set -euo pipefail
           ROOT="$RUNNER_TEMP/clip-lab-private"
           cd "$ROOT/canonical/gamepulse/clip_lab"
-          python3 -m py_compile event80_green_possession.py verified_three_player_source.py
+          python3 -m py_compile event80_green_possession.py verified_three_player_source.py independent_durant_render_gate.py event80_frozen_delivery.py
           python3 -m py_compile guard_adams_not_durant.py test_guard_adams_not_durant.py
           python3 -m unittest -v test_guard_adams_not_durant.py
           python3 event80_green_possession.py \
