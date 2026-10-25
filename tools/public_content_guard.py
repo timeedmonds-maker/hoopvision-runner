@@ -158,7 +158,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
-    ".github/workflows/gamepulse-pr776-official-36game-expansion.yml": "0fbc2967d9c6566edf8220e9e303dce028a1206f",  # reviewed: private sparse git only; NBA official PBP/provider, 8-game addition, no public source files
+    ".github/workflows/gamepulse-pr776-official-36game-expansion.yml": "a87ef5db6b672f78322fe49f4f9b46923cc17780",  # reviewed: private sparse git only; NBA official PBP/provider, 8-game addition, no public source files
     ".github/workflows/gamepulse-pr776-episode-season-search.yml": "e99e5e228ba930b89417cc80b7fd7a67a45a883b",  # reviewed: private aggregate-only 28-game episode QA index, no source XYZ publication
     ".github/workflows/gamepulse-pr776-official-native-xyz-bridge.yml": "bfff7805d3833a6d76beca6573a8e1a33aecc88a",  # reviewed: private 13-part SDK, source-independent tests, private-only aggregate XYZ QA
     ".github/workflows/gamepulse-official-lineup-clock-28.yml": "5e3ff52f3cf5825f4457c8dcea9ba72f828d7c28",  # reviewed: 28-game official PBP/provider CPU, private-only identities and aggregate public QA
