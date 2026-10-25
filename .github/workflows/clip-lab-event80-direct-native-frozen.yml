@@ -1,4 +1,4 @@
-name: Clip Lab event80 frozen camera paint independent acceptance
+name: Clip Lab event80 recover original frozen court geometry with ORB
 on:
   push:
     branches: [main]
@@ -114,6 +114,52 @@ jobs:
           print('MISREGISTERED_FROZEN_H_INDEPENDENTLY_CAUGHT',q['median_dark_fraction'],q['samples'])
           PY
           echo ORIGINAL_FROZEN_CAMERA_GEOMETRY_QA_EXPORT_READY
+      - name: Propagate verified frozen camera H through NBA Broadcast pans
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/clip-lab-private"
+          python3 "$ROOT/canonical/gamepulse/clip_lab/orb_repair_original_court.py" \
+            --video "$ROOT/event80-broadcast.mp4" \
+            --courts "$ROOT/court_frames.json" \
+            --out "$ROOT/court_frames_orb_repaired.json" \
+            --qa "$ROOT/orb-camera-qa.json" --end-s 9.0
+          python3 "$ROOT/canonical/gamepulse/clip_lab/event80_court_paint_gate.py" \
+            --video "$ROOT/event80-broadcast.mp4" \
+            --courts "$ROOT/court_frames_orb_repaired.json" \
+            --out "$ROOT/qa/key-paint-repaired.json"
+          python3 "$ROOT/canonical/gamepulse/clip_lab/prepare_frozen_physical.py" \
+            --tracks "$ROOT/tracks.csv" \
+            --courts "$ROOT/court_frames_orb_repaired.json" \
+            --output "$ROOT/physical_paths_orb_repaired.csv" \
+            --fps 30 --duration-s 19.52
+          python3 "$ROOT/canonical/gamepulse/clip_lab/shot_window_native_diagnostic.py" \
+            --native "$ROOT/native.json" \
+            --physical "$ROOT/physical_paths_orb_repaired.csv" \
+            --courts "$ROOT/court_frames_orb_repaired.json" \
+            --event-video-s 6.5 --end-s 9.0 \
+            --out "$ROOT/orb-shot-diagnostic.json"
+          python3 - "$ROOT" <<'PY'
+          import json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          before=json.loads((root/'shot-window-diagnostic.json').read_text())
+          after=json.loads((root/'orb-shot-diagnostic.json').read_text())
+          qa=json.loads((root/'orb-camera-qa.json').read_text())
+          paint=json.loads((root/'qa/key-paint-repaired.json').read_text())
+          def sample(d):
+            q=[x for x in d['basis_max_coverage'] if x['cm_per_native_unit']==2.54 and x['origin_mode']=='centre']
+            return max([x['max_coverage'] for x in q],default=0)
+          assert qa['original_model_not_modified'] and qa['identity_not_assigned'] and qa['ring_art_not_modified']
+          assert paint['ring_render_authorized'] is False
+          print('FROZEN_NATIVE_COURT_REPAIR_COMPARISON',json.dumps({
+            'sampled_camera_calibrations_repaired':qa['corrected_samples'],
+            'trusted_ORB_camera_edges':qa['accepted_camera_pairs'],
+            'camera_paint_status':paint['status'],
+            'original_player_pair_coverage':sample(before),
+            'repaired_player_pair_coverage':sample(after)
+          },sort_keys=True))
+          PY
       - uses: actions/upload-artifact@v4
         if: ${{ success() }}
         with:
@@ -124,5 +170,8 @@ jobs:
             ${{ runner.temp }}/clip-lab-private/qa/*.jpg
             ${{ runner.temp }}/clip-lab-private/qa/court-frame-qa.json
             ${{ runner.temp }}/clip-lab-private/qa/key-paint-qa.json
+            ${{ runner.temp }}/clip-lab-private/qa/key-paint-repaired.json
+            ${{ runner.temp }}/clip-lab-private/orb-camera-qa.json
+            ${{ runner.temp }}/clip-lab-private/orb-shot-diagnostic.json
           if-no-files-found: error
           retention-days: 2
