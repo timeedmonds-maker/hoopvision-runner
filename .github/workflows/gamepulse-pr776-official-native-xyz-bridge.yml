@@ -17,7 +17,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
-      PIN: e4cdf6b3300c2793b8a572de287facb6f1bce8be
+      PIN: b683b33756c1038b4ca5f710e281326b34b15736
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
       GAME_ID: ${{ matrix.game_id }}
     steps:
