@@ -2,7 +2,7 @@ name: Integrated Pulse PR776 official native XYZ bridge
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-pr776-official-native-xyz-bridge.yml']
+    paths: ['.github/workflows/gamepulse-pr776-official-native-xyz-bridge.yml', 'tools/public_content_guard.py']
 permissions:
   contents: read
 jobs:
