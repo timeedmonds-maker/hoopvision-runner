@@ -37,6 +37,7 @@ jobs:
           }
           for py in \
             official_nba_advanced_ratings_2026.py \
+            audit_nba_full_p1_advanced_2026.py \
             official_possession_field_onset_2026.py \
             universal_possession_alignment_2026.py \
             nba_source_possession_ledger_2026.py \
@@ -49,7 +50,7 @@ jobs:
           done
           for py in \
             test_official_nba_advanced_rockets_spurs_full_p1_2026.py \
-            test_official_nba_advanced_ast_full_p1_2026.py \
+            test_official_nba_ast_full_p1_2026.py \
             test_query_nba_episode_pbp_scoring_2026.py \
             test_query_nba_episode_tracking_2026.py \
             test_nba_possession_tracking_crosswalk_2026.py \
@@ -102,7 +103,7 @@ jobs:
           python3 -m compileall -q "$WORK/gamepulse/fusion"
           for pattern in \
             test_official_nba_advanced_rockets_spurs_full_p1_2026.py \
-            test_official_nba_advanced_ast_full_p1_2026.py \
+            test_official_nba_ast_full_p1_2026.py \
             test_query_nba_episode_pbp_scoring_2026.py \
             test_query_nba_episode_tracking_2026.py \
             test_nba_possession_tracking_crosswalk_2026.py \
