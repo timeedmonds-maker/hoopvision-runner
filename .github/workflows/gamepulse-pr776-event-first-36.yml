@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 D1 36-game event-first availability acceptance
+name: Integrated Pulse PR776 D1 36-game frozen-source event lookup acceptance
 on:
   push:
     branches: [main]
