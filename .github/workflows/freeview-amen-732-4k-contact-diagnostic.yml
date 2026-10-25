@@ -46,7 +46,7 @@ jobs:
             --pattern '*.mp4' --pattern 'source_manifest.json' \
             --pattern 'native_presentation_timestamps.json' \
             --pattern 'event732-contact-bracket-qa.json'
-          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_four_view_UHD_diagnostic.py?ref=17ffdf9669012af1a6ff72daf5b6ab34557b1fe3' \
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_four_view_UHD_diagnostic.py?ref=d60532cb2dd5fce6ce5cff7c86b5d10526ea4d97' \
             --jq .content | base64 -d > "$TMP/diagnostic.py"
           python3 -m pip install --quiet --disable-pip-version-check 'numpy<2' opencv-python-headless==4.10.0.84
           if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
@@ -58,12 +58,13 @@ jobs:
             --root "$TMP/frames" --manifest "$TMP/frames/source_manifest.json" \
             --pts "$TMP/frames/native_presentation_timestamps.json" \
             --bracket "$TMP/frames/event732-contact-bracket-qa.json" \
-            --out "$TMP/output/amen732-four-angle-coarse-contact-3840x2160.mp4" \
-            --qa "$TMP/output/amen732-four-angle-coarse-contact-qa.json"
+            --reviewed-candidates \
+            --out "$TMP/output/amen732-four-angle-refined-contact-3840x2160.mp4" \
+            --qa "$TMP/output/amen732-four-angle-refined-contact-qa.json"
           ffprobe -v error -select_streams v:0 \
             -show_entries stream=width,height,nb_frames,r_frame_rate -of json \
-            "$TMP/output/amen732-four-angle-coarse-contact-3840x2160.mp4" > "$TMP/ffprobe.json"
-          python3 - "$TMP/ffprobe.json" "$TMP/output/amen732-four-angle-coarse-contact-qa.json" <<'PY'
+            "$TMP/output/amen732-four-angle-refined-contact-3840x2160.mp4" > "$TMP/ffprobe.json"
+          python3 - "$TMP/ffprobe.json" "$TMP/output/amen732-four-angle-refined-contact-qa.json" <<'PY'
           import json,sys
           p=json.load(open(sys.argv[1]))['streams'][0]
           q=json.load(open(sys.argv[2]))
@@ -71,12 +72,13 @@ jobs:
           assert p['r_frame_rate']=='30/1'
           assert int(p.get('nb_frames',0))==110
           assert q['camera_orbit_present'] is False
+          assert q['manual_reviewed_frame_bracket'] is True
           assert q['same_physical_state_exact_sync_certified'] is False
           print('NBA_FOUR_VIEW_UHD_QA_PASS',p['width'],p['height'],p['nb_frames'])
           PY
           gh release upload "$TAG" \
-            "$TMP/output/amen732-four-angle-coarse-contact-3840x2160.mp4" \
-            "$TMP/output/amen732-four-angle-coarse-contact-qa.json" \
+            "$TMP/output/amen732-four-angle-refined-contact-3840x2160.mp4" \
+            "$TMP/output/amen732-four-angle-refined-contact-qa.json" \
             --repo timeedmonds-maker/104 --clobber >/dev/null
           gh api "repos/timeedmonds-maker/104/releases/tags/$TAG" > "$TMP/release.json"
           python3 - "$TMP/output" "$TMP/release.json" <<'PY'
