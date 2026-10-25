@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 28-game native NBA clock windows v2
+name: Integrated Pulse PR776 preserved-source native NBA windows v3
 on:
   push:
     branches: [main]
@@ -60,7 +60,7 @@ jobs:
           ids=sorted(shadow_idx['games'])
           assert len(lu_idx['games'])==36 and len(episode_idx['games'])==36
           assert len(ids)==28
-          dst=root/'materialized/native_episode_windows_pr776_20261026'
+          dst=root/'materialized/native_episode_windows_v2_pr776_20261026'
           game_dir=dst/'games'
           game_dir.mkdir(parents=True,exist_ok=True)
           result={'schema':'gamepulse.nba-event-native-source-clock-window-season.v1',
@@ -73,7 +73,8 @@ jobs:
           totals={'strict_hoop_brackets':0,'research_shadow_brackets':0,
                   'strict_candidate_clock_ms':0,
                   'shadow_additional_candidate_clock_ms':0,
-                  'qualifying_native_event_windows':0}
+                  'qualifying_native_event_windows':0,
+                  'original_native_qa_episodes_retained':0}
           for gid in ids:
             pa=root/'qa/auto_physics'/gid[:8]/(gid+'.json')
             pl=root/lu_idx['games'][gid]['path'].removeprefix('gamepulse/fusion/')
@@ -99,7 +100,19 @@ jobs:
                'strict_hoop_brackets':doc['strict_hoop_brackets'],
                'shadow_brackets':doc['research_shadow_brackets'],
                'native_extraction_windows':doc['qualifying_native_event_windows']}
-            for k in totals:totals[k]+=doc[k]
+            srcqa_path=root/'qa'/('official_native_episode_xyz_bridge_'+gid+'_20261026.json')
+            srcqa,_=read(srcqa_path)
+            assert srcqa['input_sha256']['official_lineup']==sha_l
+            frozen_eps=set(srcqa['source_episode_tracking_qa'])
+            present_eps={r['episode_id'] for r in doc['windows']}
+            missing=frozen_eps-present_eps
+            if missing:
+                raise ValueError('PREVIOUSLY_ACCEPTED_NATIVE_EVENT_EPISODES_LOST:'+gid+':'+','.join(sorted(missing)))
+            totals['original_native_qa_episodes_retained']+=len(frozen_eps)
+            for k in totals:
+                if k!='original_native_qa_episodes_retained':
+                    totals[k]+=doc[k]
+          assert totals['original_native_qa_episodes_retained']==532
           assert totals['strict_hoop_brackets']==407
           assert totals['research_shadow_brackets']==51
           assert totals['strict_candidate_clock_ms']==7103400
@@ -120,7 +133,7 @@ jobs:
           cd "$ROOT"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
-          git add gamepulse/fusion/materialized/native_episode_windows_pr776_20261026/
+          git add gamepulse/fusion/materialized/native_episode_windows_v2_pr776_20261026/
           git diff --cached --check
           git commit -qm "data(gamepulse): 28-game SHA-linked strict and shadow NBA native extraction windows"
           git push -q origin "HEAD:$BRANCH"
