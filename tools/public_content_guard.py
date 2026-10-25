@@ -191,6 +191,7 @@ REVIEWED_HANDOFF_CERT_GIT_BLOB_SHA = {
 }
 
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
+    ".github/workflows/clip-lab-sengun-hawks-hls.yml",  # pinned, public clips origin only; no raw URL output or artifacts
     ".github/workflows/clip-lab-rockets-219-hls.yml",
     ".github/workflows/clip-lab-rockets-new-double-346-hls.yml",
     ".github/workflows/clip-lab-rockets-new-double-353-hls.yml",
