@@ -56,7 +56,8 @@ jobs:
             test_nba_possession_tracking_crosswalk_2026.py \
             test_nba_provider_onoff_source_2026.py \
             test_materialize_nba_episode_views_2026.py \
-            test_nba_source_possession_ledger_2026.py; do
+            test_nba_source_possession_ledger_2026.py \
+            test_universal_possession_alignment_2026.py; do
             fetch_private "gamepulse/fusion/tests/$py"
           done
           for j in \
