@@ -1,4 +1,4 @@
-name: Clip Lab event80 original frozen court visual QA
+name: Clip Lab event80 original-frozen court-offset probe
 on:
   push:
     branches: [main]
@@ -69,7 +69,7 @@ jobs:
           q=json.loads((Path(sys.argv[1])/'shot-window-diagnostic.json').read_text())
           assert q['screen_feet_source']=='ORIGINAL_FROZEN_V31_TRACKER'
           assert q['render_authorized'] is False
-          print('FROZEN_SHOT_CLOCK_CAMERA_CAUSE_PROBES',len(q['independent_per_second_clock_probe']))
+          print('FROZEN_SHOT_COURT_TRANSLATION_PROBES',len(q['independent_frozen_vs_native_court_translation_probes']))
           PY
       - name: Inspect original frozen camera homographies over post-shot pan
         shell: bash
