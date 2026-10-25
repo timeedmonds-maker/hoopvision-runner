@@ -161,7 +161,7 @@ ALLOWED_STATIC = {
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
     ".github/workflows/gamepulse-pr776-native-event-windows.yml": "f98c6f958260ee926d83a075c4abe93797b037b3",  # reviewed private NBA/native guarded research windows no raw SDK coordinates
     ".github/workflows/gamepulse-pr776-private-event-xyz.yml": "4179f50689e99a428784a33cece548ea80e4e44a",  # private-only SHA-verified SDK event subset; no coordinates in public logs
-    ".github/workflows/gamepulse-pr776-event-first-36.yml": "5af8507e5d2274ac13c9fdf9d5a9568ae778cf65",  # reviewed: 36-game private read-only source-graded event query, aggregate private receipt
+    ".github/workflows/gamepulse-pr776-event-first-36.yml": "ff15b83e0c457c0439c18a333580a18f4bca25e3",  # reviewed: 36-game private read-only source-graded event query, aggregate private receipt
     ".github/workflows/gamepulse-pr776-clock-shadow-study.yml": "844ff228aecad1a2537d4d986329e7b498d015bc",  # reviewed: private SHA-pinned clock QA, no raw source export or physical certification
     ".github/workflows/gamepulse-pr776-release-direct-pilot.yml": "5cd5cc5b299537a12f13a549e8f978b168a88b2a",  # reviewed private release download, no public artifact or coordinates
     ".github/workflows/gamepulse-video-free-clock-season.yml": "50f57ae8e3e6db0523dd25246110664b846441da",  # reviewed: original SHA-checked NBA SDK made-hoop QA only, private writes
