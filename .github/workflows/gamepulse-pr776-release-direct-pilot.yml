@@ -1,0 +1,28 @@
+name: Game Pulse original SDK direct-release integrity connectivity pilot
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-pr776-release-direct-pilot.yml','tools/public_content_guard.py']
+permissions:
+  contents: read
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard public contents and try licensed private release bytes without REST
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          curl -fsSL --max-time 50 --retry 2 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            "https://github.com/timeedmonds-maker/104/releases/download/gamepulse-sdk-0022600104/sdk-part-00.tar.gz" \
+            -o "$RUNNER_TEMP/part.tar.gz"
+          tar -tzf "$RUNNER_TEMP/part.tar.gz" | grep -qx 'manifest.json'
+          test "$(stat -c %s "$RUNNER_TEMP/part.tar.gz")" -gt 500
+          echo "ORIGINAL_PRIVATE_RELEASE_DOWNLOAD_WORKS_WITHOUT_REST_API"
