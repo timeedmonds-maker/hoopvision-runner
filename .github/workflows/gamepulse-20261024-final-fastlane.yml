@@ -81,9 +81,9 @@ jobs:
               parts.push({...game,part});
             }
           }
-          appendFileSync(process.env.GITHUB_OUTPUT,'games='+JSON.stringify({include:incomplete})+'\\n');
-          appendFileSync(process.env.GITHUB_OUTPUT,'parts='+JSON.stringify({include:parts})+'\\n');
-          appendFileSync(process.env.GITHUB_OUTPUT,'count='+incomplete.length+'\\n');
+          appendFileSync(process.env.GITHUB_OUTPUT,'games='+JSON.stringify({include:incomplete})+'\n');
+          appendFileSync(process.env.GITHUB_OUTPUT,'parts='+JSON.stringify({include:parts})+'\n');
+          appendFileSync(process.env.GITHUB_OUTPUT,'count='+incomplete.length+'\n');
           console.log('FINAL_READY',ready.length,'VERIFIED',Object.keys(cat.games).length,
             'ALREADY_COMPLETE',completed,'PARTS_REUSED',reusedParts,
             'GAMES_INCOMPLETE',incomplete.length,'PARTS_TO_CAPTURE',parts.length);
