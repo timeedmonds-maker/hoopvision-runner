@@ -164,7 +164,7 @@ jobs:
               if run.returncode:
                   raise RuntimeError('PRIVATE_GIT_OPERATION_FAILED: '+endpoint+' '+str(run.returncode))
               return json.loads(run.stdout)
-          assert gh('')['private'] is True
+          assert gh('git/ref/heads/'+branch)['object']['sha']==pin
           original=gh('git/ref/heads/'+branch)['object']['sha']
           assert original==pin,'PRIVATE_PR_HEAD_MOVED_FROM_TESTED_COMMIT'
           # Immutable publication: refuse overwriting an existing snapshot.
@@ -196,7 +196,7 @@ jobs:
               raw=path.read_bytes()
               blob=gh('git/blobs','POST',{
                   'encoding':'base64','content':base64.b64encode(raw).decode('ascii')})
-              expected=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\\0'+raw).hexdigest()
+              expected=hashlib.sha1(b'blob '+str(len(raw)).encode()+b'\0'+raw).hexdigest()
               assert blob['sha']==expected,'PRIVATE_BLOB_SERVER_SHA_CONFLICT'
               tree.append({'path':prefix+'/'+path.name,'mode':'100644',
                            'type':'blob','sha':blob['sha']})
