@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {planGame,parseSchedule,selectDue,summarize,priorityId} from './season_core.mjs';
+import {planGame,parseSchedule,selectDue,summarize,priorityId,diagnoseTrackingCoverage} from './season_core.mjs';
 import {assertContext} from './season_private_release.mjs';
 
 const id='0022600002';
@@ -101,4 +101,31 @@ test('accelerated final capture cannot bypass trusted branch and event checks',(
  assert.throws(()=>assertContext({...env,GITHUB_REF:'refs/heads/unsafe'}));
  assert.throws(()=>assertContext({...env,GITHUB_EVENT_NAME:'pull_request'}));
  assert.throws(()=>assertContext({...env,GH_TOKEN:''}));
+});
+
+test('archive-complete SDK parts with near-empty second half are not tracking complete',()=>{
+ const plan=planGame({id,start});
+ const manifest=plan.parts.map(p=>({game_id:id,part:p.part,start_ms:p.start_ms,
+  successful_windows:p.count,frames_with_players:p.part<=3?3000:0,
+  frames_with_ball:p.part<=3?2900:0,
+  empty_windows:p.part<=3?0:p.count,observed:true,imputed:false}));
+ manifest[4].frames_with_players=25;
+ manifest[4].frames_with_ball=24;
+ manifest[4].empty_windows=295;
+ const summary=summarize(plan.parts,manifest);
+ assert.equal(summary.windows,3720);
+ const finding=diagnoseTrackingCoverage(plan.parts,manifest);
+ assert.equal(finding.state,'SUSPECTED_SOURCE_TRACKING_GAPS');
+ assert.deepEqual(finding.suspicious_parts,[4,5]);
+});
+test('do not mistake natural postgame empty slots for missing gameplay',()=>{
+ const plan=planGame({id,start});
+ const manifest=plan.parts.map(p=>({game_id:id,part:p.part,start_ms:p.start_ms,
+  successful_windows:p.count,frames_with_players:p.part<=5?2700:0,
+  frames_with_ball:p.part<=5?2600:0,
+  empty_windows:p.part<=5?0:p.count,observed:true,imputed:false}));
+ const finding=diagnoseTrackingCoverage(plan.parts,manifest);
+ assert.equal(finding.state,'NO_SEVERE_MIDDLE_PART_GAPS_DETECTED');
+ assert.deepEqual(finding.suspicious_parts,[]);
+ assert.throws(()=>diagnoseTrackingCoverage(plan.parts,manifest.slice(1)));
 });
