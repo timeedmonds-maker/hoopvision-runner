@@ -156,6 +156,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/gamepulse-rockets-official-five-recovery.yml": "ca58d7b8f761ddad5cf62aa39b0b15b5bc312f7b",  # reviewed: official NBA provider, private-only result; aggregate logs
     ".github/workflows/clip-lab-sengun-hawks-hls.yml": "cc7f972f9d51cc7aafe10fa71f0b395638bbed74",  # reviewed: NBA public event probe, metadata-only logs, no artifacts
     ".github/workflows/clip-lab-frozen-ring-sprites.yml": "a002f86a91280330248438f837bb2d5e7c51d99c",  # inspected: only generated RGBA ring sprites and metadata uploaded
     ".github/workflows/clip-lab-rockets-219-hls.yml": "16d9d45f0d718271049b894adbdf8375b9d22b5d",
