@@ -1,4 +1,4 @@
-name: Game Pulse 28-game official PBP and ONOFF verification
+name: Game Pulse 36-game independent NBA provider ONOFF catch-up
 # Private original NBA-source validation; fail-closed QA retries and SHA readback, no public data.
 on:
   push:
@@ -8,7 +8,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: private-nba-28game-exact-source-pbp-onoff-qa
+  group: private-nba-36game-final8-source-pbp-onoff-qa
   cancel-in-progress: false
 jobs:
   original-nba-sources:
@@ -16,10 +16,8 @@ jobs:
       fail-fast: false
       max-parallel: 5
       matrix:
-        game: ['0022600006','0022600007','0022600008','0022600009',
-          '0022600094','0022600095','0022600096','0022600097',
-          '0022600098','0022600099','0022600100','0022600101',
-          '0022600102','0022600103']
+        game: ['0022600104','0022600105','0022600106','0022600107',
+          '0022600108','0022600109','0022600110','0022600111']
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -49,8 +47,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Merge only after all 28 game-native sources independently reconcile
+      - name: Merge only independently source-verified 36-game NBA provider ONOFF; preserve prior 28
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
-          python3 tools/licensed_feed/official_pbp_onoff_28.py assemble
+          python3 tools/licensed_feed/official_pbp_onoff_28.py assemble36
