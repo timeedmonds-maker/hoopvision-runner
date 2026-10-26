@@ -82,6 +82,27 @@ jobs:
           assert not q["source_court_metric_KRt_verified"]
           print("AMEN732_INDEPENDENT_HOOP_RGB_COLOUR_SOURCE_AGGREGATES",q["matched_component_count"])
           PY
+      - name: Independent physical NBA 3PT arc heldout in original source images
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source"
+          python3 hoopvision/freeview/amen732_right_above_rim_three_point_arc_holdout.py --selftest
+          python3 hoopvision/freeview/amen732_right_above_rim_three_point_arc_holdout.py \
+            --root hoopvision/freeview/fixtures \
+            --camera hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
+            --out hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_source_holdout_20261026.json \
+            --uhd hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_UHD_20261026.jpg
+          python3 - <<'PY'
+          import json
+          j=json.load(open('hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_source_holdout_20261026.json'))
+          assert j['camera_fit_has_NOT_used_three_point_arc']
+          assert not j['current_metric_camera_certified']
+          assert not j['first_hand_ball_contact_certified']
+          print('AMEN732_REAL_SOURCE_3PT_ARC_INDEPENDENT_RESULTS',
+                j['curve_samples']['true_untrained_curve'],
+                'beats_20px_negative_controls=',j['true_curve_beats_all_20px_shifts'])
+          PY
       - name: Preserve source-only original NBA geometry results privately
         shell: bash
         run: |
@@ -89,7 +110,9 @@ jobs:
           cd "$RUNNER_TEMP/source"
           git config user.name 'HoopVision original source CPU'
           git config user.email 'hoopvision-runner@users.noreply.github.com'
-          git add hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
+          git add hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_source_holdout_20261026.json \
+            hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_UHD_20261026.jpg \
+            hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
             hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_overlay_UHD_20261026.jpg \
             hoopvision/freeview/fixtures/amen732_right_above_rim_stationary_hoop_source_QA_20261026.json \
             hoopvision/freeview/fixtures/amen732_right_above_rim_stationary_hoop_UHD_20261026.jpg
