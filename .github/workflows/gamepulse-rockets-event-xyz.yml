@@ -9,7 +9,7 @@ permissions:
 jobs:
   audit-original-game:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 90
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GAME_ID: '0022600009'
@@ -63,14 +63,22 @@ jobs:
           (root/"release.json").write_text(json.dumps({
               "assets":[{"name":name,"digest":digest} for name,digest in sorted(digests.items())]}))
           PY
-          for part in $(seq -w 0 12); do
-            name="sdk-part-$part.tar.gz"
-            curl --fail --location --silent --show-error --retry 2 \
-              --header "Authorization: Bearer $GH_TOKEN" \
-              --header 'Accept: application/octet-stream' \
-              "https://github.com/$PRIVATE_REPO/releases/download/gamepulse-sdk-$GAME_ID/$name" \
-              --output "$RUNNER_TEMP/pulse/raw/$name"
-          done
+          # The authenticated release API is required for private assets. Wait for
+          # the shared user's primary REST quota to reset, without redownloading source.
+          read remaining reset_epoch < <(gh api rate_limit --jq '[.resources.core.remaining,.resources.core.reset] | join(" ")')
+          if [ "$remaining" -lt 30 ]; then
+            now=$(date +%s)
+            wait_seconds=$((reset_epoch-now+10))
+            if [ "$wait_seconds" -lt 0 ] || [ "$wait_seconds" -gt 3700 ]; then
+              echo PRIVATE_RELEASE_RATE_RESET_INVALID
+              exit 1
+            fi
+            echo "PRIVATE_RELEASE_QUOTA_WAIT_SECONDS=$wait_seconds"
+            sleep "$wait_seconds"
+          fi
+          gh release download "gamepulse-sdk-$GAME_ID" --repo "$PRIVATE_REPO" \
+            --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/pulse/raw"
+          test "$(find "$RUNNER_TEMP/pulse/raw" -maxdepth 1 -name 'sdk-part-*.tar.gz' | wc -l)" -eq 13
           python3 "$RUNNER_TEMP/pulse/event_tracking_states_2026.py" --game-id "$GAME_ID" --archive-dir "$RUNNER_TEMP/pulse/raw" --release-json "$RUNNER_TEMP/pulse/release.json" --roster "$RUNNER_TEMP/pulse/roster.json" --pbp "$RUNNER_TEMP/pulse/pbp.json" --hoop-qa "$RUNNER_TEMP/pulse/hoop_qa.json" --clock-intervals "$RUNNER_TEMP/pulse/clock_intervals.json" --out "$RUNNER_TEMP/pulse/event_states.json"
           python3 - <<'PY'
           import json,os
