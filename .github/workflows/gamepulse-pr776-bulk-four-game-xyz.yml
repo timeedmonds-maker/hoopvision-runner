@@ -1,5 +1,7 @@
 name: PR776 original four-game XYZ concurrency-safe
 on:
+  schedule:
+    - cron: '15 * * * *'
   push:
     branches: [main]
     paths:
