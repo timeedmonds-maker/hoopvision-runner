@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 36-game original XYZ query
+name: Integrated Pulse PR776 36-game verified 13-episode XYZ query
 on:
   push:
     branches: [main]
@@ -141,6 +141,11 @@ jobs:
           assert len(original)==13
           assert sum(v['private_original_xyz_receipt']['source_frames'] for v in original)==858
           assert sum(v['private_original_xyz_receipt']['ten_players_plus_ball_frames'] for v in original)==553
+          counts['private_xyz_source_verified_episodes']=len(original)
+          counts['private_xyz_source_verified_frames']=sum(
+              v['private_original_xyz_receipt']['source_frames'] for v in original)
+          counts['private_xyz_ten_players_and_ball_frames']=sum(
+              v['private_original_xyz_receipt']['ten_players_plus_ball_frames'] for v in original)
           counts['selected_qualified_native_episodes']+=1
           print('PRIVATE_SOURCE_GRADED_EVENT_D1_ACCEPTANCE',json.dumps(counts,sort_keys=True))
           result={'schema':'gamepulse.36game-event-first-query-acceptance.v1',
@@ -149,7 +154,7 @@ jobs:
                   'independent_native_clock_accuracy_accepted':False,
                   'physical_possessions_certified':0,
                   'source_original_sdk_coordinates_exported':False}
-          path=Path('gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_acceptance_20261026.json')
+          path=Path('gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_13episode_20261026.json')
           if path.exists():raise FileExistsError('REFUSE_EXISTING_D1_ACCEPTANCE_OVERWRITE')
           path.write_text(json.dumps(result,sort_keys=True,indent=2)+'\n')
           PY
@@ -160,7 +165,7 @@ jobs:
           cd "$SOURCE_ROOT"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
-          git add gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_acceptance_20261026.json
+          git add gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_13episode_20261026.json
           git diff --cached --check
           git commit -qm "data(gamepulse): prove 36-game official action lookup with 28 original native QA source statuses"
           git push -q origin "HEAD:$BRANCH"
