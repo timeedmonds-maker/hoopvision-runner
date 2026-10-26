@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml']
+    paths: ['.github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml', 'tools/public_content_guard.py']
 permissions:
   contents: read
 concurrency:
