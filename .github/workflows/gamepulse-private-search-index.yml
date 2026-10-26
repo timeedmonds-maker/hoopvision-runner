@@ -11,7 +11,7 @@ on:
     - cron: '23 7 * * *'
   workflow_dispatch:
   workflow_run:
-    workflows: ['Game Pulse Oct 24 final-game private SDK fastlane']
+    workflows: ['Game Pulse Oct 24 final-game private SDK fastlane', 'Game Pulse complete season backlog']
     types: [completed]
 permissions:
   contents: read
