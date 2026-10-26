@@ -57,10 +57,13 @@ jobs:
           cd "$SOURCE_ROOT"
           python3 gamepulse/fusion/accept_private_event_xyz_36_2026.py \
             --repo-root . \
-            --out gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_checkpoint2_20261026.json
+            --out gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_28game_20261027.json
+          python3 gamepulse/fusion/build_private_native_xyz_season_index_2026.py \
+            --repo-root . \
+            --out gamepulse/fusion/materialized/private_native_event_xyz_pr776_20261026/season_index_28game_20261027.json
           python3 gamepulse/fusion/audit_private_event_position_holdout_2026.py \
             --repo-root . \
-            --out gamepulse/fusion/qa/private_event_position_holdout_checkpoint2_20261026.json
+            --out gamepulse/fusion/qa/private_event_position_holdout_28game_20261027.json
       - name: Commit aggregate receipts only to private PR
         shell: bash
         run: |
@@ -68,8 +71,9 @@ jobs:
           cd "$SOURCE_ROOT"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
-          git add gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_checkpoint2_20261026.json
-          git add gamepulse/fusion/qa/private_event_position_holdout_checkpoint2_20261026.json
+          git add gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_28game_20261027.json
+          git add gamepulse/fusion/qa/private_event_position_holdout_28game_20261027.json
+          git add gamepulse/fusion/materialized/private_native_event_xyz_pr776_20261026/season_index_28game_20261027.json
           git diff --cached --check
           git commit -qm "data(gamepulse): indexed event query and original position holdout checkpoint"
           for attempt in 1 2 3 4 5; do
