@@ -1,5 +1,6 @@
 name: Game Pulse complete season backlog
 # Certified private tracking only; public runner executes code, not publishes source data.
+# 2026-10-27 NZDT: gap-only completed NBA 25 Oct US slate recovery; preserve original private SHA parts.
 on:
   push:
     branches: [main]
@@ -57,19 +58,36 @@ jobs:
             .sort((a,b)=>Date.parse(a.tipoff)-Date.parse(b.tipoff));
           if(missing.length>19||missing.some(g=>now-Date.parse(g.tipoff)>7*86400000))
             throw Error('backlog_outside_bounded_authenticated_fanout');
-          const parts=missing.flatMap(g=>Array.from({length:13},(_,part)=>({...g,part})));
-          appendFileSync(process.env.GITHUB_OUTPUT,'games='+JSON.stringify({include:missing})+'\n');
+          const incomplete=[],parts=[];let complete=0,reused=0;
+          // Preserve original private capture SHA assets: only missing source parts fan out.
+          for(const game of missing){
+            const response=await fetch('https://api.github.com/repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-'+game.id,{
+              headers:{Authorization:'Bearer '+process.env.GH_TOKEN,Accept:'application/vnd.github+json', 'User-Agent':'nba-private-slate-source-readback'},
+              signal:AbortSignal.timeout(30000)});
+            if(response.status!==404&&!response.ok)throw Error('private_archive_lookup_denied_'+response.status);
+            const names=new Set(response.status===404?[]:((await response.json()).assets||[]).map(a=>a.name));
+            if(names.has('sdk-COMPLETE.json')){complete++;continue;}
+            incomplete.push(game);
+            for(let part=0;part<13;part++){
+              const base='sdk-part-'+String(part).padStart(2,'0');
+              if(names.has(base+'.tar.gz')&&names.has(base+'.json')){reused++;continue;}
+              parts.push({...game,part});
+            }
+          }
+          appendFileSync(process.env.GITHUB_OUTPUT,'games='+JSON.stringify({include:incomplete})+'\n');
           appendFileSync(process.env.GITHUB_OUTPUT,'parts='+JSON.stringify({include:parts})+'\n');
-          appendFileSync(process.env.GITHUB_OUTPUT,'count='+missing.length+'\n');
-          console.log('FINAL_READY',ready.length,'VERIFIED',Object.keys(cat.games).length,'MISSING',missing.length,'PARTS',parts.length);
-          console.log('MISSING_GAME_IDS',missing.map(x=>x.id).join(','));
+          appendFileSync(process.env.GITHUB_OUTPUT,'count='+incomplete.length+'\n');
+          console.log('FINAL_READY',ready.length,'CATALOG_VERIFIED',Object.keys(cat.games).length,
+            'PRIVATE_COMPLETE_SKIPPED',complete,'PRIVATE_PARTS_REUSED',reused,
+            'GAMES_INCOMPLETE',incomplete.length,'PARTS_TO_CAPTURE',parts.length);
+          console.log('INCOMPLETE_GAME_IDS',incomplete.map(x=>x.id).join(','));
           JS
   capture:
     needs: discover
     if: needs.discover.outputs.count != '0'
     strategy:
       fail-fast: false
-      max-parallel: 20
+      max-parallel: 8
       matrix: ${{ fromJSON(needs.discover.outputs.parts) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 105
