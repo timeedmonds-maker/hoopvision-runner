@@ -136,6 +136,11 @@ jobs:
           assert rock['episodes'][0]['tracking']['native_episode_window_state']==(
               'PROVISIONAL_EXTRACTABLE_NATIVE_TIME_WINDOWS')
           assert len(rock['episodes'][0]['tracking']['native_episode_extraction_windows'])>0
+          real=assemble(base,gid,limit=400)
+          original=[v['tracking'] for v in real['episodes'] if v['tracking']['raw_xyz_coordinates_materialized']]
+          assert len(original)==13
+          assert sum(v['private_original_xyz_receipt']['source_frames'] for v in original)==858
+          assert sum(v['private_original_xyz_receipt']['ten_players_plus_ball_frames'] for v in original)==553
           counts['selected_qualified_native_episodes']+=1
           print('PRIVATE_SOURCE_GRADED_EVENT_D1_ACCEPTANCE',json.dumps(counts,sort_keys=True))
           result={'schema':'gamepulse.36game-event-first-query-acceptance.v1',
