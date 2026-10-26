@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-chain-queryable-28-qa.yml",  # private SHA-verified aggregate original XYZ only
     ".github/workflows/gamepulse-pr776-chain-xyz-query-pilot.yml",  # private-only source-indexed 10-player/ball query; aggregate log without raw XYZ
     ".github/workflows/gamepulse-pr776-monotone-native-28game.yml",  # reviewed: private SHA-checked native NBA chain research, only aggregate public logs
     ".github/workflows/gamepulse-pr776-monotone-native-chain-pilot.yml",  # private source XYZ only in ephemeral CPU; aggregate candidate evidence in private repo; public logs counts only
