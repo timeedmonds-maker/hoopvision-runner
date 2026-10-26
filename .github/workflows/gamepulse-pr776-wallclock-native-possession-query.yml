@@ -141,7 +141,7 @@ jobs:
                    'original_private_source_XYZ_readback':True,
                    'full_source_frame_index_sha256':xyz['private_frame_index_sha256'],
                    'physical_possessions_certified':0}
-          out.write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\\n')
+          out.write_text(json.dumps(receipt,indent=2,sort_keys=True)+chr(10))
           print('NBA_36_GAME_PRIVATE_CHAIN_SEARCH_ACCEPTED',
                 json.dumps({'games':checked,'cases':results,'original_XYZ_readback':True,
                             'physical_possessions_certified':0},sort_keys=True))
