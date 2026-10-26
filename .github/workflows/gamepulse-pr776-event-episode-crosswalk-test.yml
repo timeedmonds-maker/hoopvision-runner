@@ -244,6 +244,7 @@ jobs:
           assert season["certified_physical_possessions"]==0
           assert sum(season["frame_classes"].values())==29297
           assert sum(season["ten_ball_frame_classes"].values())==23469
+          assert sum(season["post_terminal_ball_proximity_relation"].values())==19209
           print("PR776_ROCKETS_POST_TERMINAL_ACCEPTED",
                 "frame_classes="+json.dumps(local["frame_classes"],sort_keys=True),
                 "research_labels="+json.dumps(local["research_labels"],sort_keys=True))
@@ -251,6 +252,7 @@ jobs:
                 "frame_classes="+json.dumps(season["frame_classes"],sort_keys=True),
                 "ten_ball_classes="+json.dumps(season["ten_ball_frame_classes"],sort_keys=True),
                 "research_labels="+json.dumps(season["research_labels"],sort_keys=True),
+"post_terminal_ball_nearest_team="+json.dumps(season["post_terminal_ball_proximity_relation"],sort_keys=True),
                 "physical_possessions_certified=0")
           PY
 
