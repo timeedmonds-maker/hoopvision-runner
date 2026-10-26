@@ -374,3 +374,37 @@ jobs:
                 "original_label_intervals="+str(season["original_native_label_intervals"]),
                 "certified_physical_possessions=0")
           PY
+
+      - name: Produce source-pinned 93-candidate fresh native touch review queue
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset GH_TOKEN
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -q -s gamepulse/fusion/tests \
+            -p test_qa_original_native_touch_vs_streak_2026.py
+          python3 gamepulse/fusion/qa_original_native_touch_vs_streak_2026.py \
+            --root . --review-grade ORIGINAL_NATIVE_FRESH_TOUCH_PLAYER_AGREES \
+            --out "$RUNNER_TEMP/fresh_native_touch_review_queue.json"
+          python3 - "$RUNNER_TEMP/fresh_native_touch_review_queue.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          assert d["reviewed_streak_count"]==1267
+          assert d["selected_review_streaks"]==93
+          assert d["review_grade_filter"]=="ORIGINAL_NATIVE_FRESH_TOUCH_PLAYER_AGREES"
+          assert d["certified_physical_possessions"]==0
+          rows=[(g,e,c) for g in d["games"]
+                for e in g["episodes"]
+                for c in e["sustained_player_review"]]
+          assert len(rows)==93
+          assert all(len(e["original_episode_json_sha256"])==64 and
+                c["native_lasttouch_crosscheck"]["grade"]==
+                "ORIGINAL_NATIVE_FRESH_TOUCH_PLAYER_AGREES"
+                and c["certified_physical_possession"] is False
+                for g,e,c in rows)
+          print("PR776_SHA_PINNED_FRESH_TOUCH_REVIEW_QUEUE_ACCEPTED",
+                "candidates=93 original_streaks=1267",
+                "all_candidates_have_source_ep_hashes=1",
+                "certified_physical_possessions=0")
+          PY
