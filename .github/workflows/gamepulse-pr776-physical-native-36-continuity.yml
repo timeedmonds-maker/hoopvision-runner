@@ -1,4 +1,5 @@
 name: PR776 physical possession native 36 continuity acceptance
+# Reviewed allowlist entry in tools/public_content_guard.py; private XYZ never published.
 on:
   push:
     branches: [main]
