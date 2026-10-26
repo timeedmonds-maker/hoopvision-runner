@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 indexed XYZ and position holdout checkpoint
+name: Integrated Pulse PR776 36-game original XYZ query acceptance
 on:
   push:
     branches: [main]
@@ -50,20 +50,17 @@ jobs:
             -s gamepulse/fusion/tests -p 'test_private_xyz_index_integrity_2026.py'
           PYTHONPATH=gamepulse/fusion python3 -m unittest discover -v \
             -s gamepulse/fusion/tests -p 'test_private_event_position_holdout_2026.py'
-      - name: Verify current 36-game query and held-out original positions
+      - name: Verify all 36 original XYZ game indexes and every private episode SHA
         shell: bash
         run: |
           set -euo pipefail
           cd "$SOURCE_ROOT"
           python3 gamepulse/fusion/accept_private_event_xyz_36_2026.py \
             --repo-root . \
-            --out gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_28game_20261027.json
+            --out gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_36game_20261027.json
           python3 gamepulse/fusion/build_private_native_xyz_season_index_2026.py \
             --repo-root . \
-            --out gamepulse/fusion/materialized/private_native_event_xyz_pr776_20261026/season_index_28game_20261027.json
-          python3 gamepulse/fusion/audit_private_event_position_holdout_2026.py \
-            --repo-root . \
-            --out gamepulse/fusion/qa/private_event_position_holdout_28game_20261027.json
+            --out gamepulse/fusion/materialized/private_native_event_xyz_pr776_20261026/season_index_36game_20261027.json
       - name: Commit aggregate receipts only to private PR
         shell: bash
         run: |
@@ -71,14 +68,13 @@ jobs:
           cd "$SOURCE_ROOT"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
-          git add gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_28game_20261027.json
-          git add gamepulse/fusion/qa/private_event_position_holdout_28game_20261027.json
-          git add gamepulse/fusion/materialized/private_native_event_xyz_pr776_20261026/season_index_28game_20261027.json
+          git add gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_36game_20261027.json
+          git add gamepulse/fusion/materialized/private_native_event_xyz_pr776_20261026/season_index_36game_20261027.json
           git diff --cached --check
-          git commit -qm "data(gamepulse): indexed event query and original position holdout checkpoint"
+          git commit -qm "data(gamepulse): verify all 36 game original XYZ episode queries"
           for attempt in 1 2 3 4 5; do
             if git push -q origin "HEAD:$BRANCH"; then
-              echo PRIVATE_XYZ_POSITION_HOLDOUT_CHECKPOINT_ACCEPTED
+              echo PRIVATE_XYZ_36_GAME_QUERY_AND_SEASON_INDEX_ACCEPTED
               exit 0
             fi
             git fetch -q origin "$BRANCH"
