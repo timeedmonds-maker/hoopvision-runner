@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-unified-chain-xyz-v2.yml",  # private-only NBA XYZ source evidence
     ".github/workflows/gamepulse-pr776-direct-full-sdk-120-fallback.yml",  # private immutable original full SDK source fallback with aggregate logs
     ".github/workflows/gamepulse-pr776-chain-queryable-28-qa.yml",  # private SHA-verified aggregate original XYZ only
     ".github/workflows/gamepulse-pr776-chain-xyz-query-pilot.yml",  # private-only source-indexed 10-player/ball query; aggregate log without raw XYZ
