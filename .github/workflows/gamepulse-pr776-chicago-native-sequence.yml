@@ -2,7 +2,7 @@ name: PR776 original Chicago full-SDK rebound-to-three sequence
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-pr776-chicago-native-sequence.yml']
+    paths: ['.github/workflows/gamepulse-pr776-chicago-native-sequence.yml', 'tools/public_content_guard.py']
 permissions: {contents: read}
 concurrency:
   group: gamepulse-pr776-chicago-native-sequence
