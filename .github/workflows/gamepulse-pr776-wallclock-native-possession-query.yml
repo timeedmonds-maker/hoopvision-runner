@@ -38,79 +38,67 @@ jobs:
             "https://github.com/$PRIVATE.git" "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           echo "SOURCE_ROOT=$RUNNER_TEMP/private" >> "$GITHUB_ENV"
-      - name: Run code and source-free crossover tests
+      - name: Test existing native query and 36-game materializer
         shell: bash
         run: |
           set -euo pipefail
           cd "$SOURCE_ROOT"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_wallclock_native_possession_query_2026.py
-          python3 -m unittest discover -v -s gamepulse/fusion/tests \
-            -p test_igp_wallclock_native_possession_query_2026.py
-          python3 -m unittest discover -v -s gamepulse/fusion/tests \
-            -p test_igp_native_boundary_lookup_2026.py
-      - name: Real-data original XYZ by wallclock chain and native source interval
+          python3 -m py_compile gamepulse/fusion/igp_wallclock_season_frame_index_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_wallclock_season_frame_index_2026.py'
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_wallclock_native_possession_query_2026.py'
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_original_xyz_timeactual_chain_join_36_2026.py'
+      - name: Join all 36 SHA-verified original tracking games to official NBA UTC chains
         shell: bash
         run: |
           set -euo pipefail
           cd "$SOURCE_ROOT"
           export PYTHONPATH=gamepulse/fusion
-          OUT=gamepulse/fusion/qa/igp_progress_20261027/wallclock_native_possession_query_acceptance_20261027.json
+          OUT=gamepulse/fusion/materialized/igp_wallclock_native_frame_possession_36_v1
           test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_wallclock_season_frame_index_2026.py --root . --out-dir "$OUT"
           python3 - "$OUT" <<'PY'
-          import json,sys
+          import sys,hashlib,json
           from pathlib import Path
-          from igp_wallclock_native_possession_query_2026 import inspect
-          cases=(
-              ("0022600001","0022600001-P1-C0006"),
-              ("0022600099","0022600099-P3-C0129"),
-              ("0022600009","0022600009-P1-C0003"))
-          rows=[]
-          for game,chain in cases:
-              x=inspect(".",game,chain,include_xyz=False,limit=3)
-              candidate=x["native_interval_frames"]
-              rows.append({"game_id":game,"chain":chain,
-                "original_UTC_chain_frames":x["logged_UTC_assigned_original_frames"],
-                "direct_ten_and_ball":x["logged_UTC_direct_ten_plus_ball_frames"],
-                "native_interval_status":x["native_source_interval_state"],
-                "native_source_frames":candidate["original_source_frames"] if candidate else None,
-                "native_overlap_grades":candidate["graded_counts"] if candidate else {},
-                "source_sha256":x["source_sha256"],
-                "certified_physical_possessions":0})
-          assert rows[0]["native_interval_status"]=="TWO_NATIVE_EVENT_PROPOSALS_NOT_PHYSICAL_CERTIFICATION"
-          assert rows[0]["native_source_frames"] and rows[0]["native_source_frames"]>0
-          assert rows[1]["native_interval_status"]=="TWO_NATIVE_EVENT_PROPOSALS_NOT_PHYSICAL_CERTIFICATION"
-          assert rows[1]["native_source_frames"] and rows[1]["native_source_frames"]>0
-          assert all(r["original_UTC_chain_frames"]>0 for r in rows)
-          record={"schema":"gamepulse.wallclock-native-possession-real-source-acceptance.v1",
-                  "three_real_source_cases":rows,
-                  "native_UTC_is_the_NBA_player_time_axis":True,
-                  "physical_possessions_certified":0}
-          p=Path(sys.argv[1]);p.parent.mkdir(parents=True,exist_ok=True)
-          p.write_text(json.dumps(record,indent=2,sort_keys=True)+"\n")
-          print("NBA_WALLCLOCK_NATIVE_POSSESSION_REAL_SOURCE_ACCEPTED",
-            json.dumps([{"game":r["game_id"],
-                         "logged_frames":r["original_UTC_chain_frames"],
-                         "native_interval_frames":r["native_source_frames"],
-                         "grades":r["native_overlap_grades"]}
-                         for r in rows],sort_keys=True))
+          p=Path(sys.argv[1]);idx=json.loads((p/"index.json").read_text())
+          s=idx["counts"]
+          assert idx["source_games"]==36 and len(idx["games"])==36
+          assert s["source_frames"]==1203986
+          assert s["source_direct_ball_frames"]==912704
+          assert s["source_exact_ten_ball_frames"]==387956
+          assert s["unique_NBA_UTC_frames"]==1031792
+          assert s["ambiguous_NBA_UTC_frames"]==28799
+          assert s["unassigned_NBA_UTC_frames"]==143395
+          assert s["source_frames"]==sum(v for k,v in s.items() if k.startswith("grade_"))
+          assert not idx["physical_possessions_certified"] and idx["original_xyz_not_copied"]
+          assert all(hashlib.sha256((p/g["file"]).read_bytes()).hexdigest()==g["sha256"]
+                     for g in idx["games"].values())
+          n=sum(g["native_two_event_proposal_intervals"] for g in idx["games"].values())
+          assert n>0
+          print("NBA_36_GAME_UTC_TRACKING_INDEX_SOURCE_ACCEPTED",
+                json.dumps({"source_frames":s["source_frames"],"source_games":36,
+                 "unique_NBA_UTC_frames":s["unique_NBA_UTC_frames"],
+                 "native_candidate_intervals":n,
+                 "grade_counts":{k:v for k,v in s.items() if k.startswith("grade_")},
+                 "certified_physical_possessions":0},sort_keys=True))
           PY
-      - name: Preserve private QA and source lineage on existing PR
+      - name: Preserve private original source pointer index on canonical PR
         shell: bash
         run: |
           set -euo pipefail
           cd "$SOURCE_ROOT"
-          OUT=gamepulse/fusion/qa/igp_progress_20261027/wallclock_native_possession_query_acceptance_20261027.json
+          OUT=gamepulse/fusion/materialized/igp_wallclock_native_frame_possession_36_v1
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$OUT"
           git diff --cached --check
-          git commit -q -m "data(igp): accept wallclock-first original XYZ native possession crossover"
-          for i in 1 2 3 4 5 6; do
+          test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
+          git commit -q -m "data(igp): materialize 36-game NBA UTC original tracking frame index"
+          for i in 1 2 3 4 5 6 7; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo IGP_WALLCLOCK_NATIVE_POSSESSION_PRIVATE_QA_COMMITTED
+              echo NBA_36_GAME_WALLCLOCK_ORIGINAL_FRAME_INDEX_COMMITTED
               exit 0
             fi
             sleep "$i"
