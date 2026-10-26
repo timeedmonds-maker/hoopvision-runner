@@ -1,4 +1,5 @@
 name: PR776 NBA UTC to original native possession acceptance
+# Security-reviewed in tools/public_content_guard.py; private source and output only.
 on:
   push:
     branches: [main]
