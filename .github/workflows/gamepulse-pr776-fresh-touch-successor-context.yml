@@ -3,7 +3,7 @@ name: PR776 fresh-touch NBA successor source context acceptance
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-pr776-fresh-touch-successor-context.yml']
+    paths: ['.github/workflows/gamepulse-pr776-fresh-touch-successor-context.yml', 'tools/public_content_guard.py']
 permissions:
   contents: read
 concurrency:
