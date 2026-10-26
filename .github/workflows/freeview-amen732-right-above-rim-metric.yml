@@ -83,6 +83,7 @@ jobs:
           print("AMEN732_INDEPENDENT_HOOP_RGB_COLOUR_SOURCE_AGGREGATES",q["matched_component_count"])
           PY
       - name: Independent physical NBA 3PT arc heldout in original source images
+        # Compare multiple Canny thresholds and independent fixed-shift controls; do not optimize camera from this arc.
         shell: bash
         run: |
           set -euo pipefail
