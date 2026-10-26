@@ -152,6 +152,10 @@ jobs:
           assert local["game_count"] == 1 and local["episode_count"] == 13
           assert season["certified_physical_possessions"] == 0
           assert local["certified_physical_possessions"] == 0
+          assert season["window_definition"] == "SOURCE_EPISODE_START_TO_NEXT_SOURCE_EPISODE_START"
+          assert season["frame_status"] == {"INSIDE":29297}
+          assert season["ten_ball_frame_status"] == {"INSIDE":23469}
+          assert local["frame_status"] == {"INSIDE":858}
           print("PR776_ROCKETS_SOURCE_TIME_CONSISTENCY",
                 "frame_status="+json.dumps(local["frame_status"],sort_keys=True),
                 "episode_status="+json.dumps(local["episode_status"],sort_keys=True),
