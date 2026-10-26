@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 36-game verified 13-episode XYZ query
+name: Integrated Pulse PR776 36-game private XYZ acceptance
 on:
   push:
     branches: [main]
@@ -47,126 +47,33 @@ jobs:
           cd "$SOURCE_ROOT"
           PYTHONPATH=gamepulse/fusion python3 -m unittest discover -v \
             -s gamepulse/fusion/tests -p 'test_query_nba_event_native_tracking_36_2026.py'
-      - name: Check exact original NBA events in every captured game
+          PYTHONPATH=gamepulse/fusion python3 -m unittest discover -v \
+            -s gamepulse/fusion/tests -p 'test_private_xyz_index_integrity_2026.py'
+      - name: Verify all 36 official games and every indexed private XYZ episode
         shell: bash
         run: |
           set -euo pipefail
           cd "$SOURCE_ROOT"
-          PYTHONPATH=gamepulse/fusion python3 - <<'PY'
-          import json
-          from pathlib import Path
-          from query_nba_event_native_tracking_36_2026 import assemble
-          base=Path('.')
-          eindex=json.loads(Path('gamepulse/fusion/materialized/nba_episode_tracking_pr776_20261025/index.json').read_bytes())
-          nindex=json.loads(Path('gamepulse/fusion/materialized/official_native_episode_xyz_pr776_20261026/index.json').read_bytes())
-          assert len(eindex['games'])==36 and len(nindex['games'])==28
-          counts={'games':0,'official_nba_episodes':0,'native_QA_games':0,
-                  'pending_native_QA_games':0,'event_source_sha_verified':0,
-                  'action_lineup_ambiguous_count':0,
-                  'unique_official_ten_at_exact_action_clock':0,
-                  'games_with_pinned_native_time_windows':0,
-                  'games_with_unknown_native_time_windows':0,
-                  'selected_qualified_native_episodes':0,
-                  'physical_possessions_certified':0}
-          receipts={}
-          for gid in sorted(eindex['games']):
-              episode_path='gamepulse/fusion/materialized/nba_episode_tracking_pr776_20261025/'+gid+'.json'
-              episode_doc=json.loads(Path(episode_path).read_bytes())
-              assert episode_doc['episodes'] and episode_doc['game_id']==gid
-              action=episode_doc['episodes'][0]['official_action_numbers'][0]
-              q=assemble(base,gid,nba_action_number=action,limit=3)
-              assert q['official_game_in_36'] and q['matched_nba_action_records']>=1
-              assert q['physical_possessions_certified']==0
-              is_native=gid in nindex['games']
-              assert q['native_qa_available'] is is_native
-              assert q['native_source_window_index_loaded'] is is_native
-              counts['games_with_pinned_native_time_windows']+=bool(is_native)
-              counts['games_with_unknown_native_time_windows']+=not is_native
-              if not is_native:
-                  assert all(x['tracking']['status']=='NATIVE_XYZ_QA_NOT_MATERIALIZED'
-                             and x['tracking']['candidate_frames'] is None
-                             for x in q['episodes'])
-              action_ids={a for e in episode_doc['episodes']
-                          for a in e.get('official_action_numbers',[])}
-              lu=json.loads(Path('gamepulse/fusion/official_lineup_clock/games/'+gid+'.json').read_bytes())
-              pbp=json.loads(Path('gamepulse/fusion/official_pbp_timing/games/'+gid+'.json').read_bytes())
-              unique_action=None
-              for ev in pbp['actions']:
-                  if ev['nba_action_number'] not in action_ids:continue
-                  hits=[row for row in lu['lineup_intervals']
-                        if row['period']==ev['period'] and
-                        row['start_clock_ms_remaining']>ev['game_clock_ms_remaining']>
-                        row['end_clock_ms_remaining']]
-                  if len(hits)==1:
-                      unique_action=ev['nba_action_number']
-                      break
-              assert unique_action is not None,'NO_UNIQUE_OFFICIAL_LINEUP_NBA_ACTION:'+gid
-              exact=assemble(base,gid,nba_action_number=unique_action,limit=3)
-              assert exact['episodes'] and exact['matched_nba_action_records']==1
-              assert exact['episodes'][0]['event_official_lineup_identity_grade']==(
-                   'OFFICIAL_NBA_EVENT_LINEUP_UNIQUE')
-              assert exact['episodes'][0]['official_ten_players_at_exact_nba_action_clock']
-              counts['unique_official_ten_at_exact_action_clock']+=1
-              counts['games']+=1
-              counts['official_nba_episodes']+=len(episode_doc['episodes'])
-              counts['native_QA_games']+=bool(is_native)
-              counts['pending_native_QA_games']+=not is_native
-              counts['event_source_sha_verified']+=1
-              counts['action_lineup_ambiguous_count']+=sum(
-                   x['event_official_lineup_identity_grade']!='OFFICIAL_NBA_EVENT_LINEUP_UNIQUE'
-                   for x in q['episodes'])
-              receipts[gid]={'native_qa':is_native,'official_episodes':len(episode_doc['episodes']),
-                             'source_event_lookup_tested':True,
-                             'official_ten_at_exact_nba_action_tested':True}
-          assert counts['games']==36 and counts['official_nba_episodes']==7524
-          assert counts['native_QA_games']==28 and counts['pending_native_QA_games']==8
-          assert counts['unique_official_ten_at_exact_action_clock']==36
-          assert counts['games_with_pinned_native_time_windows']==28
-          assert counts['games_with_unknown_native_time_windows']==8
-          # At least one real qualified original native episode must be selectable
-          gid='0022600009'
-          qap='gamepulse/fusion/qa/official_native_episode_xyz_bridge_0022600009_20261026.json'
-          qa=json.loads(Path(qap).read_bytes())
-          ep_id=next(k for k,v in qa['source_episode_tracking_qa'].items()
-                     if v.get('full_official_ten_plus_ball_frames',0)>0)
-          rock=assemble(base,gid,episode_id=ep_id)
-          assert rock['episodes'] and rock['episodes'][0]['tracking']['status']=='PRIVATE_ORIGINAL_XYZ_SOURCE_VERIFIED'
-          assert rock['episodes'][0]['tracking']['complete_ten_plus_ball_candidate_frames']>0
-          assert not rock['raw_original_sdk_coordinates_in_this_output']
-          assert rock['episodes'][0]['tracking']['native_episode_window_state']==(
-              'PROVISIONAL_EXTRACTABLE_NATIVE_TIME_WINDOWS')
-          assert len(rock['episodes'][0]['tracking']['native_episode_extraction_windows'])>0
-          real=assemble(base,gid,limit=400)
-          original=[v['tracking'] for v in real['episodes'] if v['tracking']['raw_xyz_coordinates_materialized']]
-          assert len(original)==13
-          assert sum(v['private_original_xyz_receipt']['source_frames'] for v in original)==858
-          assert sum(v['private_original_xyz_receipt']['ten_players_plus_ball_frames'] for v in original)==553
-          counts['private_xyz_source_verified_episodes']=len(original)
-          counts['private_xyz_source_verified_frames']=sum(
-              v['private_original_xyz_receipt']['source_frames'] for v in original)
-          counts['private_xyz_ten_players_and_ball_frames']=sum(
-              v['private_original_xyz_receipt']['ten_players_plus_ball_frames'] for v in original)
-          counts['selected_qualified_native_episodes']+=1
-          print('PRIVATE_SOURCE_GRADED_EVENT_D1_ACCEPTANCE',json.dumps(counts,sort_keys=True))
-          result={'schema':'gamepulse.36game-event-first-query-acceptance.v1',
-                  'source_grade':'OFFICIAL_NBA_SOURCE_PLUS_PROVISIONAL_NATIVE_28_GAME_QA',
-                  'counts':counts,'games':receipts,
-                  'independent_native_clock_accuracy_accepted':False,
-                  'physical_possessions_certified':0,
-                  'source_original_sdk_coordinates_exported':False}
-          path=Path('gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_13episode_20261026.json')
-          if path.exists():raise FileExistsError('REFUSE_EXISTING_D1_ACCEPTANCE_OVERWRITE')
-          path.write_text(json.dumps(result,sort_keys=True,indent=2)+'\n')
-          PY
-      - name: Publish only private aggregate D1 acceptance
+          python3 gamepulse/fusion/accept_private_event_xyz_36_2026.py \
+            --repo-root . \
+            --out gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_full_20261026.json
+      - name: Commit source-graded receipt only to private PR
         shell: bash
         run: |
           set -euo pipefail
           cd "$SOURCE_ROOT"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
-          git add gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_13episode_20261026.json
+          git add gamepulse/fusion/qa/event_first_lookup_36game_private_xyz_full_20261026.json
           git diff --cached --check
-          git commit -qm "data(gamepulse): prove 36-game official action lookup with 28 original native QA source statuses"
-          git push -q origin "HEAD:$BRANCH"
-          echo PRIVATE_D1_36_GAME_EVENT_LOOKUP_ACCEPTED
+          git commit -qm "data(gamepulse): accept full private XYZ 36-game source lookup"
+          for attempt in 1 2 3 4 5; do
+            if git push -q origin "HEAD:$BRANCH"; then
+              echo PRIVATE_XYZ_36_GAME_ACCEPTED
+              exit 0
+            fi
+            git fetch -q origin "$BRANCH"
+            git rebase "origin/$BRANCH"
+          done
+          echo PRIVATE_RECEIPT_PUSH_NOT_ACCEPTED >&2
+          exit 1
