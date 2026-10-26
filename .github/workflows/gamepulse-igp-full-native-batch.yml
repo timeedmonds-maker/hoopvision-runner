@@ -78,20 +78,22 @@ jobs:
           assert x["physical_possessions_certified"]==0
           print("IGP_FROZEN_NATIVE_GAME_ACCEPTED",gid,expected)
           PY
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -f -- "$target"
+            git commit -q -m "data(igp): accept original source XYZ game $gid"
+            published=0
+            for attempt in 1 2 3 4 5 6 7 8; do
+              git fetch -q origin "$B"
+              git rebase -q "origin/$B"
+              if git push -q origin "HEAD:refs/heads/$B"; then
+                echo IGP_PRIVATE_GAME_SOURCE_PUBLISHED "$gid"
+                published=1
+                break
+              fi
+              sleep "$attempt"
+            done
+            test "$published" -eq 1
             rm -rf "$RUNNER_TEMP/sdk-$gid" "$RUNNER_TEMP/release-$gid.json"
           done < "$RUNNER_TEMP/games.txt"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          while read -r gid; do git add -f "gamepulse/fusion/materialized/igp_all_original_xyz/$gid"; done < "$RUNNER_TEMP/games.txt"
-          if git diff --cached --quiet; then echo IGP_SHARD_ALREADY_DONE; exit 0; fi
-          git commit -q -m "data(igp): private original full-game XYZ shard $SHARD"
-          for i in 1 2 3 4 5 6 7 8; do
-            git fetch -q origin "$B"
-            git rebase -q "origin/$B"
-            if git push -q origin "HEAD:refs/heads/$B"; then
-              echo IGP_PRIVATE_SHARD_PUBLISHED "$SHARD"
-              exit 0
-            fi
-            sleep "$i"
-          done
-          exit 1
+          echo IGP_SHARD_SOURCE_BACKFILL_COMPLETED "$SHARD"
