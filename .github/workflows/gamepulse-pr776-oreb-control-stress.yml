@@ -1,4 +1,4 @@
-name: PR776 first physical possession full SDK rebound edge check
+name: PR776 first physical possession rebound contact source probe
 on:
   push:
     branches: [main]
@@ -35,15 +35,15 @@ jobs:
           echo "GIT_ASKPASS=$GIT_ASKPASS" >> "$GITHUB_ENV"
           echo "GIT_TERMINAL_PROMPT=0" >> "$GITHUB_ENV"
           echo "SOURCE_ROOT=$RUNNER_TEMP/private-oreb" >> "$GITHUB_ENV"
-      - name: Check private full SDK rebound and terminal frame coverage
+      - name: Check original rebounder and ball positions at candidate start
         shell: bash
         run: |
           set -euo pipefail
           cd "$SOURCE_ROOT"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_first_possession_full_sdk_edge_2026.py
-          python3 gamepulse/fusion/igp_first_possession_full_sdk_edge_2026.py \
-            --root . --out gamepulse/fusion/qa/igp_progress_20261027/first_possession_full_sdk_edge_0022600099_P3_C0129.json
+          python3 -m py_compile gamepulse/fusion/igp_first_possession_rebound_contact_probe_2026.py
+          python3 gamepulse/fusion/igp_first_possession_rebound_contact_probe_2026.py \
+            --root . --out gamepulse/fusion/qa/igp_progress_20261027/first_possession_rebound_contact_0022600099_P3_C0129.json
       - name: Commit aggregate-only diagnostic to private PR
         shell: bash
         run: |
@@ -51,12 +51,12 @@ jobs:
           cd "$SOURCE_ROOT"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
-          git add gamepulse/fusion/qa/igp_progress_20261027/first_possession_full_sdk_edge_0022600099_P3_C0129.json
+          git add gamepulse/fusion/qa/igp_progress_20261027/first_possession_rebound_contact_0022600099_P3_C0129.json
           git diff --cached --check
-          git commit -qm "qa(gamepulse): full SDK rebound-to-score edge coverage"
+          git commit -qm "qa(gamepulse): original rebounder-ball start evidence"
           for attempt in 1 2 3 4 5; do
             if git push -q origin "HEAD:$BRANCH"; then
-              echo FULL_SDK_POSSESSION_EDGE_COVERAGE_PRIVATE_QA_ACCEPTED
+              echo REBOUNDER_ORIGINAL_SOURCE_CONTACT_QA_ACCEPTED
               exit 0
             fi
             git fetch -q origin "$BRANCH"
