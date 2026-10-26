@@ -221,6 +221,17 @@ jobs:
           python3 gamepulse/fusion/igp_p2_official_ten_review_readiness_2026.py \
             --root . \
             --out gamepulse/fusion/qa/igp_progress_20261027/wallclock_p2_official_ten_review_readiness_36.json
+      - name: Probe seven source-qualified physical-control NBA Broadcast event locators
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_p2_ranked_broadcast_access_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_p2_ranked_broadcast_access_2026.py'
+          python3 gamepulse/fusion/igp_p2_ranked_broadcast_access_2026.py \
+            --root . \
+            --out gamepulse/fusion/qa/igp_progress_20261027/wallclock_p2_ranked_broadcast_access_36.json
       - name: Preserve private original source pointer index on canonical PR
         shell: bash
         run: |
@@ -238,6 +249,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_native_transition_ten_quality_36.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_direct_ten_contiguous_chain_36.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_p2_official_ten_review_readiness_36.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_p2_ranked_broadcast_access_36.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
