@@ -156,6 +156,16 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/accept_igp_wallclock_official_ten_2026.py
           python3 gamepulse/fusion/accept_igp_wallclock_official_ten_2026.py --root .
+      - name: Quantify all original native versus NBA logged possession owner conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_native_owner_conflict_triage_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_native_owner_conflict_triage_2026.py'
+          python3 gamepulse/fusion/igp_native_owner_conflict_triage_2026.py \
+            --root . --out gamepulse/fusion/qa/igp_progress_20261027/wallclock_native_owner_conflict_triage_36.json
       - name: Preserve private original source pointer index on canonical PR
         shell: bash
         run: |
@@ -167,6 +177,7 @@ jobs:
           git add -f "$OUT"
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_season_private_query_acceptance.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_official_ten_private_source_acceptance.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_native_owner_conflict_triage_36.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
