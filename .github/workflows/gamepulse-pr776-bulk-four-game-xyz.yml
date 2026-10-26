@@ -1,4 +1,4 @@
-name: PR776 original source XYZ four-game expansion
+name: PR776 original four-game XYZ concurrency-safe
 on:
   push:
     branches: [main]
@@ -93,6 +93,14 @@ jobs:
           git diff --cached --check
           if ! git diff --cached --quiet; then
             git commit -qm "data(gamepulse): private original native ten-player XYZ source for game $GID"
-            git push -q origin "HEAD:$BRANCH"
+            # Preserve concurrent PR updates. Never force-push source data.
+            for attempt in 1 2 3 4 5; do
+              if git push -q origin "HEAD:$BRANCH"; then break; fi
+              git fetch -q origin "$BRANCH"
+              git rebase "origin/$BRANCH"
+              if [ "$attempt" -eq 5 ]; then
+                git push -q origin "HEAD:$BRANCH"
+              fi
+            done
           fi
           echo SOURCE_ONLY_PRIVATE_NBA_XYZ_COMMITTED
