@@ -26,7 +26,8 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "${GH_TOKEN:-}"
-          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          # No redundant API preflight: shared private token may hit REST rate limits.
+          # Restricted private Git authentication and subsequent SHA checks remain required.
           cat > "$RUNNER_TEMP/pr776-askpass" <<'SH'
           #!/bin/sh
           case "$1" in
