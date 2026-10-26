@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen732-sam21-23-source-frames.yml",
     ".github/workflows/freeview-amen732-43xyz-23pixel-holdout.yml",
     ".github/workflows/freeview-amen732-q4-sdk-proof.yml",
     ".github/workflows/freeview-amen732-sam21-cpu-masks.yml",
@@ -161,6 +162,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/freeview-amen732-sam21-23-source-frames.yml": "242444981ff930b70f6a29e7bcc931a2efc42121",  # pinned Meta CPU, original 24 source NBA stills, private-only masks
     ".github/workflows/freeview-amen732-43xyz-23pixel-holdout.yml": "7fb576f1e6cc7803f4aad2d746eedb3ff3e570eb",  # original NBA SDK/X/Y/Z CPU holdouts; private-only coordinates and QA
     ".github/workflows/gamepulse-rockets-event-xyz.yml": "0814eefa14b62583095919d77b2368242d90cccb",  # reviewed: SHA-verified SDK, private XYZ output and aggregate public QA
     ".github/workflows/freeview-amen732-q4-sdk-proof.yml": "aaea8fd99cf84eca228d98aac079c21f822b348d",  # private original NBA 13-part SDK Q4 actor XYZ, no public export
