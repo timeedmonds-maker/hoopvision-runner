@@ -16,6 +16,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   game-fusion:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     strategy:
@@ -191,7 +192,7 @@ jobs:
         run: echo 'Only generic acceptance status is public; all source records remain private 104.' >> "$GITHUB_STEP_SUMMARY"
   aggregate:
     needs: [game-fusion]
-    if: success()
+    if: github.event_name == 'workflow_dispatch' && success()
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
@@ -284,3 +285,72 @@ jobs:
       - name: Final source confidentiality notice
         if: always()
         run: echo 'All individual tracking and PBP source records are private in 104; free CPU public runner only.' >> "$GITHUB_STEP_SUMMARY"
+
+  seven-native-43:
+    # One private-data worker avoids the previously observed GitHub API
+    # rate limit during many parallel private read/write calls.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify public confidentiality guard and authorized private credential
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_ACCESS_UNAVAILABLE'; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          git clone -q --depth 1 https://github.com/timeedmonds-maker/104 "$RUNNER_TEMP/private104"
+      - name: Run seven-game 43-index regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/private104"
+          python3 -m py_compile "$ROOT/gamepulse/fusion/build_20261025_native_43.py"
+          PYTHONPATH="$ROOT/gamepulse/fusion" python3 -m unittest discover -v \
+            -s "$ROOT/gamepulse/fusion/tests" -p 'test_build_20261025_native_43.py'
+      - name: Reconstruct seven original SDK and official NBA source action-run search records
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/private104"
+          PYTHONPATH="$ROOT/gamepulse/fusion" python3 \
+            "$ROOT/gamepulse/fusion/build_20261025_native_43.py" \
+            --repo "$ROOT" --scratch "$RUNNER_TEMP/seven-native-original"
+      - name: Atomically publish SHA-preserving 43-game index solely in private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/private104"
+          cd "$ROOT"
+          git config user.name 'gamepulse-source-worker'
+          git config user.email 'gamepulse-source-worker@users.noreply.github.com'
+          git add gamepulse/fusion/index/interactions/002260011?.json \
+                  gamepulse/fusion/index/interactions/index-2026-27.json \
+                  gamepulse/fusion/index/interactions/index-2026-27-through-20261024.json \
+                  gamepulse/fusion/index/interactions/index-2026-27-through-20261025.json
+          if git diff --cached --quiet; then
+            echo 'PRIVATE_43_GAME_NATIVE_SOURCE_ALREADY_CURRENT'
+            exit 0
+          fi
+          git commit -qm 'data(gamepulse): integrate seven original native-touch games into 43-game private source index'
+          for attempt in 1 2 3 4 5; do
+            if git push -q origin HEAD:main; then
+              echo 'PRIVATE_43_GAME_NATIVE_SOURCE_COMMITTED'
+              exit 0
+            fi
+            git fetch -q origin main
+            git rebase -q origin/main || { echo 'PRIVATE_FUSION_SOURCE_CONFLICT'; exit 4; }
+            sleep "$attempt"
+          done
+          echo 'PRIVATE_SOURCE_PUSH_RETRY_EXHAUSTED'
+          exit 5
+      - name: Keep source records solely in private GitHub
+        if: always()
+        run: echo 'All source records remain private in 104; only aggregate execution status is public.' >> "$GITHUB_STEP_SUMMARY"
