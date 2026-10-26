@@ -55,8 +55,9 @@ jobs:
           cd "$SOURCE_ROOT"
           export PYTHONPATH=gamepulse/fusion
           OUT=gamepulse/fusion/materialized/igp_wallclock_native_frame_possession_36_v1
-          test ! -e "$OUT"
-          python3 gamepulse/fusion/igp_wallclock_season_frame_index_2026.py --root . --out-dir "$OUT"
+          if [ ! -e "$OUT" ]; then
+            python3 gamepulse/fusion/igp_wallclock_season_frame_index_2026.py --root . --out-dir "$OUT"
+          fi
           python3 - "$OUT" <<'PY'
           import sys,hashlib,json
           from pathlib import Path
@@ -82,6 +83,69 @@ jobs:
                  "grade_counts":{k:v for k,v in s.items() if k.startswith("grade_")},
                  "certified_physical_possessions":0},sort_keys=True))
           PY
+      - name: Test new original-frame NBA chain/action/team/player search
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_wallclock_season_frame_index_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_query_igp_wallclock_season_frame_index_2026.py'
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from query_igp_wallclock_season_frame_index_2026 import query
+          from igp_wallclock_season_frame_index_2026 import BASE
+          idx=json.loads((BASE/'materialized/igp_wallclock_native_frame_possession_36_v1/index.json').read_bytes())
+          cases=[
+           ('0022600001','0022600001-P1-C0006',144,141,3),
+           ('0022600099','0022600099-P3-C0129',58,54,4),
+           ('0022600009','0022600009-P1-C0003',89,0,0)]
+          results=[]
+          for game,cid,expected_logged,expected_native,expected_conflicts in cases:
+              a=query(Path('.'),game,chain_id=cid,mode='logged',limit=1)
+              n=query(Path('.'),game,chain_id=cid,mode='native',limit=1)
+              assert a['query']['matching_frames']>=expected_logged
+              assert n['query']['matching_frames']==expected_native
+              grade=n['query']['graded_counts']
+              assert grade.get('NATIVE_VS_NBA_LOGGED_CHAIN_CONFLICT',0)==expected_conflicts
+              action=a['source_NBA_chain_matches'][0]['NBA_official_action_numbers'][0]
+              byaction=query(Path('.'),game,action_number=action,limit=1)
+              assert byaction['source_NBA_chain_matches'][0]['NBA_chain_id']==cid
+              results.append(dict(game_id=game,chain_id=cid,
+                  NBA_logged_window_frames=a['query']['matching_frames'],
+                  original_native_candidate_frames=n['query']['matching_frames'],
+                  cross_owner_candidate_frames=expected_conflicts,
+                  actual_action_checked=action))
+          # Every accepted original game has an independently SHA checked,
+          # searchable original-frame pointer, including newer games.
+          checked=0
+          for gid,g in sorted(idx['games'].items()):
+              chain=next((cid for cid,c in g['nba_chain_unique_source_frame_counts'].items()
+                          if c>0),None)
+              assert chain is not None
+              x=query(Path('.'),gid,chain_id=chain,limit=1)
+              assert x['query']['matching_frames']>=g['nba_chain_unique_source_frame_counts'][chain]
+              checked+=1
+          # Real private original player+ball XYZ read-back from the existing
+          # SHA-pinned source, not in the public Actions summary.
+          xyz=query(Path('.'),'0022600009',chain_id='0022600009-P1-C0003',
+                    limit=1,include_original_xyz=True)
+          assert xyz['private_original_chain_XYZ']['returned_original_xyz']
+          assert xyz['private_original_chain_XYZ']['total_unique_source_original_frames']==89
+          out=BASE/'qa/igp_progress_20261027/wallclock_season_private_query_acceptance.json'
+          assert not out.exists()
+          receipt={'schema':'gamepulse.wallclock-36-original-query-acceptance.v1',
+                   'all_games_metadata_search_checked':checked,
+                   'three_real_source_chain_cases':results,
+                   'original_private_source_XYZ_readback':True,
+                   'full_source_frame_index_sha256':xyz['private_frame_index_sha256'],
+                   'physical_possessions_certified':0}
+          out.write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\\n')
+          print('NBA_36_GAME_PRIVATE_CHAIN_SEARCH_ACCEPTED',
+                json.dumps({'games':checked,'cases':results,'original_XYZ_readback':True,
+                            'physical_possessions_certified':0},sort_keys=True))
+          PY
       - name: Preserve private original source pointer index on canonical PR
         shell: bash
         run: |
@@ -91,9 +155,12 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$OUT"
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_season_private_query_acceptance.json
           git diff --cached --check
-          test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
-          git commit -q -m "data(igp): materialize 36-game NBA UTC original tracking frame index"
+          if ! git diff --cached --quiet; then
+            test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
+            git commit -q -m "data(igp): materialize 36-game NBA UTC original tracking frame index"
+          fi
           for i in 1 2 3 4 5 6 7; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
