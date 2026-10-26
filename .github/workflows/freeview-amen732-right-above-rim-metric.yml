@@ -128,7 +128,8 @@ jobs:
           cd "$RUNNER_TEMP/source"
           git config user.name 'HoopVision original source CPU'
           git config user.email 'hoopvision-runner@users.noreply.github.com'
-          git add hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_20261026.json \
+          git add hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_20261026.preview.jpg \
+            hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_20261026.json \
             hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_source_holdout_20261026.json \
             hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_UHD_20261026.jpg \
             hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
