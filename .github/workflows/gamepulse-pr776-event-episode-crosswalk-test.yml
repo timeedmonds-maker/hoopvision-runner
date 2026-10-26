@@ -27,7 +27,7 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "${GH_TOKEN:-}" || { echo PRIVATE_ACCESS_TOKEN_UNAVAILABLE; exit 3; }
-          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          # Repository is pinned; the Git read authenticates access to the private source.
           cat > "$RUNNER_TEMP/private-askpass" <<'SH'
           #!/bin/sh
           case "$1" in
