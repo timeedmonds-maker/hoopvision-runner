@@ -82,6 +82,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-rockets-spurs-fusion-merge.yml",
     ".github/workflows/gamepulse-rockets-spurs-original-qa.yml",
     "tools/licensed_feed/verify_gameplay_0009.py",
+    "tools/licensed_feed/audit_sdk_metadata_0009.py",  # original private SHA-only schema inventory; no licensed values published
     ".github/workflows/public-nba-gravity-onegame.yml",
     ".github/workflows/nba-blueprint-priority-private-acquire.yml",
     "public_nba_gravity_rockets_game1_2026_27.json",
@@ -179,6 +180,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/gamepulse-pr776-sdk-metadata-0009.yml": "d1c768ec93f6f761b8245de8d21df58abf7257b0",  # reviewed private-only original SDK field-key QA; no values/XYZ in public
     ".github/workflows/gamepulse-igp-eight-native-raw-backfill.yml": "7a9790609ce84fb8c108c0bccb6b33954c886ae5",  # source chunks remain private
     ".github/workflows/gamepulse-igp-full-native-season-coverage.yml": "a2f69e668372cb88816c7ad2fa9cf0fcb9c14828",  # SHA-only private coverage and no public artifacts
     ".github/workflows/gamepulse-igp-full-native-batch.yml": "f9d1c67b8e6dfdd25be96e68aa95c5e8021a0615",  # private-only original SDK XYZ batch
