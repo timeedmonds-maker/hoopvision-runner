@@ -24,6 +24,7 @@ GAME = "0022600009"
 TAG = "gamepulse-sdk-" + GAME
 OUTPUT = "sdk-original-metadata-clock-inventory-0022600009.json"
 PARTS = 13
+# Reviewed workflow is pinned by tools/public_content_guard.py; preserve fail-closed source boundary.
 
 
 def require(condition, code):
