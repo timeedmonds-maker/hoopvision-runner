@@ -65,6 +65,23 @@ jobs:
              d['original_native_training_p95_px'],d['independent_heldout_rim_error_px'],
              d['camera_model']['focal_length_px'])
           PY
+      - name: Independently inspect real stationary basket pixel candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source"
+          python3 hoopvision/freeview/amen732_right_above_rim_real_hoop_pixels.py --selftest
+          python3 hoopvision/freeview/amen732_right_above_rim_real_hoop_pixels.py \
+            --root hoopvision/freeview/fixtures \
+            --out hoopvision/freeview/fixtures/amen732_right_above_rim_stationary_hoop_source_QA_20261026.json \
+            --uhd hoopvision/freeview/fixtures/amen732_right_above_rim_stationary_hoop_UHD_20261026.jpg
+          python3 - <<'PY'
+          import json
+          q=json.load(open('hoopvision/freeview/fixtures/amen732_right_above_rim_stationary_hoop_source_QA_20261026.json'))
+          assert not q["candidate_visual_hoop_identity_verified"]
+          assert not q["source_court_metric_KRt_verified"]
+          print("AMEN732_INDEPENDENT_HOOP_RGB_COLOUR_SOURCE_AGGREGATES",q["matched_component_count"])
+          PY
       - name: Preserve source-only original NBA geometry results privately
         shell: bash
         run: |
@@ -73,7 +90,9 @@ jobs:
           git config user.name 'HoopVision original source CPU'
           git config user.email 'hoopvision-runner@users.noreply.github.com'
           git add hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
-            hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_overlay_UHD_20261026.jpg
+            hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_overlay_UHD_20261026.jpg \
+            hoopvision/freeview/fixtures/amen732_right_above_rim_stationary_hoop_source_QA_20261026.json \
+            hoopvision/freeview/fixtures/amen732_right_above_rim_stationary_hoop_UHD_20261026.jpg
           git diff --cached --check
           git commit -qm 'qa(freeview): NBA source-world stable court-camera pose trial with withheld rim and UHD QA'
           for attempt in 1 2 3; do
