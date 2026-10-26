@@ -1,0 +1,40 @@
+name: Amen 732 private Q4 original SDK proof
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/freeview-amen732-q4-sdk-proof.yml','tools/public_content_guard.py']
+permissions:
+  contents: read
+jobs:
+  extract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Private source verification and targeted Q4 extraction
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          D="$RUNNER_TEMP/amen732"
+          mkdir -p "$D/sdk" "$D/clock"
+          gh repo clone timeedmonds-maker/104 "$D/clock" -- --depth=1 --branch research/gamepulse-clock-boundary-integrity-20261025 --filter=blob:none
+          gh api repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-0022600009 > "$D/release.json"
+          gh release download gamepulse-sdk-0022600009 -R timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$D/sdk"
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_extract_q4_source_window.py?ref=research/amen-wemby-freeze-spin-20261024' --jq .content | base64 -d > "$D/extract.py"
+          gh api 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_contact_bracket_qa.json?ref=research/amen-wemby-freeze-spin-20261024' --jq .content | base64 -d > "$D/fixture.json"
+          export PYTHONPATH="$D/clock/gamepulse/fusion"
+          python3 "$D/extract.py" --selftest
+          python3 "$D/extract.py" --archive "$D/sdk" --release "$D/release.json" --fixture "$D/fixture.json" --out "$D/out.json"
+          python3 - "$D/out.json" "$D/put.json" <<'PY'
+          import sys,json,base64
+          with open(sys.argv[1],'rb') as f:blob=f.read()
+          req={'branch':'research/amen-wemby-freeze-spin-20261024','message':'data(freeview): source-SHA-verified original SDK Amen block Q4 position window','content':base64.b64encode(blob).decode()}
+          with open(sys.argv[2],'w') as f:json.dump(req,f)
+          PY
+          gh api -X PUT 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_original_SDK_Q4_direct_XYZ_20261026.json' --input "$D/put.json" >/dev/null
+          echo AMEN732_Q4_PRIVATE_SDK_XYZ_PRESERVED
