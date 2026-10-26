@@ -199,6 +199,17 @@ jobs:
           python3 gamepulse/fusion/igp_native_transition_12_quality_2026.py \
             --root . \
             --out gamepulse/fusion/qa/igp_progress_20261027/wallclock_native_transition_ten_quality_36.json
+      - name: Quantify contiguous direct ten-player source tracking by candidate NBA chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_contiguous_direct_ten_by_chain_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_contiguous_direct_ten_by_chain_2026.py'
+          python3 gamepulse/fusion/igp_contiguous_direct_ten_by_chain_2026.py \
+            --root . \
+            --out gamepulse/fusion/qa/igp_progress_20261027/wallclock_direct_ten_contiguous_chain_36.json
       - name: Preserve private original source pointer index on canonical PR
         shell: bash
         run: |
@@ -214,6 +225,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_native_transition_event_context_36.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_native_transition_review_packets_36.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_native_transition_ten_quality_36.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_direct_ten_contiguous_chain_36.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
