@@ -94,6 +94,31 @@ jobs:
             n:(v['source_tracker_accepted_outside_existing_SAM_frames'],v['comparison_within_7_native_pixels'],v['comparison_count'])
             for n,v in j['views'].items()})
           PY
+      - name: Strict same-frame holdout using original longer track
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source"
+          export PYTHONPATH="$PWD/hoopvision/freeview"
+          python3 -m pip install --quiet --disable-pip-version-check scipy==1.14.1
+          python3 hoopvision/freeview/amen732_original_left_long_xyz_holdout.py --selftest
+          python3 hoopvision/freeview/amen732_original_left_long_xyz_holdout.py \
+            --source hoopvision/freeview/fixtures/amen732_original_recapture_43_three_actor_xyz_20261026.json \
+            --sam hoopvision/freeview/fixtures/amen732_23source_sam21_ball_masks_20261026.json \
+            --long hoopvision/freeview/fixtures/amen732_two_slash_original_native_long_track_20261026.json \
+            --video "$RUNNER_TEMP/native/0022600009-e732-left-slash.mp4" \
+            --out hoopvision/freeview/fixtures/amen732_left_slash_long_RGB_SDK_camera_holdout_20261026.json
+          python3 - <<'PY'
+          import json
+          j=json.load(open('hoopvision/freeview/fixtures/amen732_left_slash_long_RGB_SDK_camera_holdout_20261026.json'))
+          assert j["actual_original_native_ffprobe_PTS_validated_against_frozen_SAM"]
+          assert j["additional_long_RGB_native_source_frames"]>=7
+          assert len(j["heldout"])==2
+          assert not j["camera_metric_calibration_certified"]
+          print("AMEN732_LONG_RGB_NATIVE_CAMERA_HOLDOUT_PRIVATE_AGGREGATES",
+                j["additional_long_RGB_native_source_frames"],
+                j["mean_prior_pixel_error_px"],j["mean_long_pixel_error_px"])
+          PY
       - name: Store original RGB candidate evidence only privately
         shell: bash
         run: |
@@ -101,7 +126,8 @@ jobs:
           cd "$RUNNER_TEMP/source"
           git config user.name 'HoopVision native source CPU'
           git config user.email 'hoopvision-runner@users.noreply.github.com'
-          git add hoopvision/freeview/fixtures/amen732_two_slash_original_native_long_track_20261026.json
+          git add hoopvision/freeview/fixtures/amen732_two_slash_original_native_long_track_20261026.json \
+            hoopvision/freeview/fixtures/amen732_left_slash_long_RGB_SDK_camera_holdout_20261026.json
           git diff --cached --check
           git commit -qm 'qa(freeview): SHA source RGB longer Amen ball trajectories with source uncertainty gates'
           for attempt in 1 2 3; do
