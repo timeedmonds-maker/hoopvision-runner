@@ -462,7 +462,7 @@ def publish_private_qa_snapshot(data):
     published = json.loads(gh("api", endpoint + "?ref=main"))
     raw = base64.b64decode(published["content"])
     blob_sha = hashlib.sha1(
-        b"blob " + str(len(raw)).encode() + b"\\0" + raw).hexdigest()
+        b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
     if raw != data or published.get("sha") != blob_sha:
         raise RuntimeError("private_qa_snapshot_readback_failed")
 
