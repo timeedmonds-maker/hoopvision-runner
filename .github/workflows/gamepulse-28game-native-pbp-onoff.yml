@@ -40,7 +40,7 @@ jobs:
           python3 tools/licensed_feed/official_pbp_onoff_28.py one --game "${{ matrix.game }}"
   aggregate:
     needs: original-nba-sources
-    if: always()
+    if: github.event_name == 'workflow_dispatch' && always()
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -54,3 +54,66 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           python3 tools/licensed_feed/official_pbp_onoff_28.py assemble36
+
+  seven-provider-43:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Protect public/private original NBA provider boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_AUTH_MISSING'; exit 3; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          git clone -q --depth 1 https://github.com/timeedmonds-maker/104 "$RUNNER_TEMP/private104"
+      - name: Run immutable provider index and missingness regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/private104"
+          python3 -m py_compile "$ROOT/gamepulse/fusion/build_20261025_onoff_43.py"
+          PYTHONPATH="$ROOT/gamepulse/fusion" python3 -m unittest discover -v \
+            -s "$ROOT/gamepulse/fusion/tests" -p 'test_build_20261025_onoff_43.py'
+      - name: Collect seven independently game-scoped NBA lineup and ONOFF source records
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/private104"
+          PYTHONPATH="$ROOT/gamepulse/fusion" python3 \
+            "$ROOT/gamepulse/fusion/build_20261025_onoff_43.py" \
+            --repo "$ROOT" --retries 3
+      - name: Preserve independently qualified NBA provider results only privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/private104"
+          cd "$ROOT"
+          git config user.name 'gamepulse-provider-worker'
+          git config user.email 'gamepulse-provider-worker@users.noreply.github.com'
+          git add -A gamepulse/fusion/onoff/
+          if git diff --cached --quiet; then
+            echo 'PRIVATE_43_PROVIDER_SOURCE_ALREADY_CURRENT'
+            exit 0
+          fi
+          git commit -qm 'data(gamepulse): preserve independent new-slate NBA provider lineup and onoff source'
+          for attempt in 1 2 3 4 5; do
+            if git push -q origin HEAD:main; then
+              echo 'PRIVATE_NEW_GAME_PROVIDER_SOURCE_COMMITTED'
+              exit 0
+            fi
+            git fetch -q origin main
+            git rebase -q origin/main || { echo 'PRIVATE_PROVIDER_CONCURRENT_CONFLICT'; exit 4; }
+            sleep "$attempt"
+          done
+          exit 5
+      - name: Keep source-level NBA records private
+        if: always()
+        run: echo 'Only generic CPU execution status is public; all provider results and player rows are private in 104.' >> "$GITHUB_STEP_SUMMARY"
