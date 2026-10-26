@@ -44,16 +44,6 @@ jobs:
           python3 -m py_compile gamepulse/fusion/igp_first_possession_rebound_contact_probe_2026.py
           python3 gamepulse/fusion/igp_first_possession_rebound_contact_probe_2026.py \
             --root . --out gamepulse/fusion/qa/igp_progress_20261027/first_possession_rebound_contact_0022600099_P3_C0129.json
-      - name: Run universal 36-game NBA native physical boundary proposals
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$SOURCE_ROOT"
-          export PYTHONPATH=gamepulse/fusion
-          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_automatic_possession_boundary_fusion_2026.py'
-          python3 gamepulse/fusion/igp_automatic_possession_boundary_fusion_2026.py \
-            --root . --game-ids all \
-            --out gamepulse/fusion/qa/igp_progress_20261027/universal_native_boundary_36game_20261027.json
       - name: Commit aggregate-only diagnostic to private PR
         shell: bash
         run: |
@@ -62,7 +52,6 @@ jobs:
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
           git add gamepulse/fusion/qa/igp_progress_20261027/first_possession_rebound_contact_0022600099_P3_C0129.json
-          git add gamepulse/fusion/qa/igp_progress_20261027/universal_native_boundary_36game_20261027.json
           git diff --cached --check
           git commit -qm "qa(gamepulse): original rebounder-ball start evidence"
           for attempt in 1 2 3 4 5; do
