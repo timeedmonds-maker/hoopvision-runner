@@ -1,7 +1,5 @@
 name: Integrated Pulse PR776 original ten-player extraction corrected
 on:
-  schedule:
-    - cron: '*/15 * * * *'
   workflow_dispatch:
   push:
     branches: [main]
