@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-official-wall-time-acceptance.yml",  # reviewed official NBA timeActual plus private SDK UTC QA, aggregates only publicly
     ".github/workflows/gamepulse-pr776-broadcast-anchor-video-access.yml",  # reviewed NBA official event-video endpoint access, metadata QA only, no clips
     ".github/workflows/freeview-amen732-board-static-sources.yml",
     ".github/workflows/freeview-amen732-multipt-photo-refit.yml",
