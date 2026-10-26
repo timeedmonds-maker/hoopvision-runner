@@ -253,3 +253,22 @@ jobs:
                 "research_labels="+json.dumps(season["research_labels"],sort_keys=True),
                 "physical_possessions_certified=0")
           PY
+
+      - name: Verify real post-terminal episode query
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset GH_TOKEN
+          cd "$PRIVATE_ROOT"
+          PYTHONPATH=gamepulse/fusion python3 - <<'PY'
+          from pathlib import Path
+          from query_original_xyz_episode_season_2026 import query
+          r=query(Path("."),game_id="0022600009",episode_id="0022600009-P1-NBAF0002",include_xyz=True)
+          assert r["matched_episodes"]==1
+          e=r["episodes"][0]["post_terminal_next_team_research"]
+          assert e["following_source_offense_team"]=="SAS"
+          assert e["post_terminal_interior_frames"]==45
+          assert e["physical_possession_owner_independently_confirmed"] is False
+          print("PR776_ROCKETS_POSTSCORE_NEXT_TEAM_QUERY_PASS",
+                "postframes=45 source=HOU next=SAS certified_possessions=0")
+          PY
