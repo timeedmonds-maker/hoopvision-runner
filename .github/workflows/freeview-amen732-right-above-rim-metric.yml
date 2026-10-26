@@ -104,6 +104,23 @@ jobs:
                 j['curve_samples']['true_untrained_curve'],
                 'beats_20px_negative_controls=',j['true_curve_beats_all_20px_shifts'])
           PY
+      - name: Fix low-contrast 3PT detector and reject wood-grain false positive
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source"
+          python3 hoopvision/freeview/amen732_3pt_arc_detector_specificity.py --selftest
+          python3 hoopvision/freeview/amen732_3pt_arc_detector_specificity.py \
+            --root hoopvision/freeview/fixtures \
+            --camera hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
+            --out hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_20261026.json
+          python3 - <<'PY'
+          import json
+          j=json.load(open('hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_20261026.json'))
+          assert not j["camera_KRt_certified"]
+          assert not j["physical_first_hand_ball_touch_certified"]
+          print("AMEN732_SOURCE_REAL_ARC_DETECTOR_SPECIFICITY_RESULT",j["discriminative_settings"])
+          PY
       - name: Preserve source-only original NBA geometry results privately
         shell: bash
         run: |
@@ -111,7 +128,8 @@ jobs:
           cd "$RUNNER_TEMP/source"
           git config user.name 'HoopVision original source CPU'
           git config user.email 'hoopvision-runner@users.noreply.github.com'
-          git add hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_source_holdout_20261026.json \
+          git add hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_20261026.json \
+            hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_source_holdout_20261026.json \
             hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_UHD_20261026.jpg \
             hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
             hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_overlay_UHD_20261026.jpg \
