@@ -180,7 +180,7 @@ REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
     ".github/workflows/gamepulse-igp-original-xyz-continuity-clock-review.yml": "f7bcf3fecf79e15be5602a80725e5605e0f900db",  # no source/public XYZ; SHA-verified per-episode aggregated private QA
     ".github/workflows/gamepulse-pr776-possession-first-36-materialize.yml": "274e3640860a303d74da3fa79354bd54af6ea8ea",  # private-source-only 36-game materialization; no public artifacts or source records
     ".github/workflows/gamepulse-pr776-fresh-touch-successor-context.yml": "ebd5147288f91936b583a84dd0f17c82dfcfd01b",  # reviewed private-only 93 candidate NBA context CPU with no public artifacts
-    ".github/workflows/freeview-amen732-right-above-rim-metric.yml": "8b94c664a31f91b38a4012c1cf7fbde811db527a",  # original NBA gamepulse world stable court KRT trial, private heldout and UHD QA
+    ".github/workflows/freeview-amen732-right-above-rim-metric.yml": "0560afba4888c19bab2daf0a718d059894a687f9",  # original NBA gamepulse world stable court KRT trial, private heldout and UHD QA
     ".github/workflows/freeview-amen732-static-right-above-rim.yml": "1b1cb13cede4778be8f697b8211db425dbd4ad58",  # original static right-above-rim private NBA court-source geometry and 4K QA
     ".github/workflows/freeview-amen732-high-tight-third-view.yml": "82d5b42a0ec14f47214c1257fecb44c40eab802e",  # exact SHA original High Tight third view, private-only 4K contact sheet
     ".github/workflows/freeview-amen732-left-long-research-pts.yml": "c79abf52f144b479452b8bc6fddd0cc55de32c00",  # Git-only private original NBA source; provisional PTS explicitly blocked for metric claims
