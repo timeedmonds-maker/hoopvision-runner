@@ -1,4 +1,5 @@
 name: PR776 original SDK frames to official NBA real UTC windows 36
+# Recheck after source QA .json extension correction.
 # Strict provisional temporal assignment. Private original XYZ never enters public logs.
 on:
   push:
