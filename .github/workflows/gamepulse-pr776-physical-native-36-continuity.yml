@@ -1,0 +1,89 @@
+name: PR776 physical possession native 36 continuity acceptance
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-pr776-physical-native-36-continuity.yml']
+permissions: {contents: read}
+concurrency:
+  group: pr776-physical-native-36-continuity
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      R: timeedmonds-maker/104
+      B: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard public content and fetch canonical private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          cat > "$RUNNER_TEMP/private-git-askpass" <<'SH'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' x-access-token;;
+            *Password*) printf '%s\n' "$GH_TOKEN";;
+            *) exit 1;;
+          esac
+          SH
+          chmod 700 "$RUNNER_TEMP/private-git-askpass"
+          export GIT_ASKPASS="$RUNNER_TEMP/private-git-askpass" GIT_TERMINAL_PROMPT=0
+          echo "GIT_ASKPASS=$GIT_ASKPASS" >> "$GITHUB_ENV"
+          echo "GIT_TERMINAL_PROMPT=0" >> "$GITHUB_ENV"
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$B" "https://github.com/$R.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          echo "PRIVATE_ROOT=$RUNNER_TEMP/private" >> "$GITHUB_ENV"
+      - name: Test and run actual 36-game full original XYZ continuity audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_native_fullgame_continuity_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_native_fullgame_continuity_2026.py'
+          OUT=gamepulse/fusion/qa/igp_progress_20261026/native_fullgame_continuity_36_v1.json
+          test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_native_fullgame_continuity_2026.py --root . --out "$OUT"
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          j=json.load(open(sys.argv[1]));c=j['source_counts']
+          assert j['game_count']==36
+          assert c['original_native_timestamps']==1203986
+          assert c['direct_ten_plus_ball_timestamps']==387956
+          assert j['physical_possessions_certified']==0
+          assert all(x['whole_physical_possessions_certified']==0 for x in j['games'].values())
+          print('IGP_36_NATIVE_REAL_SOURCE_CONTINUITY_QA_ACCEPTED',json.dumps({
+              'games':36,'native_frames':c['original_native_timestamps'],
+              'ball_direct_frames':c['direct_ball_xyz_timestamps'],
+              'ten_ball_direct_frames':c['direct_ten_plus_ball_timestamps'],
+              'ball_native_runs_ge10s':c.get('ball_runs_ge_10s',0),
+              'ten_ball_native_runs_ge10s':c.get('ten_plus_ball_runs_ge_10s',0),
+              'physical_possessions_certified':0},sort_keys=True))
+          PY
+      - name: Persist accepted aggregate QA only into private 104 PR776
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          OUT=gamepulse/fusion/qa/igp_progress_20261026/native_fullgame_continuity_36_v1.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$OUT"
+          git diff --cached --check
+          git commit -q -m "data(igp): accept 36-game SHA-verified native XYZ physical continuity ceiling"
+          for i in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$B"
+            git rebase -q "origin/$B"
+            if git push -q origin "HEAD:refs/heads/$B"; then
+              echo IGP_36_FULL_GAME_NATIVE_CONTINUITY_PRIVATE_PUBLISHED
+              exit 0
+            fi
+            sleep "$i"
+          done
+          exit 12
