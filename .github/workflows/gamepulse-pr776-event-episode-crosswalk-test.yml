@@ -128,3 +128,37 @@ jobs:
                 "games=28 episodes=532 frames=29297 ten_plus_ball=23469",
                 "verified_files=532 certified_physical_possessions=0")
           PY
+
+      - name: Audit provisional XYZ episode clock overlap against official NBA event windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset GH_TOKEN
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion:gamepulse/fusion/tests
+          python3 -m py_compile gamepulse/fusion/audit_original_xyz_episode_clock_consistency_2026.py \
+            gamepulse/fusion/tests/test_audit_original_xyz_episode_clock_consistency_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p test_audit_original_xyz_episode_clock_consistency_2026.py
+          python3 gamepulse/fusion/audit_original_xyz_episode_clock_consistency_2026.py \
+            --root . --game-id 0022600009 --summary-only --out "$RUNNER_TEMP/rockets_temporal.json"
+          python3 gamepulse/fusion/audit_original_xyz_episode_clock_consistency_2026.py \
+            --root . --summary-only --out "$RUNNER_TEMP/season_temporal.json"
+          python3 - "$RUNNER_TEMP/rockets_temporal.json" "$RUNNER_TEMP/season_temporal.json" <<'PY'
+          import json,sys
+          local,season=(json.load(open(p)) for p in sys.argv[1:])
+          assert (season["game_count"],season["episode_count"],
+                  season["candidate_frames"],season["ten_plus_direct_ball_frames"]) == (28,532,29297,23469)
+          assert local["game_count"] == 1 and local["episode_count"] == 13
+          assert season["certified_physical_possessions"] == 0
+          assert local["certified_physical_possessions"] == 0
+          print("PR776_ROCKETS_SOURCE_TIME_CONSISTENCY",
+                "frame_status="+json.dumps(local["frame_status"],sort_keys=True),
+                "episode_status="+json.dumps(local["episode_status"],sort_keys=True),
+                "ten_ball_status="+json.dumps(local["ten_ball_frame_status"],sort_keys=True))
+          print("PR776_SEASON_SOURCE_TIME_CONSISTENCY",
+                "frame_status="+json.dumps(season["frame_status"],sort_keys=True),
+                "episode_status="+json.dumps(season["episode_status"],sort_keys=True),
+                "ten_ball_status="+json.dumps(season["ten_ball_frame_status"],sort_keys=True),
+                "certified_physical_possessions=0")
+          PY
