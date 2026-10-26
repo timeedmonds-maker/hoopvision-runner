@@ -1,4 +1,5 @@
 name: PR776 official NBA timeActual vs source XYZ acceptance
+# Re-run after native event predicate syntax correction; original private PR retained.
 # Real NBA PBP wall timestamp source and original private SDK UTC; public logs aggregate QA only.
 on:
   push:
