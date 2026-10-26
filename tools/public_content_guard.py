@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-original-xyz-search-audit.yml",  # reviewed: private-only SHA-verified XYZ CPU acceptance
     ".github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml",  # reviewed pinned private-only CPU acceptance, no source publication
     ".github/workflows/freeview-amen732-sam2-world-camera-holdout.yml",
     ".github/workflows/freeview-amen732-sam21-23-source-frames.yml",
@@ -164,6 +165,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/gamepulse-pr776-original-xyz-search-audit.yml": "c3f846ddaacff6dbc4066e6dbf9a16d05bb4fff9",  # private authenticated Git; ephemeral source-only audit; aggregate logs
     ".github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml": "6d1ecb3aff6d7f359ae2188564045d8784bfee43",  # reviewed: private CPU-only exact-action tests, aggregate logs, no artifacts
     ".github/workflows/freeview-amen732-sam2-world-camera-holdout.yml": "649305ab47e78d343883e87e046bd5b2600559d7",  # private SAM2 native ball centroids and original world XYZ; aggregate-only public logs
     ".github/workflows/freeview-amen732-sam21-23-source-frames.yml": "242444981ff930b70f6a29e7bcc931a2efc42121",  # pinned Meta CPU, original 24 source NBA stills, private-only masks
