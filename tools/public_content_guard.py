@@ -160,6 +160,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/gamepulse-rockets-event-xyz.yml": "79529848ff9aa1516671a087efe6ac130dbf0ae5",  # reviewed: SHA-verified SDK, private XYZ output and aggregate public QA
     ".github/workflows/freeview-amen732-q4-sdk-proof.yml": "aaea8fd99cf84eca228d98aac079c21f822b348d",  # private original NBA 13-part SDK Q4 actor XYZ, no public export
     ".github/workflows/gamepulse-pr776-bulk-four-game-xyz.yml": "93903e3ec8d03f1c7767b5e4cfd79d82982cf0e3",
     ".github/workflows/gamepulse-pr776-bulk-0009-original-xyz.yml": "6306d60e989e0537c6469d49ab18bbed576d0846",
