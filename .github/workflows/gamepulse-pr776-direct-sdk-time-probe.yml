@@ -1,4 +1,4 @@
-name: PR776 original SDK direct NBA clock and event ID shortcut QA
+name: PR776 original SDK nested timing metadata definitive source audit
 # Exact original 13 SDK part digests; all raw inputs/field paths stay private.
 on:
   push:
@@ -50,7 +50,7 @@ jobs:
           gh api "repos/$R/releases/tags/gamepulse-sdk-$GAME" > "$BASE/release.json"
           gh release download "gamepulse-sdk-$GAME" --repo "$R" --pattern 'sdk-part-*.tar.gz' --dir "$BASE/archive" --clobber >/dev/null
           cd "$RUNNER_TEMP/private"
-          OUT="gamepulse/fusion/qa/igp_progress_20261027/direct_sdk_timing_metadata_$GAME.json"
+          OUT="gamepulse/fusion/qa/igp_progress_20261027/direct_sdk_timing_metadata_nested_v2_$GAME.json"
           test ! -e "$OUT"
           python3 gamepulse/fusion/igp_original_sdk_direct_time_probe_2026.py --game-id "$GAME" --archive-dir "$BASE/archive" --release-manifest "$BASE/release.json" --out "$OUT"
           python3 - "$OUT" <<'PY'
