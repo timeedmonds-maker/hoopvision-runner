@@ -1,4 +1,4 @@
-name: PR776 one OREB original SDK ball-control stress test
+name: PR776 one OREB original SDK ball-flight diagnostic
 on:
   push:
     branches: [main]
@@ -35,15 +35,15 @@ jobs:
           echo "GIT_ASKPASS=$GIT_ASKPASS" >> "$GITHUB_ENV"
           echo "GIT_TERMINAL_PROMPT=0" >> "$GITHUB_ENV"
           echo "SOURCE_ROOT=$RUNNER_TEMP/private-oreb" >> "$GITHUB_ENV"
-      - name: Execute private original SDK OREB control stress test
+      - name: Measure private original ball flight around OREB timestamp collision
         shell: bash
         run: |
           set -euo pipefail
           cd "$SOURCE_ROOT"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_oreb_native_control_stress_test_2026.py
-          python3 gamepulse/fusion/igp_oreb_native_control_stress_test_2026.py \
-            --root . --out gamepulse/fusion/qa/igp_progress_20261027/oreb_control_stress_0022600009_P1_C0003.json
+          python3 -m py_compile gamepulse/fusion/igp_oreb_native_ballflight_diagnostic_2026.py
+          python3 gamepulse/fusion/igp_oreb_native_ballflight_diagnostic_2026.py \
+            --root . --out gamepulse/fusion/qa/igp_progress_20261027/oreb_ballflight_0022600009_P1_C0003.json
       - name: Commit aggregate-only diagnostic to private PR
         shell: bash
         run: |
@@ -51,12 +51,12 @@ jobs:
           cd "$SOURCE_ROOT"
           git config user.name "Game Pulse Free CPU Runner"
           git config user.email "gamepulse-runner@users.noreply.github.com"
-          git add gamepulse/fusion/qa/igp_progress_20261027/oreb_control_stress_0022600009_P1_C0003.json
+          git add gamepulse/fusion/qa/igp_progress_20261027/oreb_ballflight_0022600009_P1_C0003.json
           git diff --cached --check
-          git commit -qm "qa(gamepulse): original OREB source control stress test"
+          git commit -qm "qa(gamepulse): original OREB ball flight diagnostic"
           for attempt in 1 2 3 4 5; do
             if git push -q origin "HEAD:$BRANCH"; then
-              echo OREB_PRIVATE_AGGREGATE_QA_ACCEPTED
+              echo OREB_NATIVE_BALL_FLIGHT_PRIVATE_QA_ACCEPTED
               exit 0
             fi
             git fetch -q origin "$BRANCH"
