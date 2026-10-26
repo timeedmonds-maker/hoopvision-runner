@@ -1,4 +1,4 @@
-name: PR776 original four-game XYZ concurrency-safe
+name: PR776 original eight newer game XYZ
 on:
   schedule:
     - cron: '15 * * * *'
@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       max-parallel: 1
       matrix:
-        game_id: ['0022600006','0022600007','0022600008','0022600085','0022600086','0022600087','0022600088','0022600089','0022600090','0022600092','0022600093','0022600095','0022600096','0022600097','0022600098','0022600099','0022600100','0022600101','0022600102']
+        game_id: ['0022600104','0022600105','0022600106','0022600107','0022600108','0022600109','0022600110','0022600111']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE: timeedmonds-maker/104
