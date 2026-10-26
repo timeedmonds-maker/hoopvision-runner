@@ -82,6 +82,8 @@ jobs:
           python3 -m py_compile "$ROOT/gamepulse/fusion/build_20261025_onoff_43.py"
           PYTHONPATH="$ROOT/gamepulse/fusion" python3 -m unittest discover -v \
             -s "$ROOT/gamepulse/fusion/tests" -p 'test_build_20261025_onoff_43.py'
+          PYTHONPATH="$ROOT/gamepulse/fusion" python3 -m unittest discover -v \
+            -s "$ROOT/gamepulse/fusion/tests" -p 'test_official_onoff_zero_team_2026.py'
       - name: Collect seven independently game-scoped NBA lineup and ONOFF source records
         shell: bash
         run: |
