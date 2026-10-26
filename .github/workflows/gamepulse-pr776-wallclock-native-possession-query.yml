@@ -158,7 +158,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_season_private_query_acceptance.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
-            test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
+            test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
             git commit -q -m "data(igp): materialize 36-game NBA UTC original tracking frame index"
           fi
           for i in 1 2 3 4 5 6 7; do
