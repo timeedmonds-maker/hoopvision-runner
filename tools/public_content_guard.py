@@ -170,6 +170,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/gamepulse-igp-private-sdk-asset-direct-probe.yml": "afd02dfbf261b09217f8c25fcd787a53335e5665",  # exact SHA-pinned private one-part asset integrity-only probe; no artifact publication
     ".github/workflows/gamepulse-igp-oreb-clock-update-gates.yml": "4685c26a97bf41d305cb4df083780bfec25d96fc",  # private-only NBA event and clock queue, no public source data
     ".github/workflows/gamepulse-igp-original-xyz-continuity-clock-review.yml": "f7bcf3fecf79e15be5602a80725e5605e0f900db",  # no source/public XYZ; SHA-verified per-episode aggregated private QA
     ".github/workflows/gamepulse-pr776-possession-first-36-materialize.yml": "274e3640860a303d74da3fa79354bd54af6ea8ea",  # private-source-only 36-game materialization; no public artifacts or source records
