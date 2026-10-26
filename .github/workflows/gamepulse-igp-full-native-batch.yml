@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
     paths: ['.github/workflows/gamepulse-igp-full-native-batch.yml']
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
 permissions: {contents: read}
 jobs:
   backfill:
