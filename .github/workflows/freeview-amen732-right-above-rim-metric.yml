@@ -121,6 +121,29 @@ jobs:
           assert not j["physical_first_hand_ball_touch_certified"]
           print("AMEN732_SOURCE_REAL_ARC_DETECTOR_SPECIFICITY_RESULT",j["discriminative_settings"])
           PY
+      - name: Refit source NBA world camera from original 3PT paint, hold out rim and second frame
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source"
+          python3 hoopvision/freeview/amen732_right_above_rim_photo_refine_camera.py --selftest
+          python3 hoopvision/freeview/amen732_right_above_rim_photo_refine_camera.py \
+            --root hoopvision/freeview/fixtures \
+            --camera hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
+            --out hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.json \
+            --preview hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.preview.jpg
+          python3 - <<'PY'
+          import json
+          x=json.load(open('hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.json'))
+          assert x["source_training_camera_frame"]==231
+          assert x["source_validation_camera_frame"]==234
+          assert not x["full_metric_camera_KRt_certified"]
+          print("AMEN732_PHYSICAL_NBA_COURT_PHOTO_REFIT_HELDOUT",
+            x["baseline"]["independent_rim_error_px"],
+            x["best"]["independent_rim_error_px"],
+            x["baseline"]["photo_heldout"]["white_paint_mean_contrast"],
+            x["best"]["source_holdout_original_f234"]["white_paint_mean_contrast"])
+          PY
       - name: Preserve source-only original NBA geometry results privately
         shell: bash
         run: |
@@ -128,7 +151,9 @@ jobs:
           cd "$RUNNER_TEMP/source"
           git config user.name 'HoopVision original source CPU'
           git config user.email 'hoopvision-runner@users.noreply.github.com'
-          git add hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_v2_20261026.preview.jpg \
+          git add hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.json \
+            hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.preview.jpg \
+            hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_v2_20261026.preview.jpg \
             hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_v2_20261026.json \
             hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_source_holdout_20261026.json \
             hoopvision/freeview/fixtures/amen732_right_above_rim_3pt_arc_UHD_20261026.jpg \
