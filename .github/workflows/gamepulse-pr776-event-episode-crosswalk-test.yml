@@ -1,0 +1,99 @@
+name: PR776 exact event episode crosswalk acceptance
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml']
+permissions:
+  contents: read
+concurrency:
+  group: gamepulse-pr776-event-episode-crosswalk-test
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Guard public repo and fetch private branch in temporary CPU storage
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo PRIVATE_ACCESS_TOKEN_UNAVAILABLE; exit 3; }
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          cat > "$RUNNER_TEMP/private-askpass" <<'SH'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' x-access-token;;
+            *Password*) printf '%s\n' "$GH_TOKEN";;
+            *) exit 1;;
+          esac
+          SH
+          chmod 700 "$RUNNER_TEMP/private-askpass"
+          export GIT_ASKPASS="$RUNNER_TEMP/private-askpass" GIT_TERMINAL_PROMPT=0
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/pr776-src"
+          git -C "$RUNNER_TEMP/pr776-src" sparse-checkout set gamepulse/fusion
+          echo "PRIVATE_ROOT=$RUNNER_TEMP/pr776-src" >> "$GITHUB_ENV"
+          echo PRIVATE_SOURCE_CHECKOUT_OK
+      - name: Run Python crosswalk and legacy query regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset GH_TOKEN
+          cd "$PRIVATE_ROOT"
+          python3 -m py_compile gamepulse/fusion/query_event_tracking_2026.py \
+            gamepulse/fusion/tests/test_event_episode_crosswalk_2026.py
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p test_event_episode_crosswalk_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p test_query_event_tracking_2026.py
+      - name: Verify all 49 original source-pinned NBA scoring event links
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset GH_TOKEN
+          cd "$PRIVATE_ROOT"
+          PYTHONPATH=gamepulse/fusion python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from query_event_tracking_2026 import query
+          root=Path(".")
+          gid="0022600009"
+          directory=root/"gamepulse/fusion/event_tracking"
+          events=json.loads((directory/"games"/(gid+".json")).read_bytes())["events"]
+          cross=json.loads((directory/("episode_crosswalk_"+gid+".json")).read_bytes())
+          assert len(events)==49 and len(cross["links"])==49
+          bykey={x["event_key"]:x for x in cross["links"]}
+          assert len(bykey)==49
+          complete=shared=0
+          for event in events:
+              match=bykey[event["event_key"]]
+              result=query(root,gid,action_number=event["nba_action_number"],
+                           period=event["period"],episode_id=match["episode_id"])
+              assert result["episode_crosswalk_source_verified"]
+              assert result["physical_possessions_certified"]==0
+              assert result["clock_alignment_independently_certified"] is False
+              assert len(result["events"])==1
+              row=result["events"][0]
+              assert row["event_key"]==event["event_key"]
+              assert row["ball_xyz_native"]==event["ball_xyz_native"]
+              assert row["nba_source_field_episode_id"]==match["episode_id"]
+              assert row["nba_source_field_chain_status"]==match["field_chain_status"]
+              assert row["nba_source_field_offense_team"]==match["offense_team"]
+              assert row["nba_source_field_episode_is_certified_physical_possession"] is False
+              complete+=int(not row["unresolved_player_ids"])
+              shared+=int(row["nba_source_field_chain_status"]=="SHARED_ONSET_MULTIPLE_EVENT_CHAINS")
+          assert complete==43 and shared==1
+          print("PR776_PRIVATE_CROSSWALK_ACCEPTED",
+                "verified_events=49 unique_episodes=49 full_ten=43 shared_onset=1",
+                "certified_physical_possessions=0")
+          PY
