@@ -170,6 +170,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/gamepulse-igp-original-sdk-remaining-seven-recovery.yml": "6a78771e3d3cf96d93b2c40dc71b56a4e1aed0e1",  # private original 13-part SHA assets, native-only QA, never public licensed XYZ
     ".github/workflows/gamepulse-igp-all-native-rockets.yml": "984864df90f937a4f478c327d8fc5de4a2575f2a",  # source XYZ private only
     ".github/workflows/gamepulse-igp-sdk-native-full-game-0104.yml": "45f1b8ebbb00f506d2600debd81c8592bfc0f7cd",  # 13 original SHA-pinned private archives, aggregate-only logs and private QA
     ".github/workflows/gamepulse-igp-private-sdk-asset-direct-probe.yml": "afd02dfbf261b09217f8c25fcd787a53335e5665",  # exact SHA-pinned private one-part asset integrity-only probe; no artifact publication
