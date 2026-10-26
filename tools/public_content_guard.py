@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen732-left-long-research-pts.yml",
     ".github/workflows/freeview-amen732-two-slash-extended-native.yml",
     ".github/workflows/gamepulse-pr776-original-xyz-search-audit.yml",  # reviewed: private-only SHA-verified XYZ CPU acceptance
     ".github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml",  # reviewed pinned private-only CPU acceptance, no source publication
@@ -166,6 +167,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/freeview-amen732-left-long-research-pts.yml": "c79abf52f144b479452b8bc6fddd0cc55de32c00",  # Git-only private original NBA source; provisional PTS explicitly blocked for metric claims
     ".github/workflows/freeview-amen732-two-slash-extended-native.yml": "858e856f1b1a00718f1a4187c3860a1326c4cd42",  # source-native left/right Slash NBA clips, private-only 30fps contours
     ".github/workflows/gamepulse-pr776-original-xyz-search-audit.yml": "c3f846ddaacff6dbc4066e6dbf9a16d05bb4fff9",  # private authenticated Git; ephemeral source-only audit; aggregate logs
     ".github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml": "cf453f9029b31735d96e3a83d04c4e095226b239",  # reviewed: private CPU-only exact-action tests, aggregate logs, no artifacts
