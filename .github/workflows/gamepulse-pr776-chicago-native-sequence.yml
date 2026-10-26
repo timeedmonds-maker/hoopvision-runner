@@ -1,0 +1,66 @@
+name: PR776 original Chicago full-SDK rebound-to-three sequence
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-pr776-chicago-native-sequence.yml']
+permissions: {contents: read}
+concurrency:
+  group: gamepulse-pr776-chicago-native-sequence
+  cancel-in-progress: false
+jobs:
+  original:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE: timeedmonds-maker/104
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard public boundary and hydrate existing private full SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          cat > "$RUNNER_TEMP/askpass-chicago" <<'SH'
+          #!/bin/sh
+          case "$1" in *Username*) printf '%s\n' x-access-token;; *Password*) printf '%s\n' "$GH_TOKEN";; *) exit 1;; esac
+          SH
+          chmod 700 "$RUNNER_TEMP/askpass-chicago"
+          export GIT_ASKPASS="$RUNNER_TEMP/askpass-chicago" GIT_TERMINAL_PROMPT=0
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" "https://github.com/$PRIVATE.git" "$RUNNER_TEMP/private-chicago"
+          git -C "$RUNNER_TEMP/private-chicago" sparse-checkout set gamepulse/fusion
+          echo "GIT_ASKPASS=$GIT_ASKPASS" >> "$GITHUB_ENV"
+          echo "GIT_TERMINAL_PROMPT=0" >> "$GITHUB_ENV"
+          echo "SOURCE_ROOT=$RUNNER_TEMP/private-chicago" >> "$GITHUB_ENV"
+      - name: Test guard and execute real original Chicago native sequence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_first_possession_chicago_native_sequence_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p test_igp_first_possession_chicago_native_sequence_2026.py
+          python3 gamepulse/fusion/igp_first_possession_chicago_native_sequence_2026.py \
+            --root . --out gamepulse/fusion/qa/igp_progress_20261027/first_possession_chicago_native_sequence_0022600099_P3_C0129.json
+      - name: Commit new full-SDK sequence evidence privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          git config user.name "Game Pulse Free CPU Runner"
+          git config user.email "gamepulse-runner@users.noreply.github.com"
+          git add gamepulse/fusion/qa/igp_progress_20261027/first_possession_chicago_native_sequence_0022600099_P3_C0129.json
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): actual original Chicago full-SDK trajectory and abstention"
+          for attempt in 1 2 3 4 5; do
+            if git push -q origin "HEAD:$BRANCH"; then
+              echo IGP_CHICAGO_NATIVE_SEQUENCE_REAL_SOURCE_ACCEPTED
+              exit 0
+            fi
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+          done
+          exit 1
