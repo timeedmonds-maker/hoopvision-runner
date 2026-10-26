@@ -43,7 +43,7 @@ jobs:
           cd "$PRIVATE_ROOT"
           export PYTHONPATH=gamepulse/fusion
           python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full_original_xyz_season_coverage_2026.py'
-          OUT="gamepulse/fusion/qa/igp_progress_20261026/full_original_xyz_36_coverage.json"
+          OUT="gamepulse/fusion/qa/igp_progress_20261026/full_original_xyz_36_coverage_after_28.json"
           test ! -e "$OUT"
           python3 gamepulse/fusion/igp_full_original_xyz_season_coverage_2026.py --root . --out "$OUT"
           python3 - "$OUT" <<'PY'
