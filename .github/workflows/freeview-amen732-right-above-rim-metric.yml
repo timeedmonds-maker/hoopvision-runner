@@ -175,6 +175,26 @@ jobs:
           assert not j["full_rim_world_to_source_KRt_certified"]
           print("AMEN732_FULL_ORIGINAL_NBA_RIM_SOURCE_NEGATIVE_QA_PASS")
           PY
+      - name: Independent 2-frame orange source rim centroid, not previous guessed rim click
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/source"
+          python3 hoopvision/freeview/amen732_two_original_frame_rim_color_centroid.py --selftest
+          if [ ! -f hoopvision/freeview/fixtures/amen732_two_original_frame_rim_source_colour_20261026.json ]; then
+            python3 hoopvision/freeview/amen732_two_original_frame_rim_color_centroid.py \
+              --root hoopvision/freeview/fixtures \
+              --prior hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
+              --candidate hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.json \
+              --out hoopvision/freeview/fixtures/amen732_two_original_frame_rim_source_colour_20261026.json
+          fi
+          python3 - <<'PY'
+          import json
+          j=json.load(open('hoopvision/freeview/fixtures/amen732_two_original_frame_rim_source_colour_20261026.json'))
+          assert not j["full_rim_metric_camera_KRt_CERTIFIED"]
+          print("AMEN732_TWO_SOURCE_NBA_HOOP_COLOUR_CENTROID",
+           j["source_RGB_paint_centre_native_xy_candidate"],j["source_orange_y_summary"])
+          PY
       - name: Preserve source-only original NBA geometry results privately
         shell: bash
         run: |
@@ -182,7 +202,8 @@ jobs:
           cd "$RUNNER_TEMP/source"
           git config user.name 'HoopVision original source CPU'
           git config user.email 'hoopvision-runner@users.noreply.github.com'
-          git add hoopvision/freeview/fixtures/amen732_full_rim_original_RGB_QA_20261026.json \
+          git add hoopvision/freeview/fixtures/amen732_two_original_frame_rim_source_colour_20261026.json \
+            hoopvision/freeview/fixtures/amen732_full_rim_original_RGB_QA_20261026.json \
             hoopvision/freeview/fixtures/amen732_full_rim_original_RGB_review_20261026.jpg \
             hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.json \
             hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.preview.jpg \
