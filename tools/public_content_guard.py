@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml",  # reviewed pinned private-only CPU acceptance, no source publication
     ".github/workflows/freeview-amen732-sam2-world-camera-holdout.yml",
     ".github/workflows/freeview-amen732-sam21-23-source-frames.yml",
     ".github/workflows/freeview-amen732-43xyz-23pixel-holdout.yml",
