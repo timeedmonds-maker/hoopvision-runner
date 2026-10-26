@@ -104,7 +104,7 @@ jobs:
                 j['curve_samples']['true_untrained_curve'],
                 'beats_20px_negative_controls=',j['true_curve_beats_all_20px_shifts'])
           PY
-      - name: Fix low-contrast 3PT detector and reject wood-grain false positive
+      - name: Correct Canny painted-line width and test contrast specificity against 12 shifted controls
         shell: bash
         run: |
           set -euo pipefail
