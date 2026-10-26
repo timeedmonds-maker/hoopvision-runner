@@ -343,3 +343,34 @@ jobs:
                 "following_streaks="+str(e["following_team_streaks"]),
                 "independently_certified_possessions=0")
           PY
+
+      - name: Crosscheck all original SDK lastTouch states against direct XY player streaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset GH_TOKEN
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/qa_original_native_touch_vs_streak_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p test_qa_original_native_touch_vs_streak_2026.py
+          python3 gamepulse/fusion/qa_original_native_touch_vs_streak_2026.py \
+            --root . --game-id 0022600009 --summary-only --out "$RUNNER_TEMP/rockets_touch_streak_check.json"
+          python3 gamepulse/fusion/qa_original_native_touch_vs_streak_2026.py \
+            --root . --summary-only --out "$RUNNER_TEMP/season_touch_streak_check.json"
+          python3 - "$RUNNER_TEMP/rockets_touch_streak_check.json" "$RUNNER_TEMP/season_touch_streak_check.json" <<'PY'
+          import json,sys
+          rockets,season=(json.load(open(p)) for p in sys.argv[1:])
+          assert rockets["game_count"]==1 and rockets["reviewed_episode_count"]==13
+          assert season["game_count"]==28 and season["reviewed_episode_count"]==532
+          assert season["reviewed_streak_count"]==1267
+          assert sum(season["crosscheck_grades"].values())==1267
+          assert season["certified_physical_possessions"]==0
+          print("PR776_ROCKETS_ORIGINAL_LASTTOUCH_STREAK_ACCEPTED",
+                "grade_counts="+json.dumps(rockets["crosscheck_grades"],sort_keys=True),
+                "native_label_intervals="+str(rockets["original_native_label_intervals"]))
+          print("PR776_SEASON_ORIGINAL_LASTTOUCH_STREAK_ACCEPTED",
+                "grade_counts="+json.dumps(season["crosscheck_grades"],sort_keys=True),
+                "original_label_intervals="+str(season["original_native_label_intervals"]),
+                "certified_physical_possessions=0")
+          PY
