@@ -187,6 +187,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/gamepulse-pr776-position-holdout-36.yml": "f9cec9925acde87472678c4695c6715068c73685",  # original private XYZ source, aggregate position error only
     ".github/workflows/gamepulse-pr776-new-eight-original-qa.yml": "3bd7f6f2a15a25048549a0fb74c362d8f650885f",  # original 13-part SDK, aggregate QA private only
     ".github/workflows/freeview-amen732-board-static-sources.yml": "70af49120ab48235cf4e4463f96b73026ce555c7",
     ".github/workflows/freeview-amen732-multipt-photo-refit.yml": "9e1ba327eda5d0e41d2f2dfb0086cf85062c4388",  # original NBA private six-anchor + full 3PT photometric heldout, no public RGB
