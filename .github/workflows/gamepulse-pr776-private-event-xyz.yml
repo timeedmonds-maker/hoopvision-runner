@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 original SDK successful-token recovery
+name: Integrated Pulse PR776 original ten-player extraction corrected
 on:
   schedule:
     - cron: '*/15 * * * *'
