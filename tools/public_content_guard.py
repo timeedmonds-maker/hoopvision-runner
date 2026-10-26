@@ -170,9 +170,9 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
-    ".github/workflows/gamepulse-igp-eight-native-raw-backfill.yml": "4c9624fa4d54202f6b1f3031961d86f3b60e68e4",  # source chunks remain private
+    ".github/workflows/gamepulse-igp-eight-native-raw-backfill.yml": "7a9790609ce84fb8c108c0bccb6b33954c886ae5",  # source chunks remain private
     ".github/workflows/gamepulse-igp-full-native-season-coverage.yml": "a2f69e668372cb88816c7ad2fa9cf0fcb9c14828",  # SHA-only private coverage and no public artifacts
-    ".github/workflows/gamepulse-igp-full-native-batch.yml": "49a462ba6555dd92559330ca171d21defa1f3cba",  # private-only original SDK XYZ batch
+    ".github/workflows/gamepulse-igp-full-native-batch.yml": "f9d1c67b8e6dfdd25be96e68aa95c5e8021a0615",  # private-only original SDK XYZ batch
     ".github/workflows/gamepulse-igp-private-release-browser-download-smoke.yml": "63cd4be67c16b15a078cb864741b0d6ad7fe96be",  # reviewed single part no-REST browser route probe, digest-gated no public artifacts
     ".github/workflows/gamepulse-igp-original-sdk-remaining-seven-recovery.yml": "d8ab67ad7eeb527c9ba56350918233d626ec41c6",  # private original 13-part SHA assets, native-only QA, never public licensed XYZ
     ".github/workflows/gamepulse-igp-all-native-rockets.yml": "984864df90f937a4f478c327d8fc5de4a2575f2a",  # source XYZ private only
