@@ -162,3 +162,29 @@ jobs:
                 "ten_ball_status="+json.dumps(season["ten_ball_frame_status"],sort_keys=True),
                 "certified_physical_possessions=0")
           PY
+
+      - name: Verify live private XYZ query exposes temporal episode mismatch
+        shell: bash
+        run: |
+          set -euo pipefail
+          unset GH_TOKEN
+          cd "$PRIVATE_ROOT"
+          PYTHONPATH=gamepulse/fusion python3 - <<'PY'
+          from pathlib import Path
+          from query_original_xyz_episode_season_2026 import query
+          d = query(Path("."), game_id="0022600009",
+                    episode_id="0022600009-P1-NBAF0002", include_xyz=True)
+          assert d["matched_episodes"] == 1
+          row = d["episodes"][0]
+          assert row["provisional_clock_episode_conflict"] is True
+          assert row["provisional_clock_vs_episode_one_second_guard"].get(
+              "PROVISIONALLY_AFTER_OFFICIAL_EPISODE", 0) > 0
+          assert any(f["provisional_clock_vs_official_episode"] ==
+              "PROVISIONALLY_AFTER_OFFICIAL_EPISODE" for f in row["frames"])
+          assert row["exact_action_to_frame_association_certified"] is False
+          print("PR776_PRIVATE_XYZ_CLOCK_CONFLICT_QUERY_ACCEPTED",
+                "episode=0022600009-P1-NBAF0002",
+                "one_second_guard_classes=" +
+                repr(row["provisional_clock_vs_episode_one_second_guard"]),
+                "physical_possessions_certified=0")
+          PY
