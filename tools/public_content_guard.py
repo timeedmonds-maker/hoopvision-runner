@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen732-board-static-sources.yml",
     ".github/workflows/freeview-amen732-multipt-photo-refit.yml",
     ".github/workflows/gamepulse-pr776-direct-sdk-time-probe.yml",  # reviewed one-game private source SHA metadata schema only; never publish raw SDK coordinates/values
     ".github/workflows/gamepulse-pr776-unified-chain-xyz-v2.yml",  # private-only NBA XYZ source evidence
@@ -181,6 +182,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/freeview-amen732-board-static-sources.yml": "70af49120ab48235cf4e4463f96b73026ce555c7",
     ".github/workflows/freeview-amen732-multipt-photo-refit.yml": "9e1ba327eda5d0e41d2f2dfb0086cf85062c4388",  # original NBA private six-anchor + full 3PT photometric heldout, no public RGB
     ".github/workflows/gamepulse-pr776-sdk-metadata-0009.yml": "d1c768ec93f6f761b8245de8d21df58abf7257b0",  # reviewed private-only original SDK field-key QA; no values/XYZ in public
     ".github/workflows/gamepulse-igp-eight-native-raw-backfill.yml": "7a9790609ce84fb8c108c0bccb6b33954c886ae5",  # source chunks remain private
