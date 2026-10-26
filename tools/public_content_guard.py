@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-original-xyz-timeactual-chain-36.yml",  # reviewed private 36-game original SDK source-to-PBP UTC candidate QA only
     ".github/workflows/gamepulse-pr776-timeactual-wall-36.yml",  # reviewed private official 36-game NBA timeActual + native manifests, public counts only
     ".github/workflows/gamepulse-pr776-official-wall-time-acceptance.yml",  # reviewed official NBA timeActual plus private SDK UTC QA, aggregates only publicly
     ".github/workflows/gamepulse-pr776-broadcast-anchor-video-access.yml",  # reviewed NBA official event-video endpoint access, metadata QA only, no clips
