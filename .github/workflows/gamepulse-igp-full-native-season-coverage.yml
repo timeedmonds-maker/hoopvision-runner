@@ -1,0 +1,69 @@
+name: IGP original native full game seasonal coverage
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-igp-full-native-season-coverage.yml']
+permissions: {contents: read}
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      R: timeedmonds-maker/104
+      B: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Check guard and clone private SHA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          cat > "$RUNNER_TEMP/igp-askpass" <<'SH'
+          #!/bin/sh
+          case "$1" in
+            *Username*) echo x-access-token;;
+            *Password*) echo "$GH_TOKEN";;
+            *) exit 1;;
+          esac
+          SH
+          chmod 700 "$RUNNER_TEMP/igp-askpass"
+          export GIT_ASKPASS="$RUNNER_TEMP/igp-askpass" GIT_TERMINAL_PROMPT=0
+          echo "GIT_ASKPASS=$GIT_ASKPASS" >> "$GITHUB_ENV"
+          echo "GIT_TERMINAL_PROMPT=0" >> "$GITHUB_ENV"
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$B" "https://github.com/$R.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          echo "PRIVATE_ROOT=$RUNNER_TEMP/private" >> "$GITHUB_ENV"
+      - name: Native source QA, test and preserve 36-game coverage receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_full_original_xyz_season_coverage_2026.py'
+          OUT="gamepulse/fusion/qa/igp_progress_20261026/full_original_xyz_36_coverage.json"
+          test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_full_original_xyz_season_coverage_2026.py --root . --out "$OUT"
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]))
+          c=a["counts"]
+          assert a["captured_official_games"]==36
+          assert a["original_sdk_game_qa_population"]==28
+          assert c["games_native_source_qa_pending"]==8
+          assert c["games_full_original_xyz_sha_verified"]>=1
+          assert c["games_full_original_xyz_sha_verified"]+c["games_original_xyz_episode_subsets_only"]==28
+          assert c["all_original_native_timestamps_materialized"]>=34979
+          assert a["physical_possessions_certified"]==0
+          print("IGP_FULL_SOURCE_SEASON_INTEGRITY_QA_PASSED",json.dumps(c,sort_keys=True))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$OUT"
+          git commit -q -m "data(igp): SHA audited 36-game original native XYZ source availability"
+          git fetch -q origin "$B"
+          git rebase -q "origin/$B"
+          git push -q origin "HEAD:refs/heads/$B"
+          echo IGP_FULL_NATIVE_SEASON_COVERAGE_ACCEPTED_PRIVATE

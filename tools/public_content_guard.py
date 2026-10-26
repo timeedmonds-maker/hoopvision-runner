@@ -170,6 +170,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/gamepulse-igp-full-native-season-coverage.yml": "ff4ecf1420aad3db95a88e354d64d10356847b3e",  # SHA-only private coverage and no public artifacts
     ".github/workflows/gamepulse-igp-full-native-batch.yml": "db0e89f57e85cae6e59701ad34865c577677b24f",  # private-only original SDK XYZ batch
     ".github/workflows/gamepulse-igp-private-release-browser-download-smoke.yml": "63cd4be67c16b15a078cb864741b0d6ad7fe96be",  # reviewed single part no-REST browser route probe, digest-gated no public artifacts
     ".github/workflows/gamepulse-igp-original-sdk-remaining-seven-recovery.yml": "d8ab67ad7eeb527c9ba56350918233d626ec41c6",  # private original 13-part SHA assets, native-only QA, never public licensed XYZ
