@@ -110,10 +110,14 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/source"
           python3 hoopvision/freeview/amen732_3pt_arc_detector_specificity.py --selftest
-          python3 hoopvision/freeview/amen732_3pt_arc_detector_specificity.py \
-            --root hoopvision/freeview/fixtures \
-            --camera hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
-            --out hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_v2_20261026.json
+          if [ ! -f hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_v2_20261026.json ]; then
+            python3 hoopvision/freeview/amen732_3pt_arc_detector_specificity.py \
+              --root hoopvision/freeview/fixtures \
+              --camera hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
+              --out hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_v2_20261026.json
+          else
+            echo AMEN732_PREVIOUS_ACCEPTED_V2_DETECTOR_QA_REUSED_UNCHANGED
+          fi
           python3 - <<'PY'
           import json
           j=json.load(open('hoopvision/freeview/fixtures/amen732_3pt_arc_detector_specificity_v2_20261026.json'))
@@ -127,11 +131,15 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/source"
           python3 hoopvision/freeview/amen732_right_above_rim_photo_refine_camera.py --selftest
-          python3 hoopvision/freeview/amen732_right_above_rim_photo_refine_camera.py \
-            --root hoopvision/freeview/fixtures \
-            --camera hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
-            --out hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.json \
-            --preview hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.preview.jpg
+          if [ ! -f hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.json ]; then
+            python3 hoopvision/freeview/amen732_right_above_rim_photo_refine_camera.py \
+              --root hoopvision/freeview/fixtures \
+              --camera hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
+              --out hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.json \
+              --preview hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.preview.jpg
+          else
+            echo AMEN732_PREVIOUS_ACCEPTED_SOURCE_PHOTO_REFIT_REUSED_UNCHANGED
+          fi
           python3 - <<'PY'
           import json
           x=json.load(open('hoopvision/freeview/fixtures/amen732_right_above_rim_photo_refit_20261026.json'))
@@ -162,6 +170,10 @@ jobs:
             hoopvision/freeview/fixtures/amen732_right_above_rim_stationary_hoop_source_QA_20261026.json \
             hoopvision/freeview/fixtures/amen732_right_above_rim_stationary_hoop_UHD_20261026.jpg
           git diff --cached --check
+          if git diff --cached --quiet; then
+            echo AMEN732_PRIVATE_ORIGINAL_WORLD_CAMERA_QA_ALREADY_IDENTICAL
+            exit 0
+          fi
           git commit -qm 'qa(freeview): NBA source-world stable court-camera pose trial with withheld rim and UHD QA'
           for attempt in 1 2 3; do
             if git push -q origin "HEAD:$BRANCH"; then
