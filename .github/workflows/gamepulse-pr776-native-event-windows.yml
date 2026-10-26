@@ -91,9 +91,12 @@ jobs:
                 'official_nba_lineup':sha_l,'nba_source_field_episodes':sha_e,
                 'official_nba_pbp':sha_p}
             report=game_dir/(gid+'.json')
-            assert not report.exists()
             raw=(json.dumps(doc,indent=2,sort_keys=True)+'\n').encode()
-            report.write_bytes(raw)
+            if report.exists():
+                if report.read_bytes()!=raw:
+                    raise ValueError('EXISTING_NATIVE_WINDOW_SOURCE_CONFLICT:'+gid)
+            else:
+                report.write_bytes(raw)
             result['games'][gid]={
                'path':'games/'+gid+'.json','sha256':hashlib.sha256(raw).hexdigest(),
                'candidate_episodes':doc['nba_source_field_episodes_with_native_window_candidates'],
@@ -135,6 +138,10 @@ jobs:
           git config user.email "gamepulse-runner@users.noreply.github.com"
           git add gamepulse/fusion/materialized/native_episode_windows_v2_pr776_20261026/
           git diff --cached --check
-          git commit -qm "data(gamepulse): 28-game SHA-linked strict and shadow NBA native extraction windows"
-          git push -q origin "HEAD:$BRANCH"
-          echo PRIVATE_ORIGINAL_CLOCK_WINDOW_INDEX_COMMITTED
+          if git diff --cached --quiet; then
+            echo PRIVATE_ORIGINAL_CLOCK_WINDOW_INDEX_ALREADY_CURRENT
+          else
+            git commit -qm "data(gamepulse): 28-game SHA-linked strict and shadow NBA native extraction windows"
+            git push -q origin "HEAD:$BRANCH"
+            echo PRIVATE_ORIGINAL_CLOCK_WINDOW_INDEX_COMMITTED
+          fi
