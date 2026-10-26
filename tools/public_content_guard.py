@@ -170,7 +170,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
-    ".github/workflows/freeview-amen732-right-above-rim-metric.yml": "d0cd4e3d3f6debea87cdc658ae8a6a63042a02fc",  # original NBA gamepulse world stable court KRT trial, private heldout and UHD QA
+    ".github/workflows/freeview-amen732-right-above-rim-metric.yml": "388431b2622926f0042fd2dfc4be98e556737ce0",  # original NBA gamepulse world stable court KRT trial, private heldout and UHD QA
     ".github/workflows/freeview-amen732-static-right-above-rim.yml": "1b1cb13cede4778be8f697b8211db425dbd4ad58",  # original static right-above-rim private NBA court-source geometry and 4K QA
     ".github/workflows/freeview-amen732-high-tight-third-view.yml": "82d5b42a0ec14f47214c1257fecb44c40eab802e",  # exact SHA original High Tight third view, private-only 4K contact sheet
     ".github/workflows/freeview-amen732-left-long-research-pts.yml": "c79abf52f144b479452b8bc6fddd0cc55de32c00",  # Git-only private original NBA source; provisional PTS explicitly blocked for metric claims
