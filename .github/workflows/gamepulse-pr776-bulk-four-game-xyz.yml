@@ -46,7 +46,23 @@ jobs:
           echo "ROOT=$RUNNER_TEMP/canonical" >> "$GITHUB_ENV"
           echo "GIT_ASKPASS=$GIT_ASKPASS" >> "$GITHUB_ENV"
           echo "GIT_TERMINAL_PROMPT=0" >> "$GITHUB_ENV"
+      - name: Skip already accepted game and defer when REST token is exhausted
+        id: eligible
+        shell: bash
+        run: |
+          set -euo pipefail
+          INDEX="$ROOT/gamepulse/fusion/materialized/private_native_event_xyz_pr776_20261026/$GID/index_v2.json"
+          if [ -f "$INDEX" ] && python3 -c "import json,sys; x=json.load(open(sys.argv[1])); assert x['game_id']==sys.argv[2] and x['quarantined_episode_count']==0 and x['source_qa_episode_count']==x['materialized_event_episodes']" "$INDEX" "$GID"; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "PRIVATE_GAME_ORIGINAL_EPISODES_ALREADY_ACCEPTED"
+          elif [ "$(gh api rate_limit --jq '.resources.core.remaining' || echo 0)" -lt 150 ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "REST_QUOTA_LOW_DEFER_UNTIL_NEXT_CHECK"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Download 13 original SDK parts once for this game
+        if: steps.eligible.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -56,6 +72,7 @@ jobs:
           test "$(find "$RUNNER_TEMP/sdk" -maxdepth 1 -name 'sdk-part-*.tar.gz' | wc -l)" -eq 13
           echo ORIGINAL_PRIVATE_13_SDK_PARTS_VERIFIED
       - name: Replay frozen episode QA into original player and ball XYZ
+        if: steps.eligible.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -85,6 +102,7 @@ jobs:
                         'ten_player_ball_frames':d['ten_plus_ball_source_frames']},sort_keys=True))
           PY
       - name: Commit private original trajectories, never to public runner
+        if: steps.eligible.outputs.run == 'true'
         shell: bash
         run: |
           set -euo pipefail
