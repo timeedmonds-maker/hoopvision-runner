@@ -80,39 +80,5 @@ jobs:
                 'NBA_UTC_enclosed=91 NBA_UTC_disagreement=2',
                 'predecessor_scored=93 certified_physical_possessions=0')
           PY
-      - name: Commit private aggregate receipt only after full acceptance
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "${GH_TOKEN:-}"
-          test "$(gh api "repos/$PRIVATE_REPO/git/ref/heads/$PRIVATE_BRANCH" --jq .object.sha)" = "$SOURCE_HEAD" || {
-            echo PRIVATE_HEAD_MOVED_REFUSE_STALE_WRITE; exit 6;
-          }
-          python3 - "$RUNNER_TEMP/pr776-successor-93-qa.json" <<'PY'
-          import base64,json,os,subprocess,sys
-          from pathlib import Path
-          data=Path(sys.argv[1]).read_bytes()
-          doc=json.loads(data)
-          assert 'records' not in doc and doc['candidate_count']==93
-          path='gamepulse/fusion/qa/pr776_successor_nba_source_context_93_acceptance_20261026.json'
-          repo=os.environ['PRIVATE_REPO']
-          ref=os.environ['PRIVATE_BRANCH']
-          u='repos/'+repo+'/contents/'+path
-          prior=subprocess.run(['gh','api',u+'?ref='+ref],capture_output=True,text=True)
-          if prior.returncode==0:
-              existing=json.loads(prior.stdout)
-              if base64.b64decode(existing['content'])==data:
-                  print('PRIVATE_ACCEPTANCE_RECEIPT_ALREADY_IDENTICAL')
-                  raise SystemExit(0)
-              raise RuntimeError('PRIVATE_RECEIPT_EXISTS_DIFFERENT_REFUSE_OVERWRITE')
-          assert '404' in prior.stderr or 'Not Found' in prior.stderr
-          payload={'branch':ref,
-                   'message':'qa(gamepulse): accept 93 successor source contexts, flag two UTC disagreements',
-                   'content':base64.b64encode(data).decode()}
-          put=subprocess.run(['gh','api','-X','PUT',u,'--input','-'],
-                input=json.dumps(payload),text=True,capture_output=True)
-          if put.returncode:
-              raise RuntimeError('PRIVATE_ACCEPTANCE_WRITE_FAILED')
-          print('PRIVATE_PR776_SUCCESSOR_CONTEXT_RECEIPT_COMMITTED')
-          PY
+      # All QA is read-only; the accepted private receipt is committed by the
+      # independently authorised private GitHub connector (not rate-limited REST).
