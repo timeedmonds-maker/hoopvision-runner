@@ -163,7 +163,7 @@ jobs:
                 "certified_physical_possessions=0")
           PY
 
-      - name: Verify live private XYZ query exposes temporal episode mismatch
+      - name: Verify live private XYZ query tests source episode bounds
         shell: bash
         run: |
           set -euo pipefail
@@ -176,13 +176,14 @@ jobs:
                     episode_id="0022600009-P1-NBAF0002", include_xyz=True)
           assert d["matched_episodes"] == 1
           row = d["episodes"][0]
-          assert row["provisional_clock_episode_conflict"] is True
+          assert row["provisional_clock_episode_conflict"] is False
           assert row["provisional_clock_vs_episode_one_second_guard"].get(
-              "PROVISIONALLY_AFTER_OFFICIAL_EPISODE", 0) > 0
+              "PROVISIONALLY_WITHIN_OFFICIAL_EPISODE", 0) == 49
           assert any(f["provisional_clock_vs_official_episode"] ==
-              "PROVISIONALLY_AFTER_OFFICIAL_EPISODE" for f in row["frames"])
+              "PROVISIONALLY_WITHIN_OFFICIAL_EPISODE" for f in row["frames"])
           assert row["exact_action_to_frame_association_certified"] is False
-          print("PR776_PRIVATE_XYZ_CLOCK_CONFLICT_QUERY_ACCEPTED",
+          assert row["correct_source_episode_clock_end_ms"] == 658000
+          print("PR776_PRIVATE_XYZ_CORRECT_SOURCE_WINDOW_ACCEPTED",
                 "episode=0022600009-P1-NBAF0002",
                 "one_second_guard_classes=" +
                 repr(row["provisional_clock_vs_episode_one_second_guard"]),
