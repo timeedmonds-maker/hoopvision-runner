@@ -159,7 +159,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
-    ".github/workflows/gamepulse-pr776-bulk-four-game-xyz.yml": "1b9bc8d287b4a6952becda0070ea771f4f0cb0f2",
+    ".github/workflows/gamepulse-pr776-bulk-four-game-xyz.yml": "abcdd9519a5352a5ca76235d654a4dd3dbb1eb11",
     ".github/workflows/gamepulse-pr776-bulk-0009-original-xyz.yml": "6306d60e989e0537c6469d49ab18bbed576d0846",
     ".github/workflows/pr776-shared-token-rate-diagnostic.yml": "d3c639f2f0aa6a3195e14a9aecbc2ce767bb646f",  # aggregate only; shared credential status, no SDK asset export
     ".github/workflows/gamepulse-pr776-native-event-windows.yml": "44cc1bded5419bbee63615ad5a4f493b89fb8f0d",  # reviewed private NBA/native guarded research windows no raw SDK coordinates
