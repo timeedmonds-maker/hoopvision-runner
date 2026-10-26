@@ -166,7 +166,7 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
-    ".github/workflows/freeview-amen732-two-slash-extended-native.yml": "94b92b7901d20ed1b58feb112c7d43820d33b4d6",  # source-native left/right Slash NBA clips, private-only 30fps contours
+    ".github/workflows/freeview-amen732-two-slash-extended-native.yml": "858e856f1b1a00718f1a4187c3860a1326c4cd42",  # source-native left/right Slash NBA clips, private-only 30fps contours
     ".github/workflows/gamepulse-pr776-original-xyz-search-audit.yml": "c3f846ddaacff6dbc4066e6dbf9a16d05bb4fff9",  # private authenticated Git; ephemeral source-only audit; aggregate logs
     ".github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml": "50129b9364cbfb806a0486bda2544ee221e8a2c4",  # reviewed: private CPU-only exact-action tests, aggregate logs, no artifacts
     ".github/workflows/freeview-amen732-sam2-world-camera-holdout.yml": "649305ab47e78d343883e87e046bd5b2600559d7",  # private SAM2 native ball centroids and original world XYZ; aggregate-only public logs
