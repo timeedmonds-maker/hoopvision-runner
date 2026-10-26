@@ -1,4 +1,4 @@
-name: Integrated Pulse PR776 private SDK event XYZ acceptance
+name: Integrated Pulse PR776 original SDK successful-token recovery
 on:
   schedule:
     - cron: '*/15 * * * *'
