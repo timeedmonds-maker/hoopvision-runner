@@ -166,7 +166,7 @@ ALLOWED_STATIC = {
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
     ".github/workflows/gamepulse-pr776-original-xyz-search-audit.yml": "c3f846ddaacff6dbc4066e6dbf9a16d05bb4fff9",  # private authenticated Git; ephemeral source-only audit; aggregate logs
-    ".github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml": "d59b0de04e0d089f6f5914fd948501503b9512f6",  # reviewed: private CPU-only exact-action tests, aggregate logs, no artifacts
+    ".github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml": "170c579627febc2bd67e1412442bc26309544379",  # reviewed: private CPU-only exact-action tests, aggregate logs, no artifacts
     ".github/workflows/freeview-amen732-sam2-world-camera-holdout.yml": "649305ab47e78d343883e87e046bd5b2600559d7",  # private SAM2 native ball centroids and original world XYZ; aggregate-only public logs
     ".github/workflows/freeview-amen732-sam21-23-source-frames.yml": "242444981ff930b70f6a29e7bcc931a2efc42121",  # pinned Meta CPU, original 24 source NBA stills, private-only masks
     ".github/workflows/freeview-amen732-43xyz-23pixel-holdout.yml": "7fb576f1e6cc7803f4aad2d746eedb3ff3e570eb",  # original NBA SDK/X/Y/Z CPU holdouts; private-only coordinates and QA
