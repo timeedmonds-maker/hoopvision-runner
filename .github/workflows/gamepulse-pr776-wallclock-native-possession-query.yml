@@ -134,14 +134,16 @@ jobs:
           assert xyz['private_original_chain_XYZ']['returned_original_xyz']
           assert xyz['private_original_chain_XYZ']['total_unique_source_original_frames']==89
           out=BASE/'qa/igp_progress_20261027/wallclock_season_private_query_acceptance.json'
-          assert not out.exists()
           receipt={'schema':'gamepulse.wallclock-36-original-query-acceptance.v1',
                    'all_games_metadata_search_checked':checked,
                    'three_real_source_chain_cases':results,
                    'original_private_source_XYZ_readback':True,
                    'full_source_frame_index_sha256':xyz['private_frame_index_sha256'],
                    'physical_possessions_certified':0}
-          out.write_text(json.dumps(receipt,indent=2,sort_keys=True)+chr(10))
+          if out.exists():
+              assert json.loads(out.read_text())==receipt
+          else:
+              out.write_text(json.dumps(receipt,indent=2,sort_keys=True)+chr(10))
           print('NBA_36_GAME_PRIVATE_CHAIN_SEARCH_ACCEPTED',
                 json.dumps({'games':checked,'cases':results,'original_XYZ_readback':True,
                             'physical_possessions_certified':0},sort_keys=True))
