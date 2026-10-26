@@ -176,7 +176,7 @@ REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
     ".github/workflows/freeview-amen732-left-long-research-pts.yml": "c79abf52f144b479452b8bc6fddd0cc55de32c00",  # Git-only private original NBA source; provisional PTS explicitly blocked for metric claims
     ".github/workflows/freeview-amen732-two-slash-extended-native.yml": "858e856f1b1a00718f1a4187c3860a1326c4cd42",  # source-native left/right Slash NBA clips, private-only 30fps contours
     ".github/workflows/gamepulse-pr776-original-xyz-search-audit.yml": "c3f846ddaacff6dbc4066e6dbf9a16d05bb4fff9",  # private authenticated Git; ephemeral source-only audit; aggregate logs
-    ".github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml": "9d364c8a2f6f0e100cefcb07e89b5b48084ea6b0",  # reviewed: private CPU-only exact-action tests, aggregate logs, no artifacts
+    ".github/workflows/gamepulse-pr776-event-episode-crosswalk-test.yml": "3db3187e86831a68545f8f93acd73bffc23e7caa",  # reviewed: private CPU-only exact-action tests, aggregate logs, no artifacts
     ".github/workflows/freeview-amen732-sam2-world-camera-holdout.yml": "649305ab47e78d343883e87e046bd5b2600559d7",  # private SAM2 native ball centroids and original world XYZ; aggregate-only public logs
     ".github/workflows/freeview-amen732-sam21-23-source-frames.yml": "242444981ff930b70f6a29e7bcc931a2efc42121",  # pinned Meta CPU, original 24 source NBA stills, private-only masks
     ".github/workflows/freeview-amen732-43xyz-23pixel-holdout.yml": "7fb576f1e6cc7803f4aad2d746eedb3ff3e570eb",  # original NBA SDK/X/Y/Z CPU holdouts; private-only coordinates and QA
