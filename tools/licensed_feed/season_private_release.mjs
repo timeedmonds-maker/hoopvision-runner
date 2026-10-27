@@ -456,8 +456,10 @@ export async function run(){
   const game={id:gid,start:Date.parse(tipoff)};
   if(process.env.GAMEPULSE_BATCH_TIPOFF!==tipoff)
    throw Error('batch_tipoff_not_matched_to_bounded_fixture');
-  if(Date.now()<game.start+315*60000)
-   throw Error('batch_original_game_window_not_fully_elapsed');
+  if(Date.now()<game.start+315*60000){
+   await requireOfficialFinal(gid);
+   process.env.GAMEPULSE_FINAL_FASTLANE='true';
+  }
   const live=names('gamepulse-live-sdk-'+gid);
   if(!live||![...live].some(n=>/^live-\d{13}\.tar\.gz$/.test(n)&&
       live.has(n.replace('.tar.gz','.json'))))
