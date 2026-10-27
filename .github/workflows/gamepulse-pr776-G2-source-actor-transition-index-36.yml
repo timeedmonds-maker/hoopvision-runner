@@ -44,6 +44,13 @@ jobs:
             gamepulse/fusion/igp_g2_nba_substitution_source_clock_query_2026.py
           python3 -m unittest discover -s gamepulse/fusion/tests \
             -p 'test_igp_g2_nba_substitution_source_clock_query_2026.py' -v
+          python3 - <<'PY'
+          from igp_g2_nba_substitution_source_actor_index_2026 import accepted_count
+          assert accepted_count({"grade":"SOURCE_PLAYER_ID_SWITCH_AFTER_OFFICIAL_NBA_UTC"})
+          assert accepted_count({"evidence_grade":"SOURCE_PLAYER_ID_SWITCH_AFTER_OFFICIAL_NBA_UTC"})
+          assert not accepted_count({"evidence_grade":"NOT_ENOUGH_SOURCE_ENTER_EXIT_ANCHORS"})
+          print("G2_SOURCE_EVENT_MATERIALISATION_QUALITY_GRADE_UNIT_PASS")
+          PY
           echo PRIVATE_ORIGINAL_NBA_SDK_SOURCE_EVENT_QUERY_UNIT_PASS
       - name: Build per-game SHA selected source actor timing and reconcile all36
         shell: bash
