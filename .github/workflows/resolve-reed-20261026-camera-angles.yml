@@ -49,6 +49,21 @@ jobs:
             out['status']='FOUND' if out['angles'] else 'NO_SIGNED_HLS'
           except Exception as e:
             out['status']='ERROR';out['error_type']=type(e).__name__
+          probes=[]
+          for name, u in [
+            ('known_clips_616','https://clips.nba.com/?gameNo=0022600091&eventNum=616&source=grs'),
+            ('target_clips_200','https://clips.nba.com/?gameNo=0022600125&eventNum=200&source=grs'),
+            ('stats_pbp','https://stats.nba.com/stats/playbyplayv3?EndPeriod=2&GameID=0022600125&StartPeriod=2'),
+            ('nba_game_page','https://www.nba.com/game/atl-vs-hou-0022600125/play-by-play')
+          ]:
+            try:
+              with urllib.request.urlopen(urllib.request.Request(u,headers=hd),timeout=10) as r:
+                data=r.read(100000);probes.append({'source':name,'status':r.status,'size':len(data),'first':data[:110].decode('utf-8','replace')})
+            except urllib.error.HTTPError as e:
+              probes.append({'source':name,'status':e.code,'reason':str(e)[:120]})
+            except Exception as e:
+              probes.append({'source':name,'error':str(e)[:120]})
+          out['probes']=probes
           out['angle_count']=len(out['angles'])
           repo=os.environ['GITHUB_REPOSITORY']
           path='worker_results/reed-0022600125-q2-0841-temporary-multiangle.json'
