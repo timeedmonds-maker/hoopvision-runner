@@ -1,4 +1,4 @@
-name: PR776 ball-handler team control: real 36-game source acceptance
+name: "PR776 ball-handler team control: real 36-game source acceptance"
 on:
   push:
     branches: [main]
@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   source-acceptance:
-    name: 36-game handler control shard \${{ matrix.shard }}
+    name: "36-game handler control shard ${{ matrix.shard }}"
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     strategy:
@@ -19,10 +19,10 @@ jobs:
       matrix:
         shard: [0, 1, 2, 3]
     env:
-      GH_TOKEN: \${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
-      SHARD: \${{ matrix.shard }}
+      SHARD: ${{ matrix.shard }}
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
