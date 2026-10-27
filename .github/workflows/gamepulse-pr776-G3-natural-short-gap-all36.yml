@@ -1,0 +1,210 @@
+name: PR776 G3 36 NBA original SDK short natural player Model B and independent ball QA
+on:
+  push:
+    branches: [research/pr776-trusted-igp-runner-20261028]
+    paths:
+      - '.github/workflows/gamepulse-pr776-G3-natural-short-gap-all36.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr776-G3-private-original-short-player-ball-all36
+  cancel-in-progress: false
+jobs:
+  materialize:
+    name: G3 original source natural short-gap partition ${{ matrix.partition }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 115
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        partition: [0,1,2,3,4,5]
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      PARTITION: ${{ matrix.partition }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public confidentiality guard and private original SHA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Source-free Model B and ball original data non-overwrite regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile \
+            gamepulse/fusion/igp_g3_short_gap_reconstruction_2026.py \
+            gamepulse/fusion/igp_g3_short_gap_all36_acceptance_2026.py
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_g3_short_gap_reconstruction_2026.py' -v
+          echo G3_MODEL_B_SHORT_GAP_SOURCE_FREE_TESTS_PASS
+      - name: Create private source-identity-compatible short player and ball XYZ sidecars
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          mapfile -t GAMES < <(python3 - "$PARTITION" <<'PY'
+          import json,sys
+          a=json.load(open("gamepulse/fusion/materialized/igp_provisional_chain_tracking_interiors_36_v1/index.json"))
+          g=sorted(a["games"])
+          assert len(g)==36
+          part=int(sys.argv[1])
+          print("\n".join(x for i,x in enumerate(g) if i%6==part))
+          PY
+          )
+          test "${#GAMES[@]}" -eq 6
+          for GID in "${GAMES[@]}"; do
+            OUT="gamepulse/fusion/materialized/igp_g3_short_natural_model_b_v1/${GID}.jsonl.gz"
+            QA="gamepulse/fusion/qa/igp_progress_20261028/igp_G3_original_short_natural_${GID}_v1.json"
+            if test -e "$OUT" || test -e "$QA"; then
+              test -f "$OUT" && test -f "$QA"
+              python3 - "$QA" "$OUT" "$GID" <<'PY'
+          import json,hashlib,sys
+          from pathlib import Path
+          q=json.load(open(sys.argv[1]))
+          assert q["game_id"]==sys.argv[3] and q["original_NBA_SDK_XYZ_authoritative_and_unchanged"]
+          assert q["private_derived_source_gap_sha256"]==hashlib.sha256(Path(sys.argv[2]).read_bytes()).hexdigest()
+          print("G3_PRIOR_PRIVATE_ORIGINAL_NBA_SHA_REUSED",q["game_id"])
+          PY
+              continue
+            fi
+            python3 gamepulse/fusion/igp_g3_short_gap_reconstruction_2026.py \
+              --root . --game-id "$GID" --out "$OUT" --receipt "$QA" > "$RUNNER_TEMP/private-G3-${GID}.log"
+            python3 - "$QA" "$OUT" <<'PY'
+          import json,sys,hashlib
+          from pathlib import Path
+          q=json.load(open(sys.argv[1]));c=q["counts"]
+          assert q["private_derived_source_gap_sha256"]==hashlib.sha256(Path(sys.argv[2]).read_bytes()).hexdigest()
+          assert c["native_frames"]==sum(c.get("source_frame_"+k,0) for k in ("STRICT","LONG","SUB","NO_G2_ROSTER"))
+          assert q["original_NBA_SDK_XYZ_authoritative_and_unchanged"]
+          assert q["source_actor_disputes_abstained"]
+          assert q["physical_ball_custody_not_certified"]
+          assert c.get("filled_player_STRICT",0)>0
+          print("G3_NATIVE_SOURCE_PRIVATE_GAME_PASS",json.dumps({
+           "game":q["game_id"],"native_frames":c["native_frames"],
+           "player_strict":c.get("filled_player_STRICT",0),
+           "player_long":c.get("filled_player_LONG",0),
+           "player_sub":c.get("filled_player_SUB",0),
+           "ball_strict":c.get("filled_ball_STRICT",0),
+           "ball_long":c.get("filled_ball_LONG",0),
+           "ball_sub":c.get("filled_ball_SUB",0)},sort_keys=True))
+          PY
+          done
+      - name: Commit SHA-verified derived player and ball native XYZ privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          git config user.name "Game Pulse NBA Private Original G3 QA"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f gamepulse/fusion/materialized/igp_g3_short_natural_model_b_v1/ \
+             gamepulse/fusion/qa/igp_progress_20261028/igp_G3_original_short_natural_*_v1.json
+          if git diff --cached --quiet;then echo PRIVATE_G3_ALL_PARTITION_PRIOR_SHA_VERIFIED;exit 0;fi
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): original NBA 36-game G3 native short player Model B and ball sparse inferred XYZ partition $PARTITION"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH";then
+              echo PRIVATE_G3_NATURAL_NBA_SOURCE_PARTITION_QA_PUBLISHED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 13
+  aggregate:
+    name: All36 SHA-verify original XYZ never overwritten and derived error evidence
+    needs: [materialize]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public guard and read 36 private NBA original+derived source SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Validate 36 original timestamp sets source actor preservation and new G3 SHA derived slots
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_G3_original_short_natural_all36_v1.json
+          test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_g3_short_gap_all36_acceptance_2026.py \
+            --root . --out "$OUT" > "$RUNNER_TEMP/private-G3-all36-native-acceptance.log"
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]));c=q["totals"]
+          assert q["source_games"]==36
+          assert c["native_frames"]==1203986
+          assert c["source_frame_STRICT"]==412619
+          assert c["source_frame_LONG"]==165108
+          assert c["source_frame_SUB"]==90201
+          assert c["source_frame_NO_G2_ROSTER"]==536058
+          assert q["all_original_SDK_XYZ_source_coordinates_sha_preserved"]
+          assert q["all_derived_XYZ_private_SHA_immutable_sidecars"]
+          assert q["official_roster_disagreements_abstain_from_reconstruction"]
+          assert q["original_NBA_PBP_7474_logical_chains_unchanged"]
+          print("G3_SOURCE_PLAYER_BALL_ORIGINAL_NBA_ALL36_SHA_ACCEPTED",json.dumps({
+             "games":36,"native_frames":c["native_frames"],
+             "reconstructed_player_STRICT":c.get("filled_player_STRICT",0),
+             "reconstructed_player_LONG":c.get("filled_player_LONG",0),
+             "reconstructed_player_SUB":c.get("filled_player_SUB",0),
+             "reconstructed_ball_STRICT":c.get("filled_ball_STRICT",0),
+             "reconstructed_ball_LONG":c.get("filled_ball_LONG",0),
+             "reconstructed_ball_SUB":c.get("filled_ball_SUB",0),
+             "masked_original_holdout_p95_per_game_range_ft":q["per_game_p95_ft_range_not_pooled"]
+          },sort_keys=True))
+          PY
+      - name: Commit private aggregate source G3 acceptance report
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_G3_original_short_natural_all36_v1.json
+          git config user.name "Game Pulse NBA Private Original G3 QA"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f "$OUT"
+          test "$(git diff --cached --name-only)" = "$OUT"
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): accept full36 original source G3 short player and ball SHA reconstruction without overwriting native XYZ"
+          for attempt in 1 2 3 4 5 6 7 8;do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH";then
+              echo G3_ALL36_NBA_ORIGINAL_SHORT_GAP_SHA_QA_COMMITTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 13
