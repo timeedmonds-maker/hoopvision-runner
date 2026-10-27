@@ -1,5 +1,6 @@
 name: PR776 targeted P2 rebound Broadcast recovery with native ffmpeg
 # Exact ONE previously approved rebound action; source media and QA private.
+# Reviewed by tools/public_content_guard.py allowlist; no public raw media or XYZ.
 on:
   push:
     branches: [main]
