@@ -1,5 +1,5 @@
 name: Rockets official logged-UTC chronology overlap QA (private only)
-# Free GitHub CPU. Private original NBA/PBP and frame-window data never leave private 104.
+# Reviewed and allowlisted free GitHub CPU. Private NBA/PBP and frame-window data remain in private 104.
 on:
   push:
     branches: [main]
