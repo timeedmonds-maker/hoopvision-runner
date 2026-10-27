@@ -177,6 +177,36 @@ jobs:
               sleep "$attempt"
             done
           fi
+      - name: Test canonical NBA possession query with original native lastTouch evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_native_lasttouch_chain_projection_2026.py gamepulse/fusion/query_igp_possession_tracking_with_control_brackets_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p 'test_igp_native_lasttouch_chain_projection_2026.py'
+          python3 - <<'PY'
+          from pathlib import Path
+          from query_igp_possession_tracking_with_control_brackets_2026 import query
+          tests=[("0022600001","0022600001-P4-C0168"),
+                 ("0022600099","0022600099-P3-C0129"),
+                 ("0022600009","0022600009-P1-C0003")]
+          checked=[]
+          for gid,cid in tests:
+              out=query(Path("."),gid,cid,native_lasttouch=True)
+              native=out["native_lasttouch_team_transition_candidates"]
+              assert native["source_game_id"]==gid and native["NBA_chain_id"]==cid
+              assert native["physical_possessions_certified"]==0
+              assert all(x["physical_possession_edge_verified"] is False
+                         for x in native["source_native_candidate_switches"])
+              assert "original_native_lasttouch_team_QA" in out["source_SHA256"]
+              checked.append({"game":gid,"chain_id":cid,
+                              "original_native_candidates":native["candidate_count"],
+                              "official_actions":len(out["NBA_source_actions"])})
+          print("IGP_THREE_REAL_SOURCE_CANONICAL_QUERY_NATIVE_LASTTOUCH_ACCEPTED",
+                __import__('json').dumps(checked,sort_keys=True))
+          PY
       - name: Test and run actual 36-game full original XYZ continuity audit
         shell: bash
         run: |
