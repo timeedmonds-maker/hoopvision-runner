@@ -21,7 +21,7 @@ jobs:
         with: {persist-credentials: false}
       - name: Assert public content policy
         run: python3 tools/public_content_guard.py
-      - name: Select all officially finished NBA games Oct 25 and Oct 26 US dates
+      - name: Discover new Oct 26 games from fixed NBA slate and private original live SDK evidence
         id: select
         shell: bash
         env:
@@ -29,86 +29,58 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
-          # Only original NBA schedule; target range is bounded to these two US days.
-          node --input-type=module <<'JS'
-          import {writeFileSync} from 'node:fs';
-          import {parseSchedule} from './tools/licensed_feed/season_core.mjs';
-          const sources=[
-            ['modern','https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json'],
-            ['legacy','https://data.nba.com/data/10s/v2015/json/mobile_teams/nba/2026/league/00_full_schedule.json']
-          ];
-          const headers={'Accept':'application/json','User-Agent':'Mozilla/5.0',
-                         'Referer':'https://www.nba.com/'};
-          let selected=null;
-          for(const [kind,url] of sources){
-            try{
-              const r=await fetch(url,{headers,signal:AbortSignal.timeout(20000)});
-              if(!r.ok)continue;
-              const games=parseSchedule(await r.json(),kind);
-              if(!games.length)continue;
-              selected=games;
-              console.log('NBA_OFFICIAL_FINAL_SOURCE',kind,games.length);
-              break;
-            }catch{}
-          }
-          if(!selected)throw Error('NBA_OFFICIAL_FINAL_SCHEDULE_UNAVAILABLE');
-          const body={leagueSchedule:{gameDates:[{games:selected.map(g=>({
-            gameId:g.id,gameStatus:3,gameDateTimeUTC:new Date(g.start).toISOString()
-          }))}]}};
-          writeFileSync(process.env.RUNNER_TEMP+'/official-schedule.json',JSON.stringify(body));
-          JS
           python3 - <<'PY'
-          from datetime import datetime,timezone
-          from pathlib import Path
-          import json,os,re,subprocess
-          end=datetime.fromisoformat("2026-10-29T16:00:00+00:00")
+          import json,os,subprocess
+          from datetime import datetime,timezone,timedelta
+          # Bounded NBA Oct 26 schedule, UTC kickoffs. Original Oct 25
+          # seven games (0112..0118) are already in the accepted 43-game
+          # production warehouse. No duplicated ingestion/rebuild of them.
+          starts={
+              "0022600119":"2026-10-26T23:00:00.000Z",
+              "0022600120":"2026-10-26T23:00:00.000Z",
+              "0022600121":"2026-10-26T23:30:00.000Z",
+              "0022600122":"2026-10-26T23:30:00.000Z",
+              "0022600123":"2026-10-27T00:00:00.000Z",
+              "0022600124":"2026-10-27T00:00:00.000Z",
+              "0022600125":"2026-10-27T00:30:00.000Z",
+              "0022600126":"2026-10-27T01:00:00.000Z",
+              "0022600127":"2026-10-27T02:00:00.000Z"}
           now=datetime.now(timezone.utc)
-          if now>end:
-              rows=[]
-          else:
-              data=json.loads((Path(os.environ["RUNNER_TEMP"])/"official-schedule.json").read_text())
-              groups=data.get("leagueSchedule",{}).get("gameDates")
-              assert isinstance(groups,list),"OFFICIAL_NBA_SCHEDULE_SCHEMA_CHANGED"
-              rows=[]
-              seen=set()
-              for group in groups:
-                  for g in group.get("games",[]):
-                      gid=str(g.get("gameId",""))
-                      if not re.fullmatch(r"00226[0-9]{5}",gid) or str(g.get("gameStatus"))!="3":continue
-                      tip=str(g.get("gameDateTimeUTC",""))
-                      dt=datetime.fromisoformat(tip.replace("Z","+00:00"))
-                      if not (datetime.fromisoformat("2026-10-25T04:00:00+00:00")<=dt<
-                              datetime.fromisoformat("2026-10-27T04:00:00+00:00")):continue
-                      assert gid not in seen,"REPEATED_OFFICIAL_NBA_GAME_ID"
-                      seen.add(gid)
-                      rows.append({"id":gid,"tipoff":dt.isoformat(timespec="milliseconds").replace("+00:00","Z")})
-              rows.sort(key=lambda x:(x["tipoff"],x["id"]))
-              assert len(rows)<=16,"NBA_TWO_DAY_SLATE_UNEXPECTED_GAMES"
-              pending=[]
-              for item in rows:
-                  p=subprocess.run(["gh","release","view","gamepulse-sdk-"+item["id"],
-                                    "--repo","timeedmonds-maker/104","--json","assets"],
-                                   stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,timeout=25)
-                  if p.returncode==0:
-                      assets=json.loads(p.stdout).get("assets",[])
-                      if any(a.get("name")=="sdk-COMPLETE.json" for a in assets):
-                          root="repos/timeedmonds-maker/104/contents/"
-                          branch="?ref=research%2Fgamepulse-clock-boundary-integrity-20261025"
-                          base="gamepulse/fusion/"
-                          canonical=root+base+"materialized/igp_all_original_xyz/"+item["id"]+"/index.json"+branch
-                          accepted=root+base+"qa/igp_progress_20261027/igp_oct25_oct26_native_"+item["id"]+".json"+branch
-                          def present(url):
-                              check=subprocess.run(["gh","api",url],stdout=subprocess.DEVNULL,
-                                                    stderr=subprocess.DEVNULL,timeout=25)
-                              return check.returncode==0
-                          if present(canonical) and present(accepted):continue
-                  pending.append(item)
-              rows=pending
-          target=rows or [{"id":"none","tipoff":""}]
+          end=datetime(2026,10,29,16,tzinfo=timezone.utc)
+          def gh(*args):
+              result=subprocess.run(["gh",*args],capture_output=True,text=True,timeout=35)
+              return result.stdout if result.returncode==0 else None
+          def private_content_exists(path):
+              return gh("api","repos/timeedmonds-maker/104/contents/"+path+
+                       "?ref=research%2Fgamepulse-clock-boundary-integrity-20261025") is not None
+          due=[]
+          if now<=end:
+              for gid,tip in sorted(starts.items(),key=lambda x:(x[1],x[0])):
+                  kickoff=datetime.fromisoformat(tip.replace("Z","+00:00"))
+                  # All 13 25-minute SDK periods fully elapsed plus safety.
+                  if now<kickoff+timedelta(minutes=315):continue
+                  raw=gh("release","view","gamepulse-live-sdk-"+gid,
+                         "--repo","timeedmonds-maker/104","--json","assets")
+                  if not raw:continue
+                  assets={x["name"] for x in json.loads(raw)["assets"]}
+                  source=[name for name in assets if name.startswith("live-") and
+                          name.endswith(".tar.gz") and name.replace(".tar.gz",".json") in assets]
+                  if not source:continue
+                  release=gh("release","view","gamepulse-sdk-"+gid,
+                             "--repo","timeedmonds-maker/104","--json","assets")
+                  complete=release is not None and any(
+                      a["name"]=="sdk-COMPLETE.json" for a in json.loads(release)["assets"])
+                  archived=private_content_exists(
+                      "gamepulse/fusion/materialized/igp_all_original_xyz/"+gid+"/index.json")
+                  qa=private_content_exists(
+                      "gamepulse/fusion/qa/igp_progress_20261027/igp_oct25_oct26_native_"+gid+".json")
+                  if complete and archived and qa:continue
+                  due.append({"id":gid,"tipoff":tip})
+          target=due or [{"id":"none","tipoff":"1970-01-01T00:00:00.000Z"}]
           with open(os.environ["GITHUB_OUTPUT"],"a") as fh:
               fh.write("games="+json.dumps(target,separators=(",",":"))+"\n")
-              fh.write("due_count="+str(len(rows))+"\n")
-          print("IGP_OCT25_OCT26_FINAL_GAMES_DUE",len(rows))
+              fh.write("due_count="+str(len(due))+"\n")
+          print("IGP_OCT26_ELAPSED_PRIVATE_NATIVE_SDK_GAMES_DUE",len(due))
           PY
 
   capture-oct25-oct26:
