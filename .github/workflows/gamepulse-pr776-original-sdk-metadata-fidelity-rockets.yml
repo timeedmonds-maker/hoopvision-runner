@@ -56,7 +56,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$IGP_ROOT"
-          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_original_sdk_metadata_fidelity_0022600009_v1.json
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_original_sdk_metadata_fidelity_0022600009_v2_interp_lineage.json
           test ! -e "$OUT"
           python3 gamepulse/fusion/igp_original_sdk_metadata_fidelity_2026.py             --game-id "$GID" --archive-dir "$RUNNER_TEMP/original-sdk"             --release-json "$RUNNER_TEMP/release.json"             --index "gamepulse/fusion/materialized/igp_all_original_xyz/$GID/index.json"             --out "$OUT" > "$RUNNER_TEMP/private-metadata.log"
           python3 - "$OUT" <<'PY'
@@ -68,6 +68,8 @@ jobs:
           assert j["native_timestamps_unique"]==34979
           assert j["raw_original_position_keyframes"]==69582
           assert j["raw_source_positions_not_exported"]
+          assert j["native_timestamps_with_any_interpolated_true"]>=j["native_timestamps_with_only_interpolated_true"]
+          assert j["native_timestamps_with_any_noninterpolated_false"]+j["native_timestamps_with_only_interpolated_true"]==34979
           print("PR776_SDK_METADATA_FIDELITY",json.dumps({
              "native_timestamps":j["native_timestamps_unique"],
              "raw_keyframes":j["raw_original_position_keyframes"],
@@ -75,6 +77,9 @@ jobs:
              "metadata_fields":j["fields"]["metadata"],
              "keyframe_fields":j["fields"]["keyframe"],
              "interpolated_flag_counts":j["keyframe_interpolated_flag_counts"],
+             "unique_only_interpolated_true":j["native_timestamps_with_only_interpolated_true"],
+             "unique_with_any_true":j["native_timestamps_with_any_interpolated_true"],
+             "unique_with_both_flags":j["native_timestamps_with_both_interpolated_flags"],
              "feed_line":j["trackingFeedLineCount"],
              "feed_messages":j["trackingFeedMessageCount"],
              "same_UTC_variants":j["same_UTC_more_than_one_distinct_position_variant"]
@@ -85,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$IGP_ROOT"
-          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_original_sdk_metadata_fidelity_0022600009_v1.json
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_original_sdk_metadata_fidelity_0022600009_v2_interp_lineage.json
           git config user.name "Game Pulse Free CPU SDK QA"
           git config user.email "gamepulse-integrity@users.noreply.github.com"
           git add -f "$OUT"
