@@ -289,6 +289,34 @@ jobs:
                   "direct_raw_ten_ball_cores_5plus":c.get("chains_with_five_frame_direct_raw_ten_ball_interior",0),
                   "physical_possessions_certified":0},sort_keys=True))
           PY
+      - name: Reconstruct official-actor native ball gain for all 335 disputed NBA boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_disputed_native_control_transfer_36_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_disputed_native_control_transfer_36_2026.py'
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_335_native_control_gain_candidates_36.json
+          if [ ! -e "$OUT" ]; then
+            python3 gamepulse/fusion/igp_disputed_native_control_transfer_36_2026.py --root . --out "$OUT"
+          fi
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          j=json.load(open(sys.argv[1]))
+          assert j["source_games"]==36
+          assert j["counts"]["pairs"]==335
+          assert sum(x["source_conflict_frames"] for x in j["disputed_pairs"])==1238
+          assert j["physical_possessions_certified"]==0
+          assert all(x["physical_control_independently_certified"] is False
+                     for x in j["disputed_pairs"])
+          print("P2_ALL_335_ORIGINAL_CONTROL_SOURCE_PROPOSALS_ACCEPTED",json.dumps({
+            "conflicts":335,
+            "official_actor_candidates":j["counts"].get("direct_source_context_reconstruction_pursued",0),
+            "multiframe_PBP_actor_matches":j["counts"].get("source_contact_actor_matches",0),
+            "status_counts":{k:v for k,v in j["counts"].items() if k.startswith("status_")},
+            "certified_physical_possessions":0},sort_keys=True))
+          PY
       - name: Preserve private original source pointer index on canonical PR
         shell: bash
         run: |
@@ -310,6 +338,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_p2_first_rebound_broadcast_visual_36.json
           git add -f gamepulse/fusion/materialized/igp_provisional_chain_tracking_interiors_36_v1
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_chain_tracking_interiors_36_acceptance.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_335_native_control_gain_candidates_36.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
