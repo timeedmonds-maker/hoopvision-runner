@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-G2-substitution-source-identity-attribution-36.yml",  # G2 SHA-frozen NBA official substitution-side raw actor classification, private aggregate only
     ".github/workflows/gamepulse-pr776-G2-nba-substitution-side-query-36.yml",
     ".github/workflows/gamepulse-pr776-G2-substitution-side-roster-36.yml",
     ".github/workflows/gamepulse-pr776-G2-clock-source-conflict-dossier-36.yml",  # reviewed G2 private SDK source ID-to-official-NBA PBP/lineup forensic dossier, aggregate counts only public
