@@ -317,6 +317,48 @@ jobs:
             "status_counts":{k:v for k,v in j["counts"].items() if k.startswith("status_")},
             "certified_physical_possessions":0},sort_keys=True))
           PY
+      - name: Real source per-NBA-possession query joins tracking and two-sided control evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_possession_tracking_with_control_brackets_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_query_igp_possession_tracking_with_control_brackets_2026.py'
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from query_igp_possession_tracking_with_control_brackets_2026 import query
+          cases=[("0022600001","0022600001-P1-C0005"),
+                 ("0022600001","0022600001-P1-C0006"),
+                 ("0022600099","0022600099-P3-C0129")]
+          results=[]
+          for gid,cid in cases:
+            r=query(Path("."),gid,cid)
+            assert r["NBA_chain_id"]==cid and not r["physical_possession_start_end_certified"]
+            assert not r["original_SDK_XYZ_source_included_in_response"]
+            results.append({"game_id":gid,"chain_id":cid,
+               "source_frames":r["candidate_tracking_counts"].get("unique_NBA_logged_frames",0),
+               "contiguous_candidate_segments":
+                 len(r["source_frame_spans"]["candidate_interior"]),
+               "contiguous_direct_ten_segments":
+                 len(r["source_frame_spans"]["direct_raw_ten_ball_interior"]),
+               "two_sided_brackets":sum(x["two_sided_original_tracking_transfer_bracket"] is not None
+                 for x in r["relevant_native_vs_logged_disputed_boundaries"]),
+               "boundary_statuses":[x["evidence_state"]
+                 for x in r["relevant_native_vs_logged_disputed_boundaries"]]})
+          assert results[0]["two_sided_brackets"]>=1
+          assert results[1]["two_sided_brackets"]>=1
+          qa={"schema":"gamepulse.igp-possession-original-source-interval-and-two-sided-query-acceptance.v1",
+             "original_source_games":36,"real_private_source_queries":results,
+             "physical_possessions_certified":0}
+          p=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_possession_tracking_control_query_accepted.json")
+          if p.exists(): assert json.loads(p.read_text())==qa
+          else: p.write_text(json.dumps(qa,sort_keys=True,indent=2)+"\\n")
+          print("IGP_PRODUCTION_POSSESSION_QUERY_WITH_NATIVE_CONTROL_ACCEPTED",
+            json.dumps({"real_cases":len(results),"two_sided_first_chain":results[0]["two_sided_brackets"],
+                        "certified_physical_possessions":0},sort_keys=True))
+          PY
       - name: Preserve private original source pointer index on canonical PR
         shell: bash
         run: |
@@ -339,6 +381,7 @@ jobs:
           git add -f gamepulse/fusion/materialized/igp_provisional_chain_tracking_interiors_36_v1
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_chain_tracking_interiors_36_acceptance.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_335_two_sided_source_control_transfer_brackets_36.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_possession_tracking_control_query_accepted.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
