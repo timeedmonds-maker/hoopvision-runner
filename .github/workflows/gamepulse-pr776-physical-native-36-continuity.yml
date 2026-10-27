@@ -301,6 +301,7 @@ jobs:
             test "$ok" -eq 1
           fi
           echo IGP_TRACKER_36_GAME_ORIGINAL_SOURCE_QA_ACCEPTED_PRIVATE
+      # Include source-exact ten-player and ball foot-coordinate readback.
       - name: Verify Game Pulse real-world court calibration and publish 36-game reconstruction error in feet
         shell: bash
         run: |
