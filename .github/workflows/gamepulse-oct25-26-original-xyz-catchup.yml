@@ -220,8 +220,8 @@ jobs:
 
 
   finalize-source-catalog:
-    needs: [discover-oct25-oct26, capture-oct25-oct26]
-    if: ${{ always() && needs.discover-oct25-oct26.result == 'success' }}
+    # Incremental and independent: update accepted private source catalog as
+    # each full-game SDK archive completes, not after the slowest matrix job.
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     concurrency:
