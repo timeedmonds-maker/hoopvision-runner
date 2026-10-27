@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/gamepulse-pr776-c1-5-8-10s-benchmark.yml'
+      - 'tools/public_content_guard.py'
   workflow_dispatch:
 permissions:
   contents: read
