@@ -219,6 +219,47 @@ jobs:
               assert e["chain_count"]==len(e["chains"])>0
               total+=e["chain_count"]
           assert total==7474,("UNEXPECTED_OFFICIAL_LOGICAL_CHAIN_DENOMINATOR",total)
+          # Whole accepted chain population, not just three showcases:
+          # check NBA gameclock-defined identities against immutable original
+          # frame-span index without rescanning/exporting any private XYZ.
+          import gzip,hashlib
+          core=base/"materialized/igp_provisional_chain_tracking_interiors_36_v1"
+          coreindex=json.loads((core/"index.json").read_bytes())
+          assert coreindex["source_games"]==36 and len(coreindex["games"])==36
+          mapped=0;missing=[];identity_conflicts=[];with_tracking=0;event_grade=collections.Counter()
+          for gid,gmeta in sorted(coreindex["games"].items()):
+              data=(core/gmeta["file"]).read_bytes()
+              assert hashlib.sha256(data).hexdigest()==gmeta["gzip_SHA256"]
+              chainrows=json.loads(gzip.decompress(data))
+              pbp,_=load(Path("."),base/"official_pbp_timing/games"/(gid+".json"))
+              official={x["chain_id"]:x for x in event_chain(pbp)["chains"]}
+              for row in chainrows:
+                  cid=row["chain_id"]
+                  if cid not in official:
+                      missing.append(cid)
+                      continue
+                  source=official[cid]
+                  if (row["offense_team"]!=source["offense_team"] or
+                      row["period"]!=source["period"] or
+                      not set(row["official_NBA_action_numbers"]).issubset(
+                          set(source["action_numbers"]))):
+                      identity_conflicts.append(cid)
+                      continue
+                  mapped+=1
+                  event_grade[source["terminal_grade"]]+=1
+                  with_tracking+=int(row["counts"].get("unique_NBA_logged_frames",0)>0)
+          assert mapped+len(missing)+len(identity_conflicts)==7199
+          assert not missing and not identity_conflicts,(
+              "COHERENT_CHAIN_TO_NBA_PBP_IDENTITY_MISMATCH",
+              len(missing),len(identity_conflicts))
+          assert mapped==7199 and with_tracking==6901
+          print("PBP_FIRST_WHOLE_36_GAME_TRACKING_CHAIN_IDENTITY_QA_OK",
+                json.dumps({"coherent_NBA_chains":mapped,
+                            "with_original_tracking":with_tracking,
+                            "unmatched":len(missing),
+                            "identity_conflicts":len(identity_conflicts),
+                            "terminal_grade_counts":dict(sorted(event_grade.items())),
+                            "physical_possessions_certified":0},sort_keys=True))
           print("PBP_FIRST_EXISTING_POSSESSION_AND_TRACKING_QUERY_REAL_SOURCE_ACCEPTED",
                 json.dumps({"real_games_checked":len(games),
                             "source_games_with_ordered_logical_possessions":36,
