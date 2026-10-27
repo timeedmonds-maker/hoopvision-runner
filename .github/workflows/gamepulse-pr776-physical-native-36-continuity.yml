@@ -110,6 +110,55 @@ jobs:
             git rebase -q "origin/$B"
             sleep "$attempt"
           done
+      - name: Reconcile native lastTouch team labels with all 36 original PBP and spatial QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_native_lasttouch_team_reconciliation_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p 'test_igp_native_lasttouch_team_reconciliation_2026.py'
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_native_lasttouch_team_36_source_qa.json
+          if [ ! -e "$OUT" ]; then
+            python3 gamepulse/fusion/igp_native_lasttouch_team_reconciliation_2026.py \
+              --root . --out "$OUT"
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_native_lasttouch_team_36_source_qa.json")
+          q=json.loads(p.read_bytes())
+          assert q["schema"]=="gamepulse.igp-native-lasttouch-team-evidence-v1"
+          assert q["source_games"]==36 and len(q["games"])==36
+          assert q["physical_possessions_certified"]==0
+          a=q["aggregate"]
+          assert a["games"]==36
+          assert a["candidate_native_team_switches"]==sum(
+              len(g["candidate_changes"]) for g in q["games"].values())
+          assert a["distinct_native_touch_start_times"]>=a["unique_fresh_native_player_states"]
+          print("IGP_NATIVE_LASTTOUCH_36_PRIVATE_SOURCE_ACCEPTED",
+                json.dumps({"source_games":36,"aggregate":a,
+                            "physical_possessions_certified":0},sort_keys=True))
+          PY
+          git config user.name 'Game Pulse Free CPU Runner'
+          git config user.email 'gamepulse-runner@users.noreply.github.com'
+          git add -f "$OUT"
+          if git diff --cached --quiet; then
+            echo IGP_NATIVE_LASTTOUCH_ACCEPTED_EXISTING
+          else
+            git diff --cached --check
+            git commit -qm "qa(igp): original lastTouch player-team 36-game PBP and XYZ reconciliation"
+            for attempt in 1 2 3 4 5 6 7 8; do
+              if git push -q origin "HEAD:refs/heads/$B"; then
+                echo IGP_NATIVE_LASTTOUCH_36_PRIVATE_PUBLISHED
+                break
+              fi
+              git fetch -q origin "$B"
+              git rebase -q "origin/$B"
+              sleep "$attempt"
+            done
+          fi
       - name: Test and run actual 36-game full original XYZ continuity audit
         shell: bash
         run: |
@@ -120,11 +169,13 @@ jobs:
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_native_fullgame_continuity_2026.py'
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_physical_pilot_postscore_guard_2026.py'
           OUT=gamepulse/fusion/qa/igp_progress_20261026/native_fullgame_continuity_36_v1.json
-          test ! -e "$OUT"
-          python3 gamepulse/fusion/igp_native_fullgame_continuity_2026.py --root . --out "$OUT"
+          if [ ! -e "$OUT" ]; then
+            python3 gamepulse/fusion/igp_native_fullgame_continuity_2026.py --root . --out "$OUT"
+          fi
           POST=gamepulse/fusion/qa/igp_progress_20261026/physical_possession_postscore_negative_gate_v1.json
-          test ! -e "$POST"
-          python3 gamepulse/fusion/igp_physical_pilot_postscore_guard_2026.py --root . --out "$POST"
+          if [ ! -e "$POST" ]; then
+            python3 gamepulse/fusion/igp_physical_pilot_postscore_guard_2026.py --root . --out "$POST"
+          fi
           python3 - "$OUT" <<'PY'
           import json,sys
           j=json.load(open(sys.argv[1]));c=j['source_counts']
@@ -163,6 +214,10 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$OUT" gamepulse/fusion/qa/igp_progress_20261026/physical_possession_postscore_negative_gate_v1.json
+          if git diff --cached --quiet; then
+            echo ALREADY_ACCEPTED_HISTORICAL_CONTINUITY
+            exit 0
+          fi
           git diff --cached --check
           git commit -q -m "data(igp): accept full 36 native continuity and postscore ownership negative gates"
           for i in 1 2 3 4 5 6 7 8; do
