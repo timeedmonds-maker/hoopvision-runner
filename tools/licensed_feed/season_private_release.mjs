@@ -191,7 +191,7 @@ async function capturePart(tag,job,capture){
   finally{rmSync(check,{recursive:true,force:true});}
  }finally{rmSync(dir,{recursive:true,force:true});}
 }
-async function archiveGame(game,index,capture){
+async function archiveGame(game,index,capture,{skipSeasonIndex=false}={}){
  const plan=planGame(game),tag=(PILOT?'gamepulse-sdk-public-pilot-':'gamepulse-sdk-')+game.id;
  ensure(tag);
  const reports=[];
@@ -216,7 +216,7 @@ async function archiveGame(game,index,capture){
   // private season index for each of the 13 SHA readbacks.
   index.games[game.id]={status:'partial',last_checkpoint:job.part,last_attempt:new Date().toISOString()};
   if(!pair[0] && ++newParts>=partLimit && job.part<plan.parts.length-1){
-   writeIndex(index);
+   if(!skipSeasonIndex)writeIndex(index);
    console.log('PRIVATE_GAME_PARTIAL_SHA_READBACK');
    return;
   }
@@ -256,7 +256,7 @@ async function archiveGame(game,index,capture){
  }finally{rmSync(dir,{recursive:true,force:true});}
  index.games[game.id]={status:'complete',captured_at:done.completed_at,qa:done.acceptance,
   windows:sum.windows,frames_with_players:sum.players,frames_with_ball:sum.ball};
- writeIndex(index);
+ if(!skipSeasonIndex)writeIndex(index);
  console.log('PRIVATE_GAME_COMPLETE_SHA_READBACK');
 }
 async function captureElapsedPriority(capture){
@@ -428,6 +428,30 @@ export async function run(){
  delete process.env.GH_TOKEN;
  // All third-party imports occur only after GH_TOKEN leaves process.env.
  const {capture}=await import('./capture.mjs');
+ // Two-day release-only fanout: one SHA-locked game per independent public CPU
+ // worker; *never* rewrite the shared season index from concurrent jobs.
+ // Shared index reconciliation is a separate serial step.
+ if(process.env.GAMEPULSE_BATCH_CAPTURE_ENABLED==='true'){
+  if(PILOT||!['push','schedule'].includes(process.env.GITHUB_EVENT_NAME))
+   throw Error('batch_context_invalid');
+  const gid=process.env.GAMEPULSE_BATCH_GAME_ID||'';
+  if(!/^00226\d{5}$/.test(gid))throw Error('batch_game_id_invalid');
+  const games=await schedule(),game=games.find(g=>g.id===gid);
+  if(!game)throw Error('batch_game_not_officially_final');
+  if(game.start<Date.parse('2026-10-25T04:00:00Z')||
+     game.start>=Date.parse('2026-10-27T04:00:00Z'))
+   throw Error('batch_game_outside_oct25_oct26_nba_window');
+  if(process.env.GAMEPULSE_BATCH_TIPOFF!==new Date(game.start).toISOString())
+   throw Error('batch_tipoff_not_officially_matched');
+  await requireOfficialFinal(gid);
+  const local={schema:'gamepulse-season-index.v1',games:{}};
+  await archiveGame(game,local,capture,{skipSeasonIndex:true});
+  if(local.games[gid]?.status!=='complete')
+   throw Error('batch_private_game_release_not_complete');
+  console.log('PRIVATE_BATCH_GAME_SDK_RELEASE_SHA_ACCEPTED',
+              gid,local.games[gid].qa,local.games[gid].windows);
+  return;
+ }
  if(process.env.GITHUB_EVENT_NAME==='push'&&process.env.GAMEPULSE_PRODUCTION_ENABLED==='true'&&
     process.env.GAMEPULSE_PRIORITY_FANOUT!=='true')await probeGswPhoenixGap(capture);
  if(process.env.GAMEPULSE_PRIORITY_FANOUT==='true'){
