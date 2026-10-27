@@ -267,6 +267,71 @@ jobs:
                             "three_real_tracking_queries":checked,
                             "physical_possessions_certified":0},sort_keys=True))
           PY
+      - name: Accept searchable NBA PBP-first possession catalog across all 36 games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_pbp_first_season_possessions_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p 'test_query_igp_pbp_first_season_possessions_2026.py'
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_pbp_first_searchable_36game_catalog_acceptance.json
+          if [ ! -e "$OUT" ]; then
+            python3 gamepulse/fusion/query_igp_pbp_first_season_possessions_2026.py \
+              --root . --summary-only --out "$OUT"
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from query_igp_pbp_first_season_possessions_2026 import find
+          qa=json.loads(Path("gamepulse/fusion/qa/igp_progress_20261027/igp_pbp_first_searchable_36game_catalog_acceptance.json").read_bytes())
+          c=qa["counts"]
+          assert qa["schema"]=="gamepulse.igp-36-pbp-first-logical-possession-search.v1"
+          assert qa["accepted_cohort_games"]==36 and len(qa["per_game"])==36
+          assert c["games"]==36 and c["official_logical_chains"]==7474
+          assert c["COHERENT_NBA_CHAIN_WITH_SOURCE_TRACKING"]==6901
+          assert c["COHERENT_NBA_CHAIN_WITHOUT_SOURCE_TRACKING"]==298
+          assert c["OFFICIAL_LOGICAL_CHAIN_WITHOUT_COHERENT_NBA_UTC_WINDOW"]==275
+          assert c["terminal_grade_UNVERIFIED_TERMINAL"]>=14
+          assert qa["independent_physical_possessions_certified"]==0
+          sample=find(Path("."),game_id="0022600009",team="HOU",
+                      terminal="MADE_FG",min_frames=1,limit=5)
+          assert sample["counts"]["filtered_matches"]>=1
+          assert len(sample["results"])>0
+          assert all(r["offense_team"]=="HOU" and
+                     r["official_terminal_reason"]=="MADE_FG" and
+                     r["original_SDK_frames_in_unique_NBA_logged_window"]>0 and
+                     not r["physical_possession_start_end_certified"]
+                     for r in sample["results"])
+          print("IGP_36_PBP_FIRST_SEARCHABLE_CATALOG_ACCEPTED",
+                json.dumps({"games":36,"logical_chains":7474,
+                    "coherent_with_tracking":6901,
+                    "coherent_without_tracking":298,
+                    "without_coherent_UTC":275,
+                    "unverified_terminal":c["terminal_grade_UNVERIFIED_TERMINAL"],
+                    "filtered_rockets_made_shots":sample["counts"]["filtered_matches"],
+                    "returned_results":len(sample["results"]),
+                    "physically_certified":0},sort_keys=True))
+          PY
+          git config user.name 'Game Pulse Free CPU Runner'
+          git config user.email 'gamepulse-runner@users.noreply.github.com'
+          git add -f "$OUT"
+          if git diff --cached --quiet; then
+            echo IGP_PBP_FIRST_36_CATALOG_PREVIOUSLY_ACCEPTED
+          else
+            git diff --cached --check
+            git commit -qm "qa(igp): accept searchable PBP-first 36-game possession catalog"
+            for attempt in 1 2 3 4 5 6 7 8; do
+              if git push -q origin "HEAD:refs/heads/$B"; then
+                echo IGP_PBP_FIRST_36_GAME_CATALOG_PRIVATE_PUBLISHED
+                break
+              fi
+              git fetch -q origin "$B"
+              git rebase -q "origin/$B"
+              sleep "$attempt"
+            done
+          fi
       - name: Test canonical NBA possession query with original native lastTouch evidence
         shell: bash
         run: |
