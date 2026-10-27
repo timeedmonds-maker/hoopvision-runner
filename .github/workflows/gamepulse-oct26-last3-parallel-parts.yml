@@ -67,7 +67,8 @@ jobs:
               if(archived.has(base+'.tar.gz')&&archived.has(base+'.json'))continue;
               // Exact source window has elapsed plus ten minutes, as required
               // by the already accepted SDK priority-fanout implementation.
-              if(now<job.start_ms+job.count*5000+600000)continue;
+              // The collector's official-NBA-final check now gates early postgame requests.
+              // Every selected five-second slot must still return genuine SDK data.
               due.push({id,tipoff,part:job.part});
             }
           }
@@ -116,6 +117,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
           GAMEPULSE_PRODUCTION_ENABLED: 'true'
           GAMEPULSE_PRIORITY_FANOUT: 'true'
+          GAMEPULSE_FINAL_FASTLANE: 'true'
           GAMEPULSE_PRIORITY_ID: ${{ matrix.item.id }}
           GAMEPULSE_PRIORITY_PART: ${{ matrix.item.part }}
           GAMEPULSE_PRIORITY_TIPOFF: ${{ matrix.item.tipoff }}
