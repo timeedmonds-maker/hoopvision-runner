@@ -52,7 +52,7 @@ Approved workflow roles:
 
 **Scope note:** These purpose-built workflows are different from the opaque-request **CourtCoder execution transport** described above. They may fetch approved private code and data into an **ephemeral GitHub runner job**, subject to an authorized private access token and source SHA checks. The public *repository* never becomes a private mirror, and no private payload may be uploaded as a public artifact or printed to a public log. These actions do not grant a public user the ability to dispatch or approve private GPU execution.
 
-**Source semantics:** original NBA Game Pulse-native touch fields can be treated as authoritative for recorded touch events without independent human review. Exact possession counting and media seek timing are distinct statistical or engineering layers. Source-specific detail and all numerical results belong only in the canonical **private** Game Pulse documentation, not this public README.
+**Source semantics and current workload contract:** official NBA play-by-play provides logical basketball possession identity, action ordering and outcomes; original Game Pulse source supplies dated physical observations linked privately through the accepted source time index. Native touch labels and geometric nearest-player estimates are not substitutes for the official event-defined possession identity or verified physical handover times. Public workflows perform ephemeral CPU validation and return private QA **only to the private canonical repository**. Source-specific implementation, private source revisions, metrics and numerical acceptance results stay exclusively in private documentation—not this public README.
 
 
 
