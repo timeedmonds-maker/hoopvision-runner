@@ -232,14 +232,14 @@ jobs:
           cd "$PRIVATE_ROOT"
           export PYTHONPATH=gamepulse/fusion
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_lineup_tracker_pilot_2026.py'
-          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_official_ten_tracker_pilot_2_games_2026.json
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_official_ten_tracker_pilot_paired_v2_2026.json
           if [ ! -e "$OUT" ]; then
             python3 gamepulse/fusion/igp_tracking_pilot_run_2026.py --root . --out "$OUT"
           fi
           python3 - <<'PY'
           import json
           from pathlib import Path
-          d=json.loads(Path("gamepulse/fusion/qa/igp_progress_20261027/igp_official_ten_tracker_pilot_2_games_2026.json").read_text())
+          d=json.loads(Path("gamepulse/fusion/qa/igp_progress_20261027/igp_official_ten_tracker_pilot_paired_v2_2026.json").read_text())
           assert set(d["games"])=={"0022600009","0022600092"}
           assert d["original_source_intact"]
           assert not d["player_XYZ_accuracy_independently_video_certified"]
