@@ -1,5 +1,5 @@
 name: PR776 G2 original NBA enter exit player source UTC bracket challenger 36 games
-# public output guard now reviewed: unrelated NBA angle lookup writes no signed URLs
+# public output guard now reviewed: NBA angle lookup sanitized; temporary unreviewed files cleared
 on:
   push:
     branches: [main]
