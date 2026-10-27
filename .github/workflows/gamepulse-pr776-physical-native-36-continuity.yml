@@ -207,6 +207,36 @@ jobs:
           print("IGP_THREE_REAL_SOURCE_CANONICAL_QUERY_NATIVE_LASTTOUCH_ACCEPTED",
                 __import__('json').dumps(checked,sort_keys=True))
           PY
+      - name: Accept joint native lastTouch, official PBP and XYZ evidence tiers across all 36
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_native_lasttouch_joint_edge_acceptance_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p test_igp_native_lasttouch_joint_edge_acceptance_2026.py
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_native_lasttouch_joint_edge_36_acceptance.json
+          python3 gamepulse/fusion/igp_native_lasttouch_joint_edge_acceptance_2026.py --root . --out "$OUT"
+          git config user.name 'Game Pulse Free CPU Runner'
+          git config user.email 'gamepulse-runner@users.noreply.github.com'
+          git add -f "$OUT"
+          if git diff --cached --quiet; then
+            echo IGP_JOINT_NATIVE_36_ALREADY_ACCEPTED
+            exit 0
+          fi
+          git diff --cached --check
+          git commit -qm "qa(igp): source-accept native PBP XYZ joint control candidate tiers"
+          for n in 1 2 3 4 5 6 7 8; do
+            if git push -q origin "HEAD:refs/heads/$B"; then
+              echo IGP_36_JOINT_NATIVE_PBP_XYZ_PRIVATE_ACCEPTED
+              exit 0
+            fi
+            git fetch -q origin "$B"
+            git rebase -q "origin/$B"
+            sleep "$n"
+          done
+          exit 15
       - name: Test and run actual 36-game full original XYZ continuity audit
         shell: bash
         run: |
