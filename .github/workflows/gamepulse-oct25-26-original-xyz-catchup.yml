@@ -217,3 +217,115 @@ jobs:
             test "$published" -eq 1
           fi
           echo "IGP_ADDITIONAL_GAME_PRIVATE_XYZ_COMMITTED $NBA_GAME_ID"
+
+
+  finalize-source-catalog:
+    needs: [discover-oct25-oct26, capture-oct25-oct26]
+    if: ${{ always() && needs.discover-oct25-oct26.result == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    concurrency:
+      group: gamepulse-oct26-private-catalog-additive-refresh
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Check public-private boundary and read only private source metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/igp-source-catalog"
+          git -C "$RUNNER_TEMP/igp-source-catalog" sparse-checkout set gamepulse/catalog
+      - name: Reuse original private SHA-verifying release catalog generator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/igp-source-catalog"
+          python3 -m py_compile gamepulse/catalog/catalog.py
+          python3 gamepulse/catalog/catalog.py build --output "$RUNNER_TEMP/igp-new-catalog.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          base=Path('gamepulse/catalog')
+          prior=json.loads((base/'2026-27-auto-refresh-provisional.json').read_text())
+          other=json.loads((base/'2026-27-integrated-current.json').read_text())
+          new=json.loads((Path(os.environ['RUNNER_TEMP'])/'igp-new-catalog.json').read_text())
+          assert prior['schema']==other['schema']==new['schema']=='gamepulse.search-catalog.v1'
+          assert prior['game_count']>=43 and set(prior['games'])==set(other['games'])
+          assert all(new['games'].get(gid)==row for gid,row in prior['games'].items()),'PRESERVED_43_SOURCE_GAME_CHANGED'
+          added=set(new['games'])-set(prior['games'])
+          assert added<={f'0022600{i:03}' for i in range(119,128)},'UNEXPECTED_ADDITIONAL_GAME_SCOPE'
+          if not added:
+              print('IGP_CATALOG_NO_NEW_COMPLETED_GAMES_TO_ADD')
+              raise SystemExit(0)
+          assert all(new['games'][g]['index_state']=='VERIFIED_ARCHIVE_INDEX'
+                     and new['games'][g]['archive_qa']['completed_windows']==3720
+                     and new['games'][g].get('source_signature') for g in added), 'NEW_SDK_RELEASE_NOT_SHA_VERIFIED'
+          # Game ID / team / scheduled tipoff is fixed from the Oct 26 NBA
+          # published fixture listing. Do not infer any player's team from XYZ.
+          fixtures={
+            '0022600119':('WAS','CHA','2026-10-26T23:00:00.000Z'),
+            '0022600120':('MIN','CLE','2026-10-26T23:00:00.000Z'),
+            '0022600121':('CHI','BOS','2026-10-26T23:30:00.000Z'),
+            '0022600122':('DAL','MIA','2026-10-26T23:30:00.000Z'),
+            '0022600123':('IND','MIL','2026-10-27T00:00:00.000Z'),
+            '0022600124':('PHX','OKC','2026-10-27T00:00:00.000Z'),
+            '0022600125':('ATL','HOU','2026-10-27T00:30:00.000Z'),
+            '0022600126':('MEM','UTA','2026-10-27T01:00:00.000Z'),
+            '0022600127':('GSW','DEN','2026-10-27T02:00:00.000Z')}
+          existing={g:dict(new['games'][g]) for g in added}
+          # Refuse rather than overwrite conflicting independently recovered
+          # official boxscore/schedule. Fill only missing fixture metadata.
+          for gid in sorted(added):
+              row=new['games'][gid];away,home,tip=fixtures[gid]
+              for k,v in [('away_team',away),('home_team',home),('tipoff_utc',tip)]:
+                  assert row.get(k) in (None,v), 'NBA_FIXTURE_CONFLICT_'+gid
+                  if row.get(k) is None:row[k]=v
+              if not existing[gid].get('away_team') or not existing[gid].get('home_team'):
+                  row['fixture_source']='NBA_PUBLISHED_20261026_FIXTURE_ONLY'
+              if row.get('away_team_name') is None or row.get('home_team_name') is None:
+                  from gamepulse.catalog.catalog import TEAM_NAMES
+                  row['away_team_name']=row.get('away_team_name') or TEAM_NAMES[away]
+                  row['home_team_name']=row.get('home_team_name') or TEAM_NAMES[home]
+          # Generate by_team from source-verified fixture assignment; player
+          # records are NOT assigned to teams from physical proximity.
+          for gid in sorted(added):
+              row=new['games'][gid]
+              for abbr in [row['away_team'],row['home_team']]:
+                  current=new.setdefault('by_team',{}).setdefault(abbr,[])
+                  if gid not in current:current.append(gid);current.sort()
+          assert set(new['games'])==set(prior['games'])|added and new['game_count']==len(new['games'])
+          assert new['game_count']<=52
+          out=json.dumps(new,sort_keys=True,indent=2)+'\n'
+          for dst in ('2026-27-auto-refresh-provisional.json','2026-27-integrated-current.json'):
+              (base/dst).write_text(out)
+          print('IGP_PRIVATE_CATALOG_SDK_ADD_ONLY',len(added),new['game_count'])
+          PY
+          # Ensure both mirrors are atomically committed without touching the
+          # pre-existing 43-game index or SQL sources.
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add gamepulse/catalog/2026-27-auto-refresh-provisional.json \
+                  gamepulse/catalog/2026-27-integrated-current.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_ORIGINAL_PRODUCTION_CATALOG_UNCHANGED
+            exit 0
+          fi
+          git commit -q -m "data(gamepulse): extend 43 verified release catalog with Oct26 SDK source games"
+          published=0
+          for try in 1 2 3 4 5 6 7 8 9 10; do
+            git fetch -q origin main
+            git rebase -q origin/main || exit 4
+            if git push -q origin HEAD:main; then published=1; break; fi
+            sleep "$try"
+          done
+          test "$published" -eq 1
+          echo IGP_PRIVATE_PRODUCTION_CATALOG_REFRESH_COMMITTED
