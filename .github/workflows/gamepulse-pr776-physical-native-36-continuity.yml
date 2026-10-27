@@ -182,6 +182,7 @@ jobs:
             echo PR776_PHOENIX_ORIGINAL_RAW_SLOT_ID_QA_PRIVATE_PUBLISHED
           fi
       # Approved source-invariant ID correction acceptance, original archives remain immutable.
+      # Source receipt is pinned to Git's blob SHA and NBA lineup to its SHA-256.
       - name: Accept user-approved game-local original player ID correction privately
         shell: bash
         run: |
