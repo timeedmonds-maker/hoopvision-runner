@@ -385,6 +385,7 @@ def audit():
     source_verified = (total_windows == EXPECTED_WINDOWS and
                        len(player_timestamps) > 100 and len(ball_timestamps) > 50)
     temporal_supported = (source_verified and reference_origin == "LIVE_NBA_OFFICIAL" and
+        live_source_evidence.get("stored_pbp_source_sha256_match") is True and
         official_status == "final" and
         all(quarter_qa[str(p)]["actions_with_observed_player_frame_within_60s"] > 0
             for p in range(1, 5)) and
