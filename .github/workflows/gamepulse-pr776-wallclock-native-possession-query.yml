@@ -359,6 +359,29 @@ jobs:
             json.dumps({"real_cases":len(results),"two_sided_first_chain":results[0]["two_sided_brackets"],
                         "certified_physical_possessions":0},sort_keys=True))
           PY
+      - name: Test original post-score deadball and next NBA opponent live PBP over all 75 conflicts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_post_score_restart_75_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_post_score_restart_75_2026.py'
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_20261027.json
+          if [ ! -f "$OUT" ]; then
+            python3 gamepulse/fusion/igp_post_score_restart_75_2026.py --root . --out "$OUT"
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_20261027.json")
+          d=json.loads(p.read_text())
+          assert d["scoring_disputes"]==len(d["cases"])==75
+          assert d["physical_possessions_certified"]==0
+          assert all(c["physical_inbound_UTC_verified"] is False for c in d["cases"])
+          assert sum(d["status_counts"].values())==75
+          print("NBA_75_MADE_FG_TO_OPPONENT_RESTART_STATE_QA",json.dumps(d["status_counts"],sort_keys=True))
+          PY
       - name: Preserve private original source pointer index on canonical PR
         shell: bash
         run: |
@@ -382,6 +405,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_chain_tracking_interiors_36_acceptance.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_335_two_sided_source_control_transfer_brackets_36.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_possession_tracking_control_query_accepted.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_20261027.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
