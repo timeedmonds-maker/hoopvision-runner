@@ -367,14 +367,14 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/igp_post_score_restart_75_2026.py
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_post_score_restart_75_2026.py'
-          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_20261027.json
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_phase_20261027.json
           if [ ! -f "$OUT" ]; then
             python3 gamepulse/fusion/igp_post_score_restart_75_2026.py --root . --out "$OUT"
           fi
           python3 - <<'PY'
           import json
           from pathlib import Path
-          p=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_20261027.json")
+          p=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_phase_20261027.json")
           d=json.loads(p.read_text())
           assert d["scoring_disputes"]==len(d["cases"])==75
           assert d["physical_possessions_certified"]==0
@@ -448,7 +448,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_chain_tracking_interiors_36_acceptance.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_335_two_sided_source_control_transfer_brackets_36.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_possession_tracking_control_query_accepted.json
-          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_20261027.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_phase_20261027.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_query_state_overlay_acceptance.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
