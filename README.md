@@ -1,5 +1,8 @@
 # HoopVision Runner
 
+> **Integrated Pulse CPU execution boundary (28 Oct 2026):** source-native access is separate from strict acceptance. The private NBA tracking product now treats its conservative official NBA lineup/time acceptance subset as a research/quality cohort rather than a filter on the original captured source. Public CPU runners may verify private-source coverage and confidence strata **only** with the existing authorized ephemeral private checkout and source-integrity controls; original player/ball XYZ, proprietary actor traces, source data and detailed private candidate outputs must never be published here. Model promotions require private accepted QA. The private canonical PR documents the methodological decision; this public repository remains an orchestration layer only.
+
+
 Public-safe execution bridge for CourtCoder/HoopVision.
 
 This repository is **not** the product source and must never become a mirror of the private engine.
