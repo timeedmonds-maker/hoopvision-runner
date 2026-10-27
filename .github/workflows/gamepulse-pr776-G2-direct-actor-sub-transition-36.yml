@@ -43,6 +43,19 @@ jobs:
           python3 -m py_compile gamepulse/fusion/igp_g2_nba_substitution_direct_actor_transition_2026.py
           python3 -m unittest discover -s gamepulse/fusion/tests \
             -p 'test_igp_g2_source_exact_ten_substitution_transition_clock_2026.py' -v
+          python3 - <<'PY'
+          from igp_g2_nba_substitution_direct_actor_transition_2026 import source_side,evaluate_event
+          old=frozenset(str(i) for i in range(1,11))
+          new=(old-{"10"})|{"11"}
+          common=frozenset(str(i) for i in range(1,8))
+          def frame(t,ids):return (t,{a:[0,0,0] for a in ids})
+          events=[frame(4000,common|{"10"}),frame(4200,common|{"10"}),
+                  frame(5800,common|{"11"}),frame(6000,common|{"11"})]
+          q=evaluate_event((5000,1,660000,old,new),events,[x[0] for x in events],6)
+          assert q["grade"]=="NBA_UTC_INSIDE_SOURCE_PLAYER_ID_SWITCH_BRACKET",q
+          assert source_side(old|{"11"},old,new,6)=="UNKNOWN"
+          print("G2_DIRECT_ENTER_EXIT_SOURCE_FREE_SMOKE_PASS")
+          PY
       - name: Evaluate NBA original SDK incoming/outgoing player ID clock brackets for all36
         shell: bash
         run: |
