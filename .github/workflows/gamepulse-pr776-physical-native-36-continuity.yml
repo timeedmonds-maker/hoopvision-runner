@@ -265,6 +265,42 @@ jobs:
             test "$ok" -eq 1
             echo IGP_TRACKER_PILOT_PRIVATE_QA_PUBLISHED
           fi
+      - name: Evaluate official ten-player XYZ reconstruction for all 36 original NBA games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_official_ten_tracker_masked_gap_all36_v1.json
+          if [ ! -e "$OUT" ]; then
+            python3 gamepulse/fusion/igp_tracking_pilot_run_2026.py --root . --all-games --out "$OUT" > "$RUNNER_TEMP/36-tracker-eval-private.log"
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path("gamepulse/fusion/qa/igp_progress_20261027/igp_official_ten_tracker_masked_gap_all36_v1.json").read_text())
+          assert len(d["games"])==36
+          assert sum(g["source_frames"] for g in d["games"].values())==1203986
+          assert all(g["official_10"].get("eligible_frames",0)>0 for g in d["games"].values())
+          assert not d["player_XYZ_accuracy_independently_video_certified"]
+          print("IGP_TRACKING_36_GAME_SOURCE_QA_CHECKED",len(d["games"]))
+          PY
+          git config user.name 'Game Pulse Free CPU Runner'
+          git config user.email 'gamepulse-runner@users.noreply.github.com'
+          git add -f "$OUT"
+          if ! git diff --cached --quiet; then
+            git diff --cached --check
+            git commit -qm "qa(IGP): 36-game original ten-player tracker blocked-gap accuracy"
+            ok=0
+            for attempt in 1 2 3 4 5 6 7 8; do
+              if git push -q origin "HEAD:refs/heads/$B"; then ok=1; break; fi
+              git fetch -q origin "$B"
+              git rebase -q "origin/$B"
+              sleep "$attempt"
+            done
+            test "$ok" -eq 1
+          fi
+          echo IGP_TRACKER_36_GAME_ORIGINAL_SOURCE_QA_ACCEPTED_PRIVATE
       - name: Execute 36-game source-derived handler team possession changes and persist private QA
         shell: bash
         run: |
