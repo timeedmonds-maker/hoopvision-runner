@@ -382,6 +382,49 @@ jobs:
           assert sum(d["status_counts"].values())==75
           print("NBA_75_MADE_FG_TO_OPPONENT_RESTART_STATE_QA",json.dumps(d["status_counts"],sort_keys=True))
           PY
+      - name: Acceptance query scored and steal transition states on real frozen tracking
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_possession_tracking_with_control_brackets_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_query_igp_possession_tracking_with_control_brackets_2026.py'
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from query_igp_possession_tracking_with_control_brackets_2026 import query
+          test=[
+            ("0022600099","0022600099-P3-C0129","SCORING_PREDECESSOR"),
+            ("0022600099","0022600099-P3-C0130","LOGGED_NEXT_OPPONENT_CANDIDATE"),
+            ("0022600001","0022600001-P2-C0053","SCORING_PREDECESSOR"),
+            ("0022600001","0022600001-P2-C0054","LOGGED_NEXT_OPPONENT_CANDIDATE")]
+          tests=[]
+          for gid,cid,side in test:
+            x=query(Path("."),gid,cid)
+            states=[s for s in x["possession_live_dead_inbound_transition_evidence"]
+                    if s["source_kind"]=="MADE_FG_POST_SCORE_RESTART"]
+            assert any(s["relative_to_requested_NBA_chain"]==side for s in states)
+            assert all(not s["true_inbound_instant_verified"] for s in states)
+            tests.append({"game_id":gid,"chain":cid,"score_transitions":len(states),
+                          "expected_side":side,
+                          "direct_tracking_frames":x["candidate_tracking_counts"].get(
+                             "direct_ball_logged_frames",0)})
+          re=query(Path("."),"0022600001","0022600001-P1-C0005")
+          assert any(s["source_kind"]==
+            "NBA_DREB_OR_STEAL_WITH_TWO_NATIVE_CONTACT_EPISODES" for s in
+            re["possession_live_dead_inbound_transition_evidence"])
+          qa={"schema":"gamepulse.igp-75-score-state-one-canonical-query.acceptance.v1",
+               "real_original_source_queries":tests,
+               "old_to_new_steal_native_source_bracket_also_present":True,
+               "physical_possessions_certified":0}
+          p=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_query_state_overlay_acceptance.json")
+          if p.exists():assert json.loads(p.read_text())==qa
+          else:p.write_text(json.dumps(qa,sort_keys=True,indent=2)+"\\n")
+          print("NBA_POST_SCORE_CANONICAL_QUERY_STATE_QA",json.dumps({
+            "score_chain_queries":len(tests),"steal_query_verified":True,
+            "physical_possessions_certified":0},sort_keys=True))
+          PY
       - name: Preserve private original source pointer index on canonical PR
         shell: bash
         run: |
@@ -406,6 +449,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_335_two_sided_source_control_transfer_brackets_36.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_possession_tracking_control_query_accepted.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_20261027.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_query_state_overlay_acceptance.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
