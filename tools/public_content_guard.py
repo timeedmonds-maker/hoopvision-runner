@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-private-season43-integrity.yml",  # reviewed: private sparse-source SHA acceptance, aggregate-only logs
+    "tools/gamepulse_private_43_integrity_acceptance.py",  # reviewed: local SHA checks of licensed private views, no public data
     ".github/workflows/gamepulse-official-20261025-seven.yml",  # reviewed: official NBA seven-game PBP and advanced source private-only publication; no public artifacts
     ".github/workflows/gamepulse-pr776-realutc-chain-xyz-query.yml",  # reviewed SHA-guarded NBA real UTC chain source lookup, private coordinates only
     ".github/workflows/gamepulse-pr776-wallclock-native-possession-query.yml",  # reviewed private 36-game source UTC/native interval QA, metadata-only public stdout and private-only output
