@@ -30,7 +30,33 @@ jobs:
           set -euo pipefail
           test -n "$GH_TOKEN"
           # Only original NBA schedule; target range is bounded to these two US days.
-          curl -fsSL --retry 2 --max-time 35 -A 'Mozilla/5.0' -H 'Accept: application/json' -H 'Referer: https://www.nba.com/' 'https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json' -o "$RUNNER_TEMP/official-schedule.json"
+          node --input-type=module <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {parseSchedule} from './tools/licensed_feed/season_core.mjs';
+          const sources=[
+            ['modern','https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json'],
+            ['legacy','https://data.nba.com/data/10s/v2015/json/mobile_teams/nba/2026/league/00_full_schedule.json']
+          ];
+          const headers={'Accept':'application/json','User-Agent':'Mozilla/5.0',
+                         'Referer':'https://www.nba.com/'};
+          let selected=null;
+          for(const [kind,url] of sources){
+            try{
+              const r=await fetch(url,{headers,signal:AbortSignal.timeout(20000)});
+              if(!r.ok)continue;
+              const games=parseSchedule(await r.json(),kind);
+              if(!games.length)continue;
+              selected=games;
+              console.log('NBA_OFFICIAL_FINAL_SOURCE',kind,games.length);
+              break;
+            }catch{}
+          }
+          if(!selected)throw Error('NBA_OFFICIAL_FINAL_SCHEDULE_UNAVAILABLE');
+          const body={leagueSchedule:{gameDates:[{games:selected.map(g=>({
+            gameId:g.id,gameStatus:3,gameDateTimeUTC:new Date(g.start).toISOString()
+          }))}]}};
+          writeFileSync(process.env.RUNNER_TEMP+'/official-schedule.json',JSON.stringify(body));
+          JS
           python3 - <<'PY'
           from datetime import datetime,timezone
           from pathlib import Path
