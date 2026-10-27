@@ -79,31 +79,91 @@ def independent_nba():
     quarter action timestamps for gap diagnostics when NBA CDN blocks runner
     egress, but must never upgrade the original-source certification gate.
     """
-    from verify_gameplay import official
+    from urllib.request import Request, urlopen
     status = "unverified"
     periods = {p: [] for p in range(1, 5)}
+    live_evidence = {}
     try:
-        box = official("boxscore/boxscore_" + GAME + ".json").get("game") or {}
-        if str(box.get("gameId")) == GAME and str(box.get("gameStatus")) == "3":
-            status = "final"
-    except Exception:
-        pass
-    try:
-        game = official("playbyplay/playbyplay_" + GAME + ".json").get("game") or {}
-        if str(game.get("gameId")) == GAME:
-            for action in game.get("actions", []):
-                if not isinstance(action, dict):
-                    continue
-                period = action.get("period")
-                if period not in periods:
-                    continue
-                stamp = unix_ms(action.get("timeActual"))
-                if stamp is not None:
-                    periods[period].append(stamp)
-    except Exception:
-        pass
-    if status == "final" and all(periods.values()):
-        return status, periods, "LIVE_NBA_OFFICIAL"
+        # Read original response bytes, not the stored private derivative.
+        # Hash both NBA originals before parsing; never publish the payload.
+        def fetch_original(kind):
+            url = ("https://cdn.nba.com/static/json/liveData/" + kind + "/" +
+                   kind + "_" + GAME + ".json")
+            request = Request(url, headers={
+                "Accept": "application/json",
+                "Referer": "https://www.nba.com/",
+                "User-Agent": "Mozilla/5.0 (compatible; HoopVision NBA formal-source audit)",
+            })
+            with urlopen(request, timeout=25) as response:
+                if response.status != 200:
+                    raise RuntimeError("nba_original_http_not_200")
+                raw = response.read(2_000_001)
+            if not 200 < len(raw) <= 2_000_000:
+                raise RuntimeError("nba_original_size_invalid")
+            body = json.loads(raw)
+            if str((body.get("game") or {}).get("gameId")) != GAME:
+                raise RuntimeError("nba_original_game_id_invalid")
+            return body["game"], digest(raw)
+
+        box, box_sha = fetch_original("boxscore")
+        game, pbp_sha = fetch_original("playbyplay")
+        home, away = box.get("homeTeam") or {}, box.get("awayTeam") or {}
+        if not (str(box.get("gameStatus")) == "3" and
+                home.get("teamTricode") == "SAS" and home.get("score") == 110 and
+                away.get("teamTricode") == "HOU" and away.get("score") == 114):
+            raise RuntimeError("nba_original_final_score_invalid")
+        actions = game.get("actions")
+        if not isinstance(actions, list) or len(actions) < 500:
+            raise RuntimeError("nba_original_action_count_insufficient")
+        seen = set()
+        for action in actions:
+            if not isinstance(action, dict):
+                raise RuntimeError("nba_original_action_invalid")
+            number = action.get("actionNumber")
+            if type(number) is not int or number in seen:
+                raise RuntimeError("nba_original_action_id_invalid")
+            seen.add(number)
+            period = action.get("period")
+            if period not in periods:
+                continue
+            stamp = unix_ms(action.get("timeActual"))
+            if stamp is not None:
+                periods[period].append(stamp)
+        if not all(periods.values()):
+            raise RuntimeError("nba_original_quarter_utc_missing")
+        status = "final"
+        live_evidence = {
+            "nba_pbp_sha256": pbp_sha,
+            "nba_boxscore_sha256": box_sha,
+            "nba_original_action_count": len(actions),
+            "nba_original_action_id_unique": True,
+            "source": "LIVE_NBA_OFFICIAL_RAW_BYTES",
+            "stored_pbp_source_sha256_match": None,
+        }
+        # Compare to the previously stored original-source digest, not a
+        # regenerated digest of the normalized derivative. A mismatch must
+        # remain visible rather than silently replacing either source.
+        import base64
+        path = f"gamepulse/fusion/official_pbp_timing/games/{GAME}.json"
+        response = json.loads(gh("api", f"repos/{REPO}/contents/{path}?ref=main"))
+        stored = base64.b64decode(response["content"])
+        blob_sha = hashlib.sha1(
+            b"blob " + str(len(stored)).encode() + b"\0" + stored
+        ).hexdigest()
+        if blob_sha != response.get("sha"):
+            raise RuntimeError("private_nba_reference_blob_sha_mismatch")
+        provenance = (json.loads(stored).get("source_provenance") or {})
+        expected = provenance.get("nba_pbp_sha256")
+        if not isinstance(expected, str) or len(expected) != 64:
+            raise RuntimeError("private_nba_reference_source_sha_missing")
+        live_evidence["stored_pbp_source_sha256_match"] = (pbp_sha == expected)
+        return status, periods, "LIVE_NBA_OFFICIAL", live_evidence
+    except Exception as exc:
+        # A fresh-source failure never promotes the stored PBP derivative.
+        # Preserve any source hashes for diagnosis without treating them as QA.
+        print("LIVE_NBA_ORIGINAL_SOURCE_UNVERIFIED", type(exc).__name__)
+        status = "unverified"
+        periods = {p: [] for p in range(1, 5)}
 
     # Only a private canonical 104 artifact is allowed here. No public data,
     # licensed positions, or original action payloads enter public logs.
@@ -138,11 +198,11 @@ def independent_nba():
                 stored[period].append(stamp)
         if not all(stored.values()):
             raise RuntimeError("private_nba_reference_periods_missing")
-        return "final", stored, "PRIVATE_NBA_PBP_DERIVED_NOT_FRESH"
+        return "final", stored, "PRIVATE_NBA_PBP_DERIVED_NOT_FRESH", live_evidence
     except Exception as exc:
         # Do not suppress malformed evidence; this is a diagnostic fallback.
         print("PRIVATE_NBA_REFERENCE_FALLBACK_UNAVAILABLE", type(exc).__name__)
-        return status, periods, "LIVE_NBA_INCOMPLETE"
+        return status, periods, "LIVE_NBA_INCOMPLETE", live_evidence
 
 
 def frame_position_presence(positions):
@@ -280,7 +340,7 @@ def audit():
                 total_windows != EXPECTED_WINDOWS):
             raise RuntimeError("completion_marker_count_invalid")
 
-    official_status, official_periods, reference_origin = independent_nba()
+    official_status, official_periods, reference_origin, live_source_evidence = independent_nba()
     sorted_players = sorted(player_timestamps)
     quarter_qa = {}
     for period, times in official_periods.items():
@@ -345,6 +405,7 @@ def audit():
         "independent_nba_final_status": official_status,
         "nba_action_reference_origin": reference_origin,
         "nba_action_reference_is_fresh_original": reference_origin == "LIVE_NBA_OFFICIAL",
+        "fresh_original_nba_source": live_source_evidence,
         "independent_nba_quarter_action_coverage": quarter_qa,
         "observed_original_source_5s_bin_diagnostics": {
             "entire_capture": entire_capture_slots,
@@ -383,6 +444,10 @@ def original_qa_blocker_codes(report):
     codes = []
     if report.get("nba_action_reference_origin") != "LIVE_NBA_OFFICIAL":
         codes.append("FRESH_NBA_ACTION_SOURCE_NOT_VERIFIED")
+    else:
+        evidence = report.get("fresh_original_nba_source") or {}
+        if evidence.get("stored_pbp_source_sha256_match") is not True:
+            codes.append("FRESH_NBA_PBP_SHA_NOT_MATCHED_TO_STORED_ORIGINAL")
     if report.get("independent_nba_final_status") != "final":
         codes.append("OFFICIAL_FINAL_NOT_VERIFIED")
     quarters = report.get("independent_nba_quarter_action_coverage") or {}
