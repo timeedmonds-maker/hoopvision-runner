@@ -68,7 +68,7 @@ jobs:
           cd "$SOURCE_ROOT"
           export PYTHONPATH=gamepulse/fusion
           OUT="gamepulse/fusion/materialized/igp_per_actor_G1_20261028/$GID.jsonl.gz"
-          QA="gamepulse/fusion/qa/igp_progress_20261028/igp_original_per_actor_G1_$GID_v1.json"
+          QA="gamepulse/fusion/qa/igp_progress_20261028/igp_original_per_actor_G1_${GID}_v1.json"
           test ! -e "$OUT"
           test ! -e "$QA"
           python3 gamepulse/fusion/igp_original_per_actor_lineage_G1_2026.py \
@@ -102,7 +102,7 @@ jobs:
           set -euo pipefail
           cd "$SOURCE_ROOT"
           OUT="gamepulse/fusion/materialized/igp_per_actor_G1_20261028/$GID.jsonl.gz"
-          QA="gamepulse/fusion/qa/igp_progress_20261028/igp_original_per_actor_G1_$GID_v1.json"
+          QA="gamepulse/fusion/qa/igp_progress_20261028/igp_original_per_actor_G1_${GID}_v1.json"
           git config user.name "Game Pulse private source QA"
           git config user.email "gamepulse-integrity@users.noreply.github.com"
           git add -f "$OUT" "$QA"
