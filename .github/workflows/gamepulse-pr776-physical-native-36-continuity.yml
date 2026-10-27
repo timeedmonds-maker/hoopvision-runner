@@ -48,6 +48,20 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/igp_ball_handler_team_transitions_2026.py gamepulse/fusion/igp_automatic_possession_boundary_fusion_2026.py
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p test_igp_ball_handler_team_transitions_2026.py
+          ACCEPTED=gamepulse/fusion/qa/igp_progress_20261027/igp_handler_team_all36_source_qa.json
+          if [ -e "$ACCEPTED" ]; then
+            python3 - "$ACCEPTED" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          assert x["schema"]=="gamepulse.igp-original-handler-team-source36-qa.v1"
+          assert x["source_games"]==36 and len(x["games"])==36
+          assert x["total"]["original_native_frames"]==1203986
+          assert x["total"]["NBA_candidate_chains"]==7199
+          assert x["independently_certified_physical_possessions"]==0
+          print("IGP_EXISTING_36_SPATIAL_ACCEPTANCE_REUSED")
+          PY
+            exit 0
+          fi
           python3 gamepulse/fusion/igp_automatic_possession_boundary_fusion_2026.py \
             --root . --game-ids all --team-control-changes \
             --out "$RUNNER_TEMP/igp-handler-all36.json"
@@ -99,6 +113,10 @@ jobs:
           git config user.name 'Game Pulse Free CPU Runner'
           git config user.email 'gamepulse-runner@users.noreply.github.com'
           git add -f "$OUT"
+          if git diff --cached --quiet; then
+            echo IGP_EXISTING_SPATIAL_QA_UNCHANGED
+            exit 0
+          fi
           git diff --cached --check
           git commit -qm "qa(igp): execute original ball-handler team changes across 36 NBA games"
           for attempt in 1 2 3 4 5 6 7 8; do
