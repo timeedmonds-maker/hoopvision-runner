@@ -354,7 +354,7 @@ jobs:
              "physical_possessions_certified":0}
           p=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_possession_tracking_control_query_accepted.json")
           if p.exists(): assert json.loads(p.read_text())==qa
-          else: p.write_text(json.dumps(qa,sort_keys=True,indent=2)+"\\n")
+          else: p.write_text(json.dumps(qa,sort_keys=True,indent=2)+"\n")
           print("IGP_PRODUCTION_POSSESSION_QUERY_WITH_NATIVE_CONTROL_ACCEPTED",
             json.dumps({"real_cases":len(results),"two_sided_first_chain":results[0]["two_sided_brackets"],
                         "certified_physical_possessions":0},sort_keys=True))
