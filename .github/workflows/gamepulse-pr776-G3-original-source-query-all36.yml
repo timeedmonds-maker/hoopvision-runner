@@ -1,0 +1,101 @@
+name: PR776 G3 source wide NBA original and private reconstructed player ball query all36
+on:
+  push:
+    branches: [research/pr776-trusted-igp-runner-20261028]
+    paths:
+      - '.github/workflows/gamepulse-pr776-G3-original-source-query-all36.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr776-G3-original-player-ball-query-36
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public confidentiality and obtain SHA-pinned original NBA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Source-free original vs inferred NBA G3 overlay integrity regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile \
+            gamepulse/fusion/igp_g3_short_gap_source_query_2026.py \
+            gamepulse/fusion/igp_g3_original_short_gap_query_acceptance_2026.py \
+            gamepulse/fusion/query_igp_original_full_native_source_2026.py
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_g3_short_gap_source_query_2026.py' -v
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_g3_short_gap_reconstruction_2026.py' -v
+          echo G3_ORIGINAL_SOURCE_QUERY_UNIT_TESTS_PASS
+      - name: SHA check full36 original NBA SDK XYZ G1 actor provenance and G3 separately graded inferred source
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_G3_original_short_natural_G1_query_all36_v1.json
+          test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_g3_original_short_gap_query_acceptance_2026.py \
+            --root . --out "$OUT" > "$RUNNER_TEMP/private-G3-query-36.log"
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]));c=a["counts"]
+          assert a["source_games"]==36
+          assert c["games"]==36
+          assert c["readback_player"]==36
+          assert c["readback_ball"]==36
+          assert a["original_NBA_SDK_player_ball_XYZ_accepted_unchanged"]
+          assert a["original_G1_per_actor_source_keyframe_sha_provenance_preserved"]
+          assert a["G2_official_NBA_PBP_lineup_roster_unchanged"]
+          assert a["derived_player_ball_positions_separate_from_original_XYZ"]
+          assert a["physical_ball_custody_not_certified"]
+          print("G3_ORIGINAL_SOURCE_NBA_G1_G2_DERIVED_PLAYER_BALL_36_ACCEPTED",
+             json.dumps({"games":36,"readbacks":c["readback_player"]+c["readback_ball"],
+               "original_total_native":a["accepted_G3_total_fill_counts"]["native_frames"],
+               "reconstructed_player_positions":sum(a["accepted_G3_total_fill_counts"].get("filled_player_"+x,0) for x in ("STRICT","LONG","SUB")),
+               "reconstructed_ball_positions":sum(a["accepted_G3_total_fill_counts"].get("filled_ball_"+x,0) for x in ("STRICT","LONG","SUB"))},sort_keys=True))
+          PY
+      - name: Commit private accepted source G3 original+derived player ball query receipts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_G3_original_short_natural_G1_query_all36_v1.json
+          git config user.name "Game Pulse NBA G3 Original Source QA"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f "$OUT"
+          test "$(git diff --cached --name-only)" = "$OUT"
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): accept 36 game original SDK and separately graded G3 player/ball XYZ native query G1 SHA lineage"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH";then
+              echo G3_ORIGINAL_SOURCE_PLAYER_BALL_QUERY_36_PRIVATE_ACCEPTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 13
