@@ -83,6 +83,16 @@ jobs:
                   pass
               else:
                   raise AssertionError("certification promotion must fail")
+          for key, bad_value in (("game_id", "OTHER_GAME"),
+                                 ("source_parts_sha256_verified", 12),
+                                 ("source_windows_sha256_verified", 3719)):
+              invalid = dict(minimal, **{key: bad_value})
+              try:
+                  private_qa_payload(json.dumps(invalid).encode())
+              except RuntimeError:
+                  pass
+              else:
+                  raise AssertionError("unverified source scope must fail")
           print('ORIGINAL_TEMPORAL_QA_SYNTHETIC_PASS')
           PY
   private-qa:
