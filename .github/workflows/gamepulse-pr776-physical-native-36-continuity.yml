@@ -177,6 +177,55 @@ jobs:
               sleep "$attempt"
             done
           fi
+      - name: Accept PBP-first logical possession identity in the existing canonical tracking query
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_possession_tracking_with_control_brackets_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_query_igp_possession_tracking_with_control_brackets_2026.py'
+          python3 - <<'PY'
+          import json,collections
+          from pathlib import Path
+          from query_igp_possession_tracking_with_control_brackets_2026 import query
+          from universal_possession_alignment_2026 import event_chain
+          from query_igp_wallclock_season_frame_index_2026 import load
+          base=Path("gamepulse/fusion")
+          games=["0022600001","0022600009","0022600099"]
+          cases=[(games[0],games[0]+"-P1-C0006"),
+                 (games[1],games[1]+"-P1-C0003"),
+                 (games[2],games[2]+"-P3-C0129")]
+          checked=[]
+          for gid,cid in cases:
+              r=query(Path("."),gid,cid)
+              logical=r["official_NBA_logical_possession"]
+              assert logical["chain_id"]==cid
+              assert logical["offense_team"]==r["NBA_offense_team"]
+              assert set(r["NBA_source_actions"]).issubset(set(logical["official_action_ids"]))
+              assert logical["recorded_event_chain_not_certified_physical_custody"]
+              assert not logical["reconstructed_from_contact_proximity"]
+              assert r["candidate_tracking_counts"]["unique_NBA_logged_frames"]>0
+              checked.append({"game":gid,"chain":cid,
+                  "points":logical["official_points"],
+                  "official_terminal_reason":logical["official_terminal_reason"],
+                  "native_source_frames":r["candidate_tracking_counts"]["unique_NBA_logged_frames"]})
+          idx,_=load(Path("."),base/"materialized/igp_official_realworld_utc_36_v1/index.json")
+          assert len(idx["games"])==36
+          total=0
+          for gid in sorted(idx["games"]):
+              pbp,_=load(Path("."),base/"official_pbp_timing/games"/(gid+".json"))
+              e=event_chain(pbp)
+              assert e["chain_count"]==len(e["chains"])>0
+              total+=e["chain_count"]
+          assert total==7474,("UNEXPECTED_OFFICIAL_LOGICAL_CHAIN_DENOMINATOR",total)
+          print("PBP_FIRST_EXISTING_POSSESSION_AND_TRACKING_QUERY_REAL_SOURCE_ACCEPTED",
+                json.dumps({"real_games_checked":len(games),
+                            "source_games_with_ordered_logical_possessions":36,
+                            "official_event_chains":total,
+                            "three_real_tracking_queries":checked,
+                            "physical_possessions_certified":0},sort_keys=True))
+          PY
       - name: Test canonical NBA possession query with original native lastTouch evidence
         shell: bash
         run: |
