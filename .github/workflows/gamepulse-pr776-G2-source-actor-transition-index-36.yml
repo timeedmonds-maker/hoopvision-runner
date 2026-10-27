@@ -82,7 +82,7 @@ jobs:
             assert hashlib.sha256(x).hexdigest()==v["sha256"]
             lines=gzip.decompress(x).splitlines()
             assert len(lines)==v["event_count"]
-            assert all(json.loads(line)["NBA_official_substitution_timestamp_reassigned"] is False for line in lines)
+            assert all(json.loads(line)["official_NBA_substitution_timestamp_reassigned"] is False for line in lines)
           assert q["original_NBA_SDK_XYZ_unchanged"]
           assert q["prior_NBA_PBP_official_event_UTC_and_roster_unchanged"]
           assert q["source_enter_exit_event_grades_are_not_global_clock_corrections"]
