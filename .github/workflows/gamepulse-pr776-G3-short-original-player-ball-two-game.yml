@@ -1,0 +1,108 @@
+name: PR776 G3 original NBA short natural player Model B plus separate ball two-game pilot
+on:
+  push:
+    branches: [research/pr776-trusted-igp-runner-20261028]
+    paths:
+      - '.github/workflows/gamepulse-pr776-G3-short-original-player-ball-two-game.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr776-G3-private-short-natural-two-game
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        game: ['0022600009','0022600092']
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      GID: ${{ matrix.game }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce trusted public content guard and obtain private NBA SHA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Compile and test NBA original source G3 player and ball natural gap inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_g3_short_gap_reconstruction_2026.py
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_g3_short_gap_reconstruction_2026.py' -v
+          echo G3_SOURCE_FREE_SHORT_NATURAL_PLAYER_BALL_TESTS_PASS
+      - name: Source-backed natural missing-slot completion and held-out original-coordinate error
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          OUT="gamepulse/fusion/materialized/igp_g3_short_natural_model_b_v1/${GID}.jsonl.gz"
+          QA="gamepulse/fusion/qa/igp_progress_20261028/igp_G3_original_short_natural_${GID}_v1.json"
+          test ! -e "$QA" && test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_g3_short_gap_reconstruction_2026.py \
+            --root . --game-id "$GID" --out "$OUT" --receipt "$QA" > "$RUNNER_TEMP/private-G3-${GID}.log"
+          python3 - "$QA" "$OUT" <<'PY'
+          import hashlib,json,sys
+          q=json.load(open(sys.argv[1]))
+          n=q["counts"]
+          assert hashlib.sha256(open(sys.argv[2],"rb").read()).hexdigest()==q["private_derived_source_gap_sha256"]
+          assert q["original_NBA_SDK_XYZ_authoritative_and_unchanged"]
+          assert q["NBA_official_PBP_roster_unchanged"]
+          assert q["source_actor_disputes_abstained"]
+          assert q["interpolated_coordinates_are_derived_not_original_source"]
+          assert sum(n.get("source_frame_"+x,0) for x in ("STRICT","LONG","SUB","NO_G2_ROSTER"))==n["native_frames"]
+          assert n.get("source_frame_STRICT",0)>0
+          assert n.get("filled_player_STRICT",0)>0
+          assert n.get("holdout_matched_player_STRICT",0)>0
+          print("G3_TWO_GAME_NATIVE_SHORT_GAP_ACCEPTANCE",json.dumps({
+            "game":q["game_id"],"native_frames":n["native_frames"],
+            "filled_player_strict":n.get("filled_player_STRICT",0),
+            "filled_player_long":n.get("filled_player_LONG",0),
+            "filled_player_sub":n.get("filled_player_SUB",0),
+            "filled_ball_strict":n.get("filled_ball_STRICT",0),
+            "masked_original_errors_ft":q["masked_original_error_ft"]
+          },sort_keys=True))
+          PY
+      - name: Preserve and publish only private derived G3 XYZ and aggregate QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          OUT="gamepulse/fusion/materialized/igp_g3_short_natural_model_b_v1/${GID}.jsonl.gz"
+          QA="gamepulse/fusion/qa/igp_progress_20261028/igp_G3_original_short_natural_${GID}_v1.json"
+          git config user.name "Game Pulse Private NBA Source G3 QA"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f "$OUT" "$QA"
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): original NBA SDK G3 native short Model B/ball derived XYZ pilot $GID"
+          for ATTEMPT in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo PRIVATE_G3_NATURAL_PLAYER_BALL_SOURCE_QA_COMMITTED
+              exit 0
+            fi
+            sleep "$ATTEMPT"
+          done
+          exit 13
