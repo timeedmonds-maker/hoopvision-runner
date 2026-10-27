@@ -86,6 +86,50 @@ jobs:
             test "$accepted" -eq 1
             echo IGP_FULL_ORIGINAL_PLAYER_ID_36_PRIVATE_QA_PUBLISHED
           fi
+      - name: Verify NBA official named PBP player IDs are present in original XYZ near action UTC
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_audit_original_actor_ids_vs_pbp_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+            -p 'test_igp_audit_original_actor_ids_vs_pbp_2026.py'
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_original_actor_ids_vs_pbp_36_source_qa.json
+          if [ ! -e "$OUT" ]; then
+            python3 gamepulse/fusion/igp_audit_original_actor_ids_vs_pbp_2026.py \
+              --root . --out "$OUT"
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          qa=json.loads(Path("gamepulse/fusion/qa/igp_progress_20261027/igp_original_actor_ids_vs_pbp_36_source_qa.json").read_bytes())
+          assert qa["schema"]=="gamepulse.igp-official-PBP-actor-vs-original-native-XYZ-identity-36.v1"
+          assert qa["source_games"]==36 and len(qa["games"])==36
+          assert qa["counts"]["eligible_PBP_actor_events"]>5000
+          assert qa["no_original_coordinates_written_to_QA"] is True
+          print("PR776_FULL_36_SOURCE_ACTOR_ID_QA_ACCEPTED_PRIVATE_ONLY")
+          PY
+          git config user.name 'Game Pulse Free CPU Runner'
+          git config user.email 'gamepulse-runner@users.noreply.github.com'
+          git add -f "$OUT"
+          if git diff --cached --quiet; then
+            echo IGP_ORIGINAL_ACTOR_ID_QA_ALREADY_PUBLISHED
+          else
+            git diff --cached --check
+            git commit -qm "qa(igp): check PBP actor ID versus direct original SDK XYZ 36-game source"
+            published=0
+            for attempt in 1 2 3 4 5 6 7 8; do
+              if git push -q origin "HEAD:refs/heads/$B"; then
+                published=1;break
+              fi
+              git fetch -q origin "$B"
+              git rebase -q "origin/$B"
+              sleep "$attempt"
+            done
+            test "$published" -eq 1
+            echo PR776_ACTOR_ID_36_SOURCE_AUDIT_PRIVATE_PUBLISHED
+          fi
       - name: Execute 36-game source-derived handler team possession changes and persist private QA
         shell: bash
         run: |
