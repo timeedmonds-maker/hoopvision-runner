@@ -181,6 +181,48 @@ jobs:
             test "$published" -eq 1
             echo PR776_PHOENIX_ORIGINAL_RAW_SLOT_ID_QA_PRIVATE_PUBLISHED
           fi
+      - name: Accept user-approved game-local original player ID correction privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_source_player_id_corrections_2026.py'
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_player_id_integrity_view_2026.py'
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_official_ten_source_view_2026.py'
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_phoenix_booker_game_only_derived_ID_correction_acceptance.json
+          if [ ! -e "$OUT" ]; then
+            python3 gamepulse/fusion/igp_accept_phoenix_booker_id_correction_2026.py \
+              --root . --out "$OUT" > "$RUNNER_TEMP/approved-identity-QA-private.log"
+          fi
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          assert x["schema"]=="gamepulse.phoenix-Booker-user-approved-original-ID-correction-acceptance.v1"
+          assert x["all_ball_player_coordinates_and_UTC_unchanged"]
+          assert x["all_36_game_original_source_data_preserved"]
+          print("IGP_APPROVED_DERIVED_PLAYER_ID_ACCEPTANCE_PRIVATE_SOURCE_VERIFIED")
+          PY
+          git config user.name 'Game Pulse Free CPU Runner'
+          git config user.email 'gamepulse-runner@users.noreply.github.com'
+          git add -f "$OUT"
+          if git diff --cached --quiet; then
+            echo IGP_APPROVED_ID_ACCEPTANCE_ALREADY_PRIVATE
+          else
+            git diff --cached --check
+            git commit -qm "qa(igp): accept game-scoped official player ID source correction"
+            published=0
+            for attempt in 1 2 3 4 5 6 7 8; do
+              if git push -q origin "HEAD:refs/heads/$B"; then
+                published=1;break
+              fi
+              git fetch -q origin "$B"
+              git rebase -q "origin/$B"
+              sleep "$attempt"
+            done
+            test "$published" -eq 1
+            echo IGP_GAME_SCOPED_PLAYER_ID_CORRECTION_ACCEPTED_PRIVATE
+          fi
       - name: Execute 36-game source-derived handler team possession changes and persist private QA
         shell: bash
         run: |
