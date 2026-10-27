@@ -280,6 +280,30 @@ jobs:
                           "possession_qa_state"):
                   if key in previous_status and key not in state:
                       state[key]=previous_status[key]
+              # The accepted NBA Oct26 extension is an independent official
+              # PBP/boxscore authority, not an SDK-frame clock certification.
+              # Report its coverage ONLY for verified catalog members.
+              uri=("repos/timeedmonds-maker/104/contents/gamepulse/fusion/"
+                   "official_pbp_timing/index-2026-27-through-20261026.json?ref=main")
+              response=subprocess.run(["gh","api",uri],capture_output=True,text=True)
+              if response.returncode==0:
+                  source=json.loads(base64.b64decode(json.loads(response.stdout)["content"]))
+                  indexed=json.loads((folder/"gamepulse-catalog.json").read_text())["games"]
+                  rows=source.get("games",{})
+                  assert source.get("game_count")==52 and len(rows)==52
+                  assert set(indexed).issubset(rows),"OFFICIAL_52_NBA_PBP_CATALOG_COVERAGE_MISMATCH"
+                  assert all(len(row.get("source_pbp_sha256",""))==64 and
+                             len(row.get("source_boxscore_sha256",""))==64 and
+                             row.get("action_records",0)>=300 and
+                             row.get("official_final")
+                             for gid,row in rows.items() if gid in indexed), "OFFICIAL_NBA_SOURCE_GRADE_DRIFT"
+                  state["official_pbp_verified_games"]=len(indexed)
+                  state["official_pbp_index"]="gamepulse/fusion/official_pbp_timing/index-2026-27-through-20261026.json"
+                  state["possession_qa_state"]=(
+                      f"OFFICIAL_NBA_PBP_{len(indexed)}_OF_{len(indexed)};"
+                      f"SDK_TRACKING_BLUEPRINT_{m['game_count']}_OF_{m['game_count']};"
+                      "ORIGINAL_PBP_EVENT_TIMING_IS_NOT_PHYSICAL_CONTROL;"
+                      "PHYSICAL_POSSESSION_CHAINS_0_CERTIFIED")
               payload["content"]=base64.b64encode((json.dumps(state,indent=2)+"\n").encode()).decode()
               payload["sha"]=saved["sha"]
           elif previous.returncode!=1:raise RuntimeError("private_status_lookup_failed")
