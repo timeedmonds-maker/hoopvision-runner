@@ -1,5 +1,5 @@
 name: Game Pulse Blueprint private fusion searchable x-man warehouse
-# 2026-10-26: original SDK season catch-up from 28 to 36 verified archived games, keep private source and old scientific gates.
+# Original SDK season catalog may grow beyond 36 games; preserve source QA and existing validated snapshots.
 # Recheck SHA-safe GitHub private archive writes and ON/OFF WOWY source-gated PPP.
 # Public runner CPU only. Licensed XYZ and all generated outputs go exclusively
 # to PRIVATE 104 Releases; no public artifacts or data-bearing logs.
@@ -32,7 +32,7 @@ jobs:
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN" || { echo 'PRIVATE_FUSION_CREDENTIAL_UNAVAILABLE'; exit 3; }
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
-      - name: Gate on verified 36-game original SDK catalog; do not rebuild earlier validated snapshot
+      - name: Gate on verified growing original SDK catalog; preserve existing validated snapshot
         id: ready
         shell: bash
         run: |
@@ -41,21 +41,29 @@ jobs:
           test -n "$GH_TOKEN"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-auto-refresh-provisional.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season36-catalog.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/index.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season36-existing.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tracking_onoff/index.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season-onoff-existing.json"
           python3 - <<'PY'
           import json,os
           from pathlib import Path
           root=Path(os.environ["RUNNER_TEMP"])
           cat=json.loads((root/"season36-catalog.json").read_text())
           old=json.loads((root/"season36-existing.json").read_text())
+          onoff=json.loads((root/"season-onoff-existing.json").read_text())
           expected=set(["0022600104","0022600105","0022600106","0022600107","0022600108","0022600109","0022600110","0022600111"])
-          assert cat["season"]=="2026-27" and cat["game_count"]==36
-          assert len(cat["games"])==36 and expected.issubset(cat["games"])
+          assert cat["season"]=="2026-27" and cat["game_count"]==len(cat["games"]) and cat["game_count"]>=36
+          assert expected.issubset(cat["games"])
           assert all(g["index_state"]=="VERIFIED_ARCHIVE_INDEX" and g.get("source_signature")
                      for g in cat["games"].values()), "UNCERTIFIED_ARCHIVE_IN_CATALOG"
           assert set(old["games"]).issubset(cat["games"]) and len(old["games"])>=28, "EXISTING_INDEX_NOT_PRESERVED"
-          print("36_GAME_PRIVATE_SOURCE_GATE_PASSED",len(old["games"]),"existing",len(cat["games"]),"verified")
+          assert onoff["schema"]=="gamepulse.2026-27-onoff-ppp.v1"
+          assert set(onoff["games"]).issubset(cat["games"]), "ONOFF_INDEX_CONTAINS_UNVERIFIED_GAME"
+          # Do not silently skip 43-game rebuilding while a downstream private
+          # tracking ON/OFF index remains stuck at the old 36-game snapshot.
+          complete=(set(old["games"])==set(cat["games"])
+                    and set(onoff["games"])==set(cat["games"]))
+          print("PRIVATE_SOURCE_GATE_PASSED",len(old["games"]),"search",len(onoff["games"]),"onoff",len(cat["games"]),"verified", "complete",complete)
           with open(os.environ["GITHUB_OUTPUT"],"a") as handle:
-              handle.write("needed="+("false" if len(old["games"])==36 else "true")+"\n")
+              handle.write("needed="+("false" if complete else "true")+"\n")
           PY
       - name: Download private integration code and run synthetic tests
         if: steps.ready.outputs.needed == 'true'
@@ -96,11 +104,11 @@ jobs:
           assert db.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
           games=db.execute("SELECT COUNT(*) FROM games").fetchone()[0]
           rows=db.execute("SELECT COUNT(*) FROM frames").fetchone()[0]
-          assert games==36 and rows>900000
+          assert games==len(json.loads((folder/"gamepulse-catalog.json").read_text())["games"]) and rows>900000
           assert db.execute("SELECT COUNT(*) FROM lineups_xman WHERE x BETWEEN 1 AND 5").fetchone()[0]>0
           db.close()
           report=json.loads((folder/"gamepulse-fusion.sqlite3.manifest.json").read_text())
-          assert report["game_count"]==games and len(report["game_coverage"])==36
+          assert report["game_count"]==games and len(report["game_coverage"])==games
           assert report["total_frames"]==rows
           assert report["canonical_source_verified"]>=14, "ORIGINAL_14_BLUEPRINT_SOURCE_LOST"
           assert report["canonical_source_deferred"]<=games-14, "ORIGINAL_14_BLUEPRINT_SOURCE_DEFERRED"
@@ -153,7 +161,7 @@ jobs:
           root=Path(os.environ["RUNNER_TEMP"])/"gamepulse-fusion/search-views"
           manifest=json.loads((root/"index.json").read_text())
           assert manifest["schema"]=="gamepulse.blueprint-chat-search.v1"
-          assert len(manifest["games"])==36 and "0022600111" in manifest["games"]
+          assert len(manifest["games"])==len(json.loads((root.parent/"gamepulse-catalog.json").read_text())["games"]) and "0022600111" in manifest["games"]
           assert manifest["contains_raw_XYZ"] is False
           files=[(root/(gid+".json"),entry["path"])
                  for gid,entry in sorted(manifest["games"].items())]
@@ -190,7 +198,7 @@ jobs:
           root=Path(os.environ["RUNNER_TEMP"])/"gamepulse-fusion/onoff"
           m=json.loads((root/"index.json").read_text())
           assert m["schema"]=="gamepulse.2026-27-onoff-ppp.v1"
-          assert len(m["games"])==36 and "0022600111" in m["games"]
+          assert len(m["games"])==len(json.loads((root.parent/"gamepulse-catalog.json").read_text())["games"]) and "0022600111" in m["games"]
           assert m["xman_onoff_rows"]>=11104
           assert m["native_5v5_samples"]>=144442
           assert m["no_fabrication"] is True
