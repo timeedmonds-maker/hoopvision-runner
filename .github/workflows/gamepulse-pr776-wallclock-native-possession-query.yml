@@ -297,7 +297,7 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/igp_disputed_native_control_transfer_36_2026.py
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_disputed_native_control_transfer_36_2026.py'
-          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_335_native_control_gain_candidates_competitor_checked_36.json
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_335_two_sided_source_control_transfer_brackets_36.json
           if [ ! -e "$OUT" ]; then
             python3 gamepulse/fusion/igp_disputed_native_control_transfer_36_2026.py --root . --out "$OUT"
           fi
@@ -338,7 +338,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_p2_first_rebound_broadcast_visual_36.json
           git add -f gamepulse/fusion/materialized/igp_provisional_chain_tracking_interiors_36_v1
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_chain_tracking_interiors_36_acceptance.json
-          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_335_native_control_gain_candidates_competitor_checked_36.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_335_two_sided_source_control_transfer_brackets_36.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
