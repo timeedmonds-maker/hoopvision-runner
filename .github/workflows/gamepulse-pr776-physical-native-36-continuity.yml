@@ -301,6 +301,49 @@ jobs:
             test "$ok" -eq 1
           fi
           echo IGP_TRACKER_36_GAME_ORIGINAL_SOURCE_QA_ACCEPTED_PRIVATE
+      - name: Verify Game Pulse real-world court calibration and publish 36-game reconstruction error in feet
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_tracking_court_units_2026.py'
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_tracking_court_calibrated_36_2026.py'
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_tracking_court_calibrated_all36_v1.json
+          if [ ! -e "$OUT" ]; then
+            python3 gamepulse/fusion/igp_tracking_court_calibrated_36_2026.py --root . --out "$OUT"
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path("gamepulse/fusion/qa/igp_progress_20261027/igp_tracking_court_calibrated_all36_v1.json").read_text())
+          assert q["schema"]=="gamepulse.igp-court-calibrated-tracker-36-game-benchmark.v1"
+          assert q["games"]==36 and q["court_geometry_feet"]["original_SDK_XY_units_per_foot"]==12
+          assert q["source_frame_population"]["source_frames"]==1203986
+          assert q["source_frame_population"]["stable_lineup_eligible_frames"]==412619
+          assert q["blocked_holdout"]["500"]["B_positions_reconstructed"]==534383
+          assert q["blocked_holdout"]["500"]["B_per_game_p95_error_ft_max"]<1.0
+          assert q["original_positions_are_realworld_court_calibrated"]
+          print("IGP_COURT_CALIBRATED_36_REAL_SOURCE_QA_ACCEPTED")
+          PY
+          git config user.name 'Game Pulse Free CPU Runner'
+          git config user.email 'gamepulse-runner@users.noreply.github.com'
+          git add -f "$OUT"
+          if git diff --cached --quiet; then
+            echo IGP_COURT_CALIBRATION_36_QA_ALREADY_COMMITTED
+          else
+            git diff --cached --check
+            git commit -qm "qa(IGP): accept original court-foot calibrated tracker benchmark across 36 games"
+            ok=0
+            for attempt in 1 2 3 4 5 6 7 8; do
+              if git push -q origin "HEAD:refs/heads/$B"; then ok=1; break; fi
+              git fetch -q origin "$B"
+              git rebase -q "origin/$B"
+              sleep "$attempt"
+            done
+            test "$ok" -eq 1
+            echo IGP_TRACKER_CALIBRATED_FEET_QA_PRIVATE_PUBLISHED
+          fi
       - name: Accept complete original 10-player-plus-ball reconstructed frame coverage in 36 games
         shell: bash
         run: |
