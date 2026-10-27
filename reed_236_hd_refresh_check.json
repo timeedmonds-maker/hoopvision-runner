@@ -1,0 +1,110 @@
+{
+  "checked_at_utc": "2026-10-27T23:27:43.045167+00:00",
+  "game_id": "0022600125",
+  "event": 236,
+  "player": 1642263,
+  "source_attempts": [
+    {
+      "try": 1,
+      "http_status": 200,
+      "matched_count": 1,
+      "media": {
+        "guid": null,
+        "largeUrl": null,
+        "largeHls": null,
+        "mediumUrl": null,
+        "smallUrl": null,
+        "playListUrl": null,
+        "shotQuality": 0.493
+      },
+      "player_source_count": 12,
+      "other_player_shots_with_video": 0
+    },
+    {
+      "try": 2,
+      "http_status": 200,
+      "matched_count": 1,
+      "media": {
+        "guid": null,
+        "largeUrl": null,
+        "largeHls": null,
+        "mediumUrl": null,
+        "smallUrl": null,
+        "playListUrl": null,
+        "shotQuality": 0.493
+      },
+      "player_source_count": 12,
+      "other_player_shots_with_video": 0
+    },
+    {
+      "try": 3,
+      "http_status": 200,
+      "matched_count": 1,
+      "media": {
+        "guid": null,
+        "largeUrl": null,
+        "largeHls": null,
+        "mediumUrl": null,
+        "smallUrl": null,
+        "playListUrl": null,
+        "shotQuality": 0.493
+      },
+      "player_source_count": 12,
+      "other_player_shots_with_video": 0
+    }
+  ],
+  "working_candidate": "https://lrmedia.nba.com/CFSec/_definst_/mp4:0001633781_1509kbps.mp4/playlist.m3u8?wowzaplaystart=1774733&wowzaplayduration=20000&wowzatokenendtime=1793165264&wowzatokenhash=EeXaAAKazyrEnLBy_-FT8rYeiCyhMojki_3mUkLXIjo=",
+  "multiangle": {
+    "url": "https://clips.nba.com/?gameNo=0022600125&eventNum=236&source=grs",
+    "http_status": 200,
+    "bytes": 25106,
+    "hls_mentions": 12,
+    "nba_video_mentions": 0,
+    "unavailable_mentions": 0,
+    "actual_camera_labels": [
+      "Other Broadcast",
+      "Broadcast",
+      "High Tight",
+      "In Arena",
+      "Left Above Rim",
+      "Left HandHeld",
+      "Left Slash",
+      "Mobile Broadcast",
+      "Play by Play",
+      "Right Above Rim",
+      "Right HandHeld",
+      "Right Slash"
+    ],
+    "angle_count": 12,
+    "title": "ATL @ HOU 2026/10/26 - Period:2, Clock:08:41.0, Reed Sheppard, Layup - Running Reverse Layup: Made -(A) Sengun",
+    "media_src_count": 0
+  },
+  "xfg_detail": {
+    "url": "https://www.nba.com/inside-the-game/video-detail?GameID=0022600125&PlayerID=1642263&eventNum=236",
+    "http_status": 200,
+    "bytes": 247014,
+    "hls_mentions": 0,
+    "nba_video_mentions": 0,
+    "unavailable_mentions": 0,
+    "actual_camera_labels": [],
+    "has_next_data": true,
+    "event_mentions": 0
+  },
+  "game_pbp": {
+    "url": "https://www.nba.com/game/atl-vs-hou-0022600125/play-by-play?period=2",
+    "http_status": 200,
+    "bytes": 708925,
+    "hls_mentions": 10,
+    "nba_video_mentions": 40,
+    "unavailable_mentions": 0,
+    "actual_camera_labels": []
+  },
+  "media_probe": {
+    "http_status": 206,
+    "content_type": "application/vnd.apple.mpegurl",
+    "signature": "#EXTM3U\n#EXT-X-VERSION:3",
+    "bytes_checked": 32,
+    "is_mp4": false,
+    "is_hls": true
+  }
+}
