@@ -86,6 +86,7 @@ jobs:
             test "$accepted" -eq 1
             echo IGP_FULL_ORIGINAL_PLAYER_ID_36_PRIVATE_QA_PUBLISHED
           fi
+      # Pin the private 36-game accepted official PBP source index for this QA.
       - name: Verify NBA official named PBP player IDs are present in original XYZ near action UTC
         shell: bash
         run: |
