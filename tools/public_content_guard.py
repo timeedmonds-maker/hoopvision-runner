@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-oct25-26-original-xyz-catchup.yml",  # private original SDK Oct25-26 official final batch; no public source or artifacts
     ".github/workflows/gamepulse-private-season43-integrity.yml",  # reviewed: private sparse-source SHA acceptance, aggregate-only logs
     "tools/gamepulse_private_43_integrity_acceptance.py",  # reviewed: local SHA checks of licensed private views, no public data
     ".github/workflows/gamepulse-official-20261025-seven.yml",  # reviewed: official NBA seven-game PBP and advanced source private-only publication; no public artifacts
