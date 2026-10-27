@@ -8,6 +8,7 @@ from pathlib import Path
 
 ALLOWED_STATIC = {
     ".github/workflows/gamepulse-rockets-official-utc-overlap-graph.yml",  # reviewed private-only PBP UTC overlap graph; no coordinates or public artifacts
+    ".github/workflows/gamepulse-rockets-xfg-chain-source-qa.yml",  # reviewed private-only SHA-pinned Blueprint xFG to official logical-chain QA, aggregate public logs
     ".github/workflows/gamepulse-rockets-original-frame-gap-attribution.yml",  # reviewed private-only SHA-checked original frame-window diagnostic, aggregate public logs
     ".github/workflows/gamepulse-oct26-official-pbp-public.yml",  # official NBA PBP source-only, private repo write through existing GitHub token
     ".github/workflows/gamepulse-oct26-last3-parallel-parts.yml",  # bounded original NBA SDK live-ended parts; private-only releases
