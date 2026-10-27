@@ -243,6 +243,52 @@ jobs:
           python3 gamepulse/fusion/igp_p2_rebound_broadcast_visual_probe_2026.py \
             --root . \
             --out gamepulse/fusion/qa/igp_progress_20261027/wallclock_p2_first_rebound_broadcast_visual_36.json
+      - name: Materialize all 36 NBA candidate chains as explicit usable source tracking cores
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_possession_tracking_interiors_36_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_possession_tracking_interiors_36_2026.py'
+          OUT=gamepulse/fusion/materialized/igp_provisional_chain_tracking_interiors_36_v1
+          QA=gamepulse/fusion/qa/igp_progress_20261027/igp_chain_tracking_interiors_36_acceptance.json
+          if [ ! -e "$OUT/index.json" ]; then
+            python3 gamepulse/fusion/igp_possession_tracking_interiors_36_2026.py --root . --out-dir "$OUT" --qa-out "$QA"
+          fi
+          python3 - <<'PY'
+          import json,sys
+          from pathlib import Path
+          from igp_possession_tracking_interiors_36_2026 import query
+          root=Path(".")
+          path=Path("gamepulse/fusion/materialized/igp_provisional_chain_tracking_interiors_36_v1")
+          index=json.loads((path/"index.json").read_text())
+          qa=json.loads(Path("gamepulse/fusion/qa/igp_progress_20261027/igp_chain_tracking_interiors_36_acceptance.json").read_text())
+          c=index["counts"]
+          assert index["source_games"]==36 and len(index["games"])==36
+          assert c["original_frames_seen"]==1203986
+          assert c["unique_NBA_logged_frames"]==1031792
+          assert c["ambiguous_logged_frames"]==28799
+          assert c["unassigned_logged_frames"]==143395
+          assert c["NBA_logged_coherent_candidate_chains"]==7199
+          assert index["physical_possessions_certified"]==0
+          for gid,cid in [("0022600001","0022600001-P1-C0006"),
+                          ("0022600099","0022600099-P3-C0129"),
+                          ("0022600009","0022600009-P1-C0003")]:
+            x=query(root,path,gid,cid)
+            assert x["chain"]["chain_id"]==cid
+            assert x["chain"]["source_frame_index_game_SHA256"]==index["games"][gid]["source_index_SHA256"]
+            assert not x["chain"]["physical_start_end_certified"]
+          assert qa["source_games"]==36
+          print("NBA_36_GAME_PBP_SOURCE_INTERIOR_QUERY_ACCEPTED",
+                json.dumps({"frames":c["original_frames_seen"],
+                  "logged_uniquely_linked_frames":c["unique_NBA_logged_frames"],
+                  "coherent_chain_candidates":c["NBA_logged_coherent_candidate_chains"],
+                  "candidate_cores_5plus":c.get("chains_with_five_frame_candidate_interior",0),
+                  "direct_ball_cores_5plus":c.get("chains_with_five_frame_direct_ball_interior",0),
+                  "direct_raw_ten_ball_cores_5plus":c.get("chains_with_five_frame_direct_raw_ten_ball_interior",0),
+                  "physical_possessions_certified":0},sort_keys=True))
+          PY
       - name: Preserve private original source pointer index on canonical PR
         shell: bash
         run: |
@@ -262,6 +308,8 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_p2_official_ten_review_readiness_36.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_p2_ranked_broadcast_access_36.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/wallclock_p2_first_rebound_broadcast_visual_36.json
+          git add -f gamepulse/fusion/materialized/igp_provisional_chain_tracking_interiors_36_v1
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_chain_tracking_interiors_36_acceptance.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
