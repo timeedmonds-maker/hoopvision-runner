@@ -35,6 +35,12 @@ def same_games(expected, *indexes):
             raise RuntimeError("SEASON_MANIFEST_GAME_SET_MISMATCH")
 
 
+def score_reconciled(qa):
+    """Recognize both source-verified NBA terminal-score QA representations."""
+    return (qa.get("nba_score_reconciled_to_boxscore") is True or
+            qa.get("official_terminal_score_reconciled") == 1)
+
+
 def validate(root):
     docs = {}
     digests = {}
@@ -96,7 +102,7 @@ def validate(root):
         if (pi.get("action_records") != len(pview.get("actions", [])) or
                 pview.get("source_provenance", {}).get("nba_pbp_sha256") !=
                 pi.get("source_pbp_sha256") or
-                pview.get("qa", {}).get("nba_score_reconciled_to_boxscore") is not True):
+                not score_reconciled(pview.get("qa", {}))):
             raise RuntimeError("OFFICIAL_NBA_PBP_PROVENANCE_MISMATCH")
         if (oview.get("source_qa", {}).get("official_source") !=
                 "NBA_TEAM_PLAYER_ONOFF_SUMMARY_AND_TEAM_DASH_LINEUPS" or
@@ -158,6 +164,9 @@ def selftest():
     else:
         raise AssertionError("different source membership must fail")
     assert sha(b"abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    assert score_reconciled({"nba_score_reconciled_to_boxscore": True})
+    assert score_reconciled({"official_terminal_score_reconciled": 1})
+    assert not score_reconciled({"official_terminal_score_reconciled": 0})
     print("PUBLIC_SYNTHETIC_SOURCE_INTEGRITY_TEST_PASSED")
 
 
