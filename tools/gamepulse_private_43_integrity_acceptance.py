@@ -7,6 +7,7 @@ or independent SDK player/team identity.
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 from pathlib import Path
 
@@ -82,6 +83,21 @@ def validate(root):
         if (game.get("index_state") != "VERIFIED_ARCHIVE_INDEX" or
                 not game.get("source_signature")):
             raise RuntimeError("UNVERIFIED_SDK_ARCHIVE")
+    # Reuse the canonical PRIVATE 104 source validation logic to independently
+    # audit the seven new game/native joins, not an invented parallel clock model.
+    module_path = root / "gamepulse/fusion/season_possession_tracking_crosswalk_2026.py"
+    if not module_path.is_file():
+        raise RuntimeError("PRIVATE_SOURCE_NATIVE_JOIN_VALIDATOR_MISSING")
+    spec = importlib.util.spec_from_file_location("canonical_native_join", module_path)
+    if not spec or not spec.loader:
+        raise RuntimeError("PRIVATE_SOURCE_NATIVE_JOIN_VALIDATOR_UNLOADABLE")
+    native_join = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(native_join)
+    new_ids = set(pbp.get("new_games") or [])
+    if new_ids != {f"0022600{i:03d}" for i in range(112, 119)}:
+        raise RuntimeError("OFFICIAL_SEVEN_GAME_SOURCE_EXTENSION_NOT_VERIFIED")
+    qualified_new_game_joins = []
+    total_new_source_touches_joined = 0
     total_shots = total_frames = total_complete = total_xman = 0
     total_native_labels = total_action_runs = 0
     for gid in sorted(ids):
@@ -125,6 +141,19 @@ def validate(root):
                 "NBA_TEAM_PLAYER_ONOFF_SUMMARY_AND_TEAM_DASH_LINEUPS" or
                 oview.get("source_qa", {}).get("player_onoff_conflicts") != 0):
             raise RuntimeError("NBA_PROVIDER_ONOFF_SOURCE_NOT_RECONCILED")
+        if gid in new_ids:
+            try:
+                keyed = native_join.official_check(gid, catalog["games"][gid], pview)
+                crosswalk = native_join.interaction_check(gid, pview, keyed, nview, fview)
+            except ValueError as error:
+                raise RuntimeError("OFFICIAL_NEW_SEVEN_NATIVE_JOIN_NOT_SOURCE_VERIFIED") from error
+            if (crosswalk.get("physical_possession_boundaries_certified") is not False or
+                    crosswalk.get("complete_ball_contact_sequence_certified") is not False or
+                    crosswalk.get("official_actions_exactly_matched", 0) < 300 or
+                    crosswalk.get("native_source_touches_joined", 0) < 0):
+                raise RuntimeError("NEW_SEVEN_NATIVE_SOURCE_JOIN_QA_INVALID")
+            qualified_new_game_joins.append(gid)
+            total_new_source_touches_joined += crosswalk["native_source_touches_joined"]
         if (nview.get("schema") != "gamepulse.interaction-event-possession-fusion.v1" or
                 nview.get("certified_touch_possessions") != 0 or
                 nview.get("reconciliation", {}).get("nba_team_score_reconciled") is not True or
@@ -180,6 +209,14 @@ def validate(root):
             "tracking_gameplay_certified": False,
             "independent_player_team_id_certified": False,
             "possession_lineup_chain_certified": False, "video_pts_certified": False},
+        "new_seven_source_native_official_event_join_qa": {
+            "source_verified_games": len(qualified_new_game_joins),
+            "expected_new_game_ids": sorted(new_ids),
+            "official_actions_and_native_touches_checked_by": "PRIVATE_CANONICAL_SEASON_CROSSWALK_SOURCE_LOGIC",
+            "native_source_touch_labels_joined": total_new_source_touches_joined,
+            "physical_possessions_certified": 0,
+            "separate_unassigned_source_tier_43_games_certified": False,
+        },
         "certified_physical_possessions": 0,
         "limitations": "SDK source archival integrity and searchable source-joined views are not independent gameplay, player ID, clock, video or physical possession certification."
     }
