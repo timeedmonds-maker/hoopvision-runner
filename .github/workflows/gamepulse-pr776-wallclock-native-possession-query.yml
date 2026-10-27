@@ -420,7 +420,7 @@ jobs:
                "physical_possessions_certified":0}
           p=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_query_state_overlay_acceptance.json")
           if p.exists():assert json.loads(p.read_text())==qa
-          else:p.write_text(json.dumps(qa,sort_keys=True,indent=2)+"\\n")
+          else:p.write_text(json.dumps(qa,sort_keys=True,indent=2)+"\n")
           print("NBA_POST_SCORE_CANONICAL_QUERY_STATE_QA",json.dumps({
             "score_chain_queries":len(tests),"steal_query_verified":True,
             "physical_possessions_certified":0},sort_keys=True))
