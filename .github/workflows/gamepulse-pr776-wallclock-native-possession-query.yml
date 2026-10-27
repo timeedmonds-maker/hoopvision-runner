@@ -94,6 +94,57 @@ jobs:
                             "certified_full_possessions":0},sort_keys=True))
           PY
           rm -f "$TMP"
+      - name: Inventory private season SDK releases toward 43 accepted games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          mkdir -p "$RUNNER_TEMP/igp43season"
+          gh release download gamepulse-sdk-2026-27-index --repo "$PRIVATE" \
+            --pattern index.json --dir "$RUNNER_TEMP/igp43season" >/dev/null
+          python3 - <<'PY'
+          import json,os,re,subprocess
+          from pathlib import Path
+          base=Path("gamepulse/fusion")
+          fixed=json.loads((base/"qa/igp_progress_20261027/igp_chain_tracking_interiors_36_acceptance.json").read_text())
+          assert fixed["source_games"]==36 and len(fixed["games"])==36 and fixed["physical_possessions_certified"]==0
+          preserved=set(fixed["games"])
+          index=json.loads((Path(os.environ["RUNNER_TEMP"])/"igp43season/index.json").read_text())
+          assert index["schema"]=="gamepulse-season-index.v1" and isinstance(index["games"],dict)
+          valid=re.compile(r"^00226[0-9]{5}$")
+          pending={g:row for g,row in index["games"].items() if valid.fullmatch(g) and g not in preserved}
+          def status(row):
+              state=row.get("status")
+              if state not in {"complete","partial","retry"}:return "unrecognized"
+              return state
+          groups={key:sorted(g for g,row in pending.items() if status(row)==key)
+                  for key in ("complete","partial","retry","unrecognized")}
+          status_counts={}
+          for g,row in index["games"].items():
+              if valid.fullmatch(g):
+                  k=status(row);status_counts[k]=status_counts.get(k,0)+1
+          qa={
+             "schema":"gamepulse.igp-43-season-private-release-inventory.v1",
+             "frozen_original_source_games":36,
+             "frozen_source_game_ids":sorted(preserved),
+             "candidate_new_games_from_season_release_index":groups,
+             "candidate_index_status_counts":status_counts,
+             "new_complete_release_index_count":len(groups["complete"]),
+             "new_complete_needed_for_43":7,
+             "frozen_existing_sha256":fixed["materialized_index_SHA256"],
+             "new_release_index_is_original_xyz_acceptance":False,
+             "new_games_original_xyz_source_accepted":0,
+             "physical_possessions_certified":0}
+          out=base/"qa/igp_progress_20261027/igp_43_private_sdk_release_inventory.json"
+          if out.exists() and json.loads(out.read_text())==qa:pass
+          else:out.write_text(json.dumps(qa,indent=2,sort_keys=True)+"\n")
+          print("IGP_43_PRIVATE_SDK_RELEASE_INVENTORY",
+                json.dumps({"base_accepted_games":36,
+                 "additional_complete_indexed":len(groups["complete"]),
+                 "additional_partial":len(groups["partial"]),
+                 "additional_retry":len(groups["retry"]),
+                 "more_needed_than_indexed_complete":max(0,7-len(groups["complete"]))},sort_keys=True))
+          PY
       - name: Test existing native query and 36-game materializer
         shell: bash
         run: |
@@ -609,6 +660,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_query_state_overlay_acceptance.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_query_availability_projection_36_acceptance.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_canonical_query_official_ten_accepted.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_43_private_sdk_release_inventory.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_p2_action628_scoreboard_clock_holdout_20261027.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_p2_action628_dense_private_broadcast_stills_20261027.json
           git diff --cached --check
