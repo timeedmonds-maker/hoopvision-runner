@@ -18,13 +18,41 @@ jobs:
           fetch-depth: 0
       - name: Enforce v5 public content boundary
         run: python tools/public_content_guard.py
-      - name: Require GitHub noreply commit identity
+      - name: Require GitHub noreply identity for newly introduced commits
         shell: bash
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
+          # Legacy commit metadata is immutable; checking git log --all blocked
+          # every new PR due to historical identities unrelated to the changes.
+          # Keep this requirement fail-closed for every commit introduced by
+          # this PR/push, including merge commits, without waiving it.
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              test -n "$PR_BASE_SHA" && test -n "$PR_HEAD_SHA"
+              range="${PR_BASE_SHA}..${PR_HEAD_SHA}"
+              ;;
+            push)
+              test -n "$PUSH_BEFORE_SHA"
+              test "$PUSH_BEFORE_SHA" != "0000000000000000000000000000000000000000"
+              range="${PUSH_BEFORE_SHA}..${GITHUB_SHA}"
+              ;;
+            workflow_dispatch)
+              range="$GITHUB_SHA^..$GITHUB_SHA"
+              ;;
+            *)
+              echo "UNSUPPORTED_EVENT_FOR_IDENTITY_CHECK"
+              exit 1
+              ;;
+          esac
+          git rev-list "$range" > /tmp/introduced-commits.txt
+          test -s /tmp/introduced-commits.txt || { echo "NO_INTRODUCED_COMMITS"; exit 1; }
           bad=0
           while IFS='|' read -r sha ae ce; do
             case "$ae" in *@users.noreply.github.com) ;; *) echo "NON_NOREPLY_AUTHOR $sha"; bad=1;; esac
             case "$ce" in *@users.noreply.github.com) ;; *) echo "NON_NOREPLY_COMMITTER $sha"; bad=1;; esac
-          done < <(git log --format='%H|%ae|%ce' --all)
+          done < <(git log "$range" --format='%H|%ae|%ce')
           exit "$bad"
