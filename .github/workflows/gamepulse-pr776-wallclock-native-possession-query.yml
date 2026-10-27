@@ -340,6 +340,64 @@ jobs:
           assert sum(d["status_counts"].values())==75
           print("NBA_75_MADE_FG_TO_OPPONENT_RESTART_STATE_QA",json.dumps(d["status_counts"],sort_keys=True))
           PY
+      - name: Regression prove frozen 36-game query tracking-availability flag
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_possession_tracking_interiors_36_2026.py'
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_query_igp_possession_tracking_with_control_brackets_2026.py'
+          python3 - <<'PY'
+          import gzip,hashlib,json
+          from pathlib import Path
+          from query_igp_possession_tracking_with_control_brackets_2026 import join_one,query
+          base=Path("gamepulse/fusion")
+          d=base/"materialized/igp_provisional_chain_tracking_interiors_36_v1"
+          index_bytes=(d/"index.json").read_bytes()
+          idx=json.loads(index_bytes)
+          assert idx["source_games"]==36 and len(idx["games"])==36
+          counts={"chains":0,"with_tracking":0,"without_tracking":0,
+                  "legacy_false_for_nonempty":0}
+          for gid,meta in sorted(idx["games"].items()):
+            blob=(d/meta["file"]).read_bytes()
+            assert hashlib.sha256(blob).hexdigest()==meta["gzip_SHA256"]
+            chains=json.loads(gzip.decompress(blob))
+            assert len(chains)==meta["candidate_chains"]
+            for c in chains:
+              original=dict(c["counts"])
+              n=original["unique_NBA_logged_frames"]
+              q=join_one({"game_id":gid,"chain":c},[])
+              assert q["candidate_tracking_counts"]["has_unique_logged_frames"] is (n>0)
+              assert q["candidate_tracking_counts"]["unique_NBA_logged_frames"]==n
+              assert c["counts"]==original
+              counts["chains"]+=1
+              counts["with_tracking" if n else "without_tracking"]+=1
+              counts["legacy_false_for_nonempty"]+=int(
+                  n>0 and not original["has_unique_logged_frames"])
+          assert counts=={"chains":7199,"with_tracking":6901,
+                          "without_tracking":298,"legacy_false_for_nonempty":6901}
+          cases=[("0022600001","0022600001-P1-C0005",90),
+                 ("0022600001","0022600001-P1-C0006",144),
+                 ("0022600099","0022600099-P3-C0129",58)]
+          for gid,cid,expected in cases:
+            a=query(Path("."),gid,cid)
+            assert a["candidate_tracking_counts"]["unique_NBA_logged_frames"]==expected
+            assert a["candidate_tracking_counts"]["has_unique_logged_frames"] is True
+            assert not a["physical_possession_start_end_certified"]
+          assert hashlib.sha256((d/"index.json").read_bytes()).hexdigest()==hashlib.sha256(index_bytes).hexdigest()
+          receipt={"schema":"gamepulse.igp-query-availability-projection-36-acceptance.v1",
+                   "source_games":36,"frozen_index_SHA256":hashlib.sha256(index_bytes).hexdigest(),
+                   "counts":counts,"real_canonical_queries_checked":len(cases),
+                   "frozen_indexes_modified":False,"physical_possessions_certified":0}
+          p=base/"qa/igp_progress_20261027/igp_query_availability_projection_36_acceptance.json"
+          if p.exists():assert json.loads(p.read_text())==receipt
+          else:p.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\\n")
+          print("IGP_FROZEN_36_GAME_QUERY_AVAILABILITY_PROJECTION_ACCEPTED",
+                json.dumps({"counts":counts,"real_queries":len(cases),
+                            "frozen_indexes_modified":False,
+                            "physical_possessions_certified":0},sort_keys=True))
+          PY
       - name: Real source per-NBA-possession query joins tracking and two-sided control evidence
         shell: bash
         run: |
@@ -450,6 +508,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_possession_tracking_control_query_accepted.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_phase_20261027.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_query_state_overlay_acceptance.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_query_availability_projection_36_acceptance.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
