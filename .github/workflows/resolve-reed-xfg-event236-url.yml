@@ -30,7 +30,9 @@ jobs:
             rows=[x for x in data.get('shotList',[]) if int(x.get('eventNum') or -1)==event]
             if len(rows)!=1:raise ValueError('Expected one shot, found '+str(len(rows)))
             x=rows[0]
-            if not x.get('largeUrl'):raise ValueError('Large video URL not supplied')
+            out['source_shot_keys']=list(x.keys())
+            out['source_shot_record']=x
+            if not x.get('largeUrl'):out['media_delivery_state']='LARGE_URL_MISSING'
             out['shot']={k:x.get(k) for k in ['eventNum','period','gameClock','shotQuality','largeUrl','largeHls','playListUrl','mediumUrl','playerId','success','shotType','largeDuration','guid']}
             # HTTP HEAD may be blocked; report it independently without suppressing verified source metadata.
             for attr in ['largeUrl','largeHls']:
