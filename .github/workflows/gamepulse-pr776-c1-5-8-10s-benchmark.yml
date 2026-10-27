@@ -50,8 +50,8 @@ jobs:
           set -euo pipefail
           cd "$IGP_ROOT"
           export PYTHONPATH=gamepulse/fusion
-          QA=gamepulse/fusion/qa/igp_progress_20261028/igp_C1_two_game_5_8_10s_original_source_holdout_20261028.json
-          test ! -e "$QA"
+          # Re-run into ephemeral private-runner storage; never overwrite accepted QA.
+          QA="$RUNNER_TEMP/pr776-c1-5-8-10s-rerun.json"
           python3 gamepulse/fusion/igp_tracking_model_c1_cross_game_holdout_2026.py             --root . --out "$QA" --games 0022600009 0022600092
           python3 - "$QA" <<'PY'
           import json,sys
@@ -79,6 +79,22 @@ jobs:
           git config user.name "Game Pulse Free CPU QA"
           git config user.email "gamepulse-integrity@users.noreply.github.com"
           QA=gamepulse/fusion/qa/igp_progress_20261028/igp_C1_two_game_5_8_10s_original_source_holdout_20261028.json
+          NEW="$RUNNER_TEMP/pr776-c1-5-8-10s-rerun.json"
+          test -s "$NEW"
+          if test -f "$QA"; then
+            # Idempotent evidence readback. Drift must be reviewed, not overwritten.
+            python3 - "$QA" "$NEW" <<'PY'
+          import json,sys
+          with open(sys.argv[1]) as f: prior=json.load(f)
+          with open(sys.argv[2]) as f: rerun=json.load(f)
+          if prior != rerun:
+              raise SystemExit("C1_REAL_SOURCE_QA_DRIFT: refuse to overwrite accepted private evidence")
+          print("C1_ACCEPTED_PRIVATE_REPORT_REPRODUCED")
+          PY
+            exit 0
+          fi
+          mkdir -p "$(dirname "$QA")"
+          cp "$NEW" "$QA"
           git add -f "$QA"
           test "$(git diff --cached --name-only)" = "$QA"
           git diff --cached --check
