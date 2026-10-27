@@ -45,10 +45,10 @@ jobs:
               uri=html.unescape(m.group(1).strip())
               if '.m3u8' not in uri.lower() or 'lrmedia.nba.com' not in uri.lower():continue
               label=re.sub(r'<[^>]+>','',html.unescape(m.group(3))).strip()
-              out['angles'].append({'label':label,'hls_url':uri,'selected':'selected' in m.group(2).lower()})
+              out['angles'].append({'label':label,'selected':'selected' in m.group(2).lower()})
             out['status']='FOUND' if out['angles'] else 'NO_SIGNED_HLS'
           except Exception as e:
-            out['status']='ERROR';out['error_type']=type(e).__name__;out['error']=str(e)[:500]
+            out['status']='ERROR';out['error_type']=type(e).__name__
           out['angle_count']=len(out['angles'])
           repo=os.environ['GITHUB_REPOSITORY']
           path='worker_results/reed-0022600125-q2-0841-temporary-multiangle.json'
