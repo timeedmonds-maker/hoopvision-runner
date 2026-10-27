@@ -1,8 +1,6 @@
 name: Resolve official Sheppard actionNumber exact from NBA HTML
 on:
-  push:
-    paths:
-      - '.github/workflows/reed-0022600125-exact-action.yml'
+  workflow_dispatch:
 permissions:
   contents: write
 jobs:
@@ -44,16 +42,16 @@ jobs:
               out['official_action_id']=act['actionId']
               clip=f'https://clips.nba.com/?gameNo={g}&eventNum={ev}&source=grs'
               out['clips_url']=clip
-              try:
-                with urllib.request.urlopen(urllib.request.Request(clip,headers={'User-Agent':'Mozilla/5.0','Referer':'https://clips.nba.com/'}),timeout=20) as r:
-                  p=r.read(1800000).decode('utf-8','replace')
-                  out['clips_http_status']=r.status
-                  out['hls_options']=[{'label':re.sub(r'<[^>]+>','',html.unescape(y.group(3))).strip(),'url':html.unescape(y.group(1))} for y in re.finditer(r'<option\\s+value="([^"]+)"([^>]*)>(.*?)</option>',p,re.I|re.S) if '.m3u8' in y.group(1)]
-              except Exception as e:out['clips_error']=repr(e)
+              out['clip_page_not_fetched_or_persisted']=True
           except Exception as e:out['error']=repr(e)
-          print('RESULT',json.dumps({k:v for k,v in out.items() if k!='hls_options'}))
+          print('RESULT',json.dumps({'game_id':g,'official_action_number':out.get('official_action_number'),'source':'NBA_OFFICIAL_PBP'},sort_keys=True))
           api='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/contents/reed_0022600125_official_action.json'
           hdr={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','Content-Type':'application/json'}
           payload={'message':'Resolve exact NBA official action Sheppard Q2 08 41','content':base64.b64encode(json.dumps(out,indent=2).encode()).decode()}
+          try:
+            with urllib.request.urlopen(urllib.request.Request(api,headers=hdr),timeout=25) as r:
+              payload['sha']=json.load(r)['sha']
+          except urllib.error.HTTPError as e:
+            if e.code!=404:raise
           with urllib.request.urlopen(urllib.request.Request(api,headers=hdr,data=json.dumps(payload).encode(),method='PUT'),timeout=25) as r:print('PERSISTED',r.status)
           PY
