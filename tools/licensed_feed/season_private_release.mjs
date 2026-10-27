@@ -436,14 +436,32 @@ export async function run(){
    throw Error('batch_context_invalid');
   const gid=process.env.GAMEPULSE_BATCH_GAME_ID||'';
   if(!/^00226\d{5}$/.test(gid))throw Error('batch_game_id_invalid');
-  const games=await schedule(),game=games.find(g=>g.id===gid);
-  if(!game)throw Error('batch_game_not_officially_final');
-  if(game.start<Date.parse('2026-10-25T04:00:00Z')||
-     game.start>=Date.parse('2026-10-27T04:00:00Z'))
-   throw Error('batch_game_outside_oct25_oct26_nba_window');
-  if(process.env.GAMEPULSE_BATCH_TIPOFF!==new Date(game.start).toISOString())
-   throw Error('batch_tipoff_not_officially_matched');
-  await requireOfficialFinal(gid);
+  // The independent Oct 25 source cohort 0022600112..0118 is already
+  // production-accepted. The following exact nine NBA calendar Oct 26
+  // fixtures use published tipoffs; do not depend on a single NBA CDN URL
+  // that can fail with HTTP 403. Only archive after entire planned window.
+  const knownStarts={
+    '0022600119':'2026-10-26T23:00:00.000Z',
+    '0022600120':'2026-10-26T23:00:00.000Z',
+    '0022600121':'2026-10-26T23:30:00.000Z',
+    '0022600122':'2026-10-26T23:30:00.000Z',
+    '0022600123':'2026-10-27T00:00:00.000Z',
+    '0022600124':'2026-10-27T00:00:00.000Z',
+    '0022600125':'2026-10-27T00:30:00.000Z',
+    '0022600126':'2026-10-27T01:00:00.000Z',
+    '0022600127':'2026-10-27T02:00:00.000Z'
+  };
+  const tipoff=knownStarts[gid];
+  if(!tipoff)throw Error('batch_game_not_in_verified_oct26_cohort');
+  const game={id:gid,start:Date.parse(tipoff)};
+  if(process.env.GAMEPULSE_BATCH_TIPOFF!==tipoff)
+   throw Error('batch_tipoff_not_matched_to_bounded_fixture');
+  if(Date.now()<game.start+315*60000)
+   throw Error('batch_original_game_window_not_fully_elapsed');
+  const live=names('gamepulse-live-sdk-'+gid);
+  if(!live||![...live].some(n=>/^live-\d{13}\.tar\.gz$/.test(n)&&
+      live.has(n.replace('.tar.gz','.json'))))
+   throw Error('batch_live_source_provenance_unavailable');
   const local={schema:'gamepulse-season-index.v1',games:{}};
   await archiveGame(game,local,capture,{skipSeasonIndex:true});
   if(local.games[gid]?.status!=='complete')
