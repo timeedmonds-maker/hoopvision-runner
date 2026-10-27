@@ -181,6 +181,7 @@ jobs:
             test "$published" -eq 1
             echo PR776_PHOENIX_ORIGINAL_RAW_SLOT_ID_QA_PRIVATE_PUBLISHED
           fi
+      # Approved source-invariant ID correction acceptance, original archives remain immutable.
       - name: Accept user-approved game-local original player ID correction privately
         shell: bash
         run: |
