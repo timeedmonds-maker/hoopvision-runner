@@ -131,6 +131,56 @@ jobs:
             test "$published" -eq 1
             echo PR776_ACTOR_ID_36_SOURCE_AUDIT_PRIVATE_PUBLISHED
           fi
+      - name: Resolve Phoenix source ID discrepancy against the 13 ORIGINAL SDK release tarballs
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_verify_sdk_raw_release_player_identity_2026.py
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_phoenix_0092_original_raw_sdk_ID_source_verification.json
+          if [ ! -e "$OUT" ]; then
+            mkdir -p "$RUNNER_TEMP/sdk-0092-source"
+            gh release download gamepulse-sdk-0022600092 \
+              -R "$R" -p 'sdk-part-*.tar.gz' -D "$RUNNER_TEMP/sdk-0092-source" --clobber \
+              > "$RUNNER_TEMP/private-source-download.log"
+            gh api "repos/$R/releases/tags/gamepulse-sdk-0022600092" \
+              > "$RUNNER_TEMP/sdk-0092-release.json"
+            python3 gamepulse/fusion/igp_verify_sdk_raw_release_player_identity_2026.py \
+              --root . --game-id 0022600092 \
+              --archive-dir "$RUNNER_TEMP/sdk-0092-source" \
+              --release-json "$RUNNER_TEMP/sdk-0092-release.json" \
+              --watch-id 1626164 --watch-id 1631109 --out "$OUT"
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          x=json.loads(Path("gamepulse/fusion/qa/igp_progress_20261027/igp_phoenix_0092_original_raw_sdk_ID_source_verification.json").read_bytes())
+          assert x["schema"]=="gamepulse.original-SDK-raw-release-player-ID-source-check.v1"
+          assert x["source_archive_parts_SHA_verified"]==13
+          assert x["no_cross_person_ID_remap_authorized"]
+          print("PR776_PHOENIX_ALL_THIRTEEN_ORIGINAL_SDK_RAW_PARTS_VERIFIED_PRIVATE_ONLY")
+          PY
+          git config user.name 'Game Pulse Free CPU Runner'
+          git config user.email 'gamepulse-runner@users.noreply.github.com'
+          git add -f "$OUT"
+          if git diff --cached --quiet; then
+            echo PR776_PHOENIX_RAW_ID_QA_ALREADY_ACCEPTED
+          else
+            git diff --cached --check
+            git commit -qm "qa(igp): original 13 SDK tarball source ID verification for PHX tracked anomaly"
+            published=0
+            for attempt in 1 2 3 4 5 6 7 8; do
+              if git push -q origin "HEAD:refs/heads/$B"; then
+                published=1;break
+              fi
+              git fetch -q origin "$B"
+              git rebase -q "origin/$B"
+              sleep "$attempt"
+            done
+            test "$published" -eq 1
+            echo PR776_PHOENIX_ORIGINAL_RAW_SLOT_ID_QA_PRIVATE_PUBLISHED
+          fi
       - name: Execute 36-game source-derived handler team possession changes and persist private QA
         shell: bash
         run: |
