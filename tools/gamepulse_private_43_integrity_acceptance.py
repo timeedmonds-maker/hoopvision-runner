@@ -103,9 +103,15 @@ def validate(root):
         pview, _ = read(root, ppath)
         oview, od = read(root, opath)
         nview, nd = read(root, npath)
-        if (fi.get("sha256") != fd or oi.get("sha256") != od or ni.get("sha256") != nd or
-                any(v.get("game_id") != gid for v in (fview, tview, pview, oview, nview))):
-            raise RuntimeError("GAME_VIEW_SOURCE_SHA_OR_ID_MISMATCH")
+        if any(v.get("game_id") != gid for v in (fview, tview, pview, oview, nview)):
+            raise RuntimeError("PER_GAME_ORIGINAL_SOURCE_ID_MISMATCH")
+        if fi.get("sha256") != fd or oi.get("sha256") != od:
+            raise RuntimeError("BLUEPRINT_OR_PROVIDER_INDEX_SHA_MISMATCH")
+        if ni.get("sha256") != nd:
+            # Fail closed: a legacy 0095 generator previously replaced more
+            # complete Blueprint conflict quarantines without updating the
+            # immutable source manifest. Never repin to hide this regression.
+            raise RuntimeError("ORIGINAL_NATIVE_INTERACTION_IMMUTABLE_SHA_MISMATCH")
         if (fi.get("shot_rows") != len(fview.get("shots", [])) or
                 tv.get("records") != len(tview.get("lineups", [])) or
                 tv.get("sampled_5v5") != tview.get("eligible_complete_5v5_samples")):
