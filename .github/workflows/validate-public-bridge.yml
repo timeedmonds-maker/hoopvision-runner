@@ -18,18 +18,20 @@ jobs:
           fetch-depth: 0
       - name: Enforce v5 public content boundary
         run: python tools/public_content_guard.py
-      - name: Require GitHub noreply identity for newly introduced commits
+      - name: Verify GitHub-attributed owner or trusted bot identity on introduced commits
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           PUSH_BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
-          # Legacy commit metadata is immutable; checking git log --all blocked
-          # every new PR due to historical identities unrelated to the changes.
-          # Keep this requirement fail-closed for every commit introduced by
-          # this PR/push, including merge commits, without waiving it.
+          # The prior git log --all noreply filter rejected immutable historical
+          # commits and GitHub-verified owner commits made via its Contents API.
+          # Require every introduced author AND committer to resolve through the
+          # GitHub API to this repository owner or GitHub Actions bot. Unknown
+          # attribution and unavailable API fail closed; do not print emails.
           case "$GITHUB_EVENT_NAME" in
             pull_request)
               test -n "$PR_BASE_SHA" && test -n "$PR_HEAD_SHA"
@@ -50,9 +52,10 @@ jobs:
           esac
           git rev-list "$range" > /tmp/introduced-commits.txt
           test -s /tmp/introduced-commits.txt || { echo "NO_INTRODUCED_COMMITS"; exit 1; }
-          bad=0
-          while IFS='|' read -r sha ae ce; do
-            case "$ae" in *@users.noreply.github.com) ;; *) echo "NON_NOREPLY_AUTHOR $sha"; bad=1;; esac
-            case "$ce" in *@users.noreply.github.com) ;; *) echo "NON_NOREPLY_COMMITTER $sha"; bad=1;; esac
-          done < <(git log "$range" --format='%H|%ae|%ce')
-          exit "$bad"
+          while IFS= read -r sha; do
+            author="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.author.login // ""')"
+            committer="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.committer.login // ""')"
+            case "$author" in "$GITHUB_REPOSITORY_OWNER"|"github-actions[bot]") ;; *) echo "UNVERIFIED_GITHUB_AUTHOR $sha"; exit 1;; esac
+            case "$committer" in "$GITHUB_REPOSITORY_OWNER"|"github-actions[bot]") ;; *) echo "UNVERIFIED_GITHUB_COMMITTER $sha"; exit 1;; esac
+          done < /tmp/introduced-commits.txt
+          echo "NEW_COMMIT_GITHUB_ACCOUNT_ATTRIBUTION_VERIFIED"
