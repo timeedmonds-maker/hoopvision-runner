@@ -1,0 +1,47 @@
+name: Resolve Reed Sheppard 2026-10-26 Q2 0841 NBA clips event
+on:
+  push:
+    paths:
+      - '.github/workflows/resolve-reed-q2-0841.yml'
+permissions:
+  contents: write
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Find exact official event, resolve clip and save URL
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import urllib.request,urllib.error,json,os,base64,html,re
+          game='0022600125'
+          url=f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game}.json'
+          out={'game_id':game,'match':[]}
+          try:
+            req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0','Referer':'https://www.nba.com/'})
+            with urllib.request.urlopen(req,timeout=25) as r: obj=json.load(r)
+            for a in obj['game']['actions']:
+              clk=str(a.get('clock',''))
+              if int(a.get('period') or 0)==2 and 'PT08M41' in clk and ('Sheppard' in str(a.get('description','')) or 'Sheppard' in str(a.get('playerName',''))):
+                out['match'].append({k:a.get(k) for k in ['actionNumber','actionId','period','clock','personId','playerName','description','actionType','shotResult','isFieldGoal','scoreHome','scoreAway']})
+            shots=[a for a in out['match'] if a.get('isFieldGoal') in [1,True] and a.get('shotResult')=='Made']
+            if not shots:
+              shots=[a for a in out['match'] if str(a.get('actionType','')).lower().startswith('made')]
+            if len(shots)!=1: raise RuntimeError(f'not_unique_matched_shots:{len(shots)}')
+            ev=shots[0]['actionNumber']
+            out['clips_url']=f'https://clips.nba.com/?gameNo={game}&eventNum={ev}&source=grs'
+            out['event_num']=ev
+            page_req=urllib.request.Request(out['clips_url'],headers={'User-Agent':'Mozilla/5.0','Referer':'https://clips.nba.com/'})
+            with urllib.request.urlopen(page_req,timeout=25) as r: page=r.read(1000000).decode('utf-8','replace');out['clip_page_status']=r.status
+            out['hls_camera_count']=len(re.findall(r'lrmedia.nba.com[^"\\s]*?m3u8',html.unescape(page),re.I))
+          except Exception as e:
+            out['error']=repr(e)
+          api=f'https://api.github.com/repos/{os.environ["GITHUB_REPOSITORY"]}/contents/reed_sheppard_20261026_q2_0841_url.json'
+          h={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'github-actions'}
+          data={'message':'Resolve official Reed Sheppard clip URL','content':base64.b64encode(json.dumps(out,indent=2).encode()).decode()}
+          with urllib.request.urlopen(urllib.request.Request(api,data=json.dumps(data).encode(),headers=h,method='PUT'),timeout=20) as r: print('WRITE',r.status)
+          print('RESULT',json.dumps(out))
+          PY
