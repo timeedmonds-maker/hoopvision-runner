@@ -10,6 +10,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-official-20261025-seven.yml",  # reviewed: official NBA seven-game PBP and advanced source private-only publication; no public artifacts
     ".github/workflows/gamepulse-pr776-realutc-chain-xyz-query.yml",  # reviewed SHA-guarded NBA real UTC chain source lookup, private coordinates only
     ".github/workflows/gamepulse-pr776-wallclock-native-possession-query.yml",  # reviewed private 36-game source UTC/native interval QA, metadata-only public stdout and private-only output
+    ".github/workflows/gamepulse-pr776-rebound-video-recovery.yml",  # manually inspected: exact one-event P2 private NBA Broadcast media, SHA-only public status, no upload-artifact, source remains private
     ".github/workflows/gamepulse-pr776-wallclock-season-index-36.yml",  # reviewed: SHA-pinned private original 36-game frames, no public coordinates or artifacts
     ".github/workflows/gamepulse-pr776-original-xyz-timeactual-chain-36.yml",  # reviewed private 36-game original SDK source-to-PBP UTC candidate QA only
     ".github/workflows/gamepulse-pr776-timeactual-wall-36.yml",  # reviewed private official 36-game NBA timeActual + native manifests, public counts only
