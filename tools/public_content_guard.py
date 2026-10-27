@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    "worker_results/reed-0022600125-q2-0841-temporary-multiangle.json",  # reviewed no licensed SDK XYZ, signed HLS or tokens; NBA public event metadata only
     ".github/workflows/resolve-reed-20261026-camera-angles.yml",  # reviewed signed NBA HLS URLs and exception details removed from public output
     ".github/workflows/gamepulse-pr776-G2-direct-actor-sub-transition-36.yml",  # SHA original NBA SDK roster change-source player observation clock analysis, safe aggregate public logs
     ".github/workflows/gamepulse-pr776-G2-exact-ten-transition-UTC-36.yml",  # original SDK source ten identity transition vs NBA official substitution UTC, aggregate-only public output
