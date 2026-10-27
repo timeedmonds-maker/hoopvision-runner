@@ -1,0 +1,12 @@
+{
+  "query": {
+    "nba_game_id": "0022600125",
+    "player_id": 1642263,
+    "event_num": 236
+  },
+  "source": "https://stats.gleague.nba.com/stats/shotqualityvideologs?GameID=0022600125&PlayerID=1642263",
+  "source_http_status": 200,
+  "status": "SOURCE_ERROR",
+  "error_type": "ValueError",
+  "error_message": "Large video URL not supplied"
+}
