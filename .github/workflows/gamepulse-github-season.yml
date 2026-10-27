@@ -186,7 +186,17 @@ jobs:
                                    stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,text=True,timeout=25)
                   if p.returncode==0:
                       assets=json.loads(p.stdout).get("assets",[])
-                      if any(a.get("name")=="sdk-COMPLETE.json" for a in assets):continue
+                      if any(a.get("name")=="sdk-COMPLETE.json" for a in assets):
+                          root="repos/timeedmonds-maker/104/contents/"
+                          branch="?ref=research%2Fgamepulse-clock-boundary-integrity-20261025"
+                          base="gamepulse/fusion/"
+                          canonical=root+base+"materialized/igp_all_original_xyz/"+item["id"]+"/index.json"+branch
+                          accepted=root+base+"qa/igp_progress_20261027/igp_oct25_oct26_native_"+item["id"]+".json"+branch
+                          def present(url):
+                              check=subprocess.run(["gh","api",url],stdout=subprocess.DEVNULL,
+                                                    stderr=subprocess.DEVNULL,timeout=25)
+                              return check.returncode==0
+                          if present(canonical) and present(accepted):continue
                   pending.append(item)
               rows=pending
           target=rows or [{"id":"none","tipoff":""}]
