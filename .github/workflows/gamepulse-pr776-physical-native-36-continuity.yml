@@ -40,6 +40,52 @@ jobs:
           git clone -q --filter=blob:none --depth=1 --sparse -b "$B" "https://github.com/$R.git" "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           echo "PRIVATE_ROOT=$RUNNER_TEMP/private" >> "$GITHUB_ENV"
+      - name: Audit true original raw player IDs and near-frame ID continuity across 36 NBA games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_audit_original_raw_player_ids_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_audit_original_raw_player_ids_2026.py'
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_original_raw_player_ids_36_source_qa.json
+          if [ ! -e "$OUT" ]; then
+            python3 gamepulse/fusion/igp_audit_original_raw_player_ids_2026.py \
+              --root . --out "$OUT" > "$RUNNER_TEMP/raw-player-id-qa-private.log"
+          fi
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_original_raw_player_ids_36_source_qa.json")
+          r=json.loads(p.read_bytes())
+          assert r["schema"]=="gamepulse.igp-original-raw-SDK-player-ID-vs-official-roster-36.v1"
+          assert r["source_games"]==36 and len(r["games"])==36
+          assert r["counts"]["source_frames"]==1203986
+          assert r["official_player_game_IDs_expected"]>=r["official_player_game_IDs_seen_at_least_once"]
+          assert r["independently_certified_physical_possessions"]==0
+          print("IGP_FULL_ORIGINAL_PLAYER_ID_36_AUDIT_SOURCE_VALIDATED_PRIVATE_RESULTS_ONLY")
+          PY
+          git config user.name 'Game Pulse Free CPU Runner'
+          git config user.email 'gamepulse-runner@users.noreply.github.com'
+          git add -f "$OUT"
+          if git diff --cached --quiet; then
+            echo IGP_FULL_ORIGINAL_PLAYER_ID_AUDIT_ALREADY_ACCEPTED
+          else
+            git diff --cached --check
+            git commit -qm "qa(igp): audit all original source player IDs versus official on-court roster universes"
+            accepted=0
+            for attempt in 1 2 3 4 5 6 7 8; do
+              if git push -q origin "HEAD:refs/heads/$B"; then
+                accepted=1
+                break
+              fi
+              git fetch -q origin "$B"
+              git rebase -q "origin/$B"
+              sleep "$attempt"
+            done
+            test "$accepted" -eq 1
+            echo IGP_FULL_ORIGINAL_PLAYER_ID_36_PRIVATE_QA_PUBLISHED
+          fi
       - name: Execute 36-game source-derived handler team possession changes and persist private QA
         shell: bash
         run: |
