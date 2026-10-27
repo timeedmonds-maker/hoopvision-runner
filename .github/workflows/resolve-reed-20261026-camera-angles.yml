@@ -1,0 +1,67 @@
+name: Resolve NBA Q2 08 41 multiangle public source
+on:
+  push:
+    paths:
+      - '.github/workflows/resolve-reed-20261026-camera-angles.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  resolve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Find official NBA event and camera HLS
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import datetime, urllib.request, urllib.error, html, json, re, base64, os
+          game='0022600125'
+          endpoint=f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game}.json'
+          hd={'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Accept':'application/json,text/html,*/*'}
+          out={'game_id':game,'period':2,'clock':'08:41','player_id':1642263,'checked_at_utc':datetime.datetime.now(datetime.timezone.utc).isoformat(),'angles':[]}
+          try:
+            with urllib.request.urlopen(urllib.request.Request(endpoint,headers=hd),timeout=25) as r: src=json.load(r)
+            actions=(src.get('game') or {}).get('actions',[])
+            def match(a):
+              c=str(a.get('clock') or '')
+              s=re.search(r'PT(?:(\d+)M)?(\d+(?:\.\d+)?)S',c)
+              t=(int(s.group(1) or 0)*60+float(s.group(2))) if s else -999
+              return int(a.get('period') or 0)==2 and int(a.get('personId') or 0)==1642263 and int(t)==521 and a.get('isFieldGoal') in (True,1,'1') and str(a.get('shotResult')).lower()=='made'
+            matches=[a for a in actions if match(a)]
+            if len(matches)!=1: raise ValueError('Expected 1 NBA event, got '+str(len(matches)))
+            a=matches[0];ev=int(a.get('actionNumber') or a.get('actionId') or 0)
+            out['event_num']=ev
+            out['nba_action']={k:a.get(k) for k in ('actionNumber','actionId','description','clock','scoreHome','scoreAway','actionType','subType')}
+            url=f'https://clips.nba.com/?gameNo={game}&eventNum={ev}&source=grs'
+            out['event_page']=url
+            h=dict(hd);h['Referer']='https://clips.nba.com/'
+            with urllib.request.urlopen(urllib.request.Request(url,headers=h),timeout=30) as r:
+              page=r.read(2000000).decode('utf-8',errors='replace');out['clips_http_status']=r.status
+            p=r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>'
+            for m in re.finditer(p,page,re.I|re.S):
+              uri=html.unescape(m.group(1).strip())
+              if '.m3u8' not in uri.lower() or 'lrmedia.nba.com' not in uri.lower():continue
+              label=re.sub(r'<[^>]+>','',html.unescape(m.group(3))).strip()
+              out['angles'].append({'label':label,'hls_url':uri,'selected':'selected' in m.group(2).lower()})
+            out['status']='FOUND' if out['angles'] else 'NO_SIGNED_HLS'
+          except Exception as e:
+            out['status']='ERROR';out['error_type']=type(e).__name__;out['error']=str(e)[:500]
+          out['angle_count']=len(out['angles'])
+          repo=os.environ['GITHUB_REPOSITORY']
+          path='worker_results/reed-0022600125-q2-0841-temporary-multiangle.json'
+          api=f'https://api.github.com/repos/{repo}/contents/{path}'
+          gh={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28','User-Agent':'NBAClipLab'}
+          sha=None
+          try:
+            with urllib.request.urlopen(urllib.request.Request(api,headers=gh),timeout=25) as r: sha=json.load(r).get('sha')
+          except urllib.error.HTTPError as e:
+            if e.code!=404:raise
+          pay={'message':'Temporary event 0022600125 HLS readback (to be removed)','branch':'main','content':base64.b64encode(json.dumps(out,indent=2).encode()).decode()}
+          if sha:pay['sha']=sha
+          gh['Content-Type']='application/json'
+          with urllib.request.urlopen(urllib.request.Request(api,headers=gh,data=json.dumps(pay).encode(),method='PUT'),timeout=25) as r: print('READBACK_PERSISTED',r.status)
+          print('STATUS',out['status'],'EVENT',out.get('event_num'),'ANGLES',out['angle_count'])
+          PY
