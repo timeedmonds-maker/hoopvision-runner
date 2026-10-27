@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/resolve-reed-20261026-camera-angles.yml",  # reviewed signed NBA HLS URLs and exception details removed from public output
     ".github/workflows/gamepulse-pr776-G2-direct-actor-sub-transition-36.yml",  # SHA original NBA SDK roster change-source player observation clock analysis, safe aggregate public logs
     ".github/workflows/gamepulse-pr776-G2-exact-ten-transition-UTC-36.yml",  # original SDK source ten identity transition vs NBA official substitution UTC, aggregate-only public output
     ".github/workflows/gamepulse-pr776-G2-substitution-actor-query-36.yml",  # reviewed original private NBA actor/ball G1 SHA readback and pre/post-substitution G2 alternative roster, only safe public counts
