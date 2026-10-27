@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-original-sdk-metadata-fidelity-rockets.yml",  # reviewed: exact 13 SHA-verified private NBA SDK tarballs, metadata-only private QA, never public raw coordinates
     ".github/workflows/gamepulse-pr776-source-first-atlas-36.yml",  # reviewed: private original SDK source read-only; public logs contain aggregate status/counts, SHA-pinned QA committed private-only
     ".github/workflows/gamepulse-pr776-natural-original-player-gaps.yml",  # reviewed: SHA-verified private player direct-gap distribution, aggregate only, original XYZ not in public logs
     ".github/workflows/gamepulse-pr776-c1-5-8-10s-benchmark.yml",  # reviewed: read-only SHA-verified private NBA XYZ withheld eval, aggregate results private-only; no player locations in public logs
