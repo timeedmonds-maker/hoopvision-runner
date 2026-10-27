@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-oct26-last3-parallel-parts.yml",  # bounded original NBA SDK live-ended parts; private-only releases
     ".github/workflows/gamepulse-oct26-incremental-catalog.yml",  # private complete-source 43-to-52 incremental catalog indexer
     ".github/workflows/gamepulse-igp-additive-original-source-index.yml",  # private additive original XYZ 36-to-52 source manifest; no public raw XYZ
     ".github/workflows/gamepulse-oct25-26-original-xyz-catchup.yml",  # private original SDK Oct25-26 official final batch; no public source or artifacts
