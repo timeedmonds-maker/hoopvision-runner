@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-G2-source-substitution-query-36.yml",  # original NBA SDK per-player substitution clock query SHA readbacks private source only
     ".github/workflows/gamepulse-pr776-G2-source-actor-transition-index-36.yml",  # trusted original NBA source-coordinate time evidence private QA, public aggregate only
     "worker_results/reed-0022600125-q2-0841-temporary-multiangle.json",  # reviewed no licensed SDK XYZ, signed HLS or tokens; NBA public event metadata only
     ".github/workflows/resolve-reed-20261026-camera-angles.yml",  # reviewed signed NBA HLS URLs and exception details removed from public output
