@@ -38,6 +38,39 @@ jobs:
             "https://github.com/$PRIVATE.git" "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           echo "SOURCE_ROOT=$RUNNER_TEMP/private" >> "$GITHUB_ENV"
+      - name: Validate independent Detroit scoreboard temporal holdout against private archived NBA frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_p2_scoreboard_temporal_holdout_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_p2_scoreboard_temporal_holdout_2026.py'
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_p2_action628_scoreboard_clock_holdout_20261027.json
+          TMP="$(mktemp)"
+          python3 gamepulse/fusion/igp_p2_scoreboard_temporal_holdout_2026.py --root . > "$TMP"
+          python3 - "$TMP" "$OUT" <<'PY'
+          import json,sys
+          from pathlib import Path
+          data=json.loads(Path(sys.argv[1]).read_text())
+          assert data["schema"]=="gamepulse.igp-p2-one-case-visual-scoreboard-and-direct-official-ten-holdout.v1"
+          assert data["reviewed_scoreboard_stills"]==9
+          assert data["scoreboard_time_check"]["max_displayed_clock_residual_s"]==0
+          assert data["official_ten_source_window_quality"]["source_frames"]==28
+          assert data["official_ten_source_window_quality"]["direct_official_ten_plus_ball_frames"]==26
+          assert data["official_ten_source_window_quality"]["conservative_five_plus_direct_frames"]==15
+          assert data["video_PTS_to_original_SDK_UTC_mapping_verified"] is False
+          assert data["physical_start_end_timing_error_ms"] is None
+          assert data["full_physical_possessions_certified"]==0
+          output=Path(sys.argv[2])
+          if output.exists(): assert json.loads(output.read_text())==data
+          else: output.write_text(json.dumps(data,indent=2,sort_keys=True)+"\n")
+          print("IGP_P2_ACTION628_INDEPENDENT_SCOREBOARD_QA_OK",
+                json.dumps({"scoreboard_stills":9,"direct_official_ten_ball_frames":26,
+                            "source_frames":28,"continuous_direct_frames":15,
+                            "certified_full_possessions":0},sort_keys=True))
+          PY
+          rm -f "$TMP"
       - name: Test existing native query and 36-game materializer
         shell: bash
         run: |
@@ -553,6 +586,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_query_state_overlay_acceptance.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_query_availability_projection_36_acceptance.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_canonical_query_official_ten_accepted.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_p2_action628_scoreboard_clock_holdout_20261027.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
