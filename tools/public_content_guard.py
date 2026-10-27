@@ -225,6 +225,8 @@ ALLOWED_STATIC = {
 # pinned to exact Git blobs. New or edited workflows must be re-reviewed;
 # the pin does not authorize source datasets, binaries or public results.
 REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
+    ".github/workflows/reed-0022600125-exact-action.yml": "1f039e96c534a7ea842e3053b6eb3b3d8fed041e",  # reviewed manual-only official public PBP, no signed media retrieval/persistence
+    "reed_0022600125_official_action.json": "935a9ebcbe4177b8d642065e9392fc4f5952b069",  # immutable public NBA action metadata; hls_options empty, no signed URL
     ".github/workflows/gamepulse-pr776-oreb-control-stress.yml": "04e268929cca1ccdd2aa3f8428704000b3ab41f1",  # private original SDK read, aggregate control diagnostic only
     ".github/workflows/gamepulse-pr776-position-holdout-36.yml": "f9cec9925acde87472678c4695c6715068c73685",  # original private XYZ source, aggregate position error only
     ".github/workflows/gamepulse-pr776-new-eight-original-qa.yml": "3bd7f6f2a15a25048549a0fb74c362d8f650885f",  # original 13-part SDK, aggregate QA private only
@@ -304,6 +306,10 @@ REVIEWED_HANDOFF_CERT_GIT_BLOB_SHA = {
     "tools/clip_lab_public_handoff_cert.pem": "b3e84c69c35e061580dd3a4e6201c07f4adbdc19",
 }
 
+REVIEWED_PUBLIC_NBA_ACTION_METADATA = {
+    ".github/workflows/reed-0022600125-exact-action.yml",
+    "reed_0022600125_official_action.json",
+}
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
     ".github/workflows/clip-lab-sengun-hawks-hls.yml",  # pinned, public clips origin only; no raw URL output or artifacts
     ".github/workflows/clip-lab-rockets-219-hls.yml",
@@ -402,7 +408,8 @@ def scan(paths: list[str]) -> list[tuple[str, str]]:
                 # Existing exact-blob NBA clip locator workflows contain the
                 # public clips.nba.com origin, never signed media URLs.
                 if (code == "MEDIA_SOURCE_URL" and
-                    rel in REVIEWED_MEDIA_SOURCE_WORKFLOWS and
+                    (rel in REVIEWED_MEDIA_SOURCE_WORKFLOWS or
+                     (rel in REVIEWED_PUBLIC_NBA_ACTION_METADATA and pinned_sha)) and
                     all(m.group(0).lower() == "clips.nba.com"
                         for m in rx.finditer(text))):
                     continue
