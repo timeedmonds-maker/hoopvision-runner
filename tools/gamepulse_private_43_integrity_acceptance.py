@@ -13,6 +13,7 @@ from pathlib import Path
 CAT = "gamepulse/catalog/2026-27-auto-refresh-provisional.json"
 FUSION = "gamepulse/fusion/index/index.json"
 TRACK = "gamepulse/fusion/tracking_onoff/index.json"
+INTERACT = "gamepulse/fusion/index/interactions/index-2026-27.json"
 PBP = "gamepulse/fusion/official_pbp_timing/index-2026-27-through-20261025.json"
 PROVIDER = "gamepulse/fusion/onoff/index-2026-27-through-20261025.json"
 STATUS = "gamepulse/fusion/status.json"
@@ -44,16 +45,22 @@ def score_reconciled(qa):
 def validate(root):
     docs = {}
     digests = {}
-    for path in (CAT, FUSION, TRACK, PBP, PROVIDER, STATUS, ROCKETS_QA):
+    for path in (CAT, FUSION, TRACK, PBP, PROVIDER, INTERACT, STATUS, ROCKETS_QA):
         docs[path], digests[path] = read(root, path)
     catalog, fusion, tracking, pbp, provider = (docs[k] for k in
         (CAT, FUSION, TRACK, PBP, PROVIDER))
+    interactions = docs[INTERACT]
     status, qa = docs[STATUS], docs[ROCKETS_QA]
     ids = set(catalog["games"])
     if (catalog.get("season") != "2026-27" or
             catalog.get("game_count") != len(ids) or len(ids) < 43):
         raise RuntimeError("VERIFIED_SEASON_COUNT_INCONSISTENT")
-    same_games(ids, fusion, tracking, pbp, provider)
+    same_games(ids, fusion, tracking, pbp, provider, interactions)
+    if (interactions.get("game_count") != len(ids) or
+            interactions.get("complete_43") is not True or
+            interactions.get("prior_36_preserved") is not True or
+            interactions.get("certified_full_touch_possessions") != 0):
+        raise RuntimeError("ORIGINAL_NATIVE_TOUCH_SEASON43_NOT_PRESERVED")
     if (pbp["game_count"] != len(ids) or provider["game_count"] != len(ids) or
             provider.get("complete_43") is not True or
             provider.get("missing_new_games") or
@@ -76,15 +83,18 @@ def validate(root):
                 not game.get("source_signature")):
             raise RuntimeError("UNVERIFIED_SDK_ARCHIVE")
     total_shots = total_frames = total_complete = total_xman = 0
+    total_native_labels = total_action_runs = 0
     for gid in sorted(ids):
         fi = fusion["games"][gid]
         tv = tracking["games"][gid]
         pi = pbp["games"][gid]
         oi = provider["games"][gid]
+        ni = interactions["games"][gid]
         fpath = "gamepulse/fusion/index/games/" + gid + ".json"
         tpath = "gamepulse/fusion/tracking_onoff/games/" + gid + ".json"
         ppath = "gamepulse/fusion/official_pbp_timing/games/" + gid + ".json"
         opath = "gamepulse/fusion/onoff/games/" + gid + ".json"
+        npath = "gamepulse/fusion/index/interactions/" + gid + ".json"
         if (fi.get("path") != fpath or tv.get("path") != tpath or
                 pi.get("source_file") != ppath or oi.get("path") != opath):
             raise RuntimeError("UNTRUSTED_GAME_VIEW_PATH")
@@ -92,8 +102,9 @@ def validate(root):
         tview, _ = read(root, tpath)
         pview, _ = read(root, ppath)
         oview, od = read(root, opath)
-        if (fi.get("sha256") != fd or oi.get("sha256") != od or
-                any(v.get("game_id") != gid for v in (fview, tview, pview, oview))):
+        nview, nd = read(root, npath)
+        if (fi.get("sha256") != fd or oi.get("sha256") != od or ni.get("sha256") != nd or
+                any(v.get("game_id") != gid for v in (fview, tview, pview, oview, nview))):
             raise RuntimeError("GAME_VIEW_SOURCE_SHA_OR_ID_MISMATCH")
         if (fi.get("shot_rows") != len(fview.get("shots", [])) or
                 tv.get("records") != len(tview.get("lineups", [])) or
@@ -108,6 +119,17 @@ def validate(root):
                 "NBA_TEAM_PLAYER_ONOFF_SUMMARY_AND_TEAM_DASH_LINEUPS" or
                 oview.get("source_qa", {}).get("player_onoff_conflicts") != 0):
             raise RuntimeError("NBA_PROVIDER_ONOFF_SOURCE_NOT_RECONCILED")
+        if (nview.get("schema") != "gamepulse.interaction-event-possession-fusion.v1" or
+                nview.get("certified_touch_possessions") != 0 or
+                nview.get("reconciliation", {}).get("nba_team_score_reconciled") is not True or
+                len(nview.get("possessions", [])) != ni.get("team_action_runs") or
+                nview.get("source_event_counts", {}).get("native_unique_touch_labels") !=
+                ni.get("source_native_touch_labels") or
+                any(run.get("certified_complete_possession") is not False
+                    for run in nview.get("possessions", []))):
+            raise RuntimeError("NATIVE_43_ORIGINAL_TOUCH_SOURCE_OR_CERTIFICATION_MISMATCH")
+        total_native_labels += ni["source_native_touch_labels"]
+        total_action_runs += ni["team_action_runs"]
         if tv.get("certified_possessions") != 0:
             raise RuntimeError("PHYSICAL_POSSESSION_CERTIFICATION_UNSUPPORTED")
         total_shots += fi["shot_rows"]
@@ -135,13 +157,16 @@ def validate(root):
         "state": "SEASON43_SOURCE_INDEX_SHA_ACCEPTED_PHYSICAL_QA_INCOMPLETE",
         "game_count": len(ids),
         "source_index_sha256": {p: digests[p] for p in
-            (CAT, FUSION, TRACK, PBP, PROVIDER, STATUS, ROCKETS_QA)},
+            (CAT, FUSION, TRACK, PBP, PROVIDER, INTERACT, STATUS, ROCKETS_QA)},
         "per_game_views_sha256_verified": {
-            "blueprint_fusion": len(ids), "nba_provider_onoff": len(ids)},
+            "blueprint_fusion": len(ids), "nba_provider_onoff": len(ids),
+            "source_native_touch_action_runs": len(ids)},
         "per_game_views_source_checked": {
             "tracking_onoff": len(ids), "official_nba_pbp": len(ids)},
         "totals": {"blueprint_shots": total_shots, "observed_tracking_frames": total_frames,
-                   "exact_5v5_frames": total_complete, "xman_lineups": total_xman},
+                   "exact_5v5_frames": total_complete, "xman_lineups": total_xman,
+                   "original_native_touch_labels": total_native_labels,
+                   "provisional_official_team_action_runs": total_action_runs},
         "rockets_0022600009": {
             "blueprint_shots": 155, "lineup_rows": 577,
             "original_temporal_source_qa": qa.get("temporal_source_coverage"),
