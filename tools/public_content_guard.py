@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-c1-5-8-10s-benchmark.yml",  # reviewed: read-only SHA-verified private NBA XYZ withheld eval, aggregate results private-only; no player locations in public logs
     ".github/workflows/gamepulse-igp-fast-lineup-two-game-qa.yml",  # private-only source ten-ID anchors and guarded 2–5s masked XYZ holdout; no public source or artifacts
     ".github/workflows/gamepulse-rockets-official-utc-overlap-graph.yml",  # reviewed private-only PBP UTC overlap graph; no coordinates or public artifacts
     ".github/workflows/gamepulse-rockets-xfg-chain-source-qa.yml",  # reviewed private-only SHA-pinned Blueprint xFG to official logical-chain QA, aggregate public logs
