@@ -398,6 +398,49 @@ jobs:
                             "frozen_indexes_modified":False,
                             "physical_possessions_certified":0},sort_keys=True))
           PY
+      - name: Prove official NBA 5v5 identities inside existing source possession query
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_query_igp_possession_tracking_with_control_brackets_2026.py'
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from query_igp_possession_tracking_with_control_brackets_2026 import query
+          cases=[("0022600001","0022600001-P4-C0167"),
+                 ("0022600001","0022600001-P4-C0168")]
+          out=[]
+          for gid,cid in cases:
+            x=query(Path("."),gid,cid)
+            ten=x["official_NBA_ten_player_lineup"]
+            assert ten["status"]=="OFFICIAL_NBA_TEN_SOURCE_LINEUP_FOR_RECORDED_GAMECLOCK",ten["status"]
+            ids=ten["official_player_ids"]
+            assert len(ids)==len(set(ids))==10
+            teams=ten["official_teams"]
+            assert len(teams)==2 and all(len(v)==5 for v in teams.values())
+            assert set(ids)=={str(y) for actors in teams.values() for y in actors}
+            assert not ten["physical_oncourt_at_SDK_frame_verified"]
+            assert ten["official_pbp_SHA256"] and ten["official_lineup_SHA256"]
+            assert x["candidate_tracking_counts"]["has_unique_logged_frames"] is True
+            assert not x["physical_possession_start_end_certified"]
+            out.append({"game_id":gid,"chain_id":cid,"official_players":len(ids),
+                        "lineup_interval_id":ten["lineup_interval_id"],
+                        "lineup_SHA256":ten["official_lineup_SHA256"],
+                        "PBP_SHA256":ten["official_pbp_SHA256"],
+                        "physical_oncourt_verified":False})
+          receipt={"schema":"gamepulse.igp-canonical-query-official-ten-source-acceptance.v1",
+                   "source_games":36,"real_queries_checked":len(out),
+                   "official_ten_source_queries":out,
+                   "physical_possessions_certified":0}
+          p=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_canonical_query_official_ten_accepted.json")
+          if p.exists(): assert json.loads(p.read_text())==receipt
+          else: p.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\\n")
+          print("IGP_OFFICIAL_TEN_IN_EXISTING_POSSESSION_QUERY_ACCEPTED",
+                json.dumps({"real_queries":len(out),"ten_players_per_source_lineup":10,
+                            "physical_possessions_certified":0},sort_keys=True))
+          PY
       - name: Real source per-NBA-possession query joins tracking and two-sided control evidence
         shell: bash
         run: |
@@ -509,6 +552,7 @@ jobs:
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_deadball_restart_phase_20261027.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_75_scored_query_state_overlay_acceptance.json
           git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_query_availability_projection_36_acceptance.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261027/igp_canonical_query_official_ten_accepted.json
           git diff --cached --check
           if ! git diff --cached --quiet; then
             test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 0 || test "$(git diff --cached --name-only -- "$OUT" | wc -l)" -eq 37
