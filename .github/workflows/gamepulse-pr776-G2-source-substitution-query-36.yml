@@ -1,0 +1,92 @@
+name: PR776 G2 36 original NBA player ball source substitution clock readback
+on:
+  push:
+    branches: [research/pr776-trusted-igp-runner-20261028]
+    paths:
+      - '.github/workflows/gamepulse-pr776-G2-source-substitution-query-36.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr776-G2-clock-index-native-readback-36
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public-content guard and private SHA-accepted original NBA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+             "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Regression full-native P0 plus original raw keyframe G1 and G2 clock index
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile \
+            gamepulse/fusion/igp_g2_nba_substitution_source_clock_query_2026.py \
+            gamepulse/fusion/igp_g2_nba_substitution_source_clock_query_acceptance_2026.py \
+            gamepulse/fusion/query_igp_original_full_native_source_2026.py
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+             -p 'test_igp_g2_nba_substitution_source_clock_query_2026.py' -v
+      - name: Read native original NBA player ball coordinates with G1 and clock evidence all36
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          QA=gamepulse/fusion/qa/igp_progress_20261028/igp_G2_NBA_substitution_source_clock_P0_G1_query_36_v1.json
+          test ! -e "$QA"
+          python3 gamepulse/fusion/igp_g2_nba_substitution_source_clock_query_acceptance_2026.py \
+            --root . --out "$QA" > "$RUNNER_TEMP/private-NBA-source-G1-substitution-query.log"
+          python3 - "$QA" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q["source_games"]==36
+          assert q["counts"]["games_with_original_actor_ball_and_substitution_clock"]==36
+          assert q["counts"]["original_NBA_SDK_player_ball_XYZ_readbacks"]==36
+          assert q["original_NBA_SDK_player_ball_XYZ_accepted_unchanged"]
+          assert q["original_G1_source_actor_keyframe_SHA_preserved"]
+          assert q["original_NBA_official_lineups_PBP_UTC_preserved"]
+          assert q["private_actor_IDs_and_XYZ_not_emitted"]
+          print("G2_SOURCE_NBA_ORIGINAL_XYZ_G1_SHA_SUBSTITUTION_CLOCK_QUERY_ALL36_ACCEPTED",
+            json.dumps(q["counts"],sort_keys=True))
+          PY
+      - name: Commit private P0 G1 G2 NBA source-clock query QA receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          QA=gamepulse/fusion/qa/igp_progress_20261028/igp_G2_NBA_substitution_source_clock_P0_G1_query_36_v1.json
+          git config user.name "Game Pulse Original NBA Tracking QA"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f "$QA"
+          test "$(git diff --cached --name-only)" = "$QA"
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): certify 36 original NBA player-ball XYZ G1 SHA and G2 official substitution source clock evidence query"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo PRIVATE_G2_NBA_ORIGINAL_SUBSTITUTION_SOURCE_CLOCK_QUERY_QA_PUBLISHED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 13
