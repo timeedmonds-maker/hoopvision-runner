@@ -36,7 +36,7 @@ jobs:
           python3 tools/public_content_guard.py
           python3 -m py_compile tools/licensed_feed/verify_gameplay_0009.py tools/licensed_feed/verify_gameplay.py
           PYTHONPATH=tools/licensed_feed python3 - <<'PY'
-          from verify_gameplay_0009 import nearest_gap, unix_ms, observed_slot_diagnostic, frame_position_presence, original_qa_blocker_codes, BEGIN, SLOT_MS
+          from verify_gameplay_0009 import nearest_gap, unix_ms, observed_slot_diagnostic, frame_position_presence, original_qa_blocker_codes, private_qa_payload, GAME, BEGIN, SLOT_MS
           assert nearest_gap([], 100) is None
           assert nearest_gap([10, 30, 50], 40) == 10
           assert nearest_gap([10, 30, 50], 50) == 0
@@ -62,6 +62,37 @@ jobs:
               "observed_original_same_frame_player_ball": {
                   "unique_source_timestamps_with_both_position_keys": 0}})
           assert "OBSERVED_SAME_FRAME_PLAYER_BALL_ABSENT" in absent
+          import base64, json
+          minimal = {
+              "game_id": GAME, "source_parts_sha256_verified": 13,
+              "source_windows_sha256_verified": 3720,
+              "tracking_gameplay_certified": False,
+              "independent_player_team_id_certified": False,
+              "possession_lineup_chain_certified": False,
+              "video_pts_certified": False,
+          }
+          raw = json.dumps(minimal).encode()
+          assert base64.b64decode(private_qa_payload(raw)["content"]) == raw
+          for field in ("tracking_gameplay_certified",
+                        "independent_player_team_id_certified",
+                        "possession_lineup_chain_certified", "video_pts_certified"):
+              invalid = dict(minimal, **{field: True})
+              try:
+                  private_qa_payload(json.dumps(invalid).encode())
+              except RuntimeError:
+                  pass
+              else:
+                  raise AssertionError("certification promotion must fail")
+          for key, bad_value in (("game_id", "OTHER_GAME"),
+                                 ("source_parts_sha256_verified", 12),
+                                 ("source_windows_sha256_verified", 3719)):
+              invalid = dict(minimal, **{key: bad_value})
+              try:
+                  private_qa_payload(json.dumps(invalid).encode())
+              except RuntimeError:
+                  pass
+              else:
+                  raise AssertionError("unverified source scope must fail")
           print('ORIGINAL_TEMPORAL_QA_SYNTHETIC_PASS')
           PY
   private-qa:

@@ -408,6 +408,65 @@ def original_qa_blocker_codes(report):
     return codes or ["TEMPORAL_SCREEN_PASSED_FULL_TRACKING_UNCERTIFIED"]
 
 
+def private_qa_payload(data, current_sha=None):
+    """Build a private-only, fail-closed GitHub contents update."""
+    import base64
+    report = json.loads(data)
+    if (report.get("game_id") != GAME or
+            report.get("source_parts_sha256_verified") != PARTS or
+            report.get("source_windows_sha256_verified") != EXPECTED_WINDOWS or
+            any(report.get(key) is not False for key in (
+                "tracking_gameplay_certified",
+                "independent_player_team_id_certified",
+                "possession_lineup_chain_certified",
+                "video_pts_certified"))):
+        raise RuntimeError("private_qa_snapshot_certification_gate_invalid")
+    payload = {
+        "branch": "main",
+        "message": "data(gamepulse): publish SHA-verified Rockets original gameplay QA (not certified)",
+        "content": base64.b64encode(data).decode("ascii"),
+    }
+    if current_sha is not None:
+        payload["sha"] = current_sha
+    return payload
+
+
+def publish_private_qa_snapshot(data):
+    """Mirror only the aggregate QA to private 104 for searchable audit checks.
+
+    Licensed original frames and per-frame positions never enter the public
+    repository, logs or artifacts. This snapshot cannot promote certification.
+    """
+    import base64
+    path = "gamepulse/fusion/qa/0022600009_original_gameplay_source_qa.json"
+    endpoint = f"repos/{REPO}/contents/{path}"
+    check = subprocess.run(
+        ["gh", "api", endpoint + "?ref=main"], text=True,
+        capture_output=True, timeout=120)
+    current_sha = None
+    if check.returncode == 0:
+        current = json.loads(check.stdout)
+        current_sha = current["sha"]
+        existing = base64.b64decode(current["content"])
+        if existing == data:
+            return
+    elif not any(x in (check.stderr or "").lower()
+                 for x in ("404", "not found")):
+        raise RuntimeError("private_qa_snapshot_preflight_failed")
+    payload = private_qa_payload(data, current_sha)
+    write = subprocess.run(
+        ["gh", "api", "-X", "PUT", endpoint, "--input", "-"],
+        input=json.dumps(payload), text=True, capture_output=True, timeout=120)
+    if write.returncode:
+        raise RuntimeError("private_qa_snapshot_write_failed")
+    published = json.loads(gh("api", endpoint + "?ref=main"))
+    raw = base64.b64decode(published["content"])
+    blob_sha = hashlib.sha1(
+        b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+    if raw != data or published.get("sha") != blob_sha:
+        raise RuntimeError("private_qa_snapshot_readback_failed")
+
+
 def main():
     report = audit()
     report["original_source_qa_blockers"] = original_qa_blocker_codes(report)
@@ -423,6 +482,7 @@ def main():
            "--pattern", OUTPUT, "--dir", str(check))
         if digest((check / OUTPUT).read_bytes()) != expected_sha:
             raise RuntimeError("private_qa_readback_sha256_mismatch")
+        publish_private_qa_snapshot(local.read_bytes())
     print("PRIVATE_ORIGINAL_GAMEPLAY_QA_SAVED", report["temporal_source_coverage"])
     for code in report["original_source_qa_blockers"]:
         print("ORIGINAL_QA_BLOCKER", code)
