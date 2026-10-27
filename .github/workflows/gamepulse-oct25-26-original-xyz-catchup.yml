@@ -58,7 +58,9 @@ jobs:
               for gid,tip in sorted(starts.items(),key=lambda x:(x[1],x[0])):
                   kickoff=datetime.fromisoformat(tip.replace("Z","+00:00"))
                   # All 13 25-minute SDK periods fully elapsed plus safety.
-                  if now<kickoff+timedelta(minutes=315):continue
+                  # Batch collector verifies NBA official final before using
+                  # the exact-slot SDK postgame fastlane; no fixed wallclock wait.
+                  if now<kickoff:continue
                   raw=gh("release","view","gamepulse-live-sdk-"+gid,
                          "--repo","timeedmonds-maker/104","--json","assets")
                   if not raw:continue
