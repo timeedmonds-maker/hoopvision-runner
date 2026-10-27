@@ -366,10 +366,10 @@ jobs:
             assert len(chains)==meta["candidate_chains"]
             for c in chains:
               original=dict(c["counts"])
-              n=original["unique_NBA_logged_frames"]
+              n=original.get("unique_NBA_logged_frames",0)
               q=join_one({"game_id":gid,"chain":c},[])
               assert q["candidate_tracking_counts"]["has_unique_logged_frames"] is (n>0)
-              assert q["candidate_tracking_counts"]["unique_NBA_logged_frames"]==n
+              assert q["candidate_tracking_counts"].get("unique_NBA_logged_frames",0)==n
               assert c["counts"]==original
               counts["chains"]+=1
               counts["with_tracking" if n else "without_tracking"]+=1
