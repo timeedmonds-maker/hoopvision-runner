@@ -40,6 +40,76 @@ jobs:
           git clone -q --filter=blob:none --depth=1 --sparse -b "$B" "https://github.com/$R.git" "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           echo "PRIVATE_ROOT=$RUNNER_TEMP/private" >> "$GITHUB_ENV"
+      - name: Execute 36-game source-derived handler team possession changes and persist private QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$PRIVATE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_ball_handler_team_transitions_2026.py gamepulse/fusion/igp_automatic_possession_boundary_fusion_2026.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p test_igp_ball_handler_team_transitions_2026.py
+          python3 gamepulse/fusion/igp_automatic_possession_boundary_fusion_2026.py \
+            --root . --game-ids all --team-control-changes \
+            --out "$RUNNER_TEMP/igp-handler-all36.json"
+          python3 - <<'PY'
+          import collections,json
+          from pathlib import Path
+          source=json.loads((Path(__import__('os').environ['RUNNER_TEMP'])/'igp-handler-all36.json').read_bytes())
+          assert source["game_count"]==36 and len(source["games"])==36
+          aggregate=collections.Counter()
+          games={}
+          for gid,game in sorted(source["games"].items()):
+              result=game["ball_handler_team_control_changes"]
+              assert result["physical_possessions_certified"]==0
+              assert result["source_native_touch_events"]==game["tracking_touch_source_episodes"]
+              assert result["counts"]["source_touch_candidates"]==result["source_native_touch_events"]
+              assert result["counts"].get("opponent_control_change_candidates",0)==sum(
+                  e["type"]=="OPPONENT_CONTROL_CHANGE_CANDIDATE" for e in result["events"])
+              assert all(e.get("physical_control_verified") is False for e in result["events"])
+              aggregate.update(result["counts"])
+              aggregate["original_native_frames"]+=game["source_native_frames_read_exactly_once"]
+              aggregate["NBA_candidate_chains"]+=game["nba_candidate_chains"]
+              for key,count in game["NBA_official_chain_terminal_reason_counts"].items():
+                  aggregate["NBA_terminal_"+key]+=count
+              games[gid]={"source_sha256":game["source_sha256"],
+                          "NBA_terminal_counts":game["NBA_official_chain_terminal_reason_counts"],
+                          "NBA_candidate_chains":game["nba_candidate_chains"],
+                          "native_frame_count":game["source_native_frames_read_exactly_once"],
+                          "candidate_control_changes":result}
+          assert aggregate["original_native_frames"]==1203986
+          assert aggregate["NBA_candidate_chains"]==7199
+          receipt={"schema":"gamepulse.igp-original-handler-team-source36-qa.v1",
+                   "source_games":36,"total":dict(sorted(aggregate.items())),"games":games,
+                   "source_frames_unchanged":True,"PBP_logged_time_not_physical_time":True,
+                   "independently_certified_physical_possessions":0}
+          out=Path("gamepulse/fusion/qa/igp_progress_20261027/igp_handler_team_all36_source_qa.json")
+          if out.exists(): assert json.loads(out.read_text())==receipt
+          else: out.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n")
+          safe={key:aggregate.get(key,0) for key in (
+              "original_native_frames","NBA_candidate_chains","source_touch_candidates",
+              "opponent_control_change_candidates","class_DEFENSIVE_REBOUND",
+              "class_LIVE_STEAL","class_UNCLASSIFIED_OPPONENT_GAIN",
+              "class_POST_SCORE_NEW_TEAM_CONTROL_RESTART",
+              "same_team_contact_continuations","unusable_contact_evidence")}
+          print("PR776_HANDLER_TEAM_36_SOURCE_ACCEPTED",
+                json.dumps({"source_games":36,"counts":safe,
+                            "physical_possessions_certified":0},sort_keys=True))
+          PY
+          OUT=gamepulse/fusion/qa/igp_progress_20261027/igp_handler_team_all36_source_qa.json
+          git config user.name 'Game Pulse Free CPU Runner'
+          git config user.email 'gamepulse-runner@users.noreply.github.com'
+          git add -f "$OUT"
+          git diff --cached --check
+          git commit -qm "qa(igp): execute original ball-handler team changes across 36 NBA games"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            if git push -q origin "HEAD:refs/heads/$B"; then
+              echo PR776_36_GAME_HANDLER_CHANGE_PRIVATE_QA_SAVED
+              break
+            fi
+            git fetch -q origin "$B"
+            git rebase -q "origin/$B"
+            sleep "$attempt"
+          done
       - name: Test and run actual 36-game full original XYZ continuity audit
         shell: bash
         run: |
