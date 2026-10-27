@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-G2-long-official-pbp-roster-36.yml",  # reviewed: private SHA-verified NBA PBP two-ended longer UTC roster candidate QA, public aggregate counts only, no XYZ
     ".github/workflows/gamepulse-pr776-original-actor-G1-provenance-all36.yml",  # approved all-36 private raw SDK per-actor SHA+interpolation provenance, only safe aggregate public logs
     ".github/workflows/gamepulse-pr776-original-actor-G1-provenance-pilot.yml",  # reviewed: two SHA-verified private NBA SDK source games, actor interpolation metadata only; no public XYZ or player IDs
     ".github/workflows/gamepulse-pr776-full-native-P0-acceptance-36.yml",  # reviewed: SHA-verified private original-source 36-game XYZ readback; aggregate-only public logs, private QA receipt
