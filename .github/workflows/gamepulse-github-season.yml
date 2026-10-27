@@ -151,7 +151,7 @@ jobs:
           set -euo pipefail
           test -n "$GH_TOKEN"
           # Only original NBA schedule; target range is bounded to these two US days.
-          curl -fsSL --retry 2 --max-time 35 'https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json' -o "$RUNNER_TEMP/official-schedule.json"
+          curl -fsSL --retry 2 --max-time 35 -A 'Mozilla/5.0' -H 'Accept: application/json' -H 'Referer: https://www.nba.com/' 'https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json' -o "$RUNNER_TEMP/official-schedule.json"
           python3 - <<'PY'
           from datetime import datetime,timezone
           from pathlib import Path
