@@ -56,6 +56,9 @@ jobs:
             author="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.author.login // ""')"
             committer="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.committer.login // ""')"
             case "$author" in "$GITHUB_REPOSITORY_OWNER"|"github-actions[bot]") ;; *) echo "UNVERIFIED_GITHUB_AUTHOR $sha"; exit 1;; esac
-            case "$committer" in "$GITHUB_REPOSITORY_OWNER"|"github-actions[bot]") ;; *) echo "UNVERIFIED_GITHUB_COMMITTER $sha"; exit 1;; esac
+            # GitHub performs REST squash merges as its verified web-flow service.
+            # Keep author attribution to the repo owner; recognize GitHub's
+            # own merge committer without permitting unidentified accounts.
+            case "$committer" in "$GITHUB_REPOSITORY_OWNER"|"github-actions[bot]"|"web-flow") ;; *) echo "UNVERIFIED_GITHUB_COMMITTER $sha"; exit 1;; esac
           done < /tmp/introduced-commits.txt
           echo "NEW_COMMIT_GITHUB_ACCOUNT_ATTRIBUTION_VERIFIED"
