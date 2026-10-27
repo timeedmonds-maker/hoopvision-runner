@@ -64,7 +64,7 @@ jobs:
           url="repos/timeedmonds-maker/104/contents/gamepulse/fusion/season_possession_tracking_crosswalk_2026.py?ref=main"
           response=json.loads(subprocess.check_output(["gh","api",url]))
           blob=base64.b64decode(response["content"])
-          git_blob_sha=hashlib.sha1(b"blob "+str(len(blob)).encode()+b"\\0"+blob).hexdigest()
+          git_blob_sha=hashlib.sha1(b"blob "+str(len(blob)).encode()+b"\0"+blob).hexdigest()
           assert git_blob_sha==response["sha"],"PRIVATE_CROSSWALK_SOURCE_GIT_BLOB_SHA_INVALID"
           dest=Path(os.environ["RUNNER_TEMP"])/"private104/gamepulse/fusion/season_possession_tracking_crosswalk_2026.py"
           dest.write_bytes(blob)
