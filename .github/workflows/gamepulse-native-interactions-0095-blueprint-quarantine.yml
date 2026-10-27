@@ -7,7 +7,6 @@ on:
     branches: [main]
     paths:
       - '.github/workflows/gamepulse-native-interactions-0095-blueprint-quarantine.yml'
-      - 'tools/public_content_guard.py'
   workflow_dispatch:
 permissions:
   contents: read
@@ -117,6 +116,29 @@ jobs:
           r=Path(os.environ["RUNNER_TEMP"])/"private-fusion"
           game=os.environ["GAME_ID"]
           data=(r/"interactions.json").read_bytes()
+          # This is a legacy, older pinned generator. The canonical 43-game
+          # interaction manifest is immutable source evidence. Never allow a
+          # stale rerun to replace its reviewed player/shot conflict quarantines.
+          manifest_endpoint="repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/interactions/index-2026-27.json"
+          manifest_response=subprocess.run(
+              ["gh","api",manifest_endpoint+"?ref=main"],capture_output=True,text=True,check=True)
+          manifest_contents=base64.b64decode(json.loads(manifest_response.stdout)["content"])
+          manifest=json.loads(manifest_contents)
+          entry=manifest.get("games",{}).get(game)
+          if not entry or manifest.get("game_count") < 43:
+              raise RuntimeError("CANONICAL_NATIVE_INTERACTION_MANIFEST_UNAVAILABLE")
+          candidate_digest=hashlib.sha256(data).hexdigest()
+          if candidate_digest != entry.get("sha256"):
+              print("LEGACY_SOURCE_GENERATOR_NOT_PROMOTED_SHA_IMMUTABLE")
+              raise RuntimeError("CANDIDATE_DIFFERS_FROM_FROZEN_INTERACTION_SOURCE")
+          candidate=json.loads(data)
+          if (candidate.get("game_id") != game or
+                  candidate.get("source_event_counts",{}).get("native_unique_touch_labels") !=
+                     entry.get("source_native_touch_labels") or
+                  len(candidate.get("possessions",[])) != entry.get("team_action_runs") or
+                  candidate.get("certified_touch_possessions") != 0 or
+                  candidate.get("reconciliation",{}).get("nba_team_score_reconciled") is not True):
+              raise RuntimeError("FROZEN_INTERACTION_SOURCE_COUNTS_OR_CERTIFICATION_INVALID")
           target="repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/interactions/"+game+".json"
           import time
           # GitHub Contents PUT updates the same git branch even when game
