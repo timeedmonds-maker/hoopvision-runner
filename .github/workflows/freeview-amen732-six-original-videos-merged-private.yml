@@ -32,6 +32,31 @@ jobs:
           else
             echo "PRIVATE_FULL_VIDEO_DIRECT_FETCH_UNAVAILABLE"
           fi
+          # Additional private GitHub browser authentication (bounded; no public artifact)
+          OUTB="$RUNNER_TEMP/amen732-basic-test.mp4"
+          BASIC_STATUS="$(curl -L --silent --show-error --max-time 50 \
+            -u "$GITHUB_ACTOR:$GH_TOKEN" --output "$OUTB" --write-out '%{http_code}' "$URL" || true)"
+          echo "SOURCE_BASIC_HTTP_STATUS=$BASIC_STATUS"
+          # GraphQL release-asset downloadURL may be distinct from website URL.
+          QUERY='query { repository(owner:"timeedmonds-maker",name:"104") { release(tagName:"freeview-native-0022600009-732") { releaseAssets(first:20) { nodes { name downloadUrl } } } } }'
+          gh api graphql -f query="$QUERY" > "$RUNNER_TEMP/release-gql.json"
+          python3 - "$RUNNER_TEMP/release-gql.json" "$RUNNER_TEMP/gql-url.txt" <<'PY'
+          import json,sys,urllib.parse
+          j=json.load(open(sys.argv[1]))
+          rows=j["data"]["repository"]["release"]["releaseAssets"]["nodes"]
+          x=[a for a in rows if a["name"]=="0022600009-e732-broadcast.mp4"]
+          assert len(x)==1
+          url=x[0]["downloadUrl"]
+          print("GRAPHQL_ASSET_URL_HOST",urllib.parse.urlparse(url).hostname)
+          open(sys.argv[2],"w").write(url)
+          PY
+          GQL_URL="$(cat "$RUNNER_TEMP/gql-url.txt")"
+          OUTG="$RUNNER_TEMP/amen732-graphql-test.mp4"
+          GQL_STATUS="$(curl -L --silent --show-error --max-time 50 \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            --output "$OUTG" --write-out '%{http_code}' "$GQL_URL" || true)"
+          echo "GRAPHQL_ASSET_DOWNLOAD_STATUS=$GQL_STATUS"
+          test "$GQL_STATUS" != 200 || echo "GRAPHQL_ASSET_DOWNLOAD_BYTES=$(stat -c '%s' "$OUTG")"
           # GraphQL search is a separate rate bucket from the saturated core REST API.
           QUERY='query { repository(owner:"timeedmonds-maker",name:"104") { release(tagName:"freeview-native-0022600009-732") { releaseAssets(first:15) { nodes { name downloadUrl } } } } }'
           if gh api graphql -f query="$QUERY" --jq '.data.repository.release.releaseAssets.nodes | length' >/dev/null 2>&1; then
