@@ -8,6 +8,7 @@ from pathlib import Path
 
 ALLOWED_STATIC = {
     ".github/workflows/gamepulse-ippt-blueprint-shot-release-query.yml",  # exact NBA event source and published original Blueprint private aggregate QA
+    ".github/workflows/gamepulse-ippt-blueprint-source-release-36-query.yml",  # SHA private NBA read-only event query aggregate acceptance only
     ".github/workflows/gamepulse-ippt-blueprint-pbp-shotchart-lineage-36.yml",  # SHA original public NBA PBP vs official Blueprint chart XY aggregate equality only
     ".github/workflows/gamepulse-ippt-blueprint-location-xy-30-holdout.yml",  # published Blueprint chart vs original shooter XY aggregate QA
     ".github/workflows/gamepulse-ippt-all36-original-sdk-actor-flags.yml",  # six shard original NBA SDK actor native event flag QA
