@@ -10,6 +10,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-ippt-all-event-sqlite-private-git.yml",  # private Git transport persist original NBA XY SQLite to separate private branch
     ".github/workflows/gamepulse-ippt-all-event-sqlite-private-release.yml",  # publish original NBA actor XY DB to PRIVATE repo release only; no public artifacts
     ".github/workflows/gamepulse-ippt-all-event-sqlite-private.yml",  # original all-action NBA source XY private-only SQLite, public count QA only
+    ".github/workflows/gamepulse-ippt-native-lasttouch-all-pbp-36.yml",  # original SHA native fresh label PBP actor identity aggregate crosscheck
     ".github/workflows/gamepulse-ippt-all10-rebound-contrastive-36.yml",  # source-only original NBA ball/official ten rebound rank aggregate diagnostics
     ".github/workflows/gamepulse-ippt-rebound-control-source-hypothesis.yml",  # private SHA original nonshot physics / wrong actor control aggregate only
     ".github/workflows/gamepulse-ippt-sdk-native-clock-schema.yml",  # exact SHA original SDK time/period metadata presence only; private source no values
