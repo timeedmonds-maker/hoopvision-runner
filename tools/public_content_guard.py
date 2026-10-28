@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-unified-56-season-tracking.yml",  # private NBA XYZ / models / Blueprint SHA verification and unified private QA only; public counts and status, no private XYZ
     ".github/workflows/gamepulse-igp-blueprint-official-56-qa.yml",  # SHA-only NBA public Blueprint shots versus private official PBP aggregate QA
     ".github/workflows/gamepulse-ippt-oct27-blueprint-backfill.yml",  # NBA public original shot report to private research branch only
     ".github/workflows/gamepulse-official-pbp-post36-backfill.yml",  # official public NBA PBP/box bytes committed private with final-score QA
