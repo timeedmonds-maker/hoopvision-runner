@@ -18,7 +18,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       RESEARCH_BRANCH: research/ippt-event-snapshots-separate-20261028
-      EXPECTED_CODE_SHA: b17f58cca7b4be000d3d56ff7baafa2526a042e4
+      EXPECTED_CODE_SHA: bfa19aa8b0b27c6680720e0f77a75d757b95bbe9
       DATA_BRANCH: data/ippt-all-pbp-native-xy-causal-motion-36-20261028-v3
       EXPECTED_DATA_SHA: 5deb5ee1ef3b1cec5ed336a705a126e79a26ad0c
       DB_FILE: gamepulse/fusion/materialized/ippt_all_pbp_native_xy_motion_36_v3/nba_pbp_original_native_xy_motion.sqlite
@@ -51,6 +51,7 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/query_igp_ippt_integrated_possession_v1_2026.py
           python3 -m unittest -v gamepulse/fusion/test_query_igp_ippt_integrated_possession_v1_2026.py
+          python3 -m unittest -v gamepulse/fusion/test_igp_ippt_source_model_b_query_2026.py
           python3 -m py_compile gamepulse/fusion/igp_ippt_empty_chain_native_fallback_2026.py
           python3 -m unittest -v gamepulse/fusion/test_igp_ippt_empty_chain_native_fallback_2026.py
       - name: Full36 SHA G4 7474 chain 22314 PBP event and corrected G3 consistency
@@ -328,6 +329,53 @@ jobs:
           print("IPPT_SHA_ALL409_EMPTY_CANONICAL_CHAINS_G4_SCORER_FALLBACK_ACCEPTED",
                 json.dumps({**counts,"real_source_full_XYZ_games":len(pilots),
                    "PBP_chain_boundary_or_physical_time_promoted":False},sort_keys=True))
+          PY
+      - name: Real all-native original NBA Model B source-ten private possession page integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_CODE"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          import gzip,json,os
+          from pathlib import Path
+          from query_igp_g4_native_actor_possession_2026 import load_index
+          from query_igp_ippt_integrated_possession_v1_2026 import query
+          root=Path(".");db=Path(os.environ["IPPT_DB"])
+          qa=json.loads(Path("gamepulse/fusion/qa/igp_progress_20261028/ippt_original_native_model_b_all36_v1.json").read_text())
+          assert qa["source_games"]==36 and len(qa["games"])==36
+          successes=0;new_players=0
+          for gid in ("0022600009","0022600092"):
+              blob,_=load_index(root,gid)
+              lookup={r[0]:r for r in blob["native_frames"]}
+              sidecar=root/qa["games"][gid]["sidecar_path"]
+              found=None
+              for line in gzip.open(sidecar,"rt"):
+                  data=json.loads(line)
+                  if data.get("source_ten_provisional") and data["players"] and lookup[data["native_UTC_ms"]][3]:
+                      found=(data["native_UTC_ms"],lookup[data["native_UTC_ms"]][3][0])
+                      break
+              assert found,"MISSING_REAL_SOURCE_ANCHORED_MODEL_B_TRACKING"
+              t,cid=found
+              page=query(root,db,gid,chain_id=cid,start=t,end=t,offset=0,
+                         limit=2,include_original_xyz=True) if False else query(
+                         root,db,gid,chain_id=cid,start=t,end=t,limit=2,
+                         include_xyz=True,include_g3=True,
+                         include_official_ten=True,include_model_b=True)
+              assert page["modelB_source_anchored_reconstruction_attached"]
+              assert page["original_native_frames_matched"]==1
+              assert len(page["original_native_frames"])==1
+              frame=page["original_native_frames"][0]
+              assert frame["source_anchored_ten_provisional"] is not None
+              assert frame["modelB_additional_missing_player_XYZ"]
+              assert not set(frame["modelB_additional_missing_player_XYZ"]).intersection(frame["source_players"])
+              assert not set(frame["modelB_additional_missing_player_XYZ"]).intersection(frame["G3_derived_missing_players"])
+              assert not frame["modelB_exact_physical_custody_certified"]
+              assert not page["NBA_PBP_event_physical_UTC_certified"]
+              successes+=1;new_players+=len(frame["modelB_additional_missing_player_XYZ"])
+          print("IPPT_PRIVATE_REAL_NBA_FULL_NATIVE_MODEL_B_SOURCE_TEN_POSSESSION_PAGE_PASS",
+             json.dumps({"games":successes,"original_SHA_source_provisional_new_players":new_players,
+                         "physical_custody_certified":False},sort_keys=True))
           PY
       - name: Publish aggregate-only QA issue receipt and erase licensed working data
         if: always()
