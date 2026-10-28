@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-blueprint-shot-gravity-52.yml",  # reviewed private licensed Blueprint source + PBP, public aggregate counts only, SQLite/QA committed private
     ".github/workflows/gamepulse-pr776-G4-native-player-possession-36.yml",  # reviewed 36-game G4 private SHA native actor, ball, NBA PBP chain indexing; no original XYZ in public logs
     ".github/workflows/gamepulse-pr776-G2-source-actor-transition-index-36.yml",  # private original NBA SDK substitution source player clock index, SHA-only public metrics
     "worker_results/reed-0022600125-q2-0841-temporary-multiangle.json",  # reviewed no licensed SDK XYZ, signed HLS or tokens; NBA public event metadata only
