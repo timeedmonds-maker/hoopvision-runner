@@ -1,0 +1,48 @@
+name: IPPT original Game Pulse shooter XY vs published Blueprint shot location 30game holdout
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-ippt-blueprint-location-xy-30-holdout.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  shooter-chart-geometry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/ippt-event-snapshots-separate-20261028
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public guard and SHA original NBA Game Pulse / published Blueprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          export GIT_TERMINAL_PROMPT=0
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+              "https://github.com/timeedmonds-maker/104.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set \
+              gamepulse/fusion data/extensions/nba_blueprint_2026_27
+          echo "IPPT_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Source-to-chart calibration / heldout dataset leakage tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_ippt_blueprint_shot_location_source_xy_holdout_2026.py
+          python3 -m unittest -v gamepulse/fusion/test_igp_ippt_blueprint_shot_location_source_xy_holdout_2026.py
+      - name: All 36 native games six development thirty heldout independent Blueprint shot XY
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -u gamepulse/fusion/igp_ippt_blueprint_shot_location_source_xy_holdout_2026.py --root .
+          echo "IPPT_SHOOTER_XY_BLUEPRINT_LOCATION_30GAME_HOLDOUT_PASS"
