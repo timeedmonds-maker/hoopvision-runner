@@ -34,7 +34,6 @@ jobs:
           mkdir -p "$ROOT/native" "$ROOT/private_qa"
           python3 tools/amen732_official_sixvideo_acquire.py \
             --root "$ROOT/native" \
-            --page 'https://clips.nba.com/?gameNo=0022600009&eventNum=732&source=grs' \
             --ffmpeg "$(command -v ffmpeg)" --ffprobe "$(command -v ffprobe)"
           python3 - "$ROOT/native/source_manifest.json" <<'PY'
           import json,sys
@@ -61,11 +60,17 @@ jobs:
             "cycle_max_ms",q["graph"].get("pairwise_residual_max_ms"),
             "suggested_frame_count",len(q["provisional_frame_candidates"]))
           PY
-          cp "$ROOT/private_qa/amen732_original_sixview_audio_alignment_v2.json" /tmp/amen732-original-audio-qa-v2.json
-      - name: Store metadata-only six-view alignment QA, never source footage
-        uses: actions/upload-artifact@v4
-        with:
-          name: amen732-original-sixcamera-timing-qa-v2
-          path: /tmp/amen732-original-audio-qa-v2.json
-          if-no-files-found: error
-          retention-days: 14
+          python3 - "$ROOT/private_qa/amen732_original_sixview_audio_alignment_v2.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          for e in d["edges"]:
+              print("AUDIO_EDGE",e["camera_a"],"/",e["camera_b"],"delay_s",
+                    e.get("relative_b_audio_delay_s"),"r",e.get("pearson_r"),
+                    "contrast",e.get("peak_contrast"),"accepted",e["accepted_edge"])
+          for cam,rec in d["provisional_frame_candidates"].items():
+              print("FRAME_CANDIDATE",cam,"frame",rec["frame_index"],
+                    "native_pts",rec["native_pts_s"],"error_ms",
+                    rec["nearest_frame_time_residual_ms"],"certified",False)
+          print("ONLY_DIAGNOSTIC_COUNTS_AND_OFFSETS_LOGGED_NO_MEDIA_ARTIFACT")
+          PY
+
