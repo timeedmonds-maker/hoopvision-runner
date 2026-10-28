@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-sdk-native-clock-schema.yml",  # exact SHA original SDK time/period metadata presence only; private source no values
     ".github/workflows/gamepulse-ippt-all-pbp-native-xy-36.yml",  # all22,314 original NBA PBP action XY read-only private SHA aggregate-only
     ".github/workflows/gamepulse-ippt-blueprint-shot-release-query.yml",  # exact NBA event source and published original Blueprint private aggregate QA
     ".github/workflows/gamepulse-ippt-blueprint-source-release-36-query.yml",  # SHA private NBA read-only event query aggregate acceptance only
