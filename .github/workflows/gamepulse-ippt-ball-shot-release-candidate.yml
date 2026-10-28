@@ -56,3 +56,5 @@ jobs:
           python3 gamepulse/fusion/igp_ippt_source_ball_shot_release_candidate_2026.py \
              --root . --games 0022600089 0022600098 0022600103 0022600107
           echo "IPPT_BALL_SHOOTER_FOUR_DIAGNOSTIC_GAMES_PASS"
+
+# Source-only hypothesis not a physically certified NBA shot-release measurement.
