@@ -49,14 +49,24 @@ jobs:
           for attempt in $(seq 1 55); do
             if gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$ROOT/input" \
                  --pattern '*.mp4' --pattern source_manifest.json \
-                 --pattern native_presentation_timestamps.json --clobber >/dev/null 2>"$ROOT/download_error.txt"; then
+                 --pattern native_presentation_timestamps.json --skip-existing >/dev/null 2>"$ROOT/download_error.txt"; then
               good=1; break
             fi
-            if grep -qi "rate limit" "$ROOT/download_error.txt"; then
-              echo PRIVATE_GITHUB_API_QUOTA_NOT_YET_RESTORED
+            python3 - "$ROOT/download_error.txt" <<'PY'
+          import sys
+          msg=open(sys.argv[1]).read().lower()
+          classes={"rate_limit":("rate limit","rate_limit","http 429"),
+                   "permission":("permission","forbidden","authentication","http 403"),
+                   "not_found":("not found","http 404","could not resolve"),
+                   "cli_syntax":("unknown flag","accepts","unknown shorthand")}
+          flags=[key for key,phrases in classes.items() if any(p in msg for p in phrases)]
+          print("PRIVATE_SOURCE_DOWNLOAD_ERROR_CLASS",",".join(flags) or "unclassified")
+          PY
+            if grep -Eqi "rate limit|rate_limit|http 429|http 403|forbidden" "$ROOT/download_error.txt"; then
+              echo PRIVATE_GITHUB_TOKEN_QUOTA_OR_ACCESS_PENDING
               sleep 60
             else
-              echo PRIVATE_RELEASE_DOWNLOAD_FAILED_NON_RATE_LIMIT
+              echo PRIVATE_RELEASE_DOWNLOAD_FAILED_NON_QUOTA_ERROR
               exit 5
             fi
           done
