@@ -46,6 +46,9 @@ jobs:
           prior=json.loads((p/"oldmodel.json").read_bytes())
           missing=json.loads((p/"absent.json").read_bytes())
           assert old["source_status"]=="PRESERVED_ACCEPTED_36_MODEL"
+          assert old["full_companion_shot_source"]["status"]=="IDENTITY_MATCHED_PROVISIONAL_TIME_CHAIN"
+          assert len(old["full_companion_shot_source"]["shot_details"]["source_features"])==30
+          assert old["full_companion_shot_source"]["physical_release_certified"] is False
           assert shot["source_status"]=="POST36_MODELED_PBP_SUB_LINEUP_PROVISIONAL"
           assert shot["official_action"]["nba_action_number"]==790
           assert shot["shot_source"]["status"]=="MATCHED_BLUEPRINT_ACTION_SHOOTER_TYPE"
