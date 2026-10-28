@@ -64,6 +64,48 @@ jobs:
                 "v2_expanded_estimated":c.get("v2_expanded_IPPT_estimated_ten_ball",0),
                 "v2_long_FG_unreliable":c.get("v2_expanded_with_weak_FG",0)})
           PY
+      - name: Strict v2 halfcourt original versus modeled readback in three source modes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_ippt_halfcourt_settled_v2_2026.py \
+            gamepulse/fusion/igp_ippt_halfcourt_v2_mask_qa_2026.py
+          python3 - <<'PY'
+          from query_igp_ippt_halfcourt_settled_v2_2026 import search
+          for gid in ("0022600009","0022600092"):
+              modes={x:search(".",gid,model=x,limit=5) for x in ("direct","evidence","predictive")}
+              values={x:v["total_matching_source_frames"] for x,v in modes.items()}
+              assert len(set(values.values()))==1
+              assert values["direct"]>10
+              for mode,r in modes.items():
+                  assert len(r["rows"])==5
+                  assert all(row["half_court_status"]=="ORIGINAL_TWO_TEAM_SETTLED_FORMATION_PROXY" for row in r["rows"])
+                  assert all(row["source_original_observed_defense_count_frontcourt"]>=3 for row in r["rows"])
+              print("IPPT_V2_PRIVATE_SETTLED_SEARCH_PASS",gid,{
+                  "three_source_modes":["direct","evidence","predictive"],
+                  "same_retrievable_native_frames":values["direct"],
+                  "source_positions_unchanged":True})
+          PY
+      - name: Severe 2 5 10s all-source hidden player and ball against strict settled v2 and remaining v1
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          import json
+          from igp_ippt_private_game_pilot_2026 import annotated_frames
+          from igp_ippt_halfcourt_v2_mask_qa_2026 import run
+          for gid in ("0022600009","0022600092"):
+              raw,g4,rosters,sha=annotated_frames(".",gid)
+              for ms in (2000,5000,10000):
+                  r=run(".",gid,raw,g4,rosters,window_ms=ms,windows=12)
+                  print("IPPT_V2_STRICT_VS_LOOSE_ALL_SOURCE_BLACKOUT",gid,ms,
+                    json.dumps(r["strata"],sort_keys=True))
+                  assert r["predictor_never_receives_masked_truth_xyz"]
+          PY
       - name: All36 SHA-conserved original/G3/predictive strict settled NBA source population
         shell: bash
         run: |
