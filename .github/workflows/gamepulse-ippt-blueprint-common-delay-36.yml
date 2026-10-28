@@ -48,3 +48,5 @@ jobs:
           echo "IPPT_BLUEPRINT_COMMON_DELAY_36_ORIGINAL_SOURCE_PASS"
 
 # QA only: all inverse match operations are held out from published physics truth.
+
+# Rerun after source-free test corrected against actual oracle warning.
