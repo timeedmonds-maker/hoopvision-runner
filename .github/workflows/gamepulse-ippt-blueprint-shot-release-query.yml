@@ -91,3 +91,5 @@ jobs:
           PY
 
 # Real NBA event query with published Blueprint metrics and original source candidate.
+
+# Original NBA event/source only, aggregate numerical QA in public logs.
