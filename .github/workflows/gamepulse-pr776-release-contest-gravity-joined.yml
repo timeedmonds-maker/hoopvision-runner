@@ -110,7 +110,7 @@ jobs:
               fieldnames=[x[0] for x in cursor.description]
               values=[dict(x) for x in cursor]
               with (out/filename).open("w",newline="",encoding="utf-8") as f:
-                  writer=csv.DictWriter(f,fieldnames=fieldnames,lineterminator="\\n")
+                  writer=csv.DictWriter(f,fieldnames=fieldnames,lineterminator="\n")
                   writer.writeheader()
                   writer.writerows(values)
               result[filename]=values
