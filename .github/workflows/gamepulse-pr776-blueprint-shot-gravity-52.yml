@@ -1,3 +1,4 @@
+# Whitelisted in tools/public_content_guard.py: private-only data and aggregate QA
 name: PR776 52-game original NBA Blueprint shot defender gravity release indexed QA
 on:
   push:
