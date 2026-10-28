@@ -48,11 +48,15 @@ jobs:
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH="$PWD/hoopvision/freeview"
           python3 hoopvision/freeview/amen732_multipt_3pt_photo_refit.py --selftest
-          python3 hoopvision/freeview/amen732_multipt_3pt_photo_refit.py \
-            --root hoopvision/freeview/fixtures \
-            --camera hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
-            --colour hoopvision/freeview/fixtures/amen732_two_original_frame_rim_source_colour_20261026.json \
-            --out hoopvision/freeview/fixtures/amen732_multipt_3pt_photo_refit_source_holdout_v1.json
+          if [ ! -f hoopvision/freeview/fixtures/amen732_multipt_3pt_photo_refit_source_holdout_v1.json ]; then
+            python3 hoopvision/freeview/amen732_multipt_3pt_photo_refit.py \
+              --root hoopvision/freeview/fixtures \
+              --camera hoopvision/freeview/fixtures/amen732_right_above_rim_world_camera_trial_20261026.json \
+              --colour hoopvision/freeview/fixtures/amen732_two_original_frame_rim_source_colour_20261026.json \
+              --out hoopvision/freeview/fixtures/amen732_multipt_3pt_photo_refit_source_holdout_v1.json
+          else
+            echo AMEN732_ORIGINAL_MULTIPOINT_SOURCE_QA_ALREADY_PRESENT
+          fi
           python3 - <<'PY'
           import json
           p="hoopvision/freeview/fixtures/amen732_multipt_3pt_photo_refit_source_holdout_v1.json"
