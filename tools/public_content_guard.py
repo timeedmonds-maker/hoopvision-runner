@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-full-native-possession-v1-integration.yml",  # original 36-game G4 full native + v3 PBP source private read-only QA only; no private XYZ or actor IDs public
     ".github/workflows/gamepulse-ippt-all-event-sqlite-private-git.yml",  # private Git transport persist original NBA XY SQLite to separate private branch
     ".github/workflows/gamepulse-ippt-all-event-sqlite-private-release.yml",  # publish original NBA actor XY DB to PRIVATE repo release only; no public artifacts
     ".github/workflows/gamepulse-ippt-all-event-sqlite-private.yml",  # original all-action NBA source XY private-only SQLite, public count QA only
