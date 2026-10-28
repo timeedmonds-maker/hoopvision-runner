@@ -13,7 +13,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/ippt-event-snapshots-separate-20261028
-      GAME_ID: "0022600009"
+      GAME_ID: "0022600001"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,3 +60,5 @@ jobs:
           echo "IPPT_RAW_SDK_INTERPOLATED_VARIANT_ONE_GAME_ACTOR_QA_PASS"
 
 # Original licensed raw assets remain in temporary private runner storage, only aggregate flags logged.
+
+# One-game earliest-capture provenance crosscheck isolates archival source readback.
