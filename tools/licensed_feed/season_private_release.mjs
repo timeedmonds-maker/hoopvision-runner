@@ -19,7 +19,7 @@ function gh(args){
  const err=p.stderr||'';
  // Never print GitHub stderr: it may contain a signed private asset URL.
  const category=/HTTP 429|rate limit/i.test(err)?'RATE_LIMIT':
-  /HTTP 5\\d\\d|Bad Gateway|Service Unavailable/i.test(err)?'SERVER_ERROR':
+  /HTTP 5\d\d|Bad Gateway|Service Unavailable/i.test(err)?'SERVER_ERROR':
   /HTTP 403|forbidden/i.test(err)?'FORBIDDEN':
   /HTTP 422|already_exists/i.test(err)?'CONFLICT':
   p.error?.code==='ETIMEDOUT'||p.signal==='SIGTERM'?'TIMEOUT':'OTHER';
