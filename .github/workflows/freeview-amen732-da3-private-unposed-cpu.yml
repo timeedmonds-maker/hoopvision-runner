@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           ROOT="$RUNNER_TEMP/amen732-unposed"
           mkdir -p "$ROOT/frames" "$ROOT/output"
-          COMMIT=021ad2e01b89e9e79fbfe9c3eb8525394c4c7b95
+          COMMIT=1b0d73e9e0b39a45877ebd406f17acf55a8e980b
           gh api "repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_da3_unposed_sixview_trial.py?ref=$COMMIT" \
             --jq .content | base64 -d > "$ROOT/worker.py"
           for spec in broadcast-f275 high-tight-f235 left-above-rim-f247 right-above-rim-f234 left-slash-f221 right-slash-f211; do
@@ -61,7 +61,7 @@ jobs:
           git -C "$DA3" fetch --quiet --depth 1 https://github.com/ByteDance-Seed/Depth-Anything-3.git 3d835ec1a5802d64a8b8b15f817a1ab54809bfe4
           git -C "$DA3" checkout -q --detach FETCH_HEAD
           test "$(git -C "$DA3" rev-parse HEAD)" = 3d835ec1a5802d64a8b8b15f817a1ab54809bfe4
-          python3 -m pip install --quiet --disable-pip-version-check 'numpy<2' 'opencv-python-headless==4.10.0.84' pillow einops huggingface-hub omegaconf safetensors timm e3nn trimesh imageio 'transformers>=4.45,<5' plyfile
+          python3 -m pip install --quiet --disable-pip-version-check 'numpy<2' 'opencv-python-headless==4.10.0.84' pillow einops huggingface-hub omegaconf safetensors timm e3nn trimesh imageio 'transformers>=4.45,<5' plyfile 'moviepy==1.0.3' evo
           python3 -m pip install --quiet --disable-pip-version-check torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu
           python3 -m pip install --quiet --disable-pip-version-check --no-deps -e "$DA3"
           echo DA3_SMALL_CPU_PINNED_SETUP_COMPLETE
@@ -77,10 +77,10 @@ jobs:
           x=json.load(open(sys.argv[1]))
           assert x["input_view_count"]==6 and x["camera_pose_count"]==6
           assert x["model_inference_mode"]=="NO_INPUT_CAMERA_CALIBRATION"
-          assert x["output_3840x2160"] and len(x["angles"])==6
+          assert x["output_3840x2160"] and len(x["angles"])>=36 and x["full_360_diagnostic_sweep"]
           assert x["artifact_status"]=="DIAGNOSTIC_MODEL_RENDER_ONLY"
           assert not x["certified_25deg_freeview"]
-          print("DA3_SIX_CAMERA_MODEL_INFERENCE_AND_SIX_ANGLE_DIAGNOSTIC_PASS")
+          print("DA3_SIX_CAMERA_MODEL_INFERENCE_AND_360DEG_DIAGNOSTIC_PASS")
           PY
       - name: Publish exclusively to the private 104 release and SHA-verify
         shell: bash
