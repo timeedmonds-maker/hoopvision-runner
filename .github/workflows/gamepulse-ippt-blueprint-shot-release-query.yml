@@ -64,7 +64,11 @@ jobs:
                   if anchor:
                       assert anchor["source_kind"]=="ORIGINAL_SDK_SUPPLIED_XYZ"
                       assert shot["source_original_ball"] is not None
-                      assert shot["source_original_shooter"] is not None
+                      async_shooter=shot["source_original_shooter_asynchronous_near_ball_anchor"]
+                      assert async_shooter is not None
+                      assert abs(async_shooter["signed_shooter_minus_ball_anchor_ms"])<=230
+                      if async_shooter["simultaneous_with_ball_native_frame"]:
+                          assert shot["source_original_shooter"] is not None
                       assert shot["source_physics_release_UTC_ms"]==anchor["native_UTC_ms"]
                       assert shot["source_original_others"] is not None if shot in report["records"] else True
               subject=next(x for x in full if x["NBA_PBP_exact_join_verified"])
