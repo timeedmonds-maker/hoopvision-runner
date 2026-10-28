@@ -16,7 +16,14 @@ const temp=()=>mkdtempSync(join(tmpdir(),'gp-season-'));
 function gh(args){
  const p=spawnSync('gh',args,{encoding:'utf8',timeout:120000,maxBuffer:1024*1024,
   stdio:['ignore','pipe','pipe'],env:{...process.env,GH_TOKEN:TOKEN}});
- return {ok:p.status===0,out:p.stdout||''};
+ const err=p.stderr||'';
+ // Never print GitHub stderr: it may contain a signed private asset URL.
+ const category=/HTTP 429|rate limit/i.test(err)?'RATE_LIMIT':
+  /HTTP 5\\d\\d|Bad Gateway|Service Unavailable/i.test(err)?'SERVER_ERROR':
+  /HTTP 403|forbidden/i.test(err)?'FORBIDDEN':
+  /HTTP 422|already_exists/i.test(err)?'CONFLICT':
+  p.error?.code==='ETIMEDOUT'||p.signal==='SIGTERM'?'TIMEOUT':'OTHER';
+ return {ok:p.status===0,out:p.stdout||'',category};
 }
 function call(args){
  const result=gh([...args,'--repo',REPO]);
@@ -51,7 +58,7 @@ function uploadOrExisting(tag,file,name){
  for(let attempt=0;attempt<7;attempt++){
   const result=gh(['release','upload',tag,file,'--repo',REPO]);
   if(result.ok||names(tag)?.has(name))return;
-  console.log('PRIVATE_UPLOAD_RETRY_REQUIRED',attempt+1);
+  console.log('PRIVATE_UPLOAD_RETRY_REQUIRED',attempt+1,result.category);
   if(attempt<6)spawnSync('sleep',[String(Math.min(32,2**(attempt+1)))],{stdio:'ignore'});
  }
  throw Error('private_upload_failed');
