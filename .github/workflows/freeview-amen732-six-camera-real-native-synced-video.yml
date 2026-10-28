@@ -99,3 +99,5 @@ jobs:
               assert a[item.name]['digest']=='sha256:'+hashlib.sha256(item.read_bytes()).hexdigest(),item.name
           print('SIX_ORIGINAL_SOURCE_VIDEO_PRIVATE_ASSETS_SHA_VERIFIED',len(items))
           PY
+
+# Re-evaluate executable script after source-video assembler syntax correction.
