@@ -11,38 +11,60 @@ jobs:
   release-index-diagnostic:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    outputs:
+      rate_ok: ${{ steps.budget.outputs.rate_ok }}
     steps:
-      - name: Compare old/new game original SDK releases through GitHub REST
+      - id: budget
+        name: Fail-closed private GitHub API rate-budget and release metadata
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           test -n "${GH_TOKEN:-}"
+          gh api /rate_limit > "$RUNNER_TEMP/ippt_private_rate_status.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(os.environ["RUNNER_TEMP"])
+          data=json.loads((root/"ippt_private_rate_status.json").read_text())
+          core=data["resources"]["core"]
+          remaining=int(core["remaining"])
+          report={"github_run_id":os.environ["GITHUB_RUN_ID"],
+             "private_github_api_core_requests_remaining":remaining,
+             "private_github_api_rate_reset_utc_epoch":int(core["reset"]),
+             "minimum_to_attempt_archive_audit":100,
+             "rate_budget_sufficient":remaining>=100,
+             "no_original_xyz_or_token_disclosed":True}
+          (root/"ippt_provenance_release_index_summary.json").write_text(json.dumps(report,indent=2))
+          print("IPPT_PRIVATE_RELEASE_API_BUDGET",json.dumps(report,sort_keys=True))
+          with open(os.environ["GITHUB_OUTPUT"],"a") as out:
+            out.write("rate_ok="+("true" if remaining>=100 else "false")+"\n")
+          PY
+          if grep -q '^rate_ok=false' "$GITHUB_OUTPUT"; then
+            echo "IPPT_API_RATE_LIMIT_BLOCKS_36GAME_ARCHIVE_DOWNLOAD_NOT_MISSING_SOURCE"
+            exit 0
+          fi
           gh api --paginate --slurp 'repos/timeedmonds-maker/104/releases?per_page=100' > "$RUNNER_TEMP/ippt_releases_private.json"
           python3 - <<'PY'
           import json,os
           from pathlib import Path
-          raw=json.loads((Path(os.environ["RUNNER_TEMP"])/"ippt_releases_private.json").read_text())
+          root=Path(os.environ["RUNNER_TEMP"])
+          raw=json.loads((root/"ippt_releases_private.json").read_text())
           pages=raw if raw and isinstance(raw[0],list) else [raw]
           entries=[r for page in pages for r in page]
+          report=json.loads((root/"ippt_provenance_release_index_summary.json").read_text())
           games=["0022600005","0022600009","0022600092"]
-          found={}
+          report["releases_seen"]=len(entries)
+          report["game_tag_candidates"]={}
           for game in games:
-            hits=[]
-            for release in entries:
-              tag=release.get("tag_name","")
-              if game in tag or game in release.get("name",""):
-                hits.append({"tag":tag,
-                  "sdk_parts":sum(a.get("name","").startswith("sdk-part-") for a in release.get("assets",[])),
-                  "other_assets":len(release.get("assets",[]))})
-            found[game]=hits
-          summary={"github_run_id":os.environ["GITHUB_RUN_ID"],
-            "releases_seen":len(entries),"game_tag_candidates":found,
-            "rest_listing_succeeded":True,
-            "no_private_xyz_asset_url_or_token":True}
-          (Path(os.environ["RUNNER_TEMP"])/"ippt_provenance_release_index_summary.json").write_text(json.dumps(summary,indent=2))
-          print("IPPT_RELEASE_INDEX_METADATA_ONLY",json.dumps(summary,sort_keys=True))
+            report["game_tag_candidates"][game]=[
+              {"tag":r.get("tag_name",""),
+               "sdk_parts":sum(a.get("name","").startswith("sdk-part-") for a in r.get("assets",[]))}
+              for r in entries if game in r.get("tag_name","") or game in r.get("name","")]
+          report["rest_listing_succeeded"]=True
+          (root/"ippt_provenance_release_index_summary.json").write_text(json.dumps(report,indent=2))
+          print("IPPT_RELEASE_INDEX_METADATA_ONLY",json.dumps(report,sort_keys=True))
           PY
       - name: Publish metadata-only diagnostic receipt
         if: always()
@@ -65,10 +87,13 @@ jobs:
           PY
           gh issue comment 123 --repo timeedmonds-maker/hoopvision-runner --body-file "$RUNNER_TEMP/ippt_provenance_issue_comment.md"
   original-source-provenance:
+    needs: release-index-diagnostic
+    if: needs.release-index-diagnostic.outputs.rate_ok == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     strategy:
       fail-fast: false
+      max-parallel: 2
       matrix:
         shard: [0, 1, 2, 3, 4, 5]
     env:
