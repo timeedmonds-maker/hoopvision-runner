@@ -165,7 +165,7 @@ def main(root:Path,page_url:str,ffmpeg:str,ffprobe:str):
 if __name__=="__main__":
     p=argparse.ArgumentParser()
     p.add_argument("--root",type=Path,required=True)
-    p.add_argument("--page",required=True)
+    p.add_argument("--page",default=f"https://clips.nba.com/?gameNo={GAME}&eventNum={EVENT}&source=grs")
     p.add_argument("--ffmpeg",required=True)
     p.add_argument("--ffprobe",required=True)
     a=p.parse_args()
