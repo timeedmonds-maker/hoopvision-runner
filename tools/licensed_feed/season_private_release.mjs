@@ -32,7 +32,7 @@ function call(args){
 }
 function names(tag){
  const r=gh(['release','view',tag,'--repo',REPO,'--json','assets']);
- if(!r.ok)return null;
+ if(!r.ok){if(r.category==='RATE_LIMIT')throw Error('private_github_rate_limited');return null;}
  try{return new Set(JSON.parse(r.out).assets.map(x=>x.name));}
  catch{throw Error('private_asset_listing_invalid');}
 }
@@ -57,7 +57,9 @@ function uploadOrExisting(tag,file,name){
  // same asset without changing source bytes or overwriting an existing asset.
  for(let attempt=0;attempt<7;attempt++){
   const result=gh(['release','upload',tag,file,'--repo',REPO]);
-  if(result.ok||names(tag)?.has(name))return;
+  if(result.ok)return;
+  if(result.category==='RATE_LIMIT')throw Error('private_github_rate_limited');
+  if(names(tag)?.has(name))return;
   console.log('PRIVATE_UPLOAD_RETRY_REQUIRED',attempt+1,result.category);
   if(attempt<6)spawnSync('sleep',[String(Math.min(32,2**(attempt+1)))],{stdio:'ignore'});
  }
