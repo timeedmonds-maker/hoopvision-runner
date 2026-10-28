@@ -63,6 +63,22 @@ jobs:
                   assert all(p["coordinate_analysis_quality_tier"] for p in row["rows"])
                   assert all(p["no_precision_certification_from_model_completeness"] for p in row["rows"])
               assert all(row["IPPT_prediction"]["model_version"]=="IPPT_PRIORITY_BIDIRECTIONAL_LONG_0_3" for row in modes["predictive_v03"]["rows"])
+              sample=search(".",gid,model="evidence",limit=200)
+              missing=next(((pid,row["source_native_UTC_ms"])
+                  for row in sample["rows"] for pid in row["NBA_official_ten_candidate"]
+                  if pid not in row["original_actor_xyz_native"] and
+                     pid not in row["accepted_G3_missing_player_xyz_native"]),None)
+              assert missing is not None,"No real NBA original/G3 missing official player found for test"
+              pid,_=missing
+              prediction_search=search(".",gid,model="predictive_v03",source_player=pid,limit=1)
+              evidence_search=search(".",gid,model="evidence",source_player=pid,limit=1)
+              assert prediction_search["total_matching_source_frames"]>=evidence_search["total_matching_source_frames"]
+              assert prediction_search["total_matching_source_frames"]>0
+              print("IPPT_V03_OFFICIAL_FIVE_PREDICTIVE_SEARCH_FIX_PASS",gid,{
+                  "source_player_id_input_is_verified_official_five_candidate":True,
+                  "predictive_frame_count":prediction_search["total_matching_source_frames"],
+                  "evidence_frame_count":evidence_search["total_matching_source_frames"],
+                  "modeled_player_not_suppressed_by_absent_original_G3":True})
               print("IPPT_V2_GRADED_PRIVATE_QUERY_PASS",gid,{
                  "source_frames":modes["direct"]["total_matching_source_frames"],
                  "layers":["direct","evidence","predictive","predictive_v03"],
