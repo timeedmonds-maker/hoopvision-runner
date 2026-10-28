@@ -67,3 +67,5 @@ jobs:
                       "ball_within_5ft_new":b["model"]["ball"]["percentage_of_original_masked_with_prediction_within_5ft"],
                       "all_masked_original_xyz_absent_from_predictor":True},sort_keys=True))
           PY
+
+# Reviewed four-game NBA source holdout: aggregate p95 only, no raw coordinates.
