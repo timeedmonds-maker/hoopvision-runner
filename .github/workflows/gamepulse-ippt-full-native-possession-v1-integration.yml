@@ -18,7 +18,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       RESEARCH_BRANCH: research/ippt-event-snapshots-separate-20261028
-      EXPECTED_CODE_SHA: 2f642040a0c51494d023d603807d565b0589b5e5
+      EXPECTED_CODE_SHA: ba4e03b9be04419530637b2ca91cb6a6d68153f3
       DATA_BRANCH: data/ippt-all-pbp-native-xy-causal-motion-36-20261028-v3
       EXPECTED_DATA_SHA: 5deb5ee1ef3b1cec5ed336a705a126e79a26ad0c
       DB_FILE: gamepulse/fusion/materialized/ippt_all_pbp_native_xy_motion_36_v3/nba_pbp_original_native_xy_motion.sqlite
