@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-public-web-app-shot-response-discovery.yml",  # first-party NBA public web endpoint structural shot-field check only; no auth, cookies, query URLs, raw payloads
+    "tools/licensed_feed/public_web_shot_response_probe.mjs",  # first-party NBA public web endpoint structural shot-field check only; no auth, cookies, query URLs, raw payloads
     ".github/workflows/gamepulse-ippt-app-shot-details-0022600129-blueprint.yml",  # official public NBA Blueprint DET-NYK screenshot exact-shot attribute and precision check, private report
     ".github/workflows/gamepulse-ippt-app-shot-transmit-original-0125.yml",  # original authenticated private GamePulse EaseLive SDK shot-event JSON schema (structure only)
     ".github/workflows/gamepulse-ippt-public-stat-release-gate-2026.yml",  # no original NBA XYZ; private QA-driven public-stat fail-closed publication gate
