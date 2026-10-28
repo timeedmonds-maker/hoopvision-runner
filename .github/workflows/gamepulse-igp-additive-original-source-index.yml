@@ -99,6 +99,50 @@ jobs:
           print("IGP_ADDITIVE_PRIVATE_XYZ_QUERY_READBACK",len(rows),
                 sum(x["native_timestamps_sha_query_readback"] for x in rows.values()))
           PY
+      - name: Verify official action to original XYZ search on actual post36 games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_official_action_original_xyz_20261029.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from query_igp_official_action_original_xyz_20261029 import query_action
+          root=Path(".")
+          idx=json.loads(Path("gamepulse/fusion/materialized/igp_original_xyz_additive_season_20261027/index.json").read_text())
+          rows={}
+          for gid in idx["new_original_xyz_ids"]:
+              if int(gid[-4:])<112:continue
+              official=json.loads((Path("gamepulse/fusion/official_pbp_timing/games")/(gid+".json")).read_text())
+              shots=[a for a in official["actions"] if a["action_type"] in ("2pt","3pt")]
+              assert shots,("NO_OFFICIAL_SHOTS",gid)
+              found=None
+              for a in shots[:10]:
+                  result=query_action(root,gid,a["nba_action_number"],before_ms=5000,after_ms=5000,include_xyz=True,limit=1)
+                  if result["native_source"]["matched_original_timestamps"]:
+                      found=result
+                      break
+              assert found is not None,("NO_SOURCE_IN_FIRST_10_SHOT_SEARCH_WINDOWS",gid)
+              native=found["native_source"]
+              assert native["verified_private_source_chunks"]>=1
+              assert native["results"] and "positions_native_units" in native["results"][0]
+              assert found["official_action"]["nba_action_number"]==a["nba_action_number"]
+              assert found["physical_possessions_certified"]==0
+              rows[gid]={"nba_action_number":a["nba_action_number"],
+                         "source_frames_in_10s_scorer_window":native["matched_original_timestamps"],
+                         "verified_chunks":native["verified_private_source_chunks"],
+                         "official_normalized_sha256":found["official_normalized_sha256"]}
+          qa=Path("gamepulse/fusion/qa/igp_progress_20261029/igp_action_native_window_readback_v1.json")
+          if qa.exists():
+              prior=json.loads(qa.read_text())
+              assert all(rows.get(gid)==row for gid,row in prior["games"].items()),"ACTION_SOURCE_READBACK_REGRESSION"
+          qa.write_text(json.dumps({"schema":"igp.action-original-xyz-window-readback.v1",
+                    "games":rows,"games_accepted":len(rows),"time_alignment":"PROVISIONAL_SCORER_UTC_WINDOW",
+                    "physical_possessions_certified":0},sort_keys=True,indent=2)+"\\n")
+          print("IGP_OFFICIAL_ACTION_ORIGINAL_XYZ_REAL_READBACK",len(rows))
+          PY
       - name: Commit only new SHA-locked private index on existing PR branch
         shell: bash
         run: |
@@ -107,7 +151,7 @@ jobs:
           target=gamepulse/fusion/materialized/igp_original_xyz_additive_season_20261027/index.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$target" gamepulse/fusion/qa/igp_progress_20261029/igp_additive_original_xyz_query_readback_v1.json
+          git add -f "$target" gamepulse/fusion/qa/igp_progress_20261029/igp_additive_original_xyz_query_readback_v1.json gamepulse/fusion/qa/igp_progress_20261029/igp_action_native_window_readback_v1.json
           git diff --cached --check
           if git diff --cached --quiet; then
             echo IGP_ADDITIVE_INDEX_ALREADY_CURRENT
