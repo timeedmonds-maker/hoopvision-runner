@@ -1,0 +1,194 @@
+name: IPPT full native NBA possession G4 G3 all-event PBP v3 integration read only QA
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-ippt-full-native-possession-v1-integration.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: ippt-all-native-possession-v1-qa
+  cancel-in-progress: false
+jobs:
+  private-native-possession-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      RESEARCH_BRANCH: research/ippt-event-snapshots-separate-20261028
+      EXPECTED_CODE_SHA: 4e327cc9417a320da718915e413fd4416533ac1c
+      DATA_BRANCH: data/ippt-all-pbp-native-xy-causal-motion-36-20261028-v3
+      EXPECTED_DATA_SHA: 5deb5ee1ef3b1cec5ed336a705a126e79a26ad0c
+      DB_FILE: gamepulse/fusion/materialized/ippt_all_pbp_native_xy_motion_36_v3/nba_pbp_original_native_xy_motion.sqlite
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Private source only SHA pinned checkout and public confidentiality guard
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          export GIT_TERMINAL_PROMPT=0
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$RESEARCH_BRANCH" \
+             "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/ippt-code"
+          git -C "$RUNNER_TEMP/ippt-code" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/ippt-code" rev-parse HEAD)" = "$EXPECTED_CODE_SHA"
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$DATA_BRANCH" \
+             "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/ippt-db"
+          git -C "$RUNNER_TEMP/ippt-db" sparse-checkout set gamepulse/fusion/materialized/ippt_all_pbp_native_xy_motion_36_v3
+          test "$(git -C "$RUNNER_TEMP/ippt-db" rev-parse HEAD)" = "$EXPECTED_DATA_SHA"
+          echo "IPPT_CODE=$RUNNER_TEMP/ippt-code" >> "$GITHUB_ENV"
+          echo "IPPT_DB=$RUNNER_TEMP/ippt-db/$DB_FILE" >> "$GITHUB_ENV"
+      - name: Source free integration contract and physics nonregression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_CODE"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_ippt_integrated_possession_v1_2026.py
+          python3 -m unittest -v gamepulse/fusion/test_query_igp_ippt_integrated_possession_v1_2026.py
+      - name: Full36 SHA G4 7474 chain 22314 PBP event and corrected G3 consistency
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_CODE"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          import hashlib,json,os,sqlite3
+          from pathlib import Path
+          from query_igp_g4_native_actor_possession_2026 import load_index
+          from igp_tracking_pilot_run_2026 import BASE,load
+          root=Path(".");dbp=Path(os.environ["IPPT_DB"])
+          manifest=json.loads(dbp.with_name("original_source_motion_v3_SHA_manifest.json").read_text())
+          assert hashlib.sha256(dbp.read_bytes()).hexdigest()==manifest["v3_private_SQLite_SHA256"]
+          g4,_=load(root,BASE/"materialized/igp_g4_original_native_player_ball_possession_v1/index.json")
+          old,_=load(root,BASE/"qa/igp_progress_20261028/igp_G3_original_short_natural_all36_v1.json")
+          corrected,_=load(root,BASE/"qa/igp_progress_20261028/igp_G3_original_short_natural_all36_corrected_v2.json")
+          totals=g4["counts"]
+          assert corrected["source_games"]==36 and len(g4["games"])==36
+          derived_player=sum(corrected["totals"]["filled_player_"+g] for g in ("STRICT","LONG","SUB"))
+          derived_ball=sum(corrected["totals"]["filled_ball_"+g] for g in ("STRICT","LONG","SUB"))
+          assert (derived_player,derived_ball)==(285536,8504)
+          assert (sum(old["totals"]["filled_player_"+g] for g in ("STRICT","LONG","SUB")),sum(old["totals"]["filled_ball_"+g] for g in ("STRICT","LONG","SUB")))==(2*derived_player,2*derived_ball)
+          assert totals["g3_derived_player_entries"]==derived_player
+          assert totals["g3_derived_ball_frames"]==derived_ball
+          assert totals["nba_original_source_frames"]==1203986
+          assert totals["original_player_actor_entries"]==8673975
+          assert totals["original_ball_frames"]==912704
+          con=sqlite3.connect(f"file:{dbp.resolve()}?mode=ro",uri=True)
+          event_all=con.execute("SELECT COUNT(*) FROM pbp_event").fetchone()[0]
+          assert event_all==22314
+          chain_all=logged=union=missing_chain_actions=duplicate_chain_actions=0
+          frames_original=0
+          for gid,entry in sorted(g4["games"].items()):
+              blob,_=load_index(root,gid)
+              assert blob["counts"]==entry["counts"]
+              chains=blob["nba_canonical_logical_chains"]
+              official={r[0] for r in con.execute("SELECT action_number FROM pbp_event WHERE game_id=?",(gid,))}
+              claimed=set();duplicate=set()
+              chain_all+=len(chains)
+              frames_original+=len(blob["native_frames"])
+              for c in chains.values():
+                  ids=c["official_action_ids"]
+                  assert all(n in official for n in ids),"Official PBP chain references absent event"
+                  duplicate.update(claimed.intersection(ids))
+                  claimed.update(ids)
+                  logged+=bool(c["native_logged_frame_ordinals"])
+                  union+=bool(c["native_logged_frame_ordinals"] or c["native_event_candidate_frame_ordinals"])
+              missing_chain_actions+=len(official-claimed)
+              duplicate_chain_actions+=len(duplicate)
+              qa=corrected["games"][gid]["counts"]
+              assert sum(qa.get("filled_player_"+x,0) for x in ("STRICT","LONG","SUB"))==entry["counts"]["g3_derived_player_entries"]
+              assert sum(qa.get("filled_ball_"+x,0) for x in ("STRICT","LONG","SUB"))==entry["counts"]["g3_derived_ball_frames"]
+          assert chain_all==7474 and frames_original==1203986 and logged==7065
+          assert union>=logged
+          print("IPPT_G4_V3_36_GAME_FULL_NATIVE_PBP_G3_RECONCILIATION_PASS",json.dumps({
+            "games":36,"original_frames_indexed":frames_original,
+            "PBP_actions":event_all,"NBA_logical_chains":chain_all,
+            "chains_with_logged_native_frames":logged,
+            "chains_with_logged_or_candidate_native_frames":union,
+            "PBP_events_without_chain_membership":missing_chain_actions,
+            "PBP_events_in_multiple_chains":duplicate_chain_actions,
+            "G3_derived_player_entries_reconciled":derived_player,
+            "G3_derived_ball_entries_reconciled":derived_ball,
+            "original_source_SHA_preserved":True,
+            "physical_event_UTC_video_certified":False},sort_keys=True))
+          PY
+      - name: Real private SHA NBA source possession time series and all-event full-query integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_CODE"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          import json,os,time
+          from pathlib import Path
+          from query_igp_g4_native_actor_possession_2026 import load_index
+          from query_igp_ippt_integrated_possession_v1_2026 import query
+          root=Path(".");db=Path(os.environ["IPPT_DB"])
+          tested=0;pages=0;frames=0;roundtrips=[]
+          for gid in ("0022600009","0022600092"):
+              g4,_=load_index(root,gid)
+              eligible=[(cid,v) for cid,v in g4["nba_canonical_logical_chains"].items()
+                        if v["native_logged_frame_ordinals"] and v["official_action_ids"]]
+              assert eligible
+              cid,c=max(eligible,key=lambda x:len(x[1]["native_logged_frame_ordinals"]))
+              tic=time.perf_counter()
+              result=query(root,db,gid,chain_id=cid,limit=25,event_limit=8,
+                           include_xyz=True,include_g3=True,
+                           include_official_ten=True,include_event_details=True)
+              roundtrips.append(round((time.perf_counter()-tic)*1000,1))
+              assert result["original_native_frames_matched"]>0
+              assert len(result["original_native_frames"])<=25
+              assert result["official_PBP_action_ids_total"]>0
+              assert not result["NBA_PBP_event_physical_UTC_certified"]
+              for f in result["original_native_frames"]:
+                  assert not (set(f["source_players"]) & set(f["G3_derived_missing_players"]))
+                  assert (f["source_ball"] is None or f["G3_derived_missing_ball"] is None)
+              frames+=len(result["original_native_frames"])
+              tested+=1
+              action=query(root,db,gid,action_number=c["official_action_ids"][0],
+                           limit=5,event_limit=5,include_xyz=True,include_g3=True,
+                           include_official_ten=True,include_event_details=True)
+              assert action["focal_NBA_PBP_action"] is not None
+              assert not action["NBA_PBP_event_physical_UTC_certified"]
+              pages+=1
+          print("IPPT_PRIVATE_FULL_NATIVE_TRAJECTORY_PBP_REAL_SOURCE_INTEGRATION_PASS",json.dumps({
+              "games_with_real_source":tested,"all_native_chain_pages_checked":tested,
+              "PBP_action_pages_checked":pages,"source_frames_hydrated":frames,
+              "query_ms_by_game":roundtrips,"native_direct_and_G3_separate":True,
+              "original_ten_and_physical_UTC_NOT_certified":True},sort_keys=True))
+          PY
+      - name: Publish aggregate-only QA issue receipt and erase licensed working data
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QA_STATUS: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          r={"run_id":os.environ["GITHUB_RUN_ID"],
+             "job_status":os.environ["QA_STATUS"],
+             "integrated_code_SHA":os.environ["EXPECTED_CODE_SHA"],
+             "private_v3_commit_SHA":os.environ["EXPECTED_DATA_SHA"],
+             "expected_original_native_frames":1203986,
+             "expected_NBA_official_chains":7474,
+             "expected_NBA_PBP_events":22314,
+             "G3_corrected_player_positions":285536,
+             "G3_corrected_ball_positions":8504,
+             "original_source_XYZ_not_published":True,
+             "video_physical_possessions_not_certified":True}
+          p=Path(os.environ["RUNNER_TEMP"])/"ippt_full_native_integration_QA_public.md"
+          p.write_text("Full native possession + all NBA PBP event tracking QA. Only aggregate counts and code SHA; no private player XYZ or per-event UTC.\n\n~~~json\n"+
+              json.dumps(r,indent=2,sort_keys=True)+"\n~~~\n")
+          PY
+          rm -rf "$RUNNER_TEMP/ippt-code" "$RUNNER_TEMP/ippt-db"
+          gh issue comment 140 --repo timeedmonds-maker/hoopvision-runner --body-file "$RUNNER_TEMP/ippt_full_native_integration_QA_public.md"
+# Licensed NBA native player and ball XYZ, actor IDs and native per-event timestamps always remain private.
