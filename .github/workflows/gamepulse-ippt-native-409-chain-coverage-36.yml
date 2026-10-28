@@ -18,7 +18,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       RESEARCH_BRANCH: research/ippt-event-snapshots-separate-20261028
-      EXPECTED_CODE_SHA: c356d0dc899c3eee19e07d269e38443b34eb5d8b
+      EXPECTED_CODE_SHA: 544d90394d75c9b7b11d69b826fe3a1a66ecefeb
       QA_FILE: gamepulse/fusion/qa/igp_progress_20261028/ippt_all36_native_409_empty_chain_player_ball_slot_second_qa_v1.json
     steps:
       - uses: actions/checkout@v4
