@@ -71,3 +71,38 @@ jobs:
           gh api "$TARGET?ref=research/amen-wemby-freeze-spin-20261024" \
             --jq .content | base64 -d | cmp -s - "$ROOT/$FILE"
           echo DA3_FULL360_PRIVATE_FIXTURE_BYTE_IDENTICAL_COMMIT_PASS
+      - name: Preserve private low-resolution visual review of UHD sweep
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG=freeview-amen732-da3-base-unposed-sixview-20261028
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          gh release download "$TAG" --repo timeedmonds-maker/104 \
+            --dir "$ROOT" --pattern amen732-360deg-model-sweep-3840x2160.jpg >/dev/null
+          ffmpeg -nostdin -hide_banner -loglevel error -y \
+            -i "$ROOT/amen732-360deg-model-sweep-3840x2160.jpg" \
+            -vf scale=1280:720:flags=lanczos -q:v 6 \
+            "$ROOT/amen732-base-review.jpg"
+          python3 - "$ROOT/amen732-base-review.jpg" "$ROOT/payload.json" <<'PY'
+          import base64,json,sys
+          from pathlib import Path
+          b=Path(sys.argv[1]).read_bytes()
+          assert 10000<len(b)<1000000
+          Path(sys.argv[2]).write_text(json.dumps({
+            "branch":"research/amen-wemby-freeze-spin-20261024",
+            "message":"review(freeview): private compact visual of real six-camera DA3 BASE full-circle sweep",
+            "content":base64.b64encode(b).decode()}))
+          PY
+          TARGET="repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_da3_base_sweep_review_20261028.jpg"
+          CURRENT="$(gh api "$TARGET?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha 2>/dev/null || true)"
+          if [ -n "$CURRENT" ]; then
+            python3 - "$ROOT/payload.json" "$CURRENT" <<'PY'
+          import json,sys
+          p=json.load(open(sys.argv[1]));p["sha"]=sys.argv[2]
+          open(sys.argv[1],"w").write(json.dumps(p))
+          PY
+          fi
+          gh api --method PUT "$TARGET" --input "$ROOT/payload.json" >/dev/null
+          echo PRIVATE_SIXVIEW_SWEEP_REVIEW_STORED
+
