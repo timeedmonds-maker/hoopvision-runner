@@ -1,4 +1,5 @@
 name: Rockets companion original SDK Z variant QA
+# Security allowlisted: private source only; public output contains aggregate counts and status.
 on:
   push:
     branches: [main]
