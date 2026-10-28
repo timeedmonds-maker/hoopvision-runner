@@ -46,3 +46,5 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -u gamepulse/fusion/igp_ippt_blueprint_common_timing_reverse_engineer_2026.py --root .
           echo "IPPT_BLUEPRINT_COMMON_DELAY_36_ORIGINAL_SOURCE_PASS"
+
+# QA only: all inverse match operations are held out from published physics truth.
