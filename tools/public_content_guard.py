@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-G4-possession-coverage-36.yml",  # reviewed private NBA SHA index coverage, public aggregate counts only
     ".github/workflows/gamepulse-pr776-G4-official-context-query-36.yml",  # reviewed private SHA official lineup and substitution QA, public aggregates only
     ".github/workflows/gamepulse-pr776-G4-native-possession-search-36.yml",  # reviewed SHA-pinned private G4 NBA source query and QA, public logs aggregate counts only
     ".github/workflows/gamepulse-pr776-G3-original-source-query-all36.yml",  # reviewed all36 original NBA XYZ + G1 SHA source readback of new separately graded G3 player/ball interpolants, no public raw XYZ

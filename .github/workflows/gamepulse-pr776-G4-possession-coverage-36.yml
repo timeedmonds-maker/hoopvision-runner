@@ -1,0 +1,92 @@
+name: PR776 G4 NBA possession source coverage query 36
+on:
+  push:
+    branches: [research/pr776-trusted-igp-runner-20261028]
+    paths:
+      - '.github/workflows/gamepulse-pr776-G4-possession-coverage-36.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr776-G4-possession-coverage-36
+  cancel-in-progress: false
+jobs:
+  accept:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Enforce public boundary and fetch SHA private NBA source index
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Source-free chain overlap and original versus G3 position tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_g4_possession_coverage_2026.py' -v
+      - name: SHA check 36 private NBA games and all 7474 canonical possession summaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_G4_NBA_possession_source_coverage_36_v1.json
+          test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_g4_possession_coverage_qa_2026.py \
+            --root . --out "$OUT" > "$RUNNER_TEMP/private-G4-possession-coverage.log"
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]));c=q['counts']
+          assert c['games']==36 and c['canonical_NBA_logical_chains']==7474
+          assert c['NBA_chains_with_logged_native_frames']==7065
+          assert c['NBA_chains_without_logged_native_frames']==409
+          assert c['original_native_frames']==1203986
+          assert c['original_actor_xyz_entries']==8673975
+          assert c['original_ball_frames']==912704
+          assert c['G3_derived_player_entries']==285536
+          assert c['G3_derived_ball_frames']==8504
+          assert q['ten_plus_ball_candidate_not_certified_physical_possession']
+          print('G4_NBA_POSSESSION_COVERAGE_36_PASS',json.dumps({
+            'games':36,'chains':c['canonical_NBA_logical_chains'],
+            'with_source':c['NBA_chains_with_logged_native_frames'],
+            'without_logged_source':c['NBA_chains_without_logged_native_frames'],
+            'search_ms':q['per_game_search_milliseconds']},sort_keys=True))
+          PY
+      - name: Commit private possession coverage QA after acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          git config user.name "Game Pulse G4 Possession Coverage QA"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f gamepulse/fusion/qa/igp_progress_20261028/igp_G4_NBA_possession_source_coverage_36_v1.json
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): accept 36 game canonical NBA possession coverage search"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo G4_PRIVATE_NBA_POSSESSION_COVERAGE_PUBLISHED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 13
