@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-raw-sdk-event-interpolation-provenance.yml",  # source raw SDK per-actor interpolation flag QA
     ".github/workflows/gamepulse-ippt-native-pose-provenance-schema.yml",  # audited original NBA native pose and interpolation flags aggregate-only
     ".github/workflows/gamepulse-ippt-event-native-coordinate-masked-36.yml",  # original NBA shot event XY ball3D validation aggregate-only
     ".github/workflows/gamepulse-ippt-blueprint-geometry-definition.yml",  # original-source NBA event geometry QA only
