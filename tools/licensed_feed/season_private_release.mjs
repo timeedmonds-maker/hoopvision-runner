@@ -45,10 +45,14 @@ function download(tag,name,directory){
  throw Error('private_readback_missing');
 }
 function uploadOrExisting(tag,file,name){
- for(let attempt=0;attempt<4;attempt++){
+ // A private GitHub release upload can fail transiently after the source
+ // checkpoint has been captured. Keep the local archive and retry its exact
+ // same asset without changing source bytes or overwriting an existing asset.
+ for(let attempt=0;attempt<7;attempt++){
   const result=gh(['release','upload',tag,file,'--repo',REPO]);
   if(result.ok||names(tag)?.has(name))return;
-  if(attempt<3)spawnSync('sleep',['2'],{stdio:'ignore'});
+  console.log('PRIVATE_UPLOAD_RETRY_REQUIRED',attempt+1);
+  if(attempt<6)spawnSync('sleep',[String(Math.min(32,2**(attempt+1)))],{stdio:'ignore'});
  }
  throw Error('private_upload_failed');
 }
