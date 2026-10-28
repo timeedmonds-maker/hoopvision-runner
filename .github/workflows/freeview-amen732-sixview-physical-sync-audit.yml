@@ -74,3 +74,5 @@ jobs:
           print("ONLY_DIAGNOSTIC_COUNTS_AND_OFFSETS_LOGGED_NO_MEDIA_ARTIFACT")
           PY
 
+
+# Repeat exact six original NBA frame-provenance SHA comparison before any next reconstruction.
