@@ -1,3 +1,4 @@
+# Reviewed allowlist: public logs contain counts only; original NBA XYZ and model sidecars remain private.
 name: Integrated Pulse unified 56-game season tracking QA
 on:
   push:
