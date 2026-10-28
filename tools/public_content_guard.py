@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-model-b-native-all36-private.yml",  # private SHA original NBA G4 source Model B overlay all36 actual performance/coverage, aggregate logs only
     "tools/amen732_native_sixvideo_fusion_mp4.py",  # reviewed original NBA event-732 direct six-view model-only research
     "tools/amen732_da3_unposed_sixview_trial.py",  # reviewed original NBA event-732 direct six-view model-only research
     "tools/amen732_native_six_video_frame_sets.py",  # reviewed original NBA event-732 direct six-view model-only research
