@@ -18,7 +18,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       RESEARCH_BRANCH: research/ippt-event-snapshots-separate-20261028
-      EXPECTED_CODE_SHA: ba4e03b9be04419530637b2ca91cb6a6d68153f3
+      EXPECTED_CODE_SHA: b17f58cca7b4be000d3d56ff7baafa2526a042e4
       DATA_BRANCH: data/ippt-all-pbp-native-xy-causal-motion-36-20261028-v3
       EXPECTED_DATA_SHA: 5deb5ee1ef3b1cec5ed336a705a126e79a26ad0c
       DB_FILE: gamepulse/fusion/materialized/ippt_all_pbp_native_xy_motion_36_v3/nba_pbp_original_native_xy_motion.sqlite
@@ -51,6 +51,8 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/query_igp_ippt_integrated_possession_v1_2026.py
           python3 -m unittest -v gamepulse/fusion/test_query_igp_ippt_integrated_possession_v1_2026.py
+          python3 -m py_compile gamepulse/fusion/igp_ippt_empty_chain_native_fallback_2026.py
+          python3 -m unittest -v gamepulse/fusion/test_igp_ippt_empty_chain_native_fallback_2026.py
       - name: Full36 SHA G4 7474 chain 22314 PBP event and corrected G3 consistency
         shell: bash
         run: |
@@ -272,6 +274,60 @@ jobs:
           print("IPPT_NBA_STEALS_CAUSAL_ALL36_FULL_NATIVE_TRAJECTORY_INTEGRATION_PASS",json.dumps({
               **counts,"real_source_games_verified":len(pilots),
               "causal_episode_NOT_physical_ball_control":True},sort_keys=True))
+          PY
+      - name: Reproduce every empty official chain scorer near G4 source result and private two-game full-XYZ readbacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_CODE"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          import collections,json,os
+          from pathlib import Path
+          from query_igp_g4_native_actor_possession_2026 import load_index
+          from igp_ippt_empty_chain_native_fallback_2026 import (
+              scorer_times_for_chain,source_candidate_ordinals)
+          from query_igp_ippt_integrated_possession_v1_2026 import query
+          root=Path(".");db=Path(os.environ["IPPT_DB"])
+          qa_path=Path("gamepulse/fusion/qa/igp_progress_20261028/ippt_all36_native_409_empty_chain_player_ball_slot_second_qa_v1.json")
+          receipt=json.loads(qa_path.read_text());counts=collections.Counter()
+          pilots=[]
+          for gid,p in sorted(receipt["games"].items()):
+              g4,_=load_index(root,gid)
+              for e in p["empty_official_NBA_chains"]:
+                  cid=e["chain_id"];chain=g4["nba_canonical_logical_chains"][cid]
+                  assert not chain["native_logged_frame_ordinals"]
+                  assert not chain["native_event_candidate_frame_ordinals"]
+                  times,n=scorer_times_for_chain(db,gid,chain["official_action_ids"])
+                  indices=source_candidate_ordinals(g4,times)
+                  assert len(indices)==e["near_scorer_native_frames_1s"],"409 original PBP scorer vs G4 source index drift"
+                  counts["canonical_empty_chains_checked"]+=1
+                  if indices:counts["with_native_near_scorer"]+=1
+                  else:counts["no_native_near_scorer"]+=1
+                  if indices and gid in ("0022600009","0022600092") and not any(q[0]==gid for q in pilots):
+                      pilots.append((gid,cid,len(indices)))
+          assert counts["canonical_empty_chains_checked"]==409
+          assert counts["with_native_near_scorer"]==280
+          assert counts["no_native_near_scorer"]==129
+          assert len(pilots)==2
+          for gid,cid,expected in pilots:
+              x=query(root,db,gid,chain_id=cid,limit=25,
+                      include_xyz=True,include_g3=True,
+                      include_official_ten=True,include_event_details=True)
+              assert x["original_native_frames_matched"]==expected
+              assert x["empty_canonical_chain_uses_provisional_source_preview"]
+              assert x["matching_official_logical_NBA_chain_ids"]==[cid]
+              assert x["original_native_frames"]
+              assert x["nearby_orphan_NBA_source_is_NOT_physical_possession_link"]
+              assert not x["NBA_PBP_event_physical_UTC_certified"]
+              for row in x["original_native_frames"]:
+                  assert row["empty_chain_UTC_nearby_not_original_NBA_possession_membership"]
+                  assert not (set(row["source_players"]) &
+                              set(row["G3_derived_missing_players"]))
+                  assert row["source_ball"] is None or row["G3_derived_missing_ball"] is None
+          print("IPPT_SHA_ALL409_EMPTY_CANONICAL_CHAINS_G4_SCORER_FALLBACK_ACCEPTED",
+                json.dumps({**counts,"real_source_full_XYZ_games":len(pilots),
+                   "PBP_chain_boundary_or_physical_time_promoted":False},sort_keys=True))
           PY
       - name: Publish aggregate-only QA issue receipt and erase licensed working data
         if: always()
