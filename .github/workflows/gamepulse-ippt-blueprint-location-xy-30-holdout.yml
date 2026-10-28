@@ -46,3 +46,5 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -u gamepulse/fusion/igp_ippt_blueprint_shot_location_source_xy_holdout_2026.py --root .
           echo "IPPT_SHOOTER_XY_BLUEPRINT_LOCATION_30GAME_HOLDOUT_PASS"
+
+# No original individual native NBA coordinates written to public runner logs.
