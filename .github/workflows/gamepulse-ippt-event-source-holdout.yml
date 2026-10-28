@@ -55,3 +55,5 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 gamepulse/fusion/igp_ippt_event_source_holdout_2026.py --root .
           echo "IPPT_EVENT_36GAME_SOURCE_HOLDOUT_PASS"
+
+# Original NBA source frame masked truth: aggregate only, never private XYZ.
