@@ -18,7 +18,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_REPO: timeedmonds-maker/104
       RESEARCH_BRANCH: research/ippt-event-snapshots-separate-20261028
-      EXPECTED_CODE_SHA: 9c0ff9e2a5ffca21f188f7ff8166086249a50fbe
+      EXPECTED_CODE_SHA: 2f642040a0c51494d023d603807d565b0589b5e5
       DATA_BRANCH: data/ippt-all-pbp-native-xy-causal-motion-36-20261028-v3
       EXPECTED_DATA_SHA: 5deb5ee1ef3b1cec5ed336a705a126e79a26ad0c
       DB_FILE: gamepulse/fusion/materialized/ippt_all_pbp_native_xy_motion_36_v3/nba_pbp_original_native_xy_motion.sqlite
@@ -214,6 +214,64 @@ jobs:
              **counts,"by_NBA_action_type":dict(sorted(types.items())),
              "private_real_source_orphan_games_passed":len(pilots),
              "orphan_physical_possession_certified":0},sort_keys=True))
+          PY
+      - name: Steal turnover causality joins original native possession source across 36 games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_CODE"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          import collections,json,os,sqlite3
+          from pathlib import Path
+          from query_igp_g4_native_actor_possession_2026 import load_index
+          from query_igp_ippt_integrated_possession_v1_2026 import query
+          root=Path(".");db=Path(os.environ["IPPT_DB"])
+          con=sqlite3.connect(f"file:{db.resolve()}?mode=ro",uri=True)
+          counts=collections.Counter();pilots=[]
+          gids=[v[0] for v in con.execute("SELECT DISTINCT game_id FROM pbp_event")]
+          for gid in sorted(gids):
+              blob,_=load_index(root,gid)
+              reverse=collections.defaultdict(list)
+              for cid,c in blob["nba_canonical_logical_chains"].items():
+                  for n in c["official_action_ids"]:reverse[n].append(cid)
+              steals={r[0] for r in con.execute(
+                  "SELECT action_number FROM pbp_event WHERE game_id=? AND action_type='steal'",(gid,))}
+              links=collections.defaultdict(set)
+              for steal,turnover in con.execute(
+                  "SELECT action_b,action_a FROM bundle_causal_edge WHERE game_id=? AND relation='SAME_BASKETBALL_TURNOVER_STEAL_EPISODE'",(gid,)):
+                  links[steal].add(turnover)
+              for steal in steals:
+                  counts["NBA_steal_official_events"]+=1
+                  assert not reverse.get(steal),"Steal unexpectedly in original canonical chain"
+                  turnovers=links[steal]
+                  if not turnovers:
+                      counts["steal_without_explicit_turnover_causal_edge"]+=1
+                  else:
+                      counts["steal_with_explicit_turnover_causal_edge"]+=1
+                  target={cid for n in turnovers for cid in reverse.get(n,[])}
+                  if target:
+                      counts["steal_causally_associated_with_official_turnover_chain"]+=1
+                      if any(blob["nba_canonical_logical_chains"][cid]["native_logged_frame_ordinals"]
+                             for cid in target):
+                          counts["steal_causal_turnover_chain_with_original_native_tracking"]+=1
+                          if gid in ("0022600009","0022600092") and not any(p[0]==gid for p in pilots):
+                              if len(turnovers)==1:pilots.append((gid,steal))
+          assert counts["NBA_steal_official_events"]==661
+          assert counts["steal_with_explicit_turnover_causal_edge"]==661
+          assert counts["steal_causally_associated_with_official_turnover_chain"]>0
+          assert len(pilots)==2
+          for gid,steal in pilots:
+              a=query(root,db,gid,action_number=steal,limit=20,event_limit=2,
+                      include_xyz=True,include_g3=True,include_official_ten=True)
+              assert a["matching_official_logical_NBA_chain_ids"]==[]
+              assert a["causally_associated_NBA_chain_ids_from_PBP_steal_turnover"]
+              assert "TURNOVER_STEAL_CAUSAL_EPISODE" in a["native_frame_linkage_mode"]
+              assert a["original_native_frames_matched"]>0
+              assert not a["NBA_PBP_event_physical_UTC_certified"]
+          print("IPPT_NBA_STEALS_CAUSAL_ALL36_FULL_NATIVE_TRAJECTORY_INTEGRATION_PASS",json.dumps({
+              **counts,"real_source_games_verified":len(pilots),
+              "causal_episode_NOT_physical_ball_control":True},sort_keys=True))
           PY
       - name: Publish aggregate-only QA issue receipt and erase licensed working data
         if: always()
