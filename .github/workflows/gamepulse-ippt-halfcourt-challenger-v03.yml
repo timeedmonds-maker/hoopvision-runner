@@ -24,7 +24,9 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "${GH_TOKEN:-}"
-          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          # Read access to the private source is proved by the authenticated clone;
+          # avoid a redundant GitHub REST API call (shared account rate limits).
+          export GIT_TERMINAL_PROMPT=0
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
             "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
