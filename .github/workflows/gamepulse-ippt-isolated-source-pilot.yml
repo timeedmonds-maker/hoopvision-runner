@@ -159,4 +159,49 @@ jobs:
             'weak_coordinates_NOT_physically_certified':True})
           PY
 
+      - name: Contiguous full-player-and-ball black-window masked physical XYZ evaluation
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          from igp_tracking_pilot_source_2026 import read
+          from igp_ippt_contiguous_mask_2026 import run
+          for gid in ('0022600009','0022600092'):
+              raw=read('.',gid)
+              for ms in (2000,5000,10000):
+                  q=run(raw,window_ms=ms,windows=12)
+                  assert q['entire_black_windows_masked_no_original_player_or_ball_in_train']
+                  print('IPPT_SHA_ORIGINAL_CONTIGUOUS_MASK',gid,ms,{
+                    'original_native_timestamps_withheld':q['masked_original_native_timestamps'],
+                    'baseline':q['models']['baseline'],
+                    'expanded':q['models']['expanded'],
+                    'not_whole_game_holdout':True})
+          PY
+      - name: Actual private modeled sidecar search round-trip without publishing coordinates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          from pathlib import Path
+          import tempfile
+          from igp_ippt_expanded_private_pilot_2026 import run_game
+          from query_igp_ippt_experimental_possession_2026 import search
+          with tempfile.TemporaryDirectory() as d:
+              private=Path(d)/'modelled_NBA_game_0009.jsonl.gz'
+              r=run_game('.', '0022600009', stride=10, out=private)
+              q=search(private, game_id='0022600009', only_complete=True, limit=2)
+              assert q['scanned_native_frames']==r['counts']['sampled_native_frames']
+              assert q['matching_frames']==r['counts']['complete_estimated']
+              assert len(q['frames'])==2
+              assert q['frames'][0]['physical_possession_boundary_certified']==False
+              print('IPPT_PRIVATE_SEARCH_ROUNDTRIP_PASS',{
+                'frames':q['scanned_native_frames'],
+                'modeled_complete_frames_searchable':q['matching_frames'],
+                'source_and_NBA_PBP_preserved':True})
+          PY
+
 # Reviewed allowlist: tools/public_content_guard.py; all private coordinates remain private.
