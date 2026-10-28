@@ -48,3 +48,5 @@ jobs:
           echo "IPPT_NATIVE_SHOT_XY_BALL3D_ALL36_QA_PASS"
 
 # Approved privacy-guard original NBA source readback, aggregate-only output.
+
+# Physical gravity-vs-linear ball candidate, separate 2D player and 3D ball metrics.
