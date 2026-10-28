@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/ippt-event-snapshots-separate-20261028
-      EXPECTED_PRIVATE_SHA: 6004a4c2d0d0f25498702065b54cec330df7c174
+      EXPECTED_PRIVATE_SHA: 983314ce07a1fb8f168096e0ea8309e383f3b1bb
     steps:
       - uses: actions/checkout@v4
         with:
@@ -78,7 +78,7 @@ jobs:
           log=Path(os.environ["RUNNER_TEMP"])/"ippt_all_pbp_xy_aggregate.log"
           report={"github_run_id":os.environ["GITHUB_RUN_ID"],
                   "prior_job_status":os.environ["QA_JOB_RESULT"],
-                  "private_expected_SHA":"6004a4c2d0d0f25498702065b54cec330df7c174"}
+                  "private_expected_SHA":"983314ce07a1fb8f168096e0ea8309e383f3b1bb"}
           if log.exists():
               lines=[line.partition(" ")[2] for line in log.read_text().splitlines()
                   if line.startswith("IPPT_ALL36_ALL_NBA_PBP_ACTION_NATIVE_XY_COVERAGE_QA ")]
