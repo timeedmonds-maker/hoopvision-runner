@@ -140,7 +140,7 @@ jobs:
               assert all(rows.get(gid)==row for gid,row in prior["games"].items()),"ACTION_SOURCE_READBACK_REGRESSION"
           qa.write_text(json.dumps({"schema":"igp.action-original-xyz-window-readback.v1",
                     "games":rows,"games_accepted":len(rows),"time_alignment":"PROVISIONAL_SCORER_UTC_WINDOW",
-                    "physical_possessions_certified":0},sort_keys=True,indent=2)+"\\n")
+                    "physical_possessions_certified":0},sort_keys=True,indent=2)+"\n")
           print("IGP_OFFICIAL_ACTION_ORIGINAL_XYZ_REAL_READBACK",len(rows))
           PY
       - name: Commit only new SHA-locked private index on existing PR branch
