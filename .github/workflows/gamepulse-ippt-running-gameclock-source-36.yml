@@ -14,8 +14,8 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/ippt-event-snapshots-separate-20261028
-      SHA: a975558c372f78f61162531b874865921b56edac
-      QA: gamepulse/fusion/qa/igp_progress_20261028/ippt_running_NBA_gameclock_original_source_36_v1.json
+      SHA: 3cf147e65903efda115013c9a5ff98e3ea3755a7
+      QA: gamepulse/fusion/qa/igp_progress_20261028/ippt_running_NBA_gameclock_original_source_temporal1s_36_v2.json
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -43,6 +43,8 @@ jobs:
           assert len(a["games"])==36
           assert 0<c["running_clock_seconds_with_original_player_and_direct_ball"]<=c["game_clock_seconds_in_valid_PBP_intervals"]
           assert c["running_clock_seconds_with_8_original_player_IDs_and_direct_ball"]<=c["running_clock_seconds_with_original_player_and_direct_ball"]
+          assert c["running_clock_seconds_original_player_ball_observation_within_1s_of_clock_projection"]>=c["running_clock_seconds_with_original_player_and_direct_ball"]
+          assert c["running_clock_seconds_player_ball_original_bracket_both_sides_within_1s"]<=c["running_clock_seconds_original_player_ball_observation_within_1s_of_clock_projection"]
           assert a["clock_progression_not_video_certified_live_ball"]
           (Path(os.environ["RUNNER_TEMP"])/"safe.json").write_text(
               json.dumps({"counts":c,"games":36,"physical_ball_custody_certified":False},sort_keys=True))
