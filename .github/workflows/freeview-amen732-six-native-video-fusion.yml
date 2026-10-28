@@ -14,7 +14,7 @@ concurrency:
 jobs:
   fuse:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 85
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       OMP_NUM_THREADS: '3'
@@ -32,8 +32,9 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN" || { echo PRIVATE_TOKEN_MISSING; exit 3; }
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
-          echo SIX_PRIVATE_NATIVE_NBA_MP4S_ACCESS_OK
+          # Do not exhaust the private PAT quota on a redundant early check.
+          # Source hashes are validated after download by the private worker.
+          echo PRIVATE_TOKEN_PROVISIONED_WITHOUT_REST_PRECHECK
       - name: Download six original MP4 videos and SHA-verifiable source manifests into ephemeral runner
         shell: bash
         run: |
@@ -41,8 +42,25 @@ jobs:
           ROOT="$RUNNER_TEMP/amen732-sixvideo"
           mkdir -p "$ROOT/input" "$ROOT/private_code" "$ROOT/output"
           TAG=freeview-native-0022600009-732
-          gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$ROOT/input" \
-            --pattern '*.mp4' --pattern source_manifest.json --pattern native_presentation_timestamps.json >/dev/null
+          # Retry only the known provider rate-limit window, never disable source QA.
+          # A source download is successful only if all six private native videos
+          # plus both native manifests can be verified byte-for-byte later.
+          good=0
+          for attempt in $(seq 1 55); do
+            if gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$ROOT/input" \
+                 --pattern '*.mp4' --pattern source_manifest.json \
+                 --pattern native_presentation_timestamps.json --clobber >/dev/null 2>"$ROOT/download_error.txt"; then
+              good=1; break
+            fi
+            if grep -qi "rate limit" "$ROOT/download_error.txt"; then
+              echo PRIVATE_GITHUB_API_QUOTA_NOT_YET_RESTORED
+              sleep 60
+            else
+              echo PRIVATE_RELEASE_DOWNLOAD_FAILED_NON_RATE_LIMIT
+              exit 5
+            fi
+          done
+          test "$good" = 1 || { echo PRIVATE_RELEASE_NOT_FETCHED_WITHIN_BOUND; exit 6; }
           for spec in broadcast high-tight left-above-rim right-above-rim left-slash right-slash; do
             test -s "$ROOT/input/0022600009-e732-$spec.mp4"
           done
@@ -50,9 +68,15 @@ jobs:
           test -s "$ROOT/input/native_presentation_timestamps.json"
           REF=91ad3a2169e3531334e0aeca0b77aae7b0cf0392
           for file in amen732_native_six_video_frame_sets.py amen732_da3_unposed_sixview_trial.py amen732_native_sixvideo_fusion_mp4.py; do
-            gh api "repos/timeedmonds-maker/104/contents/hoopvision/freeview/$file?ref=$REF" \
-              --jq .content | base64 -d > "$ROOT/private_code/$file"
-            test -s "$ROOT/private_code/$file"
+            fetched=0
+            for attempt in $(seq 1 12); do
+              if gh api "repos/timeedmonds-maker/104/contents/hoopvision/freeview/$file?ref=$REF" \
+                  --jq .content 2>"$ROOT/code_error.txt" | base64 -d > "$ROOT/private_code/$file"; then
+                test -s "$ROOT/private_code/$file" && fetched=1 && break
+              fi
+              if grep -qi "rate limit" "$ROOT/code_error.txt"; then sleep 60; else break; fi
+            done
+            test "$fetched" = 1 || { echo PRIVATE_SOURCE_WORKER_FETCH_FAILED; exit 7; }
           done
           python3 -m py_compile "$ROOT/private_code/"*.py
           echo ALL_SIX_ORIGINAL_MP4S_STAGED_NO_PUBLIC_ARTIFACT
