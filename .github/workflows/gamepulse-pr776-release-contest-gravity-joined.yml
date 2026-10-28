@@ -1,4 +1,5 @@
 name: PR776 NBA shot release reported-defender and Gravity joined exports
+# Final rerun: provider source and private-only QA approved.
 on:
   push:
     branches: [main]
