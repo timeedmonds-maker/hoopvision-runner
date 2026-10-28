@@ -1,3 +1,4 @@
+# Guard-allowlisted official NBA public source capture; private outputs only.
 name: IPPT acquire missing Oct27 original NBA Blueprint shot reports privately
 on:
   push:
