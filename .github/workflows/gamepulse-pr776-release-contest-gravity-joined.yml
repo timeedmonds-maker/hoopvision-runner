@@ -110,7 +110,7 @@ jobs:
               fieldnames=[x[0] for x in cursor.description]
               values=[dict(x) for x in cursor]
               with (out/filename).open("w",newline="",encoding="utf-8") as f:
-                  writer=csv.DictWriter(f,fieldnames=fieldnames)
+                  writer=csv.DictWriter(f,fieldnames=fieldnames,lineterminator="\\n")
                   writer.writeheader()
                   writer.writerows(values)
               result[filename]=values
@@ -151,7 +151,7 @@ jobs:
           git config user.email "gamepulse-integrity@users.noreply.github.com"
           git add --sparse -f "$OUT"
           test "$(git diff --cached --name-only | wc -l)" -eq 3
-          git diff --cached --check
+          git diff --cached --check >/dev/null 2>&1 || { echo PRIVATE_JOIN_DIFF_CHECK_FAILED; exit 12; }
           git commit -qm "data(gamepulse): materialize NBA release, reported contest defender and official Gravity joins"
           for n in 1 2 3 4 5 6 7 8; do
             git fetch -q origin "$BRANCH"
