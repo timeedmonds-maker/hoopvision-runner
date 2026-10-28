@@ -85,3 +85,51 @@ jobs:
           PY
 
 # Reviewed private-source aggregate-only workflow; licensed XYZ never printed.
+
+
+      - name: Original halfcourt versus other-logged blackout errors at 2 5 10s
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_ippt_halfcourt_masked_accuracy_2026.py
+          python3 - <<'PY'
+          from igp_ippt_halfcourt_dual_benchmark_2026 import annotated_frames
+          from igp_ippt_halfcourt_masked_accuracy_2026 import run
+          for gid in ("0022600009","0022600092"):
+              raw,g4,rosters,sha=annotated_frames(".",gid)
+              for ms in (2000,5000,10000):
+                  q=run(raw,g4["native_frames"],window_ms=ms,windows=12)
+                  for group in ("half_court_proxy","other_unique_logged"):
+                      assert q["cohorts"][group]["original_position_masked_for_evaluation"]>0
+                  print("IPPT_HALFCOURT_BLACKOUT_ORIGINAL_QA",gid,ms,{
+                    "half_court":q["cohorts"]["half_court_proxy"],
+                    "other_logged":q["cohorts"]["other_unique_logged"],
+                    "note":"Retrospective cohort from original-ball pre-mask; errors not independent from selection"})
+          PY
+      - name: Private halfcourt possession search original and predictive QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_ippt_halfcourt_dual_2026.py
+          python3 - <<'PY'
+          from query_igp_ippt_halfcourt_dual_2026 import search
+          for gid in ("0022600009","0022600092"):
+              direct=search(".",gid,model="direct",limit=2)
+              accepted=search(".",gid,model="evidence",limit=2)
+              predictive=search(".",gid,model="predictive",limit=2)
+              assert direct["total_matching_source_frames"]>100
+              assert (direct["total_matching_source_frames"]==
+                  accepted["total_matching_source_frames"]==
+                  predictive["total_matching_source_frames"])
+              assert len(direct["rows"])==len(accepted["rows"])==len(predictive["rows"])==2
+              assert all(r["original_coordinates_never_overwritten"] for r in
+                 (direct,accepted,predictive))
+              print("IPPT_HALFCOURT_PRIVATE_SEARCH_PASS",gid,{
+                "frames_queryable":direct["total_matching_source_frames"],
+                "modes":["direct","evidence","predictive"],
+                "source_preserved":True})
+          PY
