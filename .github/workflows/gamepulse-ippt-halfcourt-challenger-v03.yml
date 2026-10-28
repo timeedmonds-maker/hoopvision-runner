@@ -56,15 +56,16 @@ jobs:
           from query_igp_ippt_halfcourt_settled_v2_2026 import search
           for gid in ("0022600009","0022600092"):
               modes={mode:search(".",gid,model=mode,limit=10)
-                   for mode in ("direct","evidence","predictive")}
+                   for mode in ("direct","evidence","predictive","predictive_v03")}
               assert len(set(row["total_matching_source_frames"] for row in modes.values()))==1
               for mode,row in modes.items():
                   assert len(row["rows"])==10
                   assert all(p["coordinate_analysis_quality_tier"] for p in row["rows"])
                   assert all(p["no_precision_certification_from_model_completeness"] for p in row["rows"])
+              assert all(row["IPPT_prediction"]["model_version"]=="IPPT_PRIORITY_BIDIRECTIONAL_LONG_0_3" for row in modes["predictive_v03"]["rows"])
               print("IPPT_V2_GRADED_PRIVATE_QUERY_PASS",gid,{
                  "source_frames":modes["direct"]["total_matching_source_frames"],
-                 "layers":["direct","evidence","predictive"],
+                 "layers":["direct","evidence","predictive","predictive_v03"],
                  "quality_tiers_present":True})
           PY
       - name: Strict settled NBA 2 5 10s withheld all-original tracking v02 versus v03
