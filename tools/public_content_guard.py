@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-four-foot-defended-release-gravity.yml",  # private-only accepted Blueprint four-foot contested shooting with SHA-verified Gravity QA
     ".github/workflows/gamepulse-ippt-halfcourt-challenger-v03.yml",  # reviewed original NBA source masked QA, aggregate error only never XYZ
     ".github/workflows/gamepulse-pr776-six-foot-defended-release-gravity.yml",  # private-only accepted shot releases filtered by Blueprint contest distance <=72 inches, QA private
     ".github/workflows/gamepulse-ippt-halfcourt-settled-v2.yml",  # reviewed private source 36-game aggregate only; licensed NBA XYZ never logged
