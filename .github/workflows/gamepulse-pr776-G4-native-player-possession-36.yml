@@ -47,6 +47,9 @@ jobs:
           python3 -m unittest discover -s gamepulse/fusion/tests \
              -p 'test_igp_g4_native_actor_possession_2026.py' -v
           echo G4_ORIGINAL_SOURCE_NATIVE_POSTINGS_TESTS_PASSED
+          # Explicitly retain provenance-join regression independently of index-only tests.
+          python3 -m unittest discover -s gamepulse/fusion/tests \\
+             -p 'test_igp_original_per_actor_lineage_query_G1_2026.py' -v
       - name: Pilot two game source SHA/index/official PBP/G3 conservation first
         shell: bash
         run: |
