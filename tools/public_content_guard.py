@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen732-sixview-physical-sync-audit.yml",  # six native MP4 audio/timing audit: NO licensed media in public artifact
+    "tools/amen732_sixview_audio_alignment_v2.py",  # hashed source manifest and source timestamp only
     ".github/workflows/gamepulse-ippt-clock-ten-model-all36.yml",  # private exact original NBA gameclock ten-player and ball model materialized, public aggregate QA only
     ".github/workflows/gamepulse-ippt-official-clock-model-real-2games.yml",  # private exact SHA NBA official ten full XYZ model physical-time query pilot aggregate QA
     ".github/workflows/gamepulse-ippt-official-gameclock-ten-36.yml",  # private original NBA official ten gameclock model source bracket QA, aggregate only
