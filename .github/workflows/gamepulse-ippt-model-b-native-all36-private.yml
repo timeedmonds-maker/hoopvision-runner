@@ -1,0 +1,76 @@
+name: IPPT SHA original full native source Model B candidate tracking acceptance
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-ippt-model-b-native-all36-private.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+jobs:
+  private-accepted-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/ippt-event-snapshots-separate-20261028
+      EXACT_SHA: adfff84c0f99bb7b6de3116a6a358226481def47
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Private exact commit read and source-free tests
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$EXACT_SHA"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest -v gamepulse/fusion/test_igp_ippt_source_model_b_segments_2026.py
+          python3 -m py_compile gamepulse/fusion/igp_ippt_source_model_b_native_36_2026.py
+      - name: Real private original NBA source Model B 2 game pilot
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_ippt_source_model_b_native_36_2026.py \
+            --root . --games 0022600009 0022600092 \
+            --qa gamepulse/fusion/qa/igp_progress_20261028/ippt_original_native_model_b_pilot2_v1.json > "$RUNNER_TEMP/ippt-private-model-b.log"
+          python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          root=Path(".");p=root/"gamepulse/fusion/qa/igp_progress_20261028/ippt_original_native_model_b_pilot2_v1.json"
+          a=json.loads(p.read_text());c=a["counts"]
+          assert a["source_games"]==2
+          assert c["identity_candidate_frames"]>30000
+          assert c["original_plus_G3_plus_newB_ten_ball"]>=c["original_plus_G3_ten_ball"]
+          assert c["chain_second_complete_after_B"]>=c["chain_second_complete_before_B"]
+          assert c["new_player_estimates"]>0
+          assert not a["physical_custody_video_certified"]
+          safe={"status":"PILOT_PASS","games":2,"modelB_counts":c,
+                "physical_tracking_accuracy_video_certified":False}
+          (Path(os.environ["RUNNER_TEMP"])/"ippt_modelB_safe.json").write_text(json.dumps(safe,sort_keys=True,indent=2))
+          print("IPPT_MODEL_B_TWO_GAME_REAL_SOURCE_PASS",json.dumps(c,sort_keys=True))
+          PY
+      - name: Public aggregate-only acceptance and erase private original NBA XYZ
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESULT: ${{ job.status }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          d=Path(os.environ["RUNNER_TEMP"]);p=d/"ippt_modelB_safe.json"
+          a=json.loads(p.read_text()) if p.exists() else {"status":os.environ["RESULT"]}
+          a["run_id"]=os.environ["GITHUB_RUN_ID"]
+          a["exact_research_sha"]=os.environ["EXACT_SHA"]
+          (d/"ippt_modelB_public.md").write_text("Private SHA original NBA Model B gap tracking pilot. Aggregate-only public proof; original player and ball XYZ withheld.\n\n~~~json\n"+json.dumps(a,sort_keys=True,indent=2)+"\n~~~\n")
+          PY
+          rm -rf "$RUNNER_TEMP/private"
+          gh issue comment 140 --repo timeedmonds-maker/hoopvision-runner --body-file "$RUNNER_TEMP/ippt_modelB_public.md"
+# Original NBA licensed tracking and individual player native UTC remain private.
