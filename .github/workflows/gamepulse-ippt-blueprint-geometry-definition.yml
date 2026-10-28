@@ -46,3 +46,5 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -u gamepulse/fusion/igp_ippt_blueprint_geometry_definition_probe_2026.py --root .
           echo "IPPT_BLUEPRINT_BALL_VERSUS_PLAYER_GEOMETRY_36_PASS"
+
+# Trigger after source-geometry publication-safe aggregate guard allowlist.
