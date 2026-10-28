@@ -13,6 +13,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/ippt-event-snapshots-separate-20261028
+      EXPECTED_PRIVATE_SHA: c398a175d5237e312a46b55abbaf9e7495c383a6
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,6 +30,7 @@ jobs:
               "https://github.com/timeedmonds-maker/104.git" "$RUNNER_TEMP/igp-private"
           git -C "$RUNNER_TEMP/igp-private" sparse-checkout set \
               gamepulse/fusion data/extensions/nba_blueprint_2026_27
+          test "$(git -C "$RUNNER_TEMP/igp-private" rev-parse HEAD)" = "$EXPECTED_PRIVATE_SHA"
           echo "IPPT_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
       - name: Source-to-chart calibration / heldout dataset leakage tests
         shell: bash
@@ -47,4 +49,5 @@ jobs:
           python3 -u gamepulse/fusion/igp_ippt_blueprint_shot_location_source_xy_holdout_2026.py --root .
           echo "IPPT_SHOOTER_XY_BLUEPRINT_LOCATION_30GAME_HOLDOUT_PASS"
 
+# Paired ball/shooter native same-frame, Blueprint shot-distance semantics controls.
 # No original individual native NBA coordinates written to public runner logs.
