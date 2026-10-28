@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  issues: write
 jobs:
   shooter-chart-geometry:
     runs-on: ubuntu-24.04
@@ -46,8 +47,46 @@ jobs:
           set -euo pipefail
           cd "$IPPT_ROOT"
           export PYTHONPATH=gamepulse/fusion
-          python3 -u gamepulse/fusion/igp_ippt_blueprint_shot_location_source_xy_holdout_2026.py --root .
+          python3 -u gamepulse/fusion/igp_ippt_blueprint_shot_location_source_xy_holdout_2026.py --root . | tee "$RUNNER_TEMP/ippt_landmark_aggregate.log"
           echo "IPPT_SHOOTER_XY_BLUEPRINT_LOCATION_30GAME_HOLDOUT_PASS"
+      - name: Publish sanitized aggregate-only QA receipt
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QA_JOB_RESULT: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          path=Path(os.environ["RUNNER_TEMP"])/"ippt_landmark_aggregate.log"
+          report={"github_run_id":os.environ["GITHUB_RUN_ID"],
+                  "job_result_prior_to_receipt":os.environ["QA_JOB_RESULT"],
+                  "private_source_commit_expected":"c398a175d5237e312a46b55abbaf9e7495c383a6"}
+          if path.exists():
+              lines=[line.split(" ",1)[1] for line in path.read_text().splitlines()
+                     if line.startswith("IPPT_SOURCE_SHOOTER_XY_VS_BLUEPRINT_SHOT_CHART_30GAME_HOLDOUT ")]
+              if len(lines)==1:
+                  doc=json.loads(lines[0])
+                  report["schema"]=doc["schema"]
+                  report["game_count"]=doc["games"]
+                  report["holdout_game_count"]=doc["heldout_games"]
+                  report["baseline_shooter_30game"]=doc["untouched_30game_holdout"]
+                  paired=doc["paired_ball_vs_shooter_landmark_and_chart_scale_probe"]
+                  report["paired_original_native_ball_shooter_30game"]={
+                      k:paired[k] for k in (
+                          "development_paired_shots","holdout_paired_shots",
+                          "shooter_common_holdout",
+                          "ball_common_holdout_same_shooter_transform",
+                          "ball_common_holdout_ball_transform_fit_only_on_six_dev",
+                          "chart_distance_control_selected_on_six_dev",
+                          "chart_distance_controls_holdout_not_used_to_choose_model",
+                          "by_shot_type")}
+          body="Original NBA licensed XY are NOT present. Cross-source chart disagreement is NOT optical positional validation.\n\n" + "~~~json\n" + json.dumps(report,sort_keys=True,indent=2) + "\n~~~\n"
+          (Path(os.environ["RUNNER_TEMP"])/"ippt_landmark_qa_comment.md").write_text(body)
+          PY
+          gh issue comment 122 --repo timeedmonds-maker/hoopvision-runner --body-file "$RUNNER_TEMP/ippt_landmark_qa_comment.md"
 
 # Paired ball/shooter native same-frame, Blueprint shot-distance semantics controls.
 # No original individual native NBA coordinates written to public runner logs.
