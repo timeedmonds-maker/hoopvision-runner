@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-oct27-blueprint-backfill.yml",  # NBA public original shot report to private research branch only
     ".github/workflows/gamepulse-official-pbp-post36-backfill.yml",  # official public NBA PBP/box bytes committed private with final-score QA
     ".github/workflows/gamepulse-companion-original-0129-pilot.yml",  # bounded unauthenticated source GET; original bytes private release, public status only
     ".github/workflows/gamepulse-pr776-rockets-companion-z-variant-qa.yml",  # private SHA-verified NBA original SDK keyframe variant aggregate QA only; never public XYZ or licensed source artifacts
