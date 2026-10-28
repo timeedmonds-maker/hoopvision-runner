@@ -1,0 +1,66 @@
+# Private-source SHA query check. Do not print original NBA XYZ or derived coordinates.
+name: Integrated Pulse unified 56-game action/shot/model read-only query QA
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-igp-unified-56-private-query-qa.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  unified-private-query:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public guard and use only canonical private repository
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b research/gamepulse-clock-boundary-integrity-20261025 https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27/games
+      - name: SHA-verify game, actual shot identity, historic model and new model queries
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_unified_2026_27_season_v1.py
+          python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600009 --action-number 7 --omit-positions > "$RUNNER_TEMP/old.json"
+          python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600129 --action-number 790 --omit-positions > "$RUNNER_TEMP/shot.json"
+          python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600129 --period 1 --clock-second 701 > "$RUNNER_TEMP/new.json"
+          python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600009 --period 1 --clock-second 701 > "$RUNNER_TEMP/oldmodel.json"
+          python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600130 --period 1 --clock-second 600 > "$RUNNER_TEMP/absent.json"
+          python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          p=Path(os.environ["RUNNER_TEMP"])
+          old=json.loads((p/"old.json").read_bytes())
+          shot=json.loads((p/"shot.json").read_bytes())
+          new=json.loads((p/"new.json").read_bytes())
+          prior=json.loads((p/"oldmodel.json").read_bytes())
+          missing=json.loads((p/"absent.json").read_bytes())
+          assert old["source_status"]=="PRESERVED_ACCEPTED_36_MODEL"
+          assert shot["source_status"]=="POST36_MODELED_PBP_SUB_LINEUP_PROVISIONAL"
+          assert shot["official_action"]["nba_action_number"]==790
+          assert shot["shot_source"]["status"]=="MATCHED_BLUEPRINT_ACTION_SHOOTER_TYPE"
+          assert shot["shot_source"]["published_shot"]["expFieldGoalPct"] is not None
+          assert new["model_tracking"]["status"]=="SAMPLED_MODEL"
+          assert prior["model_tracking"]["status"] in (
+              "SAMPLED_MODEL","NO_UNAMBIGUOUS_ELIGIBLE_GAMECLOCK_SAMPLE")
+          assert missing["model_tracking"]["status"]=="ORIGINAL_XYZ_SOURCE_UNRECOVERED"
+          assert shot["complete_ten_ball_56_coverage_pct"]==88.6084
+          assert not old["physical_custody_certified"]
+          print("IGP_PRIVATE_UNIFIED_SOURCE_QUERY_ACCEPTED",json.dumps({
+              "games_total":56,"source_xyz_games":54,
+              "new_model_lookup":new["model_tracking"]["status"],
+              "historic_model_lookup":prior["model_tracking"]["status"],
+              "new_shot_identity":shot["shot_source"]["status"],
+              "missing_game_preserved":missing["model_tracking"]["status"],
+              "all56_1hz_completeness_pct":shot["complete_ten_ball_56_coverage_pct"]},
+              sort_keys=True))
+          PY
