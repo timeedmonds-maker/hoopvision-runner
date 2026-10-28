@@ -50,3 +50,5 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 gamepulse/fusion/igp_ippt_shot_release_30game_holdout_2026.py --root .
           echo "IPPT_30_UNTOUCHED_RELEASE_PAIRED_BENCHMARK_PASS"
+
+# Original NBA event-release 30-game independent source comparison.
