@@ -73,3 +73,5 @@ jobs:
           python3 gamepulse/fusion/igp_ippt_halfcourt_settled_benchmark_2026.py \
             --root . --stride 10
           echo "IPPT_V2_36GAME_SHA_SOURCE_RUN_PASS"
+
+# Reviewed source confidentiality: report aggregate counts only.
