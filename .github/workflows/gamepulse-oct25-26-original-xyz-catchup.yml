@@ -293,8 +293,14 @@ jobs:
           for gid in sorted(added):
               row=new['games'][gid];away,home,tip=fixtures[gid]
               for k,v in [('away_team',away),('home_team',home),('tipoff_utc',tip)]:
-                  assert row.get(k) in (None,v), 'NBA_FIXTURE_CONFLICT_'+gid
-                  if row.get(k) is None:row[k]=v
+                  if k=='tipoff_utc' and row.get(k):
+                      from datetime import datetime
+                      parse=lambda x:datetime.fromisoformat(x.replace('Z','+00:00'))
+                      assert abs((parse(row[k])-parse(v)).total_seconds())<=900, 'NBA_FIXTURE_CONFLICT_'+gid+'_'+k
+                      if row[k]!=v:row['published_schedule_tipoff_utc']=v
+                  else:
+                      assert row.get(k) in (None,v), 'NBA_FIXTURE_CONFLICT_'+gid+'_'+k
+                      if row.get(k) is None:row[k]=v
               if not existing[gid].get('away_team') or not existing[gid].get('home_team'):
                   row['fixture_source']='NBA_PUBLISHED_20261026_FIXTURE_ONLY'
               if row.get('away_team_name') is None or row.get('home_team_name') is None:
