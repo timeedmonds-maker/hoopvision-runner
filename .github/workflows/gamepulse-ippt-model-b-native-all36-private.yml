@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/ippt-event-snapshots-separate-20261028
-      EXACT_SHA: adfff84c0f99bb7b6de3116a6a358226481def47
+      EXACT_SHA: bb60ce4aca0720c8457f6b71e76808fd90a5492a
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
