@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-G4-source-actor-recency-36.yml",  # reviewed original SDK actor recency aggregate, no XYZ
     ".github/workflows/gamepulse-pr776-G4-full-native-ten-ball-coverage-36.yml",  # reviewed private NBA coverage aggregate, no source XYZ
     ".github/workflows/gamepulse-pr776-G4-one-anchor-query-36.yml",  # reviewed private NBA original source context query, public aggregate only
     ".github/workflows/gamepulse-pr776-G4-one-anchor-source-206.yml",  # reviewed private one-anchor NBA source QA, public aggregate only
