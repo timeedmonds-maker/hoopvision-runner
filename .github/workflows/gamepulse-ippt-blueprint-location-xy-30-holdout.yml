@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/ippt-event-snapshots-separate-20261028
-      EXPECTED_PRIVATE_SHA: c398a175d5237e312a46b55abbaf9e7495c383a6
+      EXPECTED_PRIVATE_SHA: 3f846082057a44da5b9b9d32402f95ee54705113
     steps:
       - uses: actions/checkout@v4
         with:
@@ -63,7 +63,7 @@ jobs:
           path=Path(os.environ["RUNNER_TEMP"])/"ippt_landmark_aggregate.log"
           report={"github_run_id":os.environ["GITHUB_RUN_ID"],
                   "job_result_prior_to_receipt":os.environ["QA_JOB_RESULT"],
-                  "private_source_commit_expected":"c398a175d5237e312a46b55abbaf9e7495c383a6"}
+                  "private_source_commit_expected":"3f846082057a44da5b9b9d32402f95ee54705113"}
           if path.exists():
               lines=[line.split(" ",1)[1] for line in path.read_text().splitlines()
                      if line.startswith("IPPT_SOURCE_SHOOTER_XY_VS_BLUEPRINT_SHOT_CHART_30GAME_HOLDOUT ")]
