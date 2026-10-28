@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-blueprint-shot-release-query.yml",
     ".github/workflows/gamepulse-ippt-shot-release-30game-holdout.yml",  # vetted event QA workflow
     ".github/workflows/gamepulse-ippt-ball-shot-release-candidate.yml",  # private original ball-shooter shot-release source motion and aggregate Blueprint comparison only
     ".github/workflows/gamepulse-ippt-blueprint-event-offset-diagnostic.yml",  # private source scorer UTC offset consistency, aggregates only
