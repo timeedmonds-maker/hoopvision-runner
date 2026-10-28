@@ -190,12 +190,12 @@ jobs:
           git config user.name "NBA Gravity season private integration"
           git config user.email "gamepulse-integrity@users.noreply.github.com"
           git add --sparse -f "$GRAVITY_VERSIONED_OUTPUT" "$GRAVITY_VERSIONED_QA"
-          test "$(git diff --cached --name-only | wc -l)" -eq 2
-          git diff --cached --check
           if git diff --cached --quiet; then
               echo NBA_OFFICIAL_GRAVITY_ALREADY_PUBLISHED
               exit 0
           fi
+          test "$(git diff --cached --name-only | wc -l)" -eq 2
+          git diff --cached --check
           git commit -qm "data(gamepulse): index native NBA season Gravity leaders without altering Blueprint sources"
           for attempt in 1 2 3 4 5 6; do
               git fetch -q origin "$BRANCH"
