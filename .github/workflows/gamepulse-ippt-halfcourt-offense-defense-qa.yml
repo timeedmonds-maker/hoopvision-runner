@@ -69,3 +69,5 @@ jobs:
                 "offense_defense_official_IDs_and_NBA_PBP_correct":True,
                 "original_coordinates_preserved":True})
           PY
+
+# Reviewed confidentiality allowlist and aggregate-only output.
