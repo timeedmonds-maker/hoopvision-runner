@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen732-six-native-video-fusion.yml",  # private-only six-MP4 3D fusion and MP4 output
     ".github/workflows/gamepulse-ippt-source-ten-coverage-all36.yml",  # private SHA G4 native source-anchored ten plus ball outside official roster G2; aggregate QA only
     ".github/workflows/gamepulse-ippt-empty-chain-source-lag-tiers-36.yml",  # original NBA G4 SHA exact scorer-UTC nearest source lag tier for 129 unresolved chains private QA, public aggregates only
     ".github/workflows/freeview-amen732-da3-private-qa-readback.yml",  # SHA-verifies DA3 release results and commits only to private 104
