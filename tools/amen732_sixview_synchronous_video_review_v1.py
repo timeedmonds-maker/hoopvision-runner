@@ -48,7 +48,7 @@ def run(source,alignment,out,ffmpeg,fps,begin,end):
     times=begin+np.arange(count,dtype=float)/fps
     fby={f["label"]:f for f in manifest["feeds"]}
     for label in VIEWS:
-        feed=fby[label];video=source/feed["file"]]
+        feed=fby[label];video=source/feed["file"]
         vh=sha(video)
         if vh!=feed["native_media_sha256"] or vh!=pts[label]["clip_sha256"]:
             raise RuntimeError("SOURCE_AUDIO_SYNC_VERSION_MISMATCH")
