@@ -82,3 +82,5 @@ jobs:
                   "source_and_G3_disjoint":True,
                   "physical_event_alignment_not_claimed":True})
           PY
+
+# Public logs contain source-event aggregate acceptance only; no SDK XYZ is printed.
