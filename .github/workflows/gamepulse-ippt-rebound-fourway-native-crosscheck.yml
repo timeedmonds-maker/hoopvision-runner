@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/ippt-event-snapshots-separate-20261028
-      EXPECTED_PRIVATE_SHA: eb4bba9eda6656ce33714d47aeaf0f7b132155d9
+      EXPECTED_PRIVATE_SHA: 1ba41a9de756539704cd3b0a68c6c3c1b4810c48
     steps:
       - uses: actions/checkout@v4
         with:
@@ -73,7 +73,7 @@ jobs:
           p=Path(os.environ["RUNNER_TEMP"])/"ippt_fourway_aggregate_only.log"
           report={"github_run_id":os.environ["GITHUB_RUN_ID"],
              "prior_job_status":os.environ["QA_JOB_RESULT"],
-             "expected_private_SHA":"eb4bba9eda6656ce33714d47aeaf0f7b132155d9"}
+             "expected_private_SHA":"1ba41a9de756539704cd3b0a68c6c3c1b4810c48"}
           if p.exists():
             records=[x.partition(" ")[2] for x in p.read_text().splitlines()
                 if x.startswith("IPPT_ALL36_FOURWAY_NATIVE_TOUCH_REBOUND_XY_QA ")]
