@@ -36,8 +36,12 @@ jobs:
             echo "IPPT_PRIVATE_V3_BRANCH_ALREADY_EXISTS_REFUSE_OVERWRITE"
             exit 1
           fi
-          git clone -q --filter=blob:none --depth=1 --sparse -b "$RESEARCH_BRANCH" \
+          git clone -q --filter=blob:none --depth=80 --sparse -b "$RESEARCH_BRANCH" \
              "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private-code"
+          if ! git -C "$RUNNER_TEMP/private-code" cat-file -e "$RESEARCH_SHA^{commit}" 2>/dev/null; then
+            git -C "$RUNNER_TEMP/private-code" fetch -q --deepen=150 origin "$RESEARCH_BRANCH"
+          fi
+          git -C "$RUNNER_TEMP/private-code" checkout -q --detach "$RESEARCH_SHA"
           git -C "$RUNNER_TEMP/private-code" sparse-checkout set gamepulse/fusion
           test "$(git -C "$RUNNER_TEMP/private-code" rev-parse HEAD)" = "$RESEARCH_SHA"
           git clone -q --filter=blob:none --depth=1 --sparse -b "$V2_DATA_BRANCH" \
