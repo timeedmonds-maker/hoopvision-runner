@@ -85,3 +85,5 @@ jobs:
                   "physical_time_video_certified":False,
                   "original_native_coordinates_printed":False})
           PY
+
+# Real NBA event query with published Blueprint metrics and original source candidate.
