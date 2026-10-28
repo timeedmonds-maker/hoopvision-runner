@@ -6,7 +6,64 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  issues: write
 jobs:
+  release-index-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Compare old/new game original SDK releases through GitHub REST
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}"
+          gh api --paginate --slurp 'repos/timeedmonds-maker/104/releases?per_page=100' > "$RUNNER_TEMP/ippt_releases_private.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          raw=json.loads((Path(os.environ["RUNNER_TEMP"])/"ippt_releases_private.json").read_text())
+          pages=raw if raw and isinstance(raw[0],list) else [raw]
+          entries=[r for page in pages for r in page]
+          games=["0022600005","0022600009","0022600092"]
+          found={}
+          for game in games:
+            hits=[]
+            for release in entries:
+              tag=release.get("tag_name","")
+              if game in tag or game in release.get("name",""):
+                hits.append({"tag":tag,
+                  "sdk_parts":sum(a.get("name","").startswith("sdk-part-") for a in release.get("assets",[])),
+                  "other_assets":len(release.get("assets",[]))})
+            found[game]=hits
+          summary={"github_run_id":os.environ["GITHUB_RUN_ID"],
+            "releases_seen":len(entries),"game_tag_candidates":found,
+            "rest_listing_succeeded":True,
+            "no_private_xyz_asset_url_or_token":True}
+          (Path(os.environ["RUNNER_TEMP"])/"ippt_provenance_release_index_summary.json").write_text(json.dumps(summary,indent=2))
+          print("IPPT_RELEASE_INDEX_METADATA_ONLY",json.dumps(summary,sort_keys=True))
+          PY
+      - name: Publish metadata-only diagnostic receipt
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QA_JOB_RESULT: ${{ job.status }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          path=Path(os.environ["RUNNER_TEMP"])/"ippt_provenance_release_index_summary.json"
+          summary=json.loads(path.read_text()) if path.exists() else {
+            "github_run_id":os.environ["GITHUB_RUN_ID"],"rest_listing_succeeded":False}
+          summary["job_status_prior_to_receipt"]=os.environ["QA_JOB_RESULT"]
+          (Path(os.environ["RUNNER_TEMP"])/"ippt_provenance_issue_comment.md").write_text(
+             "Original NBA SDK release metadata ONLY (no original XYZ or URLs):\n\n~~~json\n"+
+             json.dumps(summary,indent=2,sort_keys=True)+"\n~~~\n")
+          PY
+          gh issue comment 123 --repo timeedmonds-maker/hoopvision-runner --body-file "$RUNNER_TEMP/ippt_provenance_issue_comment.md"
   original-source-provenance:
     runs-on: ubuntu-24.04
     timeout-minutes: 120
