@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-halfcourt-offense-defense-qa.yml",  # reviewed private SHA NBA source, aggregate only official five cardinalities, no XYZ
     ".github/workflows/gamepulse-ippt-halfcourt-dual-benchmark.yml",  # reviewed private SHA NBA source, only aggregated selector/coverage counts; no licensed XYZ public
     ".github/workflows/gamepulse-ippt-isolated-source-pilot.yml",  # reviewed private-only aggregate CPU workflow
     ".github/workflows/gamepulse-ippt-isolated-source-pilot.yml",  # reviewed IPPT SHA private-source only; public logs game-level aggregate counts and holdout error percentiles, no player XYZ
