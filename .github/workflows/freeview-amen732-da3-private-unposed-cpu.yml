@@ -40,7 +40,7 @@ jobs:
           set -euo pipefail
           ROOT="$RUNNER_TEMP/amen732-unposed"
           mkdir -p "$ROOT/frames" "$ROOT/output"
-          COMMIT=567fa5eecffe3e7d96c0d8b02bc989b3c3a10c01
+          COMMIT=a3eb767910ae4eade032b8385f11afe823253ecb
           gh api "repos/timeedmonds-maker/104/contents/hoopvision/freeview/amen732_da3_unposed_sixview_trial.py?ref=$COMMIT" \
             --jq .content | base64 -d > "$ROOT/worker.py"
           for spec in broadcast-f275 high-tight-f235 left-above-rim-f247 right-above-rim-f234 left-slash-f221 right-slash-f211; do
@@ -71,7 +71,7 @@ jobs:
           set -euo pipefail
           ROOT="$RUNNER_TEMP/amen732-unposed"
           python3 "$ROOT/worker.py" --source "$ROOT/frames" --out "$ROOT/output" \
-            --model depth-anything/DA3-SMALL --process-res 336
+            --model depth-anything/DA3-BASE --process-res 336
           python3 - "$ROOT/output/amen732-da3-sixview-research-qa.json" <<'PY'
           import json,sys
           x=json.load(open(sys.argv[1]))
@@ -87,10 +87,10 @@ jobs:
         run: |
           set -euo pipefail
           ROOT="$RUNNER_TEMP/amen732-unposed/output"
-          TAG=freeview-amen732-da3-unposed-sixview-20261028
+          TAG=freeview-amen732-da3-base-unposed-sixview-20261028
           if ! gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title 'Private research DA3 uncalibrated Amen732 six-camera diagnostic' \
+              --title 'Private research DA3 BASE uncalibrated Amen732 six-camera diagnostic' \
               --notes 'Six provisional original camera frame exports, uncalibrated DA3-SMALL. Model-only geometry not NBA source-validated.' \
               --latest=false >/dev/null
           fi
