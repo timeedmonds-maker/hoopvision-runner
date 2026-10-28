@@ -105,4 +105,58 @@ jobs:
             'original_NBA_logical_chains_unchanged':totals['nba_logical_chains']})
           PY
 
+      - name: Run expanded weak-prior source tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_ippt_expanded_2026.py \
+            gamepulse/fusion/igp_ippt_expanded_private_pilot_2026.py \
+            gamepulse/fusion/query_igp_ippt_experimental_possession_2026.py
+          python3 -m unittest -v gamepulse/fusion/test_igp_ippt_expanded_2026.py \
+            gamepulse/fusion/test_query_igp_ippt_experimental_possession_2026.py
+          echo IPPT_EXPERIMENTAL_EXPANSION_SOURCE_FREE_PASSED
+      - name: Expanded weak F/G prior all 36 original NBA source coverage census
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          from collections import Counter
+          from pathlib import Path
+          from igp_tracking_pilot_run_2026 import BASE,load
+          from igp_ippt_expanded_private_pilot_2026 import run_game
+          index,_=load(Path('.'),BASE/'materialized/igp_provisional_chain_tracking_interiors_36_v1/index.json')
+          total=Counter()
+          for gid in sorted(index['games']):
+              r=run_game('.',gid,stride=10)
+              total.update(r['counts'])
+              total['games']+=1
+              total['source_frames']+=r['original_native_frames']
+              total['chains']+=r['NBA_logical_chains']
+              total['original_actor_entries']+=r['source_player_xyz_entries']
+              total['original_ball_frames']+=r['source_ball_frames']
+              print('IPPT_EXPANDED_PER_GAME',gid,r['sample_complete_pct'])
+          assert total['games']==36 and total['source_frames']==1203986
+          assert total['chains']==7474 and total['original_actor_entries']==8673975
+          assert total['original_ball_frames']==912704
+          assert total['sampled_native_frames']>120000
+          print('IPPT_EXPANDED_ALL36_SHA_PRIVATE_COUNTS',{
+            'sampled_frames':total['sampled_native_frames'],
+            'complete_estimated':total['complete_estimated'],
+            'estimated_pct':round(100*total['complete_estimated']/total['sampled_native_frames'],3),
+            'complete_using_uncalibrated_long_context':total['complete_FG_weak'],
+            'source_id_unverified':total['complete_source_id_unverified'],
+            'official_window_actor_conflicts':total['complete_NBA_window_actor_disputed'],
+            'official_window_compatible':total['complete_NBA_window_compatible'],
+            'logged_chain_frames':total['nba_logged_chain_frames'],
+            'logged_chain_complete':total['nba_logged_chain_complete'],
+            'logged_chain_estimated_pct':round(100*total['nba_logged_chain_complete']/total['nba_logged_chain_frames'],3),
+            'original_source_preserved':True,
+            'NBA_chains_preserved':total['chains'],
+            'weak_coordinates_NOT_physically_certified':True})
+          PY
+
 # Reviewed allowlist: tools/public_content_guard.py; all private coordinates remain private.
