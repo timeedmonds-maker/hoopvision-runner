@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-release-contest-gravity-joined.yml",  # read-only private Blueprint/Gravity SQLite, private-only aggregate and per-shot CSV outputs
     ".github/workflows/gamepulse-pr776-official-nba-season-gravity.yml",  # source-qualified public NBA Gravity leaders only; private SQLite and QA never published here
     "public_nba_gravity_leaders_2026_27_current.json",  # direct NBA public gravityleaders response with source SHA; no private XYZ
     ".github/workflows/gamepulse-pr776-blueprint-shot-gravity-52.yml",  # reviewed private licensed Blueprint source + PBP, public aggregate counts only, SQLite/QA committed private
