@@ -56,3 +56,5 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 gamepulse/fusion/igp_ippt_blueprint_shot_event_benchmark_2026.py --root .
           echo "IPPT_BLUEPRINT_36GAME_GEOMETRY_QA_PASS"
+
+# Source-only original NBA coordinate differences emitted as aggregate statistical tests, never licensed XYZ.
