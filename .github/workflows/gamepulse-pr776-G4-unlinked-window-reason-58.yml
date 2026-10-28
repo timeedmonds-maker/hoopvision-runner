@@ -1,0 +1,84 @@
+name: PR776 G4 58 NBA official window rejection reasons
+on:
+  push:
+    branches: [research/pr776-trusted-igp-runner-20261028]
+    paths:
+      - '.github/workflows/gamepulse-pr776-G4-unlinked-window-reason-58.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr776-G4-window-reason-58
+  cancel-in-progress: false
+jobs:
+  accept:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public guard and private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Source-free official window replay regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_g4_unlinked_window_reason_2026.py' -v
+      - name: Check 58 accepted private SHA official windows
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_G4_58_unlinked_official_window_reasons_v1.json
+          test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_g4_unlinked_window_reason_2026.py \
+            --root . --out "$OUT" > "$RUNNER_TEMP/private-G4-window-reason.log"
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]));c=a['counts']
+          assert len(a['chains'])==58
+          assert sum(v for k,v in c.items() if not k.startswith('source_frame_incidences_'))==58
+          assert sum(v for k,v in c.items() if k.startswith('source_frame_incidences_'))==4910
+          assert a['source_frame_membership_not_reassigned']
+          assert a['official_UTC_not_corrected'] and not a['physical_custody_certified']
+          print('G4_58_REJECTED_OFFICIAL_WINDOW_REASONS_ACCEPTED',json.dumps(c,sort_keys=True))
+          PY
+      - name: Commit private accepted diagnostic QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          git config user.name "Game Pulse G4 Private Official Window QA"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f gamepulse/fusion/qa/igp_progress_20261028/igp_G4_58_unlinked_official_window_reasons_v1.json
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): accept 58 NBA official window rejection reasons"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo G4_PRIVATE_WINDOW_REASONS_PUBLISHED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 13
