@@ -80,10 +80,13 @@ jobs:
           trap 'rm -rf "$ROOT"' EXIT
           gh release download "$TAG" --repo timeedmonds-maker/104 \
             --dir "$ROOT" --pattern amen732-360deg-model-sweep-3840x2160.jpg >/dev/null
-          ffmpeg -nostdin -hide_banner -loglevel error -y \
-            -i "$ROOT/amen732-360deg-model-sweep-3840x2160.jpg" \
-            -vf scale=1280:720:flags=lanczos -q:v 6 \
-            "$ROOT/amen732-base-review.jpg"
+          python3 -m pip install --quiet --disable-pip-version-check Pillow
+          python3 - "$ROOT/amen732-360deg-model-sweep-3840x2160.jpg" "$ROOT/amen732-base-review.jpg" <<'PY'
+          from PIL import Image
+          import sys
+          with Image.open(sys.argv[1]) as im:
+              im.resize((1280,720),Image.Resampling.LANCZOS).save(sys.argv[2],quality=72,optimize=True)
+          PY
           python3 - "$ROOT/amen732-base-review.jpg" "$ROOT/payload.json" <<'PY'
           import base64,json,sys
           from pathlib import Path
