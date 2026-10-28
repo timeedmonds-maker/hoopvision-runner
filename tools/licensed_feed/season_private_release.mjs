@@ -449,10 +449,12 @@ export async function run(){
     '0022600124':'2026-10-27T00:00:00.000Z',
     '0022600125':'2026-10-27T00:30:00.000Z',
     '0022600126':'2026-10-27T01:00:00.000Z',
-    '0022600127':'2026-10-27T02:00:00.000Z'
+    '0022600127':'2026-10-27T02:00:00.000Z',
+    '0022600130':'2026-10-28T00:00:00.000Z',
+    '0022600131':'2026-10-28T03:00:00.000Z'
   };
   const tipoff=knownStarts[gid];
-  if(!tipoff)throw Error('batch_game_not_in_verified_oct26_cohort');
+  if(!tipoff)throw Error('batch_game_not_in_verified_fixture_cohort');
   const game={id:gid,start:Date.parse(tipoff)};
   if(process.env.GAMEPULSE_BATCH_TIPOFF!==tipoff)
    throw Error('batch_tipoff_not_matched_to_bounded_fixture');
