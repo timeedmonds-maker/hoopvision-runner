@@ -136,7 +136,7 @@ def main(root:Path,page_url:str,ffmpeg:str,ffprobe:str):
             all_feeds[name]=row
             print("SOURCE_NATIVE_CAMERA_VERIFIED",name,
                   "frames",len(row["meta"]["frames"]),
-                  "bytes",row["total_bytes"],flush=True)
+                  "bytes",row["total_bytes"],"sha256",row["sha256"],flush=True)
     if len(all_feeds)!=6 or len({v["sha256"] for v in all_feeds.values()})!=6:
         raise RuntimeError("SIX_DISTINCT_CAMERA_BINARIES_NOT_VERIFIED")
     feeds=[]; pts={}
