@@ -46,3 +46,5 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -u gamepulse/fusion/igp_ippt_shot_event_like_for_like_source_holdout_2026.py --root .
           echo "IPPT_NATIVE_SHOT_XY_BALL3D_ALL36_QA_PASS"
+
+# Approved privacy-guard original NBA source readback, aggregate-only output.
