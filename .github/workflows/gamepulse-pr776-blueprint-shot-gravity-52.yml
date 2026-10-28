@@ -79,7 +79,7 @@ jobs:
           assert q["games"]==52 and len(q["original_sources"])==52
           assert c["native_3pa"]==3715 and c["native_valid_3pa_release"]==3705
           assert c["zero_releases"]>=10
-          assert c["identical_duplicates"]==1
+          assert c["identical_three_duplicates"]==1 and c["identical_duplicates"]>=1
           assert c["exact_official_3pa"]==3688
           assert c["exact_official_valid_release"]==3682
           assert q["native_qualifying_players"]==51
@@ -99,6 +99,8 @@ jobs:
             "source_games":q["games"],"original_3pa":c["native_3pa"],
             "exact_nba_3pa":c["exact_official_3pa"],
             "shot_rows":q["native_shot_rows"],
+            "identical_source_duplicates_all_2PT_and_3PT":c["identical_duplicates"],
+            "missing_gravity_games":c.get("gravity_modules_missing",0),
             "defender_gravity_game_player_rows":q["featured_game_player_gravity_rows"],
             "native_qualifying":q["native_qualifying_players"],
             "official_exact_qualifying":q["official_pbp_exact_qualifying_players"]
