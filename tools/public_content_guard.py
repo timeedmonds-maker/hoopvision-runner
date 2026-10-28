@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-clock-ten-model-all36.yml",  # private exact original NBA gameclock ten-player and ball model materialized, public aggregate QA only
     ".github/workflows/gamepulse-ippt-official-clock-model-real-2games.yml",  # private exact SHA NBA official ten full XYZ model physical-time query pilot aggregate QA
     ".github/workflows/gamepulse-ippt-official-gameclock-ten-36.yml",  # private original NBA official ten gameclock model source bracket QA, aggregate only
     ".github/workflows/gamepulse-ippt-running-gameclock-source-36.yml",  # private NBA official clock-progressing source coverage, no source player XYZ public
