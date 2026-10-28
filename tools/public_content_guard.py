@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-pr776-G4-one-anchor-source-206.yml",  # reviewed private one-anchor NBA source QA, public aggregate only
     ".github/workflows/gamepulse-pr776-G4-unlinked-window-reason-58.yml",  # reviewed private window-reason QA, public aggregate only
     ".github/workflows/gamepulse-pr776-G4-unlinked-span-query-58.yml",  # reviewed private NBA source context query, public aggregate counts only
     ".github/workflows/gamepulse-pr776-G4-empty-chain-diagnostic-36.yml",  # reviewed private NBA chain UTC metadata diagnostic, public aggregates only

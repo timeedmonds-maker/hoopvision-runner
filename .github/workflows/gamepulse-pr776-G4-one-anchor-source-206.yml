@@ -1,0 +1,85 @@
+name: PR776 G4 206 one-anchor NBA source context diagnostic
+on:
+  push:
+    branches: [research/pr776-trusted-igp-runner-20261028]
+    paths:
+      - '.github/workflows/gamepulse-pr776-G4-one-anchor-source-206.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr776-G4-one-anchor-206
+  cancel-in-progress: false
+jobs:
+  accept:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public guard and accepted private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Source-free one-anchor ownership regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_g4_one_anchor_source_diagnostic_2026.py' -v
+      - name: SHA verify 206 one-anchor source contexts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_G4_206_one_anchor_near_source_v1.json
+          test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_g4_one_anchor_source_diagnostic_2026.py \
+            --root . --out "$OUT" > "$RUNNER_TEMP/private-G4-one-anchor.log"
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]));c=a['counts']
+          assert len(a['chains'])==206
+          assert c['PBP_REAL_UTC_CANDIDATE_WINDOW_ONLY']==119
+          assert sum(v for k,v in c.items() if k not in
+                     ('near_source_frame_incidences','near_other_logged_chain_frame_incidences'))==206
+          assert a['single_action_UTC_not_second_boundary']
+          assert a['source_membership_not_reassigned'] and not a['physical_custody_certified']
+          print('G4_PRIVATE_206_ONE_ANCHOR_SOURCE_CONTEXT_ACCEPTED',json.dumps(c,sort_keys=True))
+          PY
+      - name: Publish private QA receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          git config user.name "Game Pulse G4 Private One Anchor QA"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f gamepulse/fusion/qa/igp_progress_20261028/igp_G4_206_one_anchor_near_source_v1.json
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): accept 206 one-anchor NBA source contexts"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo G4_PRIVATE_ONE_ANCHOR_CONTEXT_PUBLISHED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 13
