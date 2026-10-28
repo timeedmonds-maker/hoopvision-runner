@@ -69,3 +69,5 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 gamepulse/fusion/igp_ippt_event_snapshot_census_2026.py --root .
           echo "IGP_EVENT_SNAPSHOT_36_ORIGINAL_SOURCE_ACCEPTED"
+
+# Public runner reports original source event-time/lineup aggregate only; private XYZ never printed.
