@@ -90,3 +90,5 @@ jobs:
                       },sort_keys=True))
                       assert q["predictor_never_receives_masked_truth_xyz"]
           PY
+
+# Public workflow emits only aggregate original-versus-predictive positional error.
