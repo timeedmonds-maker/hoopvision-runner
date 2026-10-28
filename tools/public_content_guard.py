@@ -233,7 +233,7 @@ REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
     ".github/workflows/gamepulse-pr776-position-holdout-36.yml": "f9cec9925acde87472678c4695c6715068c73685",  # original private XYZ source, aggregate position error only
     ".github/workflows/gamepulse-pr776-new-eight-original-qa.yml": "3bd7f6f2a15a25048549a0fb74c362d8f650885f",  # original 13-part SDK, aggregate QA private only
     ".github/workflows/freeview-amen732-board-static-sources.yml": "70af49120ab48235cf4e4463f96b73026ce555c7",
-    ".github/workflows/freeview-amen732-multipt-photo-refit.yml": "9e1ba327eda5d0e41d2f2dfb0086cf85062c4388",  # original NBA private six-anchor + full 3PT photometric heldout, no public RGB
+    ".github/workflows/freeview-amen732-multipt-photo-refit.yml": "2e0dad12a628d892fdaddbdbc971e103f6119f48",  # original NBA private six-anchor + full 3PT photometric heldout, no public RGB
     ".github/workflows/gamepulse-pr776-sdk-metadata-0009.yml": "d1c768ec93f6f761b8245de8d21df58abf7257b0",  # reviewed private-only original SDK field-key QA; no values/XYZ in public
     ".github/workflows/gamepulse-igp-eight-native-raw-backfill.yml": "7a9790609ce84fb8c108c0bccb6b33954c886ae5",  # source chunks remain private
     ".github/workflows/gamepulse-igp-full-native-season-coverage.yml": "a2f69e668372cb88816c7ad2fa9cf0fcb9c14828",  # SHA-only private coverage and no public artifacts
