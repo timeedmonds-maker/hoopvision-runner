@@ -58,3 +58,5 @@ jobs:
           python3 -u gamepulse/fusion/igp_ippt_raw_sdk_release_event_source_flag_2026.py \
              --root . --game-id "$GAME_ID" --archive-dir "$RUNNER_TEMP/original-sdk"
           echo "IPPT_RAW_SDK_INTERPOLATED_VARIANT_ONE_GAME_ACTOR_QA_PASS"
+
+# Original licensed raw assets remain in temporary private runner storage, only aggregate flags logged.
