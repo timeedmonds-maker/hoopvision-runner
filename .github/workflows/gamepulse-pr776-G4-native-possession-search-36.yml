@@ -1,0 +1,103 @@
+name: PR776 G4 private native player ball NBA possession search 36
+on:
+  push:
+    branches: [research/pr776-trusted-igp-runner-20261028]
+    paths:
+      - '.github/workflows/gamepulse-pr776-G4-native-possession-search-36.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr776-G4-private-native-possession-search-36
+  cancel-in-progress: false
+jobs:
+  accept:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Guard public runner and clone SHA-verified private sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Run source-free G4 regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_g4_native_actor_possession_postings_2026.py \
+            gamepulse/fusion/query_igp_g4_native_actor_possession_2026.py \
+            gamepulse/fusion/igp_g4_native_actor_possession_qa_2026.py
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_g4_native_actor_possession_2026.py' -v
+      - name: Build private G4 native source postings and verify genuine 36-game SDK, G1, G2, G3, NBA PBP readbacks
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          OUT=gamepulse/fusion/materialized/igp_g4_original_native_player_ball_possession_v1
+          QA=gamepulse/fusion/qa/igp_progress_20261028/igp_G4_original_native_player_ball_possession_36_v1.json
+          test ! -e "$OUT" && test ! -e "$QA"
+          python3 gamepulse/fusion/igp_g4_native_actor_possession_postings_2026.py \
+            --root . --out-dir "$OUT" > "$RUNNER_TEMP/private-G4-build.log"
+          python3 gamepulse/fusion/igp_g4_native_actor_possession_qa_2026.py \
+            --root . --out "$QA" > "$RUNNER_TEMP/private-G4-qa.log"
+          python3 - "$QA" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]));c=q['accepted_postings_counts'];r=q['counts']
+          assert q['source_games']==36 and r['original_games_checked']==36
+          assert c['nba_original_source_frames']==1203986
+          assert c['original_player_actor_entries']==8673975
+          assert c['original_ball_frames']==912704
+          assert c['g3_derived_player_entries']==285536
+          assert c['g3_derived_ball_frames']==8504
+          assert c['g3_derived_native_frames']==201216
+          assert c['official_logical_NBA_chains']==7474
+          assert q['NBA_UTC_logical_chains_NOT_physical_ball_control_boundaries']
+          assert q['private_source_positions_and_player_IDs_not_in_QA']
+          print('G4_PRIVATE_ORIGINAL_NBA_SOURCE_36_ACCEPTED',json.dumps({
+            'games':36,'source_frames':c['nba_original_source_frames'],
+            'original_player_entries':c['original_player_actor_entries'],
+            'original_ball_frames':c['original_ball_frames'],
+            'G3_player_positions':c['g3_derived_player_entries'],
+            'G3_ball_positions':c['g3_derived_ball_frames'],
+            'NBA_logical_chains':c['official_logical_NBA_chains'],
+            'query_milliseconds':q['query_milliseconds']},sort_keys=True))
+          PY
+      - name: Commit private SHA-index and QA atomically after all gates pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          git config user.name "Game Pulse G4 Private Source QA"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f gamepulse/fusion/materialized/igp_g4_original_native_player_ball_possession_v1/ \
+            gamepulse/fusion/qa/igp_progress_20261028/igp_G4_original_native_player_ball_possession_36_v1.json
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): accept 36 game original NBA SDK G4 possession player ball search index"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo G4_PRIVATE_SHA_POSTINGS_AND_QA_PUBLISHED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 13
