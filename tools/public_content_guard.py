@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-empty-chain-source-lag-tiers-36.yml",  # original NBA G4 SHA exact scorer-UTC nearest source lag tier for 129 unresolved chains private QA, public aggregates only
     ".github/workflows/freeview-amen732-da3-private-qa-readback.yml",  # SHA-verifies DA3 release results and commits only to private 104
     ".github/workflows/gamepulse-ippt-native-409-chain-coverage-36.yml",  # original NBA G4 36-game SHA source per-slot, ball, all-native chain-second and empty-chain aggregate private QA; public counts only
     ".github/workflows/freeview-amen732-da3-private-unposed-cpu.yml",  # private-only six-view CPU inference; model/source/output not published in public repo
