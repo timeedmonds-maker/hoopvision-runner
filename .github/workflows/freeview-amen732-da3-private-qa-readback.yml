@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TAG=freeview-amen732-da3-unposed-sixview-20261028
+          TAG=freeview-amen732-da3-base-unposed-sixview-20261028
           FILE=amen732-da3-sixview-research-qa.json
           ROOT="$(mktemp -d)"
           trap 'rm -rf "$ROOT"' EXIT
@@ -49,7 +49,7 @@ jobs:
           assert len(x["angles"])>=36 and x["camera_pose_count"]==6
           assert x["source_support_status"]=="NOT_VERIFIED"
           p={"branch":"research/amen-wemby-freeze-spin-20261024",
-             "message":"data(freeview): preserve real DA3 unposed 360 sweep diagnostics from 6 NBA views",
+             "message":"data(freeview): preserve real DA3 BASE unposed 360 sweep diagnostics from 6 NBA views",
              "content":base64.b64encode(source.read_bytes()).decode()}
           Path(sys.argv[3]).write_text(json.dumps(p))
           # Source-free scalars only; preserve full assessment in private branch.
@@ -58,7 +58,7 @@ jobs:
                 "model_points",x["shared_geometry_sampled_points"],
                 "max_certified_arc","UNKNOWN")
           PY
-          TARGET="repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_da3_unposed_sixview_20261028_qa.json"
+          TARGET="repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_da3_base_unposed_sixview_20261028_qa.json"
           CURRENT="$(gh api "$TARGET?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha 2>/dev/null || true)"
           if [ -n "$CURRENT" ]; then
             python3 - "$ROOT/payload.json" "$CURRENT" <<'PY'
