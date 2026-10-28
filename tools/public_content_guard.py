@@ -7,6 +7,11 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    "tools/amen732_native_sixvideo_fusion_mp4.py",  # reviewed original NBA event-732 direct six-view model-only research
+    "tools/amen732_da3_unposed_sixview_trial.py",  # reviewed original NBA event-732 direct six-view model-only research
+    "tools/amen732_native_six_video_frame_sets.py",  # reviewed original NBA event-732 direct six-view model-only research
+    "tools/amen732_official_sixvideo_acquire.py",  # reviewed original NBA event-732 direct six-view model-only research
+    ".github/workflows/freeview-amen732-direct-sixvideo-render.yml",  # reviewed original NBA event-732 direct six-view model-only research
     "tools/amen732_freeview_sixvideo_public_source.py",  # public NBA source ephemeral 6-video scene only; private MP4 sink
     ".github/workflows/freeview-amen732-sixvideo-public-reacquire.yml",  # official public source fallback with private result
     ".github/workflows/freeview-amen732-official-sixstream-source-probe.yml",  # Official public NBA six-stream probe; no private release or artifacts
@@ -370,6 +375,7 @@ REVIEWED_PUBLIC_NBA_ACTION_METADATA = {
     "reed_0022600125_official_action.json",
 }
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
+    ".github/workflows/freeview-amen732-direct-sixvideo-render.yml",  # public NBA stream source only; no native media artifacts
     "tools/amen732_freeview_sixvideo_public_source.py",  # only the public event page origin, no signed stream values committed
     ".github/workflows/freeview-amen732-official-sixstream-source-probe.yml",  # Official public NBA six-stream probe; no private release or artifacts
     ".github/workflows/clip-lab-sengun-hawks-hls.yml",  # pinned, public clips origin only; no raw URL output or artifacts
@@ -381,6 +387,7 @@ REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
     ".github/workflows/rockets-remaining-sengun-double-clips.yml",
 }
 REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS = {
+    ".github/workflows/freeview-amen732-direct-sixvideo-render.yml",  # public NBA stream source only; no native media artifacts
     ".github/workflows/clip-lab-event80-direct-native-frozen.yml",  # one final QA-approved annotated MP4, never private source/tracking
     ".github/workflows/clip-lab-rockets-event80-frozen-render.yml",  # ONLY QA-approved ringed MP4 artifact
     ".github/workflows/clip-lab-event80-delivery-smoke.yml",  # harmless test fixture upload
