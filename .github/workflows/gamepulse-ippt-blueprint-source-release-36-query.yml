@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       PRIVATE_BRANCH: research/ippt-event-snapshots-separate-20261028
-      EXPECTED_PRIVATE_SHA: 54d771e8fa0dfd832f7932a7e0a275194ba7344a
+      EXPECTED_PRIVATE_SHA: b3cea8d2e346c8779d301cf6a94ca9749883ca35
     steps:
       - uses: actions/checkout@v4
         with:
@@ -66,7 +66,7 @@ jobs:
           path=Path(os.environ["RUNNER_TEMP"])/"ippt_36game_query_aggregate.log"
           safe={"github_run_id":os.environ["GITHUB_RUN_ID"],
                 "prior_job_status":os.environ["QA_JOB_RESULT"],
-                "private_code_sha_expected":"54d771e8fa0dfd832f7932a7e0a275194ba7344a"}
+                "private_code_sha_expected":"b3cea8d2e346c8779d301cf6a94ca9749883ca35"}
           if path.exists():
             lines=[line.partition(" ")[2] for line in path.read_text().splitlines()
               if line.startswith("IPPT_ALL36_BLUEPRINT_EVENT_RELEASE_SOURCE_QUERY_COVERAGE_QA ")]
