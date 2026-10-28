@@ -66,6 +66,17 @@ jobs:
                 'unknown_id':report['counts']['full_ten_ball_identity_unverified'],
                 'holdout':report['random_scattered_original_mask_QA']})
           PY
+      - name: Identity-safe official-ten past-only source recency audit (private SHA G4)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IPPT_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_ippt_official_ten_past_recency_2026.py
+          python3 -m unittest -v gamepulse/fusion/test_igp_ippt_official_ten_past_recency_2026.py
+          python3 gamepulse/fusion/igp_ippt_official_ten_past_recency_2026.py --root .
+          echo IPPT_OFFICIAL_TEN_RECENCY_IS_NOT_SAME_INSTANT_XYZ_OR_PHYSICAL_CERTIFICATION
+
       - name: All 36 private original NBA source games measured without release
         shell: bash
         run: |
