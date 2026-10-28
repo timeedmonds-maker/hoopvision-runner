@@ -19,11 +19,13 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test "$GITHUB_REPOSITORY" = timeedmonds-maker/hoopvision-runner
-      - name: Install pre-existing NBA EaseLive collector Chrome dependencies
-        working-directory: tools/licensed_feed
+      - name: Install ONLY public puppeteer-core outside private EaseLive SDK package
         run: |
           set -euo pipefail
-          npm install --ignore-scripts --no-audit --no-fund --no-package-lock
+          mkdir -p "$RUNNER_TEMP/browserdeps"
+          printf '{"private":true,"type":"module"}\\n' > "$RUNNER_TEMP/browserdeps/package.json"
+          npm install --prefix "$RUNNER_TEMP/browserdeps" --ignore-scripts --no-audit --no-fund --no-package-lock puppeteer-core@24.43.1
+          ln -s "$RUNNER_TEMP/browserdeps/node_modules" tools/licensed_feed/node_modules
       - name: Probe official public NBA game/Blueprint JSON structural field names only
         run: |
           set -euo pipefail
