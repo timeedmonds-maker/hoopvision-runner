@@ -375,6 +375,7 @@ REVIEWED_PUBLIC_NBA_ACTION_METADATA = {
     "reed_0022600125_official_action.json",
 }
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
+    "tools/amen732_official_sixvideo_acquire.py",  # vetted native official HLS acquisition; never persists URLs or footage publicly
     ".github/workflows/freeview-amen732-direct-sixvideo-render.yml",  # public NBA stream source only; no native media artifacts
     "tools/amen732_freeview_sixvideo_public_source.py",  # only the public event page origin, no signed stream values committed
     ".github/workflows/freeview-amen732-official-sixstream-source-probe.yml",  # Official public NBA six-stream probe; no private release or artifacts
