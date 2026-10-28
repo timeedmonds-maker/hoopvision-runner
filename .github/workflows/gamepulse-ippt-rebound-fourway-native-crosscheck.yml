@@ -30,6 +30,10 @@ jobs:
           git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
               "https://github.com/timeedmonds-maker/104.git" "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          if [ "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" != "$EXPECTED_PRIVATE_SHA" ]; then
+            git -C "$RUNNER_TEMP/private" fetch -q origin "$EXPECTED_PRIVATE_SHA"
+            git -C "$RUNNER_TEMP/private" checkout -q --detach "$EXPECTED_PRIVATE_SHA"
+          fi
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$EXPECTED_PRIVATE_SHA"
           echo "IPPT_ROOT=$RUNNER_TEMP/private" >> "$GITHUB_ENV"
       - name: Source-free direct native XY, wrong-player and missing-value regression
