@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-ball-shot-release-candidate.yml",  # private original ball-shooter shot-release source motion and aggregate Blueprint comparison only
     ".github/workflows/gamepulse-ippt-blueprint-event-offset-diagnostic.yml",  # private source scorer UTC offset consistency, aggregates only
     ".github/workflows/gamepulse-ippt-blueprint-event-geometry-36.yml",  # private official NBA Blueprint release-distance benchmark, aggregate summaries only
     ".github/workflows/gamepulse-ippt-event-source-holdout.yml",  # reviewed original source frame blackout: aggregate error only, no licensed native XYZ
