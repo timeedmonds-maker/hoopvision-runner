@@ -50,3 +50,5 @@ jobs:
 # Approved privacy-guard original NBA source readback, aggregate-only output.
 
 # Physical gravity-vs-linear ball candidate, separate 2D player and 3D ball metrics.
+
+# Source-only 4point Hermite curvature candidate, paired exact native source-ball masked QA.
