@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-blueprint-geometry-definition.yml",  # original-source NBA event geometry QA only
     ".github/workflows/gamepulse-ippt-blueprint-common-delay-36.yml",  # source-only Blueprint event alignment aggregates
     ".github/workflows/gamepulse-ippt-blueprint-shot-release-query.yml",
     ".github/workflows/gamepulse-ippt-shot-release-30game-holdout.yml",  # vetted event QA workflow
