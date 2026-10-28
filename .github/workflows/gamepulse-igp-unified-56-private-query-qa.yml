@@ -1,3 +1,4 @@
+# Approved public runner: all NBA original tracking and shot JSON stays private; only aggregate QA is logged.
 # Private-source SHA query check. Do not print original NBA XYZ or derived coordinates.
 name: Integrated Pulse unified 56-game action/shot/model read-only query QA
 on:
