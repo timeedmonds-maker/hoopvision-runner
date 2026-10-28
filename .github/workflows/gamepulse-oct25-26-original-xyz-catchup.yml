@@ -260,10 +260,11 @@ jobs:
           other=json.loads((base/'2026-27-integrated-current.json').read_text())
           new=json.loads((Path(os.environ['RUNNER_TEMP'])/'igp-new-catalog.json').read_text())
           assert prior['schema']==other['schema']==new['schema']=='gamepulse.search-catalog.v1'
-          assert prior['game_count']>=43 and set(prior['games'])==set(other['games'])
+          assert prior['game_count']>=43 and set(other['games'])<=set(prior['games'])
+          assert all(prior['games'][gid]==row for gid,row in other['games'].items()), 'PRODUCTION_MIRROR_CONFLICT'
           assert all(new['games'].get(gid)==row for gid,row in prior['games'].items()),'PRESERVED_43_SOURCE_GAME_CHANGED'
           added=set(new['games'])-set(prior['games'])
-          assert added<={f'0022600{i:03}' for i in range(119,128)},'UNEXPECTED_ADDITIONAL_GAME_SCOPE'
+          assert added<={f'0022600{i:03}' for i in range(119,132)},'UNEXPECTED_ADDITIONAL_GAME_SCOPE'
           if not added:
               print('IGP_CATALOG_NO_NEW_COMPLETED_GAMES_TO_ADD')
               raise SystemExit(0)
@@ -281,7 +282,11 @@ jobs:
             '0022600124':('PHX','OKC','2026-10-27T00:00:00.000Z'),
             '0022600125':('ATL','HOU','2026-10-27T00:30:00.000Z'),
             '0022600126':('MEM','UTA','2026-10-27T01:00:00.000Z'),
-            '0022600127':('GSW','DEN','2026-10-27T02:00:00.000Z')}
+            '0022600127':('GSW','DEN','2026-10-27T02:00:00.000Z'),
+            '0022600128':('BKN','BOS','2026-10-27T23:30:00.000Z'),
+            '0022600129':('DET','NYK','2026-10-28T00:00:00.000Z'),
+            '0022600130':('SAC','SAS','2026-10-28T00:00:00.000Z'),
+            '0022600131':('POR','LAL','2026-10-28T03:00:00.000Z')}
           existing={g:dict(new['games'][g]) for g in added}
           # Refuse rather than overwrite conflicting independently recovered
           # official boxscore/schedule. Fill only missing fixture metadata.
@@ -304,7 +309,7 @@ jobs:
                   current=new.setdefault('by_team',{}).setdefault(abbr,[])
                   if gid not in current:current.append(gid);current.sort()
           assert set(new['games'])==set(prior['games'])|added and new['game_count']==len(new['games'])
-          assert new['game_count']<=52
+          assert new['game_count']<=56
           out=json.dumps(new,sort_keys=True,indent=2)+'\n'
           for dst in ('2026-27-auto-refresh-provisional.json','2026-27-integrated-current.json'):
               (base/dst).write_text(out)
