@@ -1,0 +1,86 @@
+name: PR776 G4 409 NBA chains without logged source frames diagnostic
+on:
+  push:
+    branches: [research/pr776-trusted-igp-runner-20261028]
+    paths:
+      - '.github/workflows/gamepulse-pr776-G4-empty-chain-diagnostic-36.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr776-G4-empty-chain-diagnostic-36
+  cancel-in-progress: false
+jobs:
+  accept:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Guard public runner and clone accepted private SHA source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Source-free unlinked chain evidence and no-reassignment tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_g4_unlinked_chain_diagnostic_2026.py' -v
+      - name: Classify all 409 empty logged chains from 36 original NBA SHA indexes
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_G4_409_unlinked_NBA_chains_36_v1.json
+          test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_g4_unlinked_chain_diagnostic_2026.py \
+            --root . --out "$OUT" > "$RUNNER_TEMP/private-G4-empty-chain.log"
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]));c=q['counts']
+          assert q['source_games']==36 and c['canonical_chains']==7474
+          assert c['without_logged_native_frames']==409 and len(q['chains'])==409
+          assert sum(v for k,v in c.items() if k.startswith('grade_'))==409
+          assert q['original_SDK_XYZ_not_read_or_modified']
+          assert q['NBA_canonical_chain_ids_not_reassigned']
+          assert q['action_UTC_span_is_not_physical_possession_boundary']
+          print('G4_PRIVATE_409_EMPTY_LOGGED_CHAIN_DIAGNOSTIC_PASS',
+             json.dumps(c,sort_keys=True))
+          PY
+      - name: Commit private diagnostic receipt only after SHA acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          git config user.name "Game Pulse G4 Private Chain Diagnostic"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f gamepulse/fusion/qa/igp_progress_20261028/igp_G4_409_unlinked_NBA_chains_36_v1.json
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): classify 409 NBA chains without logged source frames"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo G4_PRIVATE_EMPTY_CHAIN_DIAGNOSTIC_PUBLISHED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 13
