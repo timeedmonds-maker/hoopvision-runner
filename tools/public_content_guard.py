@@ -11,6 +11,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-ippt-all-event-sqlite-private-release.yml",  # publish original NBA actor XY DB to PRIVATE repo release only; no public artifacts
     ".github/workflows/gamepulse-ippt-all-event-sqlite-private.yml",  # original all-action NBA source XY private-only SQLite, public count QA only
     ".github/workflows/gamepulse-ippt-private-v3-event-source-physics-sqlite.yml",  # private licensed original NBA PBP candidate XY + video-unverified moments only
+    ".github/workflows/gamepulse-ippt-all-event-source-motion-v3-private.yml",  # exact SHA private NBA PBP original XY source candidate SQLite, no public binary
     ".github/workflows/gamepulse-ippt-native-event-physics-source-36.yml",  # original NBA shot and rebound source time candidate research only; no private XYZ in public logs
     ".github/workflows/gamepulse-ippt-private-v2-native-xy-causal-sqlite.yml",  # private original PBP native XY v2 causal graph immutable v1 + private DB
     ".github/workflows/gamepulse-ippt-all-pbp-causal-bundles.yml",  # PBP source all event scorer UTC causal graph aggregates only
