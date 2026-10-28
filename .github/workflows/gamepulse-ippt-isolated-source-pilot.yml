@@ -104,3 +104,5 @@ jobs:
             'official_window_compatible':totals['full_ten_ball_official_window_compatible'],
             'original_NBA_logical_chains_unchanged':totals['nba_logical_chains']})
           PY
+
+# Reviewed allowlist: tools/public_content_guard.py; all private coordinates remain private.
