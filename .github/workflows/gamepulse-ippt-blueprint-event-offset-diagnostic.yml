@@ -39,3 +39,5 @@ jobs:
           python3 -m py_compile gamepulse/fusion/igp_ippt_blueprint_release_timing_diagnostic_2026.py
           python3 gamepulse/fusion/igp_ippt_blueprint_release_timing_diagnostic_2026.py --root .
           echo "IPPT_BP_OFFSET_SIX_SOURCE_GAME_PASS"
+
+# Fixed global event offsets are diagnostics, not independently certified NBA shot-release timings.
