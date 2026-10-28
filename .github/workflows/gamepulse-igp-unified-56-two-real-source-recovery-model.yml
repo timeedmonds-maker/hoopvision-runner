@@ -1,4 +1,4 @@
-name: IGP unified season: model both recovered original SDK games and replace missingness
+name: "IGP unified season: model both recovered original SDK games and replace missingness"
 on:
   push:
     branches: [main]
