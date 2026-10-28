@@ -32,6 +32,7 @@ jobs:
             tools/amen732_da3_unposed_sixview_trial.py \
             tools/amen732_native_sixvideo_fusion_mp4.py
           echo ALL_SIXVIDEO_SOURCE_SCRIPTS_COMPILE_PASS
+          echo DIRECT_OFFICIAL_NBA_SOURCE_POLICY_VALIDATED
       - name: Install original-frame PTS reader and pinned DA3 BASE inference
         shell: bash
         run: |
