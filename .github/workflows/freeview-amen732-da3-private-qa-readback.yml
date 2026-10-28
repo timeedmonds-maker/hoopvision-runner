@@ -109,3 +109,44 @@ jobs:
           gh api --method PUT "$TARGET" --input "$ROOT/payload.json" >/dev/null
           echo PRIVATE_SIXVIEW_SWEEP_REVIEW_STORED
 
+
+      - name: Stage private model visual in text form for expert review
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$(mktemp -d)"
+          trap 'rm -rf "$ROOT"' EXIT
+          TAG=freeview-amen732-da3-base-unposed-sixview-20261028
+          gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$ROOT" \
+            --pattern 'amen732-360deg-model-sweep-3840x2160.jpg' \
+            --pattern 'amen732-unposed-da3-+045deg-3840x2160.jpg' \
+            --pattern 'amen732-unposed-da3--045deg-3840x2160.jpg' >/dev/null
+          python3 -m pip install --quiet --disable-pip-version-check 'pillow>=10,<12'
+          python3 - "$ROOT" <<'PY'
+          import base64,io,json,subprocess,sys
+          from pathlib import Path
+          from PIL import Image,ImageOps,ImageDraw
+          root=Path(sys.argv[1])
+          files=[
+            ("sweep","amen732-360deg-model-sweep-3840x2160.jpg",(1280,720)),
+            ("plus45","amen732-unposed-da3-+045deg-3840x2160.jpg",(960,540)),
+            ("minus45","amen732-unposed-da3--045deg-3840x2160.jpg",(960,540)),
+          ]
+          for label,file,size in files:
+            with Image.open(root/file) as im:
+              out=io.BytesIO()
+              im.convert("RGB").resize(size,Image.Resampling.LANCZOS).save(out,format="JPEG",quality=65,optimize=True)
+            data=out.getvalue()
+            assert 10000<len(data)<500000,(label,len(data))
+            body=(root/("private-amen732-visual-review-"+label+".b64.txt"))
+            body.write_text(base64.b64encode(data).decode()+"\\n")
+            args=["gh","api","--method","PUT","repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/"+body.name]
+            endpoint="repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/"+body.name
+            r=subprocess.run(["gh","api",endpoint+"?ref=research/amen-wemby-freeze-spin-20261024","--jq",".sha"],capture_output=True,text=True)
+            payload={"branch":"research/amen-wemby-freeze-spin-20261024","message":"review(freeview): private-only "+label+" visual evidence for six-camera DA3 BASE","content":base64.b64encode(body.read_bytes()).decode()}
+            if r.returncode==0 and r.stdout.strip():payload["sha"]=r.stdout.strip()
+            datafile=root/("payload-"+label+".json")
+            datafile.write_text(json.dumps(payload))
+            subprocess.run(args+["--input",str(datafile)],check=True,capture_output=True)
+          print("PRIVATE_REVIEW_B64_UHD_DERIVATIVES_PRESERVED",len(files))
+          PY
