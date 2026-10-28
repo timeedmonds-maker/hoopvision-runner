@@ -111,6 +111,8 @@ jobs:
           git -C "$PRIV" sparse-checkout set --no-cone \
             '/gamepulse/fusion/igp_nba_gravity_leaders_2026.py' \
             '/gamepulse/fusion/query_igp_blueprint_native_shot_gravity_2026.py' \
+            '/gamepulse/fusion/igp_blueprint_native_shot_gravity_2026.py' \
+            '/gamepulse/fusion/igp_blueprint_release_leaderboard_2026.py' \
             '/gamepulse/fusion/tests/test_igp_nba_gravity_leaders_2026.py' \
             '/gamepulse/fusion/materialized/igp_blueprint_native_52_20261028/blueprint_native.sqlite'
           echo "GRAVITY_PRIV_ROOT=$PRIV" >> "$GITHUB_ENV"
