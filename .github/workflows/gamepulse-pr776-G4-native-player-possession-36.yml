@@ -78,6 +78,7 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           OUT=gamepulse/fusion/materialized/igp_g4_original_native_player_ball_possession_v1
           test ! -e "$OUT"
+          # Frozen source denominators are enforced in the builder; print only mismatched aggregate counts on failure.
           python3 gamepulse/fusion/igp_g4_native_actor_possession_postings_2026.py \
              --root . --out-dir "$OUT" > "$RUNNER_TEMP/private-G4-original-source-build.log"
           python3 - "$OUT/index.json" <<'PY'
