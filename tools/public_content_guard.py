@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen732-official-sixstream-source-probe.yml",  # Official public NBA six-stream probe; no private release or artifacts
     ".github/workflows/freeview-amen732-release-auth-bypass-probe.yml",  # private source access over direct release CDN, no public data
     ".github/workflows/freeview-amen732-six-original-videos-merged-private.yml",  # six private NBA source clips ephemeral, UHD merged MP4 private release only
     ".github/workflows/freeview-amen732-six-native-video-fusion.yml",  # private-only six-MP4 3D fusion and MP4 output
@@ -367,6 +368,7 @@ REVIEWED_PUBLIC_NBA_ACTION_METADATA = {
     "reed_0022600125_official_action.json",
 }
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
+    ".github/workflows/freeview-amen732-official-sixstream-source-probe.yml",  # Official public NBA six-stream probe; no private release or artifacts
     ".github/workflows/clip-lab-sengun-hawks-hls.yml",  # pinned, public clips origin only; no raw URL output or artifacts
     ".github/workflows/clip-lab-rockets-219-hls.yml",
     ".github/workflows/clip-lab-rockets-new-double-346-hls.yml",
