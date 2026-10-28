@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen732-six-camera-real-native-synced-video.yml",  # six original NBA source cameras, UHD output to private 104 only
+    "tools/amen732_sixview_synchronous_video_review_v1.py",  # ephemeral native source exact 4K mosaic, private output only
     ".github/workflows/freeview-amen732-original-vs-reacquired-source-sha.yml",  # compare six original NBA private release native MP4 identities, SHA-only
     ".github/workflows/freeview-amen732-private-synced-panel-review-readback.yml",  # private already SHA-verified source panel preview, no public source frames
     ".github/workflows/freeview-amen732-sixview-audio-corrected-contact-sheet.yml",  # SHA original six source feeds, private 4K native panels only
