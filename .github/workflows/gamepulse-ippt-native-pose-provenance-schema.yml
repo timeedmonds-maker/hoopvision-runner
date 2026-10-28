@@ -45,3 +45,5 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -u gamepulse/fusion/igp_ippt_native_pose_field_and_provenance_audit_2026.py --root .
           echo "IPPT_ORIGINAL_MATERIALIZED_POSE_NATIVE_SCHEMA_36_PASS"
+
+# Source materialization schema only; excludes private NBA coordinates.
