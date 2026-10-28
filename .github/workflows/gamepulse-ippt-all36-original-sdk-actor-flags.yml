@@ -139,3 +139,5 @@ jobs:
           echo "IPPT_SIX_SHARDED_ORIGINAL_NBA_SDK_PROVENANCE_PASS"
 
 # Private NBA archival source assets: transient six-shard QA; aggregates only in public CI.
+
+# Explicit 2026-10-28 05:11UTC post-reset retry: rate-limited earlier runs were NOT missing-source proofs.
