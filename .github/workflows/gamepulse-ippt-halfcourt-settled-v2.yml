@@ -117,3 +117,5 @@ jobs:
           echo "IPPT_V2_36GAME_SHA_SOURCE_RUN_PASS"
 
 # Reviewed source confidentiality: report aggregate counts only.
+
+# Source-only two-team persistence QA and full36 source conservation rerun (repaired).
