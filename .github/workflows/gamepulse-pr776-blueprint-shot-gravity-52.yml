@@ -136,7 +136,7 @@ jobs:
           QA=gamepulse/fusion/qa/igp_progress_20261028/blueprint_native_shot_defender_gravity_52_v1.json
           git config user.name "NBA Blueprint private source integration"
           git config user.email "gamepulse-integrity@users.noreply.github.com"
-          git add -f "$OUT" "$QA"
+          git add --sparse -f "$OUT" "$QA"
           test "$(git diff --cached --name-only | wc -l)" -eq 2
           git diff --cached --check
           git commit -qm "data(gamepulse): accept 52 native Blueprint shot defender release and featured gravity SQLite"
