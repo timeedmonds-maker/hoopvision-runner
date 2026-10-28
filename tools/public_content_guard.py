@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-ippt-running-gameclock-source-36.yml",  # private NBA official clock-progressing source coverage, no source player XYZ public
     ".github/workflows/gamepulse-ippt-possession-searchability-36.yml",  # private NBA source original PBP chain-searchability denominator QA; aggregate counts only
     ".github/workflows/gamepulse-ippt-model-b-native-graded-tiers-all36.yml",  # private source SHA G4 ten actor tiered ModelB coverage and ball aggregate QA only
     ".github/workflows/gamepulse-ippt-model-b-native-all36-private.yml",  # private SHA original NBA G4 source Model B overlay all36 actual performance/coverage, aggregate logs only
