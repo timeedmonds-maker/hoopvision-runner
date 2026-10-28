@@ -62,8 +62,8 @@ jobs:
           flags=[key for key,phrases in classes.items() if any(p in msg for p in phrases)]
           print("PRIVATE_SOURCE_DOWNLOAD_ERROR_CLASS",",".join(flags) or "unclassified")
           PY
-            if grep -Eqi "rate limit|rate_limit|http 429|http 403|forbidden" "$ROOT/download_error.txt"; then
-              echo PRIVATE_GITHUB_TOKEN_QUOTA_OR_ACCESS_PENDING
+            if grep -Eqi "rate limit|rate_limit|http 429|http 403|forbidden|not found|http 404" "$ROOT/download_error.txt"; then
+              echo PRIVATE_GITHUB_TOKEN_QUOTA_OR_TEMPORARY_RELEASE_LOOKUP_PENDING
               sleep 60
             else
               echo PRIVATE_RELEASE_DOWNLOAD_FAILED_NON_QUOTA_ERROR
