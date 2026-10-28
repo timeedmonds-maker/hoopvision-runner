@@ -15,16 +15,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Enforce public privacy guard
         run: python3 tools/public_content_guard.py
-      - name: Prove private Git HTTPS access without any GitHub REST API
-        shell: bash
-        run: |
-          set -euo pipefail
-          test -n "$GH_TOKEN"
-          export GIT_TERMINAL_PROMPT=0
-          B64="$(printf "x-access-token:%s" "$GH_TOKEN" | base64 -w0)"
-          git -c http.extraheader="AUTHORIZATION: basic $B64" \
-            ls-remote https://github.com/timeedmonds-maker/104.git HEAD >/dev/null
-          echo PRIVATE_GIT_TRANSPORT_NOT_RATE_LIMITED
       - name: Try authenticated GitHub release download without API calls
         shell: bash
         run: |
