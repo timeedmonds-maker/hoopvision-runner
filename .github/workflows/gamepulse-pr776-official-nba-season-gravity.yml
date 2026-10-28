@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/gamepulse-pr776-official-nba-season-gravity.yml'
   workflow_dispatch:
+  schedule:
+    - cron: '47 10 * * *'
 permissions:
   contents: write
 concurrency:
@@ -74,8 +76,12 @@ jobs:
                             "source_url":url,"source_sha256":hashlib.sha256(raw).hexdigest(),
                             "qualified_population_only":True,"leaders":rows}
                       path=Path("public_nba_gravity_leaders_2026_27_current.json")
-                      path.write_text(json.dumps(snap,ensure_ascii=False,indent=2,sort_keys=True)+"\n",
-                                      encoding="utf8")
+                      prior=json.loads(path.read_text()) if path.exists() else None
+                      if prior is not None and prior.get("source_sha256")==snap["source_sha256"]:
+                          print("NBA_GRAVITY_UNCHANGED_SOURCE_SHA_NO_PUBLIC_REWRITE")
+                      else:
+                          path.write_text(json.dumps(snap,ensure_ascii=False,indent=2,sort_keys=True)+"\n",
+                                          encoding="utf8")
                       print("OFFICIAL_NBA_GRAVITY_SEASON_SOURCE_VERIFIED",len(rows),
                             "qualified player-team rows; source SHA256",snap["source_sha256"])
                       raise SystemExit(0)
@@ -132,11 +138,27 @@ jobs:
           TAG="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_sha256"][:12])' "$SNAP")"
           OUT="$PREFIX/blueprint_native_plus_nba_gravity_$TAG.sqlite"
           QA="gamepulse/fusion/qa/igp_progress_20261028/nba_season_gravity_leaders_$TAG.json"
-          test ! -e "$OUT" && test ! -e "$QA"
-          python3 gamepulse/fusion/igp_nba_gravity_leaders_2026.py \
-            --snapshot "$SNAP" \
-            --baseline "$PREFIX/blueprint_native.sqlite" \
-            --out "$OUT" --qa "$QA" --require-52
+          if test -e "$OUT" || test -e "$QA"; then
+            test -f "$OUT" && test -f "$QA"
+            python3 - "$OUT" "$QA" "$SNAP" <<'PY'
+          import hashlib,json,sqlite3,sys
+          from pathlib import Path
+          dest,qa,snapshot=map(Path,sys.argv[1:])
+          receipt=json.loads(qa.read_text())
+          source=json.loads(snapshot.read_text())
+          assert receipt["source_sha256"]==source["source_sha256"]
+          assert receipt["qualified_nba_leader_rows"]==len(source["leaders"])
+          with sqlite3.connect(dest) as db:
+              assert db.execute("PRAGMA integrity_check").fetchone()[0]=="ok"
+              assert db.execute("SELECT COUNT(*) FROM nba_official_gravity_leaders").fetchone()[0]==len(source["leaders"])
+          print("NBA_OFFICIAL_GRAVITY_EXISTING_ACCEPTED_VERSION_SHA_VERIFIED")
+          PY
+          else
+            python3 gamepulse/fusion/igp_nba_gravity_leaders_2026.py \
+              --snapshot "$SNAP" \
+              --baseline "$PREFIX/blueprint_native.sqlite" \
+              --out "$OUT" --qa "$QA" --require-52
+          fi
           python3 gamepulse/fusion/query_igp_blueprint_native_shot_gravity_2026.py \
             --db "$OUT" --kind gravity-leaders --limit 1 > "$RUNNER_TEMP/gravity-top.json"
           python3 gamepulse/fusion/query_igp_blueprint_native_shot_gravity_2026.py \
@@ -170,6 +192,10 @@ jobs:
           git add --sparse -f "$GRAVITY_VERSIONED_OUTPUT" "$GRAVITY_VERSIONED_QA"
           test "$(git diff --cached --name-only | wc -l)" -eq 2
           git diff --cached --check
+          if git diff --cached --quiet; then
+              echo NBA_OFFICIAL_GRAVITY_ALREADY_PUBLISHED
+              exit 0
+          fi
           git commit -qm "data(gamepulse): index native NBA season Gravity leaders without altering Blueprint sources"
           for attempt in 1 2 3 4 5 6; do
               git fetch -q origin "$BRANCH"
