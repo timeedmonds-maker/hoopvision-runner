@@ -1,0 +1,89 @@
+name: PR776 G4 full-native ten-ball coverage 36
+on:
+  push:
+    branches: [research/pr776-trusted-igp-runner-20261028]
+    paths:
+      - '.github/workflows/gamepulse-pr776-G4-full-native-ten-ball-coverage-36.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pr776-G4-full-native-ten-ball-36
+  cancel-in-progress: false
+jobs:
+  accept:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public guard and accepted private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          echo "IGP_ROOT=$RUNNER_TEMP/igp-private" >> "$GITHUB_ENV"
+      - name: Source-free distinct-frame coverage regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_igp_g4_full_native_coverage_audit_2026.py' -v
+      - name: SHA-indexed all-original-native coverage audit
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          export PYTHONPATH=gamepulse/fusion
+          OUT=gamepulse/fusion/qa/igp_progress_20261028/igp_G4_all_native_distinct_ten_ball_coverage_36_v1.json
+          test ! -e "$OUT"
+          python3 gamepulse/fusion/igp_g4_full_native_coverage_audit_2026.py \
+            --root . --out "$OUT" > "$RUNNER_TEMP/private-G4-coverage.log"
+          python3 - "$OUT" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]));c=a['counts']
+          assert a['source_games']==36 and len(a['games'])==36
+          assert c['native_frames']==1203986
+          assert c['original_exact_ten_plus_original_ball_frames']==387956
+          assert c['candidate_complete_ten_ball_original_or_G3']>=c['candidate_complete_ten_ball_original_only']
+          assert a['NBA_roster_compatible_candidate_not_certified_official_ten']
+          assert a['original_SDK_XYZ_not_modified_or_copied']
+          print('G4_ALL_NATIVE_COVERAGE_PRIVATE_QA_ACCEPTED',json.dumps({
+            'frames':c['native_frames'],
+            'source_ten_ball':c['original_exact_ten_plus_original_ball_frames'],
+            'graded_candidate_original_plus_G3':c['candidate_complete_ten_ball_original_or_G3'],
+            'percent':a['percent_of_all_original_native_frames']},sort_keys=True))
+          PY
+      - name: Publish private aggregate QA receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$IGP_ROOT"
+          git config user.name "Game Pulse G4 Private Coverage QA"
+          git config user.email "gamepulse-integrity@users.noreply.github.com"
+          git add -f gamepulse/fusion/qa/igp_progress_20261028/igp_G4_all_native_distinct_ten_ball_coverage_36_v1.json
+          git diff --cached --check
+          git commit -qm "qa(gamepulse): accept distinct original and G3 ten-ball coverage across 36 games"
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo G4_PRIVATE_ALL_NATIVE_COVERAGE_PUBLISHED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 13
