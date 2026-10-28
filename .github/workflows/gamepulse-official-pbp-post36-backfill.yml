@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
     paths: ['.github/workflows/gamepulse-official-pbp-post36-backfill.yml']
+  schedule:
+    - cron: '32 * * * *'
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
@@ -71,5 +73,5 @@ jobs:
           if d["pending_game_ids"]:
               print("IGP_OFFICIAL_NBA_PENDING_GAME_COUNT",len(d["pending_game_ids"]))
               raise SystemExit(3)
-          print("IGP_OFFICIAL_ALL_56_FINAL_GAMES_SOURCE_RECONCILED")
+          print("IGP_OFFICIAL_ALL_SCHEDULE_FINAL_GAMES_SOURCE_RECONCILED",d["official_game_data_accepted"],d["played_game_denominator"])
           PY
