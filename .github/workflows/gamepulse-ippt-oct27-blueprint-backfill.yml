@@ -59,7 +59,7 @@ jobs:
           path=Path("gamepulse/fusion/qa/igp_progress_20261029")/("igp_blueprint_original_"+gid+".json")
           path.parent.mkdir(parents=True,exist_ok=True)
           if path.exists():assert json.loads(path.read_text())==receipt,"BLUEPRINT_QA_REGRESSION"
-          else:path.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\\n")
+          else:path.write_text(json.dumps(receipt,sort_keys=True,indent=2)+"\n")
           print("IGP_OFFICIAL_BLUEPRINT_SOURCE_CAPTURE",gid,len(shots),receipt["shot_xfg_rows"])
           PY
           git config user.name 'github-actions[bot]'
