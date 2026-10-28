@@ -331,3 +331,119 @@ jobs:
           done
           test "$published" -eq 1
           echo IGP_PRIVATE_PRODUCTION_CATALOG_REFRESH_COMMITTED
+
+  oct27-original-xyz:
+    # Additive source recovery for the four NBA-official-final Oct 27 games.
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        include:
+          - {id: '0022600128', tipoff: '2026-10-27T23:30:00.000Z'}
+          - {id: '0022600129', tipoff: '2026-10-28T00:00:00.000Z'}
+          - {id: '0022600130', tipoff: '2026-10-28T00:00:00.000Z'}
+          - {id: '0022600131', tipoff: '2026-10-28T03:00:00.000Z'}
+    concurrency:
+      group: gamepulse-oct27-original-private-${{ matrix.id }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 210
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard public runner and validate existing SDK parser
+        run: |
+          python3 tools/public_content_guard.py
+          node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install reviewed licensed SDK without install scripts
+        working-directory: tools/licensed_feed
+        run: |
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Recover missing original SDK slots from official final
+        working-directory: tools/licensed_feed
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          GAMEPULSE_BATCH_CAPTURE_ENABLED: 'true'
+          GAMEPULSE_BATCH_GAME_ID: ${{ matrix.id }}
+          GAMEPULSE_BATCH_TIPOFF: ${{ matrix.tipoff }}
+          GAMEPULSE_PRODUCTION_ENABLED: 'true'
+          GAMEPULSE_PARTS_PER_RUN: '13'
+          GAMEPULSE_FULLGAME_PILOT: 'false'
+        run: |
+          set -euo pipefail
+          if gh release view "gamepulse-sdk-$GAMEPULSE_BATCH_GAME_ID" --repo timeedmonds-maker/104 --json assets --jq '.assets[].name' 2>/dev/null | grep -qx 'sdk-COMPLETE.json'; then
+            echo IGP_OCT27_EXISTING_COMPLETE_RELEASE_REUSED
+          else
+            node season_private_release.mjs
+          fi
+      - name: SHA verify original XYZ and append private per-game evidence
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+          NBA_GAME_ID: ${{ matrix.id }}
+          IGP_PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          python3 tools/public_content_guard.py
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$IGP_PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/igp-private"
+          git -C "$RUNNER_TEMP/igp-private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/igp-private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_additive_original_xyz_season_20261027.py'
+          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_extract_all_original_sdk_xyz_2026.py'
+          dest="gamepulse/fusion/materialized/igp_all_original_xyz/$NBA_GAME_ID"
+          qa="gamepulse/fusion/qa/igp_progress_20261027/igp_oct27_native_$NBA_GAME_ID.json"
+          if test ! -f "$dest/index.json"; then
+            mkdir -p "$RUNNER_TEMP/igp-game-archive"
+            gh release download "gamepulse-sdk-$NBA_GAME_ID" --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/igp-game-archive"
+            gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$NBA_GAME_ID" > "$RUNNER_TEMP/igp-game-release.json"
+            python3 gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py --game-id "$NBA_GAME_ID" --archive-dir "$RUNNER_TEMP/igp-game-archive" --release-manifest "$RUNNER_TEMP/igp-game-release.json" --out-dir "$dest"
+          fi
+          python3 - "$NBA_GAME_ID" "$dest" "$qa" <<'PY'
+          import json,sys
+          from pathlib import Path
+          from igp_full_original_xyz_season_coverage_2026 import verify_original_game
+          gid,dest,qa=sys.argv[1:]
+          manifest=json.loads((Path(dest)/"index.json").read_text())
+          expected=manifest["original_frame_counts"]["unique_original_native_timestamps"]
+          source=verify_original_game(Path("."),gid,expected)
+          assert expected>0 and manifest["physical_possessions_certified"]==0
+          assert manifest["candidate_research_window_source_sha256"] is None
+          assert len(manifest["original_archive_parts_sha256"])==13
+          assert source["original_native_timestamps"]==expected and source["physical_possessions_certified"]==0
+          doc={"schema":"gamepulse.igp-20261027-original-source-addition.v1",
+               "game_id":gid,"verified_original_XYZ":True,
+               "original_source_manifest_sha256":source["source_manifest_sha256"],
+               "unique_original_native_timestamps":expected,
+               "direct_ten_players_and_ball_frames":source["original_source_player_and_ball_direct_frames"],
+               "sdk_parts_sha_verified":13,
+               "official_possession_chain_join_status":"PENDING_ADDITIVE_SOURCE_CROSSWALK",
+               "physical_possessions_certified":0}
+          out=Path(qa);out.parent.mkdir(parents=True,exist_ok=True)
+          if out.exists():assert json.loads(out.read_text())==doc
+          else:out.write_text(json.dumps(doc,sort_keys=True,indent=2)+"\n")
+          print("IGP_OCT27_ORIGINAL_XYZ_VERIFIED",json.dumps({"game_id":gid,"frames":expected,"ten_ball":doc["direct_ten_players_and_ball_frames"],"parts":13},sort_keys=True))
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$dest" "$qa"
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -q -m "data(igp): accept Oct27 original SDK XYZ game $NBA_GAME_ID"
+            for attempt in 1 2 3 4 5 6 7 8; do
+              git fetch -q origin "$IGP_PRIVATE_BRANCH"
+              git rebase -q "origin/$IGP_PRIVATE_BRANCH"
+              if git push -q origin "HEAD:refs/heads/$IGP_PRIVATE_BRANCH"; then
+                echo IGP_OCT27_PRIVATE_ORIGINAL_COMMITTED
+                exit 0
+              fi
+              sleep "$attempt"
+            done
+            exit 23
+          fi
+          echo IGP_OCT27_PRIVATE_ORIGINAL_ALREADY_CURRENT
