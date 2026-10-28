@@ -23,7 +23,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/browserdeps"
-          printf '{"private":true,"type":"module"}\\n' > "$RUNNER_TEMP/browserdeps/package.json"
+          echo '{"private":true,"type":"module"}' > "$RUNNER_TEMP/browserdeps/package.json"
           npm install --prefix "$RUNNER_TEMP/browserdeps" --ignore-scripts --no-audit --no-fund --no-package-lock puppeteer-core@24.43.1
           ln -s "$RUNNER_TEMP/browserdeps/node_modules" tools/licensed_feed/node_modules
       - name: Probe official public NBA game/Blueprint JSON structural field names only
