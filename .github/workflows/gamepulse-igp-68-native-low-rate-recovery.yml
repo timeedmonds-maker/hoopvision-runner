@@ -1,4 +1,4 @@
-name: IGP targeted five remaining original XYZ recovery
+name: IGP targeted five missing Oct28 original XYZ recovery (SHA resume)
 on:
   push:
     branches: [main]
@@ -6,6 +6,8 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
+  # Retriggered on 30 Oct after asset-by-asset source audit: 0139 has 10/13 tar; 0140-0143 not source complete.
+  # Source-only recovery; no zero-filled, synthetic or fabricated original XYZ.
   group: igp-targeted-missing-native-five
   cancel-in-progress: false
 jobs:
