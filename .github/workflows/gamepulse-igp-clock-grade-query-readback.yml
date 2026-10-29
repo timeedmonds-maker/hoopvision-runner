@@ -1,0 +1,54 @@
+name: IGP original companion clock grade private readback
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-igp-clock-grade-query-readback.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  sha-query:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public guard and original private index checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Test source-free and two actual SHA-verified query games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -s gamepulse/fusion/tests \
+            -p 'test_query_igp_companion_pbp_clock_grade_v1.py' -v
+          python3 - <<'PY'
+          from pathlib import Path
+          from query_igp_companion_pbp_clock_grade_v1 import query
+          root=Path('.')
+          for gid,action in [('0022600009',7),('0022600130',2)]:
+              result=query(root,gid,action)
+              assert result['game_id']==gid
+              assert result['clock_evidence']['grade'] in (
+                'AGREE_LE_1S','AGREE_LE_2S','DISAGREE_LE_3S',
+                'CONFLICT_GT_3S','NO_COMPANION_CLOCK_WITHIN_2S',
+                'NO_COMPANION_PERIOD_CLOCK','OFFICIAL_TIME_OR_CLOCK_UNAVAILABLE')
+              assert not result['physical_event_time_certified']
+              print('IGP_ORIGINAL_CLOCK_QUERY_READBACK',gid,action,
+                    result['clock_evidence']['grade'])
+          absent=query(root,'0022600006',2)
+          assert absent['grade']=='NO_ORIGINAL_COMPANION_EVENT_PROGRAM'
+          assert not absent['physical_event_time_certified']
+          print('IGP_ORIGINAL_54_CLOCK_QUERY_SMOKE_PASSED')
+          PY
