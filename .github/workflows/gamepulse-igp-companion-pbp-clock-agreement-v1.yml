@@ -1,3 +1,4 @@
+# Licensed original NBA positions, source-event payloads and SHA partitions remain private.
 name: IGP 54-game companion clock and NBA PBP source audit
 on:
   push:
