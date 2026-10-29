@@ -2,6 +2,8 @@ name: IGP materialize already captured Oct28 original native XYZ 0136 0137
 # Restored independent reviewed public guard entries; exact archive readback rerun.
 # Security allowlist reviewed; re-trigger original SHA source acceptance.
 on:
+  schedule:
+    - cron: '11 * * * *'
   push:
     branches: [main]
     paths: ['.github/workflows/gamepulse-igp-oct28-existing-13parts-materialize.yml']
