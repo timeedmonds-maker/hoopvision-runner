@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - .github/workflows/gamepulse-integrated-autocapture.yml
+      - tools/licensed_feed/igp_complete_season_plan.mjs
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
