@@ -1,4 +1,5 @@
 name: "IGP five-second masked original NBA player and peer scene warp QA"
+# Recheck corrected three-peer scene availability gate
 on:
   push:
     branches: [main]
