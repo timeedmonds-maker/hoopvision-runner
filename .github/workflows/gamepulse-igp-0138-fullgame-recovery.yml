@@ -1,5 +1,5 @@
 name: IGP Houston Milwaukee 0022600138 original SDK source recovery
-# One-shot targeted recovery, initiated by a reviewed push to this workflow.
+# Exact-path allowlisted recovery; reviewed guard and immutable private SHA boundaries.
 # Only private 104 Releases store NBA-licensed coordinates; public logs contain aggregate QA.
 on:
   push:
