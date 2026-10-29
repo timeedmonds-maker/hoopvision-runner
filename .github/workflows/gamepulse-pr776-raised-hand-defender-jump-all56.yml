@@ -1,4 +1,4 @@
-name: PR776 56-game real defender raised-hand vs jump analysis
+name: PR776 56-game raised-hand vs jump original-source analysis
 # Private 56-game SHA-ledger calculation; aggregate-only stdout, no licensed XYZ.
 on:
   push:
