@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-companion-54game-shot-details-capture.yml",  # authorized SDK original 54-game event JSON to private 104 only; no licensed content publicly
     "tools/licensed_feed/companion_original_sdk_probe.mjs",  # reviewed private-only shot original source recovery and source-graded QA
     ".github/workflows/gamepulse-igp-companion-full-events-licensed-probe.yml",  # reviewed private-only shot original source recovery and source-graded QA
     ".github/workflows/gamepulse-igp-all56-shot-biomechanics-native-materialize.yml",  # reviewed private-only shot original source recovery and source-graded QA
