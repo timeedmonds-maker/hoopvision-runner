@@ -1,3 +1,4 @@
+# Private original SHA source is never written to public artifacts.
 name: IGP original companion clock grade private readback
 on:
   push:
