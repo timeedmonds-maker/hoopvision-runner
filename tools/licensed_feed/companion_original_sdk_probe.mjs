@@ -26,6 +26,7 @@ const result={schema:'igp.licensed-sdk-companion-source-readback.v1',
  game_id:gid, app_program_variant:sourceVariant, sdk_client:'@ease-live/ease-live-bridge-web',source_mode:'SDK_INITIALIZED_CLIENT_NO_URL_REPLAY',
  status:'NOT_AVAILABLE',initialization_result:null,initialization_timeout_ms:initTimeoutMs,
  first_party_http_status_counts:{},first_party_program_http_status_counts:{},
+ first_party_program_response_categories:{},sdk_browser_page_errors:0,
  observed_200_event_responses:0,
  observed_200_slot_responses:0,other_status_counts:{},original_total_event_objects:0,
  shot_detail_objects:0,original_body_bytes:0,original_body_sha256:null,
@@ -44,6 +45,7 @@ try{
  args:['--no-sandbox','--disable-dev-shm-usage']});
  const page=await browser.newPage();
  const seen=new Set(),pending=new Set(),candidateBodies=[];
+ page.on('pageerror',()=>{result.sdk_browser_page_errors++});
  page.on('response',response=>{
   const job=(async()=>{
    let url;try{url=new URL(response.url())}catch{return}
@@ -52,6 +54,10 @@ try{
    result.first_party_http_status_counts[statusKey]=(result.first_party_http_status_counts[statusKey]||0)+1;
    if(url.pathname.includes(programId)){
      result.first_party_program_http_status_counts[statusKey]=(result.first_party_program_http_status_counts[statusKey]||0)+1;
+     const family=url.pathname.endsWith('/events/slot')?'event_slot':
+       url.pathname.endsWith('/events')?'full_events':'program_or_other';
+     const key=family+'_'+statusKey;
+     result.first_party_program_response_categories[key]=(result.first_party_program_response_categories[key]||0)+1;
    }
    if(!url.pathname.includes('/'+programId+'/'))return;
    const hasEvents=url.pathname.endsWith('/events');
