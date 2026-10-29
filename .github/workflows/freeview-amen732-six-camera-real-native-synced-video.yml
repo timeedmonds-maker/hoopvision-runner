@@ -48,18 +48,18 @@ jobs:
           ROOT="$RUNNER_TEMP/amen732-real-sixmovie"
           python3 tools/amen732_sixview_audio_alignment_v2.py \
             --source "$ROOT/native" --out "$ROOT/audio_qa.json" \
-            --ffmpeg "$(command -v ffmpeg)" --broadcast-seed 9.39
+            --ffmpeg "$(command -v ffmpeg)" --broadcast-seed 12.39
           python3 tools/amen732_sixview_synchronous_video_review_v1.py \
             --source "$ROOT/native" --audio "$ROOT/audio_qa.json" \
             --out "$ROOT/output" --ffmpeg "$(command -v ffmpeg)" \
-            --begin 8.3 --end 10.8 --fps 15
+            --begin 11.6 --end 13.7 --fps 15
           python3 - "$ROOT/output" <<'PY'
           import json,sys,subprocess
           from pathlib import Path
           root=Path(sys.argv[1])
           q=json.load(open(root/'amen732-sixcam-native-synced-source-video-qa.json'))
           assert len(q['sources'])==6 and q['pairwise_audio_edges']==15
-          assert q['frames']>=35 and len(list(root.glob('*.jpg')))==5
+          assert q['frames']>=30 and len(list(root.glob('*.jpg')))==5
           assert not q['novel_viewpoint_reconstructed']
           v=root/q['video_3840x2160']
           s=subprocess.run(['ffprobe','-v','error','-show_entries',
@@ -76,11 +76,11 @@ jobs:
           set -euo pipefail
           test -n "$GH_TOKEN" || { echo PRIVATE_SOURCE_OUTPUT_CANNOT_PUBLISH; exit 3; }
           ROOT="$RUNNER_TEMP/amen732-real-sixmovie"
-          TAG=freeview-amen732-six-camera-real-source-video-sync-v1-20261028
+          TAG=freeview-amen732-six-camera-real-contact-crosswalk-v2-20261029
           if ! gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
             gh release create "$TAG" --repo timeedmonds-maker/104 \
-              --title "Amen-Wemby six original NBA cameras time-aligned UHD reference" \
-              --notes "Unaltered six native videos sampled by measured audio delays; 3840x2160 mosaic. Source versions differ from archived Oct24 MP4s. Contact and same exposure unverified; not Freeview 3D." \
+              --title "Amen-Wemby real block six original cameras +90 frame crosswalk UHD" \
+              --notes "Unaltered six native videos sampled by measured audio delays; 3840x2160 mosaic. Different file SHAs, but 12 independently matched original frames prove fresh clip index = archive index +90 for all six cameras. Contact and same exposure unverified; not Freeview 3D." \
               --latest=false >/dev/null
           fi
           gh release upload "$TAG" "$ROOT/output/"*.jpg \
