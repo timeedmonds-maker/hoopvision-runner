@@ -45,7 +45,7 @@ jobs:
           ROOT="$RUNNER_TEMP/amen732-v2"
           python3 tools/amen732_sixview_audio_alignment_v2.py \
             --source "$ROOT/native" --out "$ROOT/audio.json" \
-            --ffmpeg "$(command -v ffmpeg)" --broadcast-seed 9.39
+            --ffmpeg "$(command -v ffmpeg)" --broadcast-seed 12.39
           python3 tools/amen732_sixview_native_frame_package_v2.py \
             --source "$ROOT/native" --audio-qa "$ROOT/audio.json" --out "$ROOT/output"
           python3 - "$ROOT/output/amen732-sixview-native-exact-frame-package-v2.json" <<'PY'
@@ -63,11 +63,11 @@ jobs:
           set -euo pipefail
           test -n "$GH_TOKEN" || { echo PRIVATE_RELEASE_WRITE_UNAVAILABLE; exit 4; }
           ROOT="$RUNNER_TEMP/amen732-v2"
-          TAG=freeview-amen732-sixview-original-contact-consensus-20261028
+          TAG=freeview-amen732-sixview-contact-sha-crosswalk-20261029
           if ! gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
             gh release create "$TAG" --repo timeedmonds-maker/104 \
               --title "Amen732 six original action-consensus native camera QA panels" \
-              --notes "Six true source frames aligned by 15 real audio pairs; frame exposure and ball contact NOT independently certified. No 3D rendering pass." \
+              --notes "Six source frames aligned to actual block time by independently verified 90-frame archive/fresh crosswalk plus 15 real audio pairs; frame exposure and ball contact NOT independently certified. No 3D rendering pass." \
               --latest=false >/dev/null
           fi
           gh release upload "$TAG" "$ROOT/output/"*.jpg "$ROOT/output/"*.png \
@@ -97,7 +97,7 @@ jobs:
             'message':'evidence(freeview): audio-corrected six-camera actual NBA frame preview, still uncertified',
             'content':base64.b64encode(data).decode()}))
           PY
-          TARGET='repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_audio_contact_consensus_sixview_review_20261028.jpg'
+          TARGET='repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_contact_trueframe_sixview_review_20261029.jpg'
           CURRENT="$(gh api "$TARGET?ref=research/amen-wemby-freeze-spin-20261024" --jq .sha 2>/dev/null || true)"
           if [ -n "$CURRENT" ]; then
             python3 - "$ROOT/put.json" "$CURRENT" <<'PY'
