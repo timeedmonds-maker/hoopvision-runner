@@ -1,3 +1,4 @@
+# Query acceptance includes first/middle/last source-verified NBA logical chain rows
 name: IGP 0138 all 206 official NBA 5x5 clock substitution propagation and QA
 on:
   push:
@@ -43,6 +44,11 @@ jobs:
           assert hashlib.sha256(raw).hexdigest()==qa["per_possession_SHA256"]
           rows=[json.loads(z) for z in gzip.decompress(raw).splitlines() if z.strip()]
           assert len(rows)==206 and len({r["chain_id"] for r in rows})==206
+          from igp_0138_fullgame_official_substitution_clock_ten_v3_20261030 import query
+          for row in (rows[0],rows[len(rows)//2],rows[-1]):
+            checked=query(Path("."),row["chain_id"])
+            assert checked["possession"]==row
+            assert checked["verified_source_SHA256"]==qa["per_possession_SHA256"]
           assert qa["physical_possessions_certified"]==0
           for row in rows:
             five=row["v3_modeled_ten_by_team"]
