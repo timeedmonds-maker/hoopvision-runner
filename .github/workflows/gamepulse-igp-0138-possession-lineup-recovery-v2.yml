@@ -1,3 +1,4 @@
+# Rerun after source vote controls invalidated neighbor-only ten inference
 name: IGP 0138 improve unresolved ten-player possessions with source holdout
 on:
   push:
