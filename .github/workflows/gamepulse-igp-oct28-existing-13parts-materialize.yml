@@ -1,4 +1,5 @@
 name: IGP materialize already captured Oct28 original native XYZ 0136 0137
+# Restored independent reviewed public guard entries; exact archive readback rerun.
 # Security allowlist reviewed; re-trigger original SHA source acceptance.
 on:
   push:
