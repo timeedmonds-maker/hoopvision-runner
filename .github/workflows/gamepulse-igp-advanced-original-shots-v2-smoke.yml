@@ -35,7 +35,7 @@ jobs:
           assert o["original_official_field_goals"]==10003
           assert o["original_Blueprint_identity_matched_shots"]==9221
           assert o["official_shots_with_advanced_source_biomechanics"]>=154
-          assert o["games_with_entire_original_companion_event_response"]>=2
+          assert o["games_with_entire_original_companion_event_response"]>=54
           for id in ["0022600009","0022600129"]:
             assert o["games"][id]["original_companion_full_response_status"]=="FULL_EVENT_RESPONSE_OBSERVED"
           print("IGP_ADVANCED_30_FEATURE_NATIVE_ORIGINAL_SDK_JOIN_SMOKE_PASS",
