@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-post36-official-native-player-slot-qa.yml",  # reviewed: private 20-game original NBA source and frozen36 read-only verification; aggregate public logs only; no artifacts
     ".github/workflows/gamepulse-igp-post36-unlinked-identity-triage.yml",  # 20-game SHA-private native unlinked official-ten/source-ball diagnostic with aggregate-only public logs
     ".github/workflows/gamepulse-igp-post36-official-ten-pbp-native-evidence-qa.yml",  # private source NBA box + PBP substitution official-ten native identity 20-game QA, aggregates only
     ".github/workflows/gamepulse-igp-g4-all56-native-possession-product-qa.yml",  # full 56 private NBA real source native possession readback and action/shot QA, safe aggregates
