@@ -28,6 +28,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
+      - name: Probe direct authenticated private release download outside GitHub REST API
+        if: matrix.game == '0022600136'
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          asset="https://github.com/timeedmonds-maker/104/releases/download/gamepulse-sdk-$GID/sdk-part-00.tar.gz"
+          code="$(curl -sSLI --max-time 40 --retry 0 -H "Authorization: Bearer $GH_TOKEN" -o /dev/null -w '%{http_code}' "$asset" || true)"
+          case "$code" in
+            200|206) echo IGP_PRIVATE_RELEASE_DIRECT_NON_REST_HTTP_OK;;
+            *) echo "IGP_PRIVATE_RELEASE_DIRECT_NON_REST_HTTP_STATUS=$code";;
+          esac
+          # Git transport is an independent path and must not print any credential.
+          git -c credential.helper='!f() { echo username=x-access-token; echo "password=$GH_TOKEN"; }; f' ls-remote -q https://github.com/timeedmonds-maker/104.git HEAD >/dev/null 2>&1 && echo IGP_PRIVATE_GIT_TRANSPORT_AUTH_OK || echo IGP_PRIVATE_GIT_TRANSPORT_AUTH_BLOCKED
       - name: Verify source manifest and preserve every original SHA-verified part
         shell: bash
         run: |
