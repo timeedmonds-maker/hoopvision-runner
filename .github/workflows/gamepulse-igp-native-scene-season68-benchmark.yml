@@ -1,4 +1,4 @@
-name: IGP season 68 index native scene original-source benchmark
+name: IGP complete 68-game native scene original-source benchmark
 on:
   workflow_dispatch:
   push:
@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      PINNED_PRIVATE_SHA: 3337de03bcc02b17c1a663ad150ada5e80dd34d8
+      PINNED_PRIVATE_SHA: ab5dad9a2ff0111f7a6a9fbf2e5752d8a9f471bd
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -38,11 +38,11 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_native_scene_season_68_benchmark_v1.py
+          python3 -m py_compile gamepulse/fusion/igp_native_scene_season_68_benchmark_v1.py gamepulse/fusion/igp_native_scene_season68_fullsource_v2.py
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_native_scene_model_v2.py'
-          python3 gamepulse/fusion/igp_native_scene_season_68_benchmark_v1.py \
+          python3 gamepulse/fusion/igp_native_scene_season68_fullsource_v2.py \
             --root . \
-            --output gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_season68_benchmark_v1.json
+            --output gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_season68_fullsource_v2.json
       - name: Confirm complete 68 status and commit only aggregate private QA
         shell: bash
         run: |
@@ -51,14 +51,17 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
-          q=json.loads(Path('gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_season68_benchmark_v1.json').read_text())
+          q=json.loads(Path('gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_season68_fullsource_v2.json').read_text())
           c=q['totals']
-          assert c['indexed_games']==68 and c['source_games']==57
-          assert c['native_source_unavailable_games']==11
-          assert len(q['per_game'])==68 and c['masked_whole_frames']>=5000
-          assert q['official_physical_possessions_certified']==0
-          assert q['original_sources_and_frozen56_models_unchanged'] is True
-          assert q['pooled_actor_XY_source_proxy_ft']['n']>45000
+          assert c['indexed_games']==68 and c['source_games']==68
+          assert c['native_source_unavailable_games']==0
+          assert len(q['per_game'])==68 and c['masked_whole_frames']==6800
+          assert q['physical_possessions_independently_certified']==0
+          assert q['original_tracking_and_frozen56_1hz_and_historical_dataset_not_mutated'] is True
+          assert q['pooled_actor_XY_source_proxy_ft']['n']>55000
+          assert c['native_frames'] > 2000000
+          assert len(q['per_game']) == 68
+          assert q['previous_57_game_QA_untouched'] is True
           print('IGP_SEASON68_SOURCE_BACKED_QA_ACCEPTED',
                 {k:c[k] for k in ('indexed_games','source_games','native_source_unavailable_games',
                                  'native_frames','source_exact_ten_ball','candidate_ten_ball_frames',
@@ -66,9 +69,9 @@ jobs:
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_season68_benchmark_v1.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_season68_fullsource_v2.json
           git diff --cached --check
-          git commit -q -m 'qa(igp): SHA original 57 native games in 68 indexed season scene benchmark'
+          git commit -q -m 'qa(igp): full original 68-game native player and ball heldout benchmark'
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
