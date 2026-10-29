@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-0138-video-utc-source-window.yml",  # Private original native Q1 2:52 source UTC bracket for independent app marker alignment
     ".github/workflows/gamepulse-igp-0138-advanced-join.yml",  # Existing private canonical source-locked 176-shot advanced additive ledger and smoke-query QA
     ".github/workflows/gamepulse-igp-0138-blueprint-source.yml",  # Original official NBA Blueprint 0138 shot xFG/defender/gravity private-only SHA receipt
     ".github/workflows/gamepulse-igp-0138-advanced-source.yml",  # Private-only full companion ShotDetails/Time/OnCourt/insights source; aggregate public QA
