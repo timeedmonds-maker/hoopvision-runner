@@ -1,4 +1,5 @@
 name: IGP 68 original native XYZ and official possession index refresh
+# Promote newly recovered game 0139 native source into canonical 68-game index.
 # Repair-run: index SHA-verified recovered 0136/0137; preserve existing 56+12 source provenance.
 on:
   push:
