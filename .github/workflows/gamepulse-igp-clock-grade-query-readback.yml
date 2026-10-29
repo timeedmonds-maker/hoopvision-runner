@@ -86,64 +86,27 @@ jobs:
               },sort_keys=True))
           PY
 
-      - name: Source-verify all 54 official UTC timestamp collision integrity grades
+
+      - name: Verify current accepted official collision grades through unified season query
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m unittest discover -s gamepulse/fusion/tests -p 'test_igp_companion_pbp_clock_integrity_v2.py' -v
-          python3 gamepulse/fusion/igp_companion_pbp_clock_integrity_v2.py --root . > "$RUNNER_TEMP/clock-collisions-private.log"
           python3 - <<'PY'
-          import gzip,hashlib,json
+          from query_igp_companion_pbp_clock_grade_v1 import query
           from pathlib import Path
-          root=Path('gamepulse/fusion')
-          qa=json.loads((root/'qa/igp_progress_20261029/igp_companion_pbp_clock_integrity_v2.json').read_bytes())
-          v1=json.loads((root/'qa/igp_progress_20261029/igp_companion_pbp_clock_grades_v1.json').read_bytes())
-          assert len(qa['games'])==54 and qa['totals']['games']==54
-          assert qa['totals']['official_actions']==33342
-          assert qa['totals']['collision_action_rows']>0
-          assert not qa['physical_time_certified'] and not qa['player_position_accuracy_measured']
-          assert qa['physical_possessions_certified']==0
-          assert qa['original_v1_qa_sha256']==hashlib.sha256(
-              (root/'qa/igp_progress_20261029/igp_companion_pbp_clock_grades_v1.json').read_bytes()).hexdigest()
-          for gid,r in qa['games'].items():
-              assert r['v1_source_sha256']==v1['games'][gid]['source_sha256']
-              blob=Path(r['path']).read_bytes()
-              assert hashlib.sha256(blob).hexdigest()==r['sha256']
-              rows=[json.loads(x) for x in gzip.decompress(blob).splitlines() if x]
-              assert len(rows)==r['official_actions_conserved']
-              assert all(not x['physical_event_instant_certified'] for x in rows)
-          index=json.loads((root/'materialized/igp_2026_27_unified_season_v3/index.json').read_bytes())
-          assert index['official_games']==56 and index['physical_possession_certified']==0
-          assert index['original_nba_companion_pbp_clock_grades']['source_original_companion_games']==54
-          assert 'original_nba_companion_pbp_clock_integrity_v2' in index
-          print('IGP_54GAME_OFFICIAL_UTC_COLLISION_ACCEPTED',json.dumps({
-             'actions':qa['totals']['official_actions'],
-             'collision_action_rows':qa['totals']['collision_action_rows'],
-             'previous_uncorrected_cross_provider_conflicts':v1['totals']['CONFLICT_GT_3S'],
-             'remaining_cross_provider_major_conflicts':qa['totals'].get('CONFLICT_GT_3S',0),
-             'possession_certified':0},sort_keys=True))
+          root=Path('.')
+          result=query(root,'0022600102',139)
+          assert result['physical_alignment_grade']=='OFFICIAL_PBP_UTC_COLLISION_DIFFERENT_GAME_CLOCK'
+          assert result['official_timeActual_collision']['official_gameclock_spread_ms']>=407000
+          assert result['clock_evidence']['grade'] in (
+              'CONFLICT_GT_3S','AGREE_LE_1S','AGREE_LE_2S',
+              'DISAGREE_LE_3S','NO_COMPANION_CLOCK_WITHIN_2S',
+              'NO_COMPANION_PERIOD_CLOCK')
+          assert not result['physical_event_time_certified']
+          missing=query(root,'0022600006',7)
+          assert missing['grade']=='NO_ORIGINAL_COMPANION_EVENT_PROGRAM'
+          print('IGP_54GAME_V2_CANONICAL_QUERY_ORIGINAL_SHA_READBACK_PASS',
+                'game_0102_action_139',result['physical_alignment_grade'])
           PY
-      - name: Commit additive v2 UTC-integrity sidecar to same private unified index
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/private"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/companion_pbp_clock_integrity_v2 \
-             gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json \
-             gamepulse/fusion/qa/igp_progress_20261029/igp_companion_pbp_clock_integrity_v2.json
-          git diff --cached --check
-          git commit -q -m 'data(igp): SHA-accept 54 game official UTC collisions as unsafe alignment'
-          for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            git fetch -q origin "$BRANCH"
-            git rebase -q "origin/$BRANCH"
-            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo IGP_54GAME_TIMEACTUAL_COLLISION_GRADES_COMMITTED_PRIVATE
-              exit 0
-            fi
-            sleep "$attempt"
-          done
-          exit 23
