@@ -7,7 +7,8 @@ if(!TOKEN || !process.env.GITHUB_OUTPUT)throw Error('PRIVATE_TOKEN_OR_OUTPUT_MIS
 async function get(url,privateRead=false){
   const res=await fetch(url,{headers:privateRead?{
     Authorization:'Bearer '+TOKEN,Accept:'application/vnd.github+json',
-    'User-Agent':'igp-auto-season'}:{'User-Agent':'igp-auto-season'},
+    'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
+    'Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/'}:{'User-Agent':'igp-auto-season'},
     signal:AbortSignal.timeout(30000)});
   if(res.status===404)return null;
   if(!res.ok)throw Error('NBA_OR_PRIVATE_STATUS_'+res.status);
