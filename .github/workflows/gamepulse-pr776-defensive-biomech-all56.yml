@@ -1,5 +1,6 @@
 name: PR776 free CPU all56 defender mechanics 3PT and midrange
 # Audited, allowlisted, aggregate-only private analysis; canonical data never published here.
+# Version 2 ranks only defender proximity <= six feet, plus shooter-level close/open contrast.
 on:
   push:
     branches: [main]
@@ -49,7 +50,7 @@ jobs:
           print("SOURCE_FREE_TESTS_PASS")
           PY
           python3 gamepulse/fusion/igp_defensive_shot_disruption_3pt_midrange_2026.py --root . \
-            --output gamepulse/fusion/qa/igp_progress_20261029/igp_defensive_shot_disruption_all56_3pt_midrange_v1.json
+            --output gamepulse/fusion/qa/igp_progress_20261029/igp_defensive_shot_disruption_all56_3pt_midrange_v2.json
       - name: Validate full cohort and output private aggregate only
         shell: bash
         run: |
@@ -57,7 +58,7 @@ jobs:
           cd "$PRIVATE_ROOT"
           python3 - <<'PY'
           import json
-          a=json.load(open("gamepulse/fusion/qa/igp_progress_20261029/igp_defensive_shot_disruption_all56_3pt_midrange_v1.json"))
+          a=json.load(open("gamepulse/fusion/qa/igp_progress_20261029/igp_defensive_shot_disruption_all56_3pt_midrange_v2.json"))
           assert a["counts"]["official_fga_read"]==10003
           for category in ("3PT","MIDRANGE_2PT_10FT_PLUS"):
               assert a["counts"]["shot_"+category] > 0
@@ -66,7 +67,7 @@ jobs:
              "eligible":{k:v["exploratory_eligible_defenders"] for k,v in a["rankings"].items()},
              "association":a["association"]},sort_keys=True))
           PY
-          OUT=gamepulse/fusion/qa/igp_progress_20261029/igp_defensive_shot_disruption_all56_3pt_midrange_v1.json
+          OUT=gamepulse/fusion/qa/igp_progress_20261029/igp_defensive_shot_disruption_all56_3pt_midrange_v2.json
           git config user.name "GamePulse private QA via free CPU"
           git config user.email "gamepulse-integrity@users.noreply.github.com"
           git add --sparse "$OUT"
