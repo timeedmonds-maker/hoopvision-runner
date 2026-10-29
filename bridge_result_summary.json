@@ -1,8 +1,8 @@
 {
-  "observed_at_utc": "2026-10-21T06:40:35Z",
-  "request_id": "req-b2220a000eed4422e0237ca4244d5e99",
-  "result_available": true,
+  "observed_at_utc": "2026-10-29T08:39:56Z",
+  "request_id": "req-a6b310f8067d52e2b5b4b20da2e3a3a8",
+  "result_available": false,
   "schema": "hoopvision.public-result-summary.v2",
-  "status": "SUCCESS",
-  "workload_class": "FREEVIEW_ANY_SPLAT_RND"
+  "status": "INTERNAL_ERROR",
+  "workload_class": "COURTCODER_V4_BLACKWELL_VIDEO"
 }
