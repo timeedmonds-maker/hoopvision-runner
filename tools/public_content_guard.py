@@ -424,7 +424,7 @@ REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
     ".github/workflows/freeview-amen732-sam21-23-source-frames.yml": "242444981ff930b70f6a29e7bcc931a2efc42121",  # pinned Meta CPU, original 24 source NBA stills, private-only masks
     ".github/workflows/freeview-amen732-43xyz-23pixel-holdout.yml": "7fb576f1e6cc7803f4aad2d746eedb3ff3e570eb",  # original NBA SDK/X/Y/Z CPU holdouts; private-only coordinates and QA
     ".github/workflows/gamepulse-rockets-event-xyz.yml": "0814eefa14b62583095919d77b2368242d90cccb",  # reviewed: SHA-verified SDK, private XYZ output and aggregate public QA
-    ".github/workflows/freeview-amen732-q4-sdk-proof.yml": "aaea8fd99cf84eca228d98aac079c21f822b348d",  # private original NBA 13-part SDK Q4 actor XYZ, no public export
+    ".github/workflows/freeview-amen732-q4-sdk-proof.yml": "ff86bee5bc3eb2b4b368f47d07f8aa7d4d187e9e",  # re-reviewed: SHA-verified private Q4 original, byte-exact idempotent private fixture only, no public export
     ".github/workflows/gamepulse-pr776-bulk-four-game-xyz.yml": "86bb20b96d0210becbc54c69c5b038b3adbb8074",
     ".github/workflows/gamepulse-pr776-bulk-0009-original-xyz.yml": "6306d60e989e0537c6469d49ab18bbed576d0846",
     ".github/workflows/pr776-shared-token-rate-diagnostic.yml": "d3c639f2f0aa6a3195e14a9aecbc2ce767bb646f",  # aggregate only; shared credential status, no SDK asset export
