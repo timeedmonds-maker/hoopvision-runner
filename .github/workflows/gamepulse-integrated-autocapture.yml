@@ -47,7 +47,7 @@ jobs:
     timeout-minutes: 105
     strategy:
       fail-fast: false
-      max-parallel: 16
+      max-parallel: 2
       matrix: ${{ fromJSON(needs.preflight.outputs.parts) }}
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
@@ -79,7 +79,7 @@ jobs:
     timeout-minutes: 100
     strategy:
       fail-fast: false
-      max-parallel: 8
+      max-parallel: 2
       matrix: ${{ fromJSON(needs.preflight.outputs.games) }}
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
@@ -104,13 +104,13 @@ jobs:
           node season_private_release.mjs
           echo IGP_OCT28_NATIVE_13PART_FINALIZE_ATTEMPTED
   materialize:
-    needs: [capture,certify]
+    needs: [preflight,capture,certify]
     if: always() && needs.preflight.result == 'success' && needs.preflight.outputs.count != '0'
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     strategy:
       fail-fast: false
-      max-parallel: 6
+      max-parallel: 2
       matrix: ${{ fromJSON(needs.preflight.outputs.games) }}
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
