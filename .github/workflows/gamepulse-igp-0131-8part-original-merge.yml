@@ -24,13 +24,11 @@ jobs:
           git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
-          mkdir -p "$RUNNER_TEMP/original"
-          gh api repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-0022600131 \
-            > "$RUNNER_TEMP/remote-release.json"
-          gh release download gamepulse-sdk-0022600131 \
-            --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/original"
-          cp "$RUNNER_TEMP/private/gamepulse/fusion/original_sdk_late_recovery/0022600131/sdk-part-07.tar.gz" \
-            "$RUNNER_TEMP/original/sdk-part-07.tar.gz"
+          # Prior seven original archives were independently SHA-verified,
+          # materialized and frozen in private 104. Eighth is in private Git.
+          # Reuse both native sources; NEVER request the rate-limited Releases API.
+          test -f "$RUNNER_TEMP/private/gamepulse/fusion/materialized/igp_all_original_xyz/0022600131/index.json"
+          test -f "$RUNNER_TEMP/private/gamepulse/fusion/original_sdk_late_recovery/0022600131/sdk-part-07.tar.gz"
       - name: Independently verify combined eight authentic original SDK pieces and materialize private XYZ
         shell: bash
         run: |
@@ -42,12 +40,8 @@ jobs:
              -p test_igp_extract_all_original_sdk_xyz_2026.py
           dest="gamepulse/fusion/materialized/igp_all_original_xyz_0131_eight_part/0022600131"
           test ! -e "$dest/index.json"
-          python3 gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py \
-            --game-id 0022600131 --archive-dir "$RUNNER_TEMP/original" \
-            --release-manifest "$RUNNER_TEMP/remote-release.json" \
-            --out-dir "$dest" --allow-eight-original-parts \
-            --supplemental-private-source-receipt \
-            gamepulse/fusion/original_sdk_late_recovery/0022600131/source_receipt.json
+          python3 -m py_compile gamepulse/fusion/igp_0131_merge_sha_existing_original_and_late_20261029.py
+          python3 gamepulse/fusion/igp_0131_merge_sha_existing_original_and_late_20261029.py --root .
           python3 - <<'PY'
           import hashlib,json
           from pathlib import Path
