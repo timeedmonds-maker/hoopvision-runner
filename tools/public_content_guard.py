@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-0138-blueprint-source.yml",  # Original official NBA Blueprint 0138 shot xFG/defender/gravity private-only SHA receipt
     ".github/workflows/gamepulse-igp-0138-advanced-source.yml",  # Private-only full companion ShotDetails/Time/OnCourt/insights source; aggregate public QA
     ".github/workflows/gamepulse-igp-0138-native-index-qa.yml",  # Single-game SHA-private native index and masked-source QA; no licensed public data
     ".github/workflows/gamepulse-igp-0138-fullgame-recovery.yml",  # Narrow reviewed private NBA original source 0138 recovery; aggregate-only public output
