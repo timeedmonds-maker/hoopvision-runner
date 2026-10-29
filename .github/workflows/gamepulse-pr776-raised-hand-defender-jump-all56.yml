@@ -56,7 +56,7 @@ jobs:
           PYTHONPATH=gamepulse/fusion python3 \
             gamepulse/fusion/igp_raised_hand_vs_jump_all56_20261029.py \
             --root . \
-            --output gamepulse/fusion/qa/igp_progress_20261029/igp_raised_hand_vs_jump_all56_distance_type_adjusted_v1.json
+            --output gamepulse/fusion/qa/igp_progress_20261029/igp_raised_hand_vs_jump_all56_distance_type_adjusted_v2.json
       - name: Validate output, commit only private aggregate QA
         shell: bash
         run: |
@@ -64,7 +64,7 @@ jobs:
           cd "$PRIVATE_ROOT"
           python3 - <<'PY'
           import json
-          p="gamepulse/fusion/qa/igp_progress_20261029/igp_raised_hand_vs_jump_all56_distance_type_adjusted_v1.json"
+          p="gamepulse/fusion/qa/igp_progress_20261029/igp_raised_hand_vs_jump_all56_distance_type_adjusted_v2.json"
           x=json.load(open(p))
           assert x["official_shots"]==10003
           assert x["matched_games"]>=45
@@ -74,7 +74,7 @@ jobs:
           assert x["not_a_causal_estimate"] is True
           print("HAND_JUMP_REAL_SOURCE_OUTPUT_ACCEPTED",x["matched_games"],x["matched_shots"])
           PY
-          OUT=gamepulse/fusion/qa/igp_progress_20261029/igp_raised_hand_vs_jump_all56_distance_type_adjusted_v1.json
+          OUT=gamepulse/fusion/qa/igp_progress_20261029/igp_raised_hand_vs_jump_all56_distance_type_adjusted_v2.json
           git config user.name "GamePulse private QA via free CPU"
           git config user.email "gamepulse-integrity@users.noreply.github.com"
           git add --sparse "$OUT"
