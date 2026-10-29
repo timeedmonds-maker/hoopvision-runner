@@ -114,3 +114,36 @@ jobs:
                  "source_program_unavailable_explicit":1,
                  "old_model_or_possession_mutations":0})
           PY
+
+      - name: Verify indexed native C0 short-gap source path without changing accepted 1Hz tracking
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path(".")
+          idx=json.loads((root/"gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json").read_bytes())
+          p=idx["original_native_bounded_velocity_v1"]
+          assert idx["official_games"]==56
+          assert idx["physical_possession_certified"]==0
+          assert p["ball_direct_observed_only"] is True
+          assert p["player_model_total_bracket_limit_ms"]==2000
+          src=(root/p["frozen36_strict_native_qa"]).read_bytes()
+          blob=hashlib.sha1(b"blob "+str(len(src)).encode()+b"\x00"+src).hexdigest()
+          assert blob==p["frozen36_strict_native_qa_github_blob_sha"]
+          q=json.loads(src)
+          c=q["counts"]
+          assert q["tested_source_games"]==36 and c["original_native_frames"]==1203986
+          assert c["direct_ten_ball_frames"]==224860
+          assert c["C0_ten_ball_frames"]==298553
+          assert c["B_ten_ball_frames"]==316906
+          assert p["source_self_holdout_not_video_ground_truth"]
+          print("IGP_CANONICAL_INDEX_NATIVE_C0_SAFE_READBACK",json.dumps({
+            "source_games":36,"source_original_native_frames":1203986,
+            "strict_native_direct_ten_ball":224860,
+            "strict_native_bounded_C0_ten_ball":298553,
+            "accepted_1Hz_or_physical_possessions_rewritten":False},sort_keys=True))
+          PY
