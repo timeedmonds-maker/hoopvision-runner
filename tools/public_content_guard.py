@@ -383,7 +383,7 @@ REVIEWED_WORKFLOW_GIT_BLOB_SHA = {
     ".github/workflows/gamepulse-pr776-bulk-four-game-xyz.yml": "86bb20b96d0210becbc54c69c5b038b3adbb8074",
     ".github/workflows/gamepulse-pr776-bulk-0009-original-xyz.yml": "6306d60e989e0537c6469d49ab18bbed576d0846",
     ".github/workflows/pr776-shared-token-rate-diagnostic.yml": "d3c639f2f0aa6a3195e14a9aecbc2ce767bb646f",  # aggregate only; shared credential status, no SDK asset export
-    ".github/workflows/gamepulse-pr776-native-event-windows.yml": "44cc1bded5419bbee63615ad5a4f493b89fb8f0d",  # reviewed private NBA/native guarded research windows no raw SDK coordinates
+    ".github/workflows/gamepulse-pr776-native-event-windows.yml": "4b05a4ef1f1928aced957f16ae4d577442770d58",  # reviewed private NBA/native guarded research windows no raw SDK coordinates
     ".github/workflows/gamepulse-pr776-private-event-xyz.yml": "b6d5fdbda5f2bd7c7aee13034119204027593b24",  # private-only SHA-verified SDK event subset; no coordinates in public logs
     ".github/workflows/gamepulse-pr776-event-first-36.yml": "9b011124c37e807ded708eb9ea720e2efb8cbe58",  # reviewed: private aggregate lookup and held-out position QA
     ".github/workflows/gamepulse-pr776-clock-shadow-study.yml": "844ff228aecad1a2537d4d986329e7b498d015bc",  # reviewed: private SHA-pinned clock QA, no raw source export or physical certification
