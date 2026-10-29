@@ -1,4 +1,4 @@
-name: IGP materialize already captured Oct28 original native XYZ 0136 0137
+name: IGP materialize original 13part native XYZ 0130 0131 0136 0137
 # Restored independent reviewed public guard entries; exact archive readback rerun.
 # Security allowlist reviewed; re-trigger original SHA source acceptance.
 on:
@@ -20,7 +20,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        game: ['0022600136', '0022600137']
+        game: ['0022600130', '0022600131', '0022600136', '0022600137']
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GID: ${{ matrix.game }}
@@ -57,14 +57,19 @@ jobs:
           git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
-          target="gamepulse/fusion/materialized/igp_all_original_xyz/$GID"
+          if test "$GID" = 0022600130 || test "$GID" = 0022600131; then
+            target="gamepulse/fusion/materialized/igp_original_13part_legacy_completion_v1/$GID"
+          else
+            target="gamepulse/fusion/materialized/igp_all_original_xyz/$GID"
+          fi
+          export IGP_TARGET="$target"
           if ! test -f "$target/index.json"; then
             python3 gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py --game-id "$GID" --archive-dir "$RUNNER_TEMP/original-native" --release-manifest "$RUNNER_TEMP/release.json" --out-dir "$target"
           fi
           python3 - <<'PY'
           import json,os,hashlib
           from pathlib import Path
-          p=Path('gamepulse/fusion/materialized/igp_all_original_xyz')/os.environ['GID']/'index.json'
+          p=Path(os.environ['IGP_TARGET'])/'index.json'
           d=json.loads(p.read_bytes())
           assert d['game_id']==os.environ['GID']
           assert d['capture_archive_all_13_parts_verified'] is True
