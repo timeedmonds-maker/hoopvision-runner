@@ -40,7 +40,7 @@ jobs:
         working-directory: tools/licensed_feed
         run: |
           set -euo pipefail
-          python3 ../../tools/public_content_guard.py
+          (cd ../.. && python3 tools/public_content_guard.py)
           npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
           npm install --ignore-scripts --no-audit --no-fund --silent
           for attempt in 1 2 3; do
