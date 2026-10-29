@@ -1,4 +1,5 @@
 name: IGP Oct28 twelve NBA Blueprint full rich shot gravity leverage source
+# Re-run after Oct28 official logical-chain index commit to avoid concurrent manifest write.
 on:
   push:
     branches: [main]
