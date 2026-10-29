@@ -1,4 +1,5 @@
 name: IGP materialize already captured Oct28 original native XYZ 0136 0137
+# Security allowlist reviewed; re-trigger original SHA source acceptance.
 on:
   push:
     branches: [main]
