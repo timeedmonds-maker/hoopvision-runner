@@ -1,5 +1,7 @@
 name: Integrated Pulse automatic full-fidelity every-game capture and unified index
 on:
+  schedule:
+    - cron: '17 */3 * * *'
   push:
     branches: [main]
     paths:
