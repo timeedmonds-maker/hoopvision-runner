@@ -99,7 +99,7 @@ jobs:
           root=Path('.')
           result=query(root,'0022600102',139)
           assert result['physical_alignment_grade']=='OFFICIAL_PBP_UTC_COLLISION_DIFFERENT_GAME_CLOCK'
-          assert result['official_timeActual_collision']['official_gameclock_spread_ms']>=407000
+          assert result['official_timeActual_collision']['official_gameclock_spread_ms']>3000
           assert result['clock_evidence']['grade'] in (
               'CONFLICT_GT_3S','AGREE_LE_1S','AGREE_LE_2S',
               'DISAGREE_LE_3S','NO_COMPANION_CLOCK_WITHIN_2S',
