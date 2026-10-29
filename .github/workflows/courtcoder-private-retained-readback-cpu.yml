@@ -1,0 +1,77 @@
+name: Private retained-analytics readback (no inference)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/courtcoder-private-retained-readback-cpu.yml']
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: private-retained-readback-cpu-oneoff
+  cancel-in-progress: false
+jobs:
+  readback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Public boundary and existing private access
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          echo READBACK_PRIVATE_REPO_AUTH_OK
+      - name: Authenticate with existing private cloud identity
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.HOOPVISION_GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.HOOPVISION_GCP_SERVICE_ACCOUNT }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Read retained analytics using private-only source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --disable-pip-version-check google-cloud-storage==3.4.0
+          ROOT="$RUNNER_TEMP/cc-private-readback"
+          mkdir -p "$ROOT/tools/diagnostics"
+          touch "$ROOT/tools/__init__.py" "$ROOT/tools/diagnostics/__init__.py"
+          REF='fix/courtcoder-next120-v32-eval-20261030'
+          for f in live_named_coverage.py readback_next120_private.py; do
+            gh api "repos/timeedmonds-maker/104/contents/tools/diagnostics/$f?ref=$REF" --jq .content | base64 -d > "$ROOT/tools/diagnostics/$f"
+          done
+          python -m py_compile "$ROOT/tools/diagnostics/"*.py
+          PYTHONPATH="$ROOT" python "$ROOT/tools/diagnostics/readback_next120_private.py" --out "$ROOT/private-report.json" > "$ROOT/readback.log" 2>&1 || {
+            echo PRIVATE_READBACK_FAILED_BEFORE_REPORT
+            exit 4
+          }
+          test -s "$ROOT/private-report.json"
+          echo RETAINED_PRIVATE_READBACK_FINISHED
+      - name: Publish evidence ONLY to private repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/cc-private-readback"
+          python - "$ROOT/private-report.json" "$ROOT/comment.json" <<'PY'
+          import json,sys
+          report=json.load(open(sys.argv[1]))
+          body=("Private retained-analytics readback (no new inference / no GPU job):\n\n"
+                + "```json\n" + json.dumps(report,sort_keys=True,indent=2)
+                + "\n```")
+          with open(sys.argv[2],"w") as f: json.dump({"body":body},f)
+          PY
+          if gh api --method POST repos/timeedmonds-maker/104/issues/788/comments --input "$ROOT/comment.json" > "$ROOT/post-response.json" 2> "$ROOT/post-error.log"; then
+            echo PRIVATE_READBACK_REPORT_POSTED
+          else
+            echo PRIVATE_COMMENT_UNAVAILABLE_ATTEMPTING_PRIVATE_RELEASE
+            gh release create cc-next120-readback-20261030 --repo timeedmonds-maker/104 --title 'Private retained readback' --notes 'CPU-only retained analytics evidence' >/dev/null
+            gh release upload cc-next120-readback-20261030 "$ROOT/private-report.json" --repo timeedmonds-maker/104 --clobber >/dev/null
+            echo PRIVATE_READBACK_RELEASE_POSTED
+          fi
