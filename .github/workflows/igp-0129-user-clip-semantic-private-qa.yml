@@ -1,4 +1,5 @@
 name: IGP 0129 clip semantic private-source QA
+# Explicitly allowlisted by public data guard; no licensed coordinates in logs
 on:
   push:
     branches: [main]
