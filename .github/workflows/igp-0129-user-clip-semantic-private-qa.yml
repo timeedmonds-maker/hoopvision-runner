@@ -109,3 +109,42 @@ jobs:
                 'source_native_frames=36215','source_direct_players_checked='+str(tested),
                 'physical_possessions_certified=0', 'independent_video_accuracy=UNMEASURED')
           PY
+      - name: Persist accepted clip QA only to private canonical branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          qa=gamepulse/fusion/qa/igp_progress_20261030/igp_0129_annotated_clip_official_qa_v1.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path('gamepulse/fusion/qa/igp_progress_20261030/igp_0129_annotated_clip_official_qa_v1.json').read_text())
+          assert q['observations']==15 and q['source_verified_official_event_links']==28
+          assert len(q['substitution_groups'])==2 and q['independently_certified_physical_possessions_added']==0
+          assert not q['native_source_utc_mapping_verified']
+          assert all(x['before_players_per_team']=={'DET':5,'NYK':5} and
+                     x['after_players_per_team']=={'DET':5,'NYK':5} for x in q['substitution_groups'])
+          PY
+          cp "$qa" "$RUNNER_TEMP/igp0129-private-qa.json"
+          git fetch -q origin "$BRANCH"
+          git checkout -q -B clip-qa-staging "origin/$BRANCH"
+          cp "$RUNNER_TEMP/igp0129-private-qa.json" "$qa"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$qa"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_0129_CLIP_SHA_QA_ALREADY_ACCEPTED
+            exit 0
+          fi
+          git commit -q -m 'qa(igp): accept source-verified 0129 annotation and official lineup replay'
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_0129_CLIP_QA_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 23
