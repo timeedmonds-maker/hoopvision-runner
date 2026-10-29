@@ -291,16 +291,25 @@ jobs:
                   indexed=json.loads((folder/"gamepulse-catalog.json").read_text())["games"]
                   rows=source.get("games",{})
                   assert source.get("game_count")==52 and len(rows)==52
-                  assert set(indexed).issubset(rows),"OFFICIAL_52_NBA_PBP_CATALOG_COVERAGE_MISMATCH"
-                  assert all(len(row.get("source_pbp_sha256",""))==64 and
-                             len(row.get("source_boxscore_sha256",""))==64 and
-                             row.get("action_records",0)>=300 and
-                             row.get("official_final")
-                             for gid,row in rows.items() if gid in indexed), "OFFICIAL_NBA_SOURCE_GRADE_DRIFT"
-                  state["official_pbp_verified_games"]=len(indexed)
+                  # The independently growing Blueprint catalog may include games
+                  # newer than this immutable 52-game official-PBP source index.
+                  # Verify and report only their intersection; do not claim that
+                  # later games have official PBP from this particular index.
+                  catalog_ids=set(indexed)
+                  verified_ids=catalog_ids.intersection(rows)
+                  missing_from_this_index=sorted(catalog_ids.difference(rows))
+                  assert verified_ids,"OFFICIAL_NBA_SOURCE_NO_CATALOG_OVERLAP"
+                  assert all(len(rows[gid].get("source_pbp_sha256",""))==64 and
+                             len(rows[gid].get("source_boxscore_sha256",""))==64 and
+                             rows[gid].get("action_records",0)>=300 and
+                             rows[gid].get("official_final")
+                             for gid in verified_ids), "OFFICIAL_NBA_SOURCE_GRADE_DRIFT"
+                  state["official_pbp_verified_games"]=len(verified_ids)
+                  state["official_pbp_catalog_games"]=len(catalog_ids)
+                  state["official_pbp_not_in_this_52_game_index"]=missing_from_this_index
                   state["official_pbp_index"]="gamepulse/fusion/official_pbp_timing/index-2026-27-through-20261026.json"
                   state["possession_qa_state"]=(
-                      f"OFFICIAL_NBA_PBP_{len(indexed)}_OF_{len(indexed)};"
+                      f"OFFICIAL_NBA_PBP_{len(verified_ids)}_OF_{len(catalog_ids)};"
                       f"SDK_TRACKING_BLUEPRINT_{m['game_count']}_OF_{m['game_count']};"
                       "ORIGINAL_PBP_EVENT_TIMING_IS_NOT_PHYSICAL_CONTROL;"
                       "PHYSICAL_POSSESSION_CHAINS_0_CERTIFIED")
