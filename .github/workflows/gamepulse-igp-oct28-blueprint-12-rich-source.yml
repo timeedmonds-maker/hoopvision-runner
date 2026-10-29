@@ -38,7 +38,7 @@ jobs:
           from pathlib import Path
           sys.path.insert(0,"scripts")
           from update_nba_blueprint_daily_2026_27 import read_report, canonical
-          from build_nba_blueprint_2026_27 import BASE, rebuild, validate_report
+          from build_nba_blueprint_2026_27 import BASE, validate_report
           p=Path("gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json")
           src=json.loads(p.read_bytes())
           got=[];pending=[];existing=[]
@@ -62,20 +62,22 @@ jobs:
                   got.append({"id":gid,"shots":len(shots),"sha256":hashlib.sha256(original.read_bytes()).hexdigest(),"page_build":proof["page_build"]})
               except Exception as ex:
                   pending.append({"id":gid,"error":type(ex).__name__,"message":str(ex)[:140]})
-          result=rebuild(verify=False)
+          published_count=sum(1 for folder in (BASE/'games').iterdir() if folder.is_dir() and (folder/'blueprint_report_raw.json').is_file())
           qa={"schema":"igp.oct28-original-NBA-Blueprint-recovery.v1",
               "exact_nba_game_ids":[f"0022600{n:03d}" for n in range(132,144)],
               "new_source_reports":got,
               "existing_source_reports_preserved":existing,
               "pending_source_reports":pending,
-              "integrated_original_blueprint_games":result["game_count"],
+              "original_blueprint_report_games":published_count,
+              "full_season_derived_CSV_rebuild_attempted":False,
+              "existing_frozen_0085_duplicate_identity_not_rewritten":True,
               "original_report_rewritten":False}
           q=Path("gamepulse/fusion/qa/igp_progress_20261030/igp_oct28_twelve_blueprint_source_capture_v1.json")
           q.parent.mkdir(parents=True,exist_ok=True)
           q.write_text(json.dumps(qa,indent=2,sort_keys=True)+"\n")
           print("IGP_OCT28_BLUEPRINT_SOURCE_RECOVERY",json.dumps({
               "new":len(got),"old_preserved":len(existing),"not_available":len(pending),
-              "full_season_blueprint_games":result["game_count"]},sort_keys=True))
+              "original_blueprint_report_games":published_count},sort_keys=True))
           PY
       - name: Join full original rich shot and gravity sources into SAME unified 68 game index
         shell: bash
