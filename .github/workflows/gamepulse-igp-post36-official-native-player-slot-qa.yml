@@ -67,3 +67,5 @@ jobs:
             sleep "$attempt"
           done
           exit 23
+
+# Reviewed exact-path allowlist; full source and coordinate records remain private.
