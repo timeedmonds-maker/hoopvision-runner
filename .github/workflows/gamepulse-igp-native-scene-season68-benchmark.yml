@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      PINNED_PRIVATE_SHA: ab5dad9a2ff0111f7a6a9fbf2e5752d8a9f471bd
+      PINNED_PRIVATE_SHA: b069482f5dad4cd63bcec117d28e81a0041053f6
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -40,6 +40,7 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/igp_native_scene_season_68_benchmark_v1.py gamepulse/fusion/igp_native_scene_season68_fullsource_v2.py
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_native_scene_model_v2.py'
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_native_scene_season68_fullsource_v2.py'
           python3 gamepulse/fusion/igp_native_scene_season68_fullsource_v2.py \
             --root . \
             --output gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_season68_fullsource_v2.json
