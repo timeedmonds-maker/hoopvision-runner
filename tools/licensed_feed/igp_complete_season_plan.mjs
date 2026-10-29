@@ -4,7 +4,8 @@ import {execFileSync} from 'node:child_process';
 const TOKEN=process.env.GH_TOKEN;
 const NOW=Date.now();
 const MAX=6;
-if(!TOKEN || !process.env.GITHUB_OUTPUTasync function get(url,privateRead=false){
+if(!TOKEN || !process.env.GITHUB_OUTPUT)throw Error('PRIVATE_TOKEN_OR_OUTPUT_MISSING');
+async function get(url,privateRead=false){
  if(privateRead){
    const u=new URL(url);
    if(u.hostname!=='api.github.com'||!u.pathname.startsWith('/repos/timeedmonds-maker/104/'))
@@ -27,9 +28,6 @@ if(!TOKEN || !process.env.GITHUB_OUTPUTasync function get(url,privateRead=false)
  if(res.status===404)return null;
  if(!res.ok)throw Error('NBA_PUBLIC_STATUS_'+res.status);
  return res.json();
-}
-ATE_STATUS_'+res.status);
-  return res.json();
 }
 async function privateFile(path){
   const url='https://api.github.com/repos/timeedmonds-maker/104/contents/'+path+
