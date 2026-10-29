@@ -13,6 +13,7 @@ import {join} from 'node:path';
 const gid=process.env.NBA_GAME_ID||'';
 const start=Date.parse(process.env.NBA_TIPOFF_UTC||'');
 const dir=process.env.IGP_PRIVATE_CAPTURE_DIR;
+const initTimeoutMs=Math.max(5000,Math.min(45000,Number(process.env.IGP_SDK_INIT_TIMEOUT_MS||16000)));
 if(!/^00226\d{5}$/.test(gid)||!Number.isFinite(start)||!dir)throw Error('invalid_companion_probe_scope');
 const programId='companion-'+gid, origin='nba-cdn.cloud.easelive.tv';
 const sourceDir=mkdtempSync(join(tmpdir(),'igp-licensed-companion-'));
@@ -22,7 +23,9 @@ function chrome(){for(const n of ['google-chrome','google-chrome-stable','chromi
 }throw Error('chromium_missing')}
 const result={schema:'igp.licensed-sdk-companion-source-readback.v1',
  game_id:gid, sdk_client:'@ease-live/ease-live-bridge-web',source_mode:'SDK_INITIALIZED_CLIENT_NO_URL_REPLAY',
- status:'NOT_AVAILABLE',initialization_result:null,observed_200_event_responses:0,
+ status:'NOT_AVAILABLE',initialization_result:null,initialization_timeout_ms:initTimeoutMs,
+ first_party_http_status_counts:{},first_party_program_http_status_counts:{},
+ observed_200_event_responses:0,
  observed_200_slot_responses:0,other_status_counts:{},original_total_event_objects:0,
  shot_detail_objects:0,original_body_bytes:0,original_body_sha256:null,
  raw_29joint_pose_60hz_observed:false,authentication_bypass_attempted:false};
@@ -43,7 +46,13 @@ try{
  page.on('response',response=>{
   const job=(async()=>{
    let url;try{url=new URL(response.url())}catch{return}
-   if(url.hostname!==origin||!url.pathname.includes('/'+programId+'/'))return;
+   if(url.hostname!==origin)return;
+   const statusKey=String(response.status());
+   result.first_party_http_status_counts[statusKey]=(result.first_party_http_status_counts[statusKey]||0)+1;
+   if(url.pathname.includes(programId)){
+     result.first_party_program_http_status_counts[statusKey]=(result.first_party_program_http_status_counts[statusKey]||0)+1;
+   }
+   if(!url.pathname.includes('/'+programId+'/'))return;
    const hasEvents=url.pathname.endsWith('/events');
    const hasSlots=url.pathname.endsWith('/events/slot');
    if(!hasEvents&&!hasSlots)return;
@@ -70,8 +79,8 @@ try{
  });
  await page.goto('http://127.0.0.1:'+server.address().port+'/',{waitUntil:'domcontentloaded',timeout:15000});
  await page.waitForFunction(()=>typeof window.ephemeralFeed?.initialize==='function',{timeout:12000});
- result.initialization_result=await page.evaluate(({programId})=>
-   window.ephemeralFeed.initialize({accountId:'nba',programId}),{programId});
+ result.initialization_result=await page.evaluate(({programId,initTimeoutMs})=>
+   window.ephemeralFeed.initialize({accountId:'nba',programId,timeoutMs:initTimeoutMs}),{programId,initTimeoutMs});
  if(result.initialization_result==='ready'){
    for(const minutes of [8,24,38,54,75,98,120,145,160]){
      await page.evaluate(t=>window.ephemeralFeed.seek(t),start+minutes*60_000);
