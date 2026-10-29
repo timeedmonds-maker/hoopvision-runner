@@ -29,6 +29,7 @@ jobs:
           git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
             '/gamepulse/fusion/igp_close4_defender_xfg_analysis_20261030.py' \
+            '/gamepulse/fusion/igp_close4_hand_height_attribution_20261030.py' \
             '/gamepulse/fusion/qa/igp_progress_20261029/' \
             '/gamepulse/fusion/qa/igp_progress_20261030/' \
             '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
@@ -77,6 +78,27 @@ jobs:
             'population':j['overall']
           },sort_keys=True))
           PY
+      - name: Correct hand-height defender attribution using original closest-joint player ID
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/igp_close4_hand_height_attribution_20261030.py
+          python3 gamepulse/fusion/igp_close4_hand_height_attribution_20261030.py --root .
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path("gamepulse/fusion/qa/igp_progress_20261030/igp_close4_hand_height_joint_identity_68_v1.json")
+          j=json.loads(p.read_bytes())
+          assert j["source_68_games_sha_readback"] and j["wembanyama"]["advanced_with_handheight"]>=30
+          assert j["wembanyama"]["joint_identity_matched_shots"]<=j["wembanyama"]["advanced_with_handheight"]
+          print("IGP_CLOSE4_HANDHEIGHT_VERIFIED_WEMBANYAMA",json.dumps({
+            "wemby":j["wembanyama"],
+            "wemby_rank":j["wembanyama_rank_qualified20"],
+            "totals":j["counts"],
+            "top5":j["qualified_joint_identified_20_top20"][:5]
+          },sort_keys=True))
+          PY
       - name: Persist immutable QA result only in canonical private branch
         shell: bash
         run: |
@@ -85,6 +107,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_close4_defender_xfg_68games_v1.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_close4_hand_height_joint_identity_68_v1.json
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_SOURCE_VERIFIED_RESULT_ALREADY_COMMITTED; exit 0; fi
           git commit -q -m 'qa(igp): measured source-verified close4 defender xFG suppression all68'
