@@ -1,4 +1,5 @@
 name: IGP four shot-biomechanics gaps SHA-native event-time geometry (distinct from 30 features)
+# Retry after private source-only Python syntax correction.
 on:
   push:
     branches: [main]
