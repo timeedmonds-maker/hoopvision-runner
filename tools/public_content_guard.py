@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-original-five-second-team-identity-v2.yml",  # original NBA official team exclusions from 18 source long-gap ID hypotheses, aggregate-only QA
     ".github/workflows/gamepulse-igp-original-five-second-alias-continuity.yml",  # private SHA original NBA gap actor overlap and endpoint diagnostics, no private XY logs
     ".github/workflows/gamepulse-igp-natural-5s-source-alias-audit.yml",  # all36 private original-source native five-second extra-player alias hypotheses; no licensed coordinates
     ".github/workflows/gamepulse-igp-5s-native-risk-holdout-8game.yml",  # SHA-private source-native five-second masked motion-envelope risk gate and heldout aggregate evaluation
