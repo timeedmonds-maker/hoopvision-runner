@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-0138-official-ten-possession.yml",  # SHA-verified full-game official NBA starters/substitution ten by logical possession private-only
     ".github/workflows/gamepulse-igp-0138-native-scene-holdout.yml",  # Source-locked 0138 whole-game provisional ten-player reconstruction/holdout private only
     ".github/workflows/gamepulse-igp-0138-video-utc-source-window.yml",  # Private original native Q1 2:52 source UTC bracket for independent app marker alignment
     ".github/workflows/gamepulse-igp-0138-advanced-join.yml",  # Existing private canonical source-locked 176-shot advanced additive ledger and smoke-query QA
