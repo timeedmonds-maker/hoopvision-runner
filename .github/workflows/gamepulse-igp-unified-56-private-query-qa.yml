@@ -24,6 +24,72 @@ jobs:
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 --sparse -b research/gamepulse-clock-boundary-integrity-20261025 https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27/games
+      - name: Verify ONE canonical 56-game dataset and prevent incomplete/subset promotion
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import gzip,hashlib,json
+          from pathlib import Path
+          root=Path("gamepulse/fusion")
+          load=lambda x:json.loads(x.read_bytes())
+          sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          idx=load(root/"materialized/igp_2026_27_unified_season_v3/index.json")
+          qa=load(root/"qa/igp_progress_20261029/igp_unified_56_0131_late_original_source_model_v3.json")
+          g4=load(root/"materialized/igp_g4_original_native_player_ball_possession_v1/index.json")
+          bio=load(root/"qa/igp_progress_20261029/igp_all56_advanced_companion_biomechanics_v2.json")
+          games=set(idx["per_game_model"])
+          assert idx["schema"]=="integrated-pulse.unified-season-search-source-index.v1"
+          assert idx["official_games"]==qa["official_games"]==56
+          assert len(games)==56 and games==set(qa["games"])==set(bio["games"])
+          assert bio["original_season_tracking_games"]==56
+          assert bio["original_official_field_goals"]==10003
+          assert idx["physical_possession_certified"]==0
+          assert idx["canonical_query"]=="gamepulse/fusion/query_igp_unified_2026_27_season_v1.py"
+          assert len(g4["games"])==36 and set(g4["games"]).issubset(games)
+          assert g4["counts"]["nba_original_source_frames"]==1203986
+          assert g4["counts"]["official_logical_NBA_chains"]==7474
+          assert idx["partial_original_source_games"]==["0022600130","0022600131"]
+          model_sha_verified=0
+          original_manifests=0
+          original_sample_chunks_verified=0
+          original_native_timestamps=0
+          for gid in sorted(games):
+              m=idx["per_game_model"][gid]
+              assert m["status"]==qa["games"][gid]["status"]
+              p=Path(m["path"])
+              assert p.is_file() and sha(p)==m["sha256"],("MODEL_SOURCE_SHA_DRIFT",gid)
+              model_sha_verified+=1
+              native=root/"materialized"/("igp_all_original_xyz_0131_eight_part"
+                       if gid=="0022600131" else "igp_all_original_xyz")/gid/"index.json"
+              assert native.is_file(),("NBA_NATIVE_SOURCE_MANIFEST_MISSING",gid)
+              source=load(native)
+              assert source["game_id"]==gid and source["chunks"],("NATIVE_SOURCE_WRONG_GAME",gid)
+              count=sum(x["original_native_timestamps"] for x in source["chunks"])
+              assert count==source["original_frame_counts"]["unique_original_native_timestamps"],("NATIVE_FRAME_COUNT",gid)
+              for info in (source["chunks"][0],source["chunks"][-1]):
+                  chunk=native.parent/info["path"]
+                  assert chunk.is_file() and sha(chunk)==info["sha256"],("ORIGINAL_CHUNK_SHA",gid)
+                  original_sample_chunks_verified+=1
+              original_manifests+=1
+              original_native_timestamps+=count
+          assert model_sha_verified==original_manifests==56
+          assert original_sample_chunks_verified==112
+          assert len(set(idx["per_game_model"][g]["path"] for g in games))==56
+          print("IGP_CANONICAL_56_NO_DUPLICATE_DATABASE_OR_INCOMPLETE_SUBSET_PROMOTION_PASS",
+                json.dumps({"canonical_games":56,"G4_frozen_index_games_only":36,
+                "other_games_native_source_accessible":len(games-set(g4["games"])),
+                "all56_SHA_verified_model_shards":model_sha_verified,
+                "all56_native_original_manifests":original_manifests,
+                "sample_original_chunks_SHA_verified":original_sample_chunks_verified,
+                "all56_original_native_timestamps":original_native_timestamps,
+                "official_FGA_preserved":bio["original_official_field_goals"],
+                "G4_promoted_to_season_database":False,
+                "legacy_historical_db_rebuilt":False,
+                "sidecar_or_duplicate_database_generated":False},sort_keys=True))
+          PY
+
       - name: SHA-verify game, actual shot identity, historic model and new model queries
         shell: bash
         run: |
