@@ -7,6 +7,9 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    "tools/licensed_feed/companion_original_sdk_probe.mjs",  # reviewed private-only shot original source recovery and source-graded QA
+    ".github/workflows/gamepulse-igp-companion-full-events-licensed-probe.yml",  # reviewed private-only shot original source recovery and source-graded QA
+    ".github/workflows/gamepulse-igp-all56-shot-biomechanics-native-materialize.yml",  # reviewed private-only shot original source recovery and source-graded QA
     ".github/workflows/gamepulse-igp-0131-late-full56-model-v3.yml",  # upgrade only source-authenticated 0131 late model, preserve 55 immutable private models
     ".github/workflows/gamepulse-igp-0131-8part-original-merge.yml",  # 7 original SHA Release parts plus one original SHA private Git SDK, materialized private only
     ".github/workflows/gamepulse-igp-oct27-0131-late-original-direct-git.yml",  # original authenticated NBA 0131 late SDK window, SHA private commit only
