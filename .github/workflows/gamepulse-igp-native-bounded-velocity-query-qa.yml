@@ -90,10 +90,10 @@ jobs:
               "strict_mode_abstained_on_missing_original":True,
               "ball_never_source_interpolated":True,
               "video_ground_truth_accuracy_certified":False}
-          dst=Path("gamepulse/fusion/qa/igp_progress_20261029/igp_native_bounded_velocity_query_two_game_qa_v1.json")
+          dst=Path("gamepulse/fusion/qa/igp_progress_20261029/igp_native_bounded_velocity_query_two_game_qa_v2.json")
           if dst.exists():raise FileExistsError("REFUSE_OVERWRITE_QUERY_ACCEPTANCE")
           dst.write_text(json.dumps({
-             "schema":"igp.native-source-first-2s-bounded-query-qa.v1",
+             "schema":"igp.native-source-first-2s-bounded-query-qa.v2",
              "games":accepted,"source_data_rewritten":False,
              "accepted_season_tracking_rewritten":False,
              "physical_possessions_certified":0},sort_keys=True,indent=2)+"\n")
@@ -111,7 +111,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f gamepulse/fusion/qa/igp_progress_20261029/igp_native_bounded_velocity_query_two_game_qa_v1.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261029/igp_native_bounded_velocity_query_two_game_qa_v2.json
           git diff --cached --check
           git commit -q -m "qa(igp): two real NBA games source-first bounded 2s C0 query gate"
           for try in 1 2 3 4 5 6 7 8; do
