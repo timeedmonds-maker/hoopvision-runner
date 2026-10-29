@@ -91,9 +91,12 @@ jobs:
                 'official_nba_lineup':sha_l,'nba_source_field_episodes':sha_e,
                 'official_nba_pbp':sha_p}
             report=game_dir/(gid+'.json')
-            assert not report.exists()
             raw=(json.dumps(doc,indent=2,sort_keys=True)+'\n').encode()
-            report.write_bytes(raw)
+            if report.exists():
+                if report.read_bytes()!=raw:
+                    raise ValueError('EXISTING_NATIVE_WINDOW_SOURCE_MISMATCH:'+gid)
+            else:
+                report.write_bytes(raw)
             result['games'][gid]={
                'path':'games/'+gid+'.json','sha256':hashlib.sha256(raw).hexdigest(),
                'candidate_episodes':doc['nba_source_field_episodes_with_native_window_candidates'],
@@ -119,7 +122,13 @@ jobs:
           assert totals['shadow_additional_candidate_clock_ms']==2319100
           assert len(result['games'])==28
           result['totals']=totals
-          (dst/'index.json').write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
+          index_path=dst/'index.json'
+          index_bytes=(json.dumps(result,indent=2,sort_keys=True)+'\n').encode()
+          if index_path.exists():
+              if index_path.read_bytes()!=index_bytes:
+                  raise ValueError('EXISTING_NATIVE_WINDOW_INDEX_MISMATCH')
+          else:
+              index_path.write_bytes(index_bytes)
           print('PRIVATE_NBA_NATIVE_EVENT_EXTRACTION_WINDOWS_ACCEPTED',json.dumps({
             'games':28,'source_episodes_with_windows':sum(x['candidate_episodes'] for x in result['games'].values()),
             'source_clock_windows':totals['qualifying_native_event_windows'],
@@ -135,6 +144,10 @@ jobs:
           git config user.email "gamepulse-runner@users.noreply.github.com"
           git add gamepulse/fusion/materialized/native_episode_windows_v2_pr776_20261026/
           git diff --cached --check
-          git commit -qm "data(gamepulse): 28-game SHA-linked strict and shadow NBA native extraction windows"
-          git push -q origin "HEAD:$BRANCH"
-          echo PRIVATE_ORIGINAL_CLOCK_WINDOW_INDEX_COMMITTED
+          if git diff --cached --quiet; then
+            echo PRIVATE_ORIGINAL_CLOCK_WINDOW_INDEX_ALREADY_SHA_VERIFIED
+          else
+            git commit -qm "data(gamepulse): 28-game SHA-linked strict and shadow NBA native extraction windows"
+            git push -q origin "HEAD:$BRANCH"
+            echo PRIVATE_ORIGINAL_CLOCK_WINDOW_INDEX_COMMITTED
+          fi
