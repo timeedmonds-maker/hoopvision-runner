@@ -53,3 +53,35 @@ jobs:
           assert not absent['physical_event_time_certified']
           print('IGP_ORIGINAL_54_CLOCK_QUERY_SMOKE_PASSED')
           PY
+
+      - name: Diagnose concentrated source-clock conflicts without exposing original records
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import collections,gzip,json,statistics,hashlib
+          from pathlib import Path
+          root=Path('gamepulse/fusion')
+          qa=json.loads((root/'qa/igp_progress_20261029/igp_companion_pbp_clock_grades_v1.json').read_bytes())
+          for gid in ('0022600102','0022600009','0022600099'):
+              g=qa['games'][gid]; raw=Path(g['path']).read_bytes()
+              assert hashlib.sha256(raw).hexdigest()==g['source_sha256']
+              rows=[json.loads(s) for s in gzip.decompress(raw).splitlines() if s]
+              bad=[x for x in rows if x['companion']['grade']=='CONFLICT_GT_3S']
+              assert len(bad)==g['grades']['CONFLICT_GT_3S']
+              periods=collections.Counter(x['period'] for x in bad)
+              sources=collections.Counter(x['companion']['time_event_array_index'] for x in bad)
+              differences=[x['companion']['clock_difference_ms']/1000 for x in bad]
+              lags=[x['companion']['source_minus_pbp_utc_ms'] for x in bad]
+              print('IGP_CLOCK_CONFLICT_REAL_SOURCE_DIAGNOSTIC',json.dumps({
+                'game':gid,'major_conflicts':len(bad),
+                'by_period':dict(periods),
+                'distinct_original_clock_anchors':len(sources),
+                'most_reused_anchor_action_count':max(sources.values(),default=0),
+                'signed_clock_difference_seconds_median':statistics.median(differences) if differences else None,
+                'signed_clock_difference_seconds_min':min(differences,default=None),
+                'signed_clock_difference_seconds_max':max(differences,default=None),
+                'absolute_companion_to_PBP_UTC_lag_ms_median':statistics.median(map(abs,lags)) if lags else None
+              },sort_keys=True))
+          PY
