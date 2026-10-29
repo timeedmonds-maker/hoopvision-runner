@@ -15,14 +15,15 @@ const start=Date.parse(process.env.NBA_TIPOFF_UTC||'');
 const dir=process.env.IGP_PRIVATE_CAPTURE_DIR;
 const initTimeoutMs=Math.max(5000,Math.min(45000,Number(process.env.IGP_SDK_INIT_TIMEOUT_MS||16000)));
 if(!/^00226\d{5}$/.test(gid)||!Number.isFinite(start)||!dir)throw Error('invalid_companion_probe_scope');
-const programId='companion-'+gid, origin='nba-cdn.cloud.easelive.tv';
+const sourceVariant=process.env.IGP_SDK_SOURCE_VARIANT==='positions'?'positions':'events';
+const programId='companion-'+gid+(sourceVariant==='positions'?'-positions':''), origin='nba-cdn.cloud.easelive.tv';
 const sourceDir=mkdtempSync(join(tmpdir(),'igp-licensed-companion-'));
 let browser,server;
 function chrome(){for(const n of ['google-chrome','google-chrome-stable','chromium']){
  try{return execFileSync('which',[n],{encoding:'utf8'}).trim()}catch{}
 }throw Error('chromium_missing')}
 const result={schema:'igp.licensed-sdk-companion-source-readback.v1',
- game_id:gid, sdk_client:'@ease-live/ease-live-bridge-web',source_mode:'SDK_INITIALIZED_CLIENT_NO_URL_REPLAY',
+ game_id:gid, app_program_variant:sourceVariant, sdk_client:'@ease-live/ease-live-bridge-web',source_mode:'SDK_INITIALIZED_CLIENT_NO_URL_REPLAY',
  status:'NOT_AVAILABLE',initialization_result:null,initialization_timeout_ms:initTimeoutMs,
  first_party_http_status_counts:{},first_party_program_http_status_counts:{},
  observed_200_event_responses:0,
