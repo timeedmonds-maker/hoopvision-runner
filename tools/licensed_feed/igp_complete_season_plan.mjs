@@ -1,20 +1,34 @@
 // NBA-only schedule/control metadata. No licensed player XYZ or raw app records leave private 104.
 import {appendFileSync} from 'node:fs';
+import {execFileSync} from 'node:child_process';
 const TOKEN=process.env.GH_TOKEN;
 const NOW=Date.now();
 const MAX=6;
-if(!TOKEN || !process.env.GITHUB_OUTPUT)throw Error('PRIVATE_TOKEN_OR_OUTPUT_MISSING');
-async function get(url,privateRead=false){
-  const res=await fetch(url,{headers:privateRead?{
-    Authorization:'Bearer '+TOKEN,Accept:'application/vnd.github+json',
-    'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
-    'Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/', 'Origin':'https://www.nba.com', 'Accept-Language':'en-US,en;q=0.9'}:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-      'Accept':'application/json, text/plain, */*',
-      'Referer':'https://www.nba.com/','Origin':'https://www.nba.com',
-      'Accept-Language':'en-US,en;q=0.9'},
-    signal:AbortSignal.timeout(30000)});
-  if(res.status===404)return null;
-  if(!res.ok)throw Error('NBA_OR_PRIVATE_STATUS_'+res.status);
+if(!TOKEN || !process.env.GITHUB_OUTPUTasync function get(url,privateRead=false){
+ if(privateRead){
+   const u=new URL(url);
+   if(u.hostname!=='api.github.com'||!u.pathname.startsWith('/repos/timeedmonds-maker/104/'))
+      throw Error('PRIVATE_GITHUB_ENDPOINT_NOT_ALLOWLISTED');
+   try{
+     const raw=execFileSync('gh',['api',u.pathname+u.search],{
+       encoding:'utf8',timeout:30000,maxBuffer:16*1024*1024,env:process.env});
+     return JSON.parse(raw);
+   }catch(error){
+     const stderr=String(error.stderr||'');
+     if(/HTTP 404|status 404|Not Found/.test(stderr))return null;
+     throw Error('PRIVATE_GITHUB_AUTH_OR_SOURCE_UNAVAILABLE');
+   }
+ }
+ const res=await fetch(url,{headers:{
+   'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+   'Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/',
+   'Origin':'https://www.nba.com','Accept-Language':'en-US,en;q=0.9'},
+   signal:AbortSignal.timeout(12000)});
+ if(res.status===404)return null;
+ if(!res.ok)throw Error('NBA_PUBLIC_STATUS_'+res.status);
+ return res.json();
+}
+ATE_STATUS_'+res.status);
   return res.json();
 }
 async function privateFile(path){
