@@ -1,5 +1,5 @@
 name: "IGP native possession search product source QA"
-# Rerun with concurrent workflow allowlist synchronized and private-source guard
+# Corrected 56-game source manifest fixture: 55 other games plus game under test
 on:
   push:
     branches: [main]
