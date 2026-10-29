@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     env:
-      PROJECT_ID: project-d88c48c6-7f48-4c33-928
+      PROJECT_ID: ${{ secrets.HOOPVISION_GCP_PROJECT_ID }}
       REGION: asia-southeast1
       JOB: hoopvision-blackwell-release-worker
     steps:
@@ -23,11 +23,12 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           echo GPU_READ_ONLY_PREFLIGHT_NO_EXECUTION
+          test -n "$PROJECT_ID" || { echo GPU_WIF_PUBLIC_RUNNER_NOT_CONFIGURED; exit 4; }
       - name: Authenticate using existing HoopVision Google workload identity
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-104
-          service_account: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+          workload_identity_provider: ${{ secrets.HOOPVISION_GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.HOOPVISION_GCP_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v2
       - name: Prove readable pre-existing canonical Blackwell job; never launch GPU
         run: |
