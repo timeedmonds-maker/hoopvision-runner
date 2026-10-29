@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-0138-official-substitution-ten-v3.yml",  # Private NBA PBP starter substitution clock replay on 206 0138 possessions; withheld official ten QA
     ".github/workflows/gamepulse-igp-0138-possession-lineup-recovery-v2.yml",  # Private exact-ten source majority and no-substitute neighbor recovery for remaining 0138 PBP chains
     ".github/workflows/gamepulse-igp-0138-official-ten-possession.yml",  # SHA-verified full-game official NBA starters/substitution ten by logical possession private-only
     ".github/workflows/gamepulse-igp-0138-native-scene-holdout.yml",  # Source-locked 0138 whole-game provisional ten-player reconstruction/holdout private only
