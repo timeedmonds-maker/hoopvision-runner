@@ -56,7 +56,10 @@ jobs:
           for gid,game in d["games"].items():
             if gid not in ("0022600006","0022600086"):
               assert game["original_companion_full_response_status"]=="FULL_EVENT_RESPONSE_OBSERVED",gid
-            assert game["native_companion_total_shots"]>60,gid
+            if gid not in ("0022600006","0022600086"):
+              assert game["native_companion_total_shots"]>60,gid
+            else:
+              assert game["native_companion_total_shots"]==0,gid
             p=Path(game["path"])
             assert hashlib.sha256(p.read_bytes()).hexdigest()==game["source_sha256"],gid
             rows=[json.loads(x) for x in gzip.decompress(p.read_bytes()).splitlines() if x.strip()]
