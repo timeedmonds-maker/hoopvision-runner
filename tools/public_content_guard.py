@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-all56-companion-app-packages-and-bio-v2.yml",  # source-verified private 56-game full app packages plus precise shot-feature join; only QA aggregates public
     ".github/workflows/gamepulse-igp-companion-two-sdk-availability-repair.yml",  # retry two verified timeout source SDK sessions, original data private
     ".github/workflows/gamepulse-igp-all56-advanced-source-biomechanics-acceptance.yml",  # full56 private SDK source shot identity join, no licensed public records
     ".github/workflows/gamepulse-igp-advanced-original-shots-v2-smoke.yml",  # private source-identity test, aggregate count only
