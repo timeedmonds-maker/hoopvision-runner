@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-68-native-scene-query-readback.yml",  # source-only original player/ball SHA private query QA with aggregate-only public output
     ".github/workflows/gamepulse-igp-68-native-low-rate-recovery.yml",  # source-only 11-game original SDK archive recovery; private SHA data only, no public XYZ
     ".github/workflows/gamepulse-igp-native-scene-season68-benchmark.yml",  # SHA-private 68-index and 57-original-game source-only aggregate QA, no licensed XYZ publicly
     ".github/workflows/gamepulse-igp-0138-native-scene-model.yml",  # reviewed private-only SHA-pinned 0138 holdout; public logs aggregate-only
