@@ -60,14 +60,16 @@ jobs:
           games=sorted(index["per_game_model"])
           assert len(games)==56 and set(games)==set(old["games"])|set(new["games"])
           assert not set(old["games"])&set(new["games"])
-          qa={"schema":"igp.full56.original-native-PBP-action-shot-1hz-model-query-real-source-QA.v2",
+          qa={"schema":"igp.full56.original-native-PBP-action-shot-1hz-model-query-with-official-ten-QA.v3",
               "canonical_56_game_count":56,"frozen_G4_games":36,"new_G4_games":20,
               "frozen_native_original_frames":old["counts"]["nba_original_source_frames"],
               "new_native_original_frames":new["counts"]["nba_original_source_frames"],
               "games":{}, "physical_possessions_certified":0,
               "source_XYZ_not_copied_to_public":True,
               "G4_NBA_logged_UTC_and_player_identity_explicitly_provisional":True}
-          route_count={};latency=[];model_status={}
+          route_count={};latency=[];model_status={};grade_probes=0;dispute_probes=0
+          import gzip
+          source_ten=Path("gamepulse/fusion/materialized/igp_g4_post36_official_ten_evidence_v1")
           for gid in games:
             b,sha=(old_reader(root,gid) if gid in old["games"] else new_reader(root,gid))
             candidates=[(cid,chain) for cid,chain in sorted(b["nba_canonical_logical_chains"].items())
@@ -91,6 +93,30 @@ jobs:
             assert x["official_actions_with_source_shot_features"][0]["coarse_1Hz_action_tracking_is_not_exact_physical_action_instant"]
             assert native["NBA_logical_chain"]["official_action_ids"]==chain["official_action_ids"]
             assert native["returned_frames"][0]["original_native_UTC_ms"]==b["native_frames"][chain["native_logged_frame_ordinals"][0]][0]
+            if gid in new["games"]:
+              assert native["NBA_official_ten_evidence_attached"],gid
+              assert all("NBA_official_ten_source_ID_match_grade" in z
+                         for z in native["returned_frames"])
+              rows=json.loads(gzip.decompress(
+                (source_ten/(gid+".json.gz")).read_bytes()))["graded_native_source_ordinals"]
+              strict=next((row for row in rows if row[2]=="DIRECT_EXACT_OFFICIAL_TEN"),None)
+              assert strict is not None,("NO_DIRECT_EXACT_TEN_SOURCE",gid)
+              source_t=b["native_frames"][strict[0]][0]
+              direct=query(root,gid,start=source_t,end=source_t,limit=1,
+                           action_limit=1,include_original_xyz=True)
+              frame=direct["native"]["returned_frames"][0]
+              assert frame["NBA_official_ten_source_ID_match_grade"]=="DIRECT_EXACT_OFFICIAL_TEN"
+              assert set(frame["source_players"])==set(frame["NBA_official_ten_candidate"])
+              assert not frame["NBA_exact_physical_possession_custody_certified"]
+              grade_probes+=1
+              dispute=next((row for row in rows if row[2]=="SOURCE_ACTOR_DISPUTED"),None)
+              if dispute:
+                disputed_t=b["native_frames"][dispute[0]][0]
+                uncertain=query(root,gid,start=disputed_t,end=disputed_t,
+                                limit=1,include_original_xyz=True)["native"]["returned_frames"][0]
+                assert uncertain["NBA_official_ten_source_ID_match_grade"]=="SOURCE_ACTOR_DISPUTED"
+                assert uncertain["source_actor_nonofficial_extra_count"]>0
+                dispute_probes+=1
             route=x["native_PBP_join_route"]
             route_count[route]=route_count.get(route,0)+1
             qa["games"][gid]={"native_original_frames":len(b["native_frames"]),
@@ -103,6 +129,9 @@ jobs:
                  "NBA_physical_custody_certified":False}
           assert route_count=={"G4_NATIVE_PBP_LOGICAL_CHAIN_INDEX":36,
                                "G4_POST36_NATIVE_PBP_LOGICAL_CHAIN_INDEX":20},route_count
+          assert grade_probes==20 and dispute_probes>=15,(grade_probes,dispute_probes)
+          qa["post36_source_exact_official_ten_readback_games"]=grade_probes
+          qa["post36_source_actor_dispute_readback_games"]=dispute_probes
           assert qa["frozen_native_original_frames"]+qa["new_native_original_frames"]==1878131
           assert sum(z["nba_logical_chains"] for z in qa["games"].values())==11550
           qa["total_original_native_timestamps_indexed"]=1878131
@@ -114,8 +143,8 @@ jobs:
           qa["query_latency_ms_sample"]={"n":len(latency),
              "median":round(statistics.median(latency),3),
              "p95":sorted(latency)[int(.95*(len(latency)-1))]}
-          path=Path("gamepulse/fusion/qa/igp_progress_20261029/igp_G4_all56_original_native_possession_product_readback_v2.json")
-          if path.exists():raise FileExistsError("DO_NOT_OVERWRITE_56_GAME_PRODUCT_QA_V2")
+          path=Path("gamepulse/fusion/qa/igp_progress_20261029/igp_G4_all56_original_native_possession_product_readback_v3.json")
+          if path.exists():raise FileExistsError("DO_NOT_OVERWRITE_56_GAME_PRODUCT_QA_V3")
           path.parent.mkdir(parents=True,exist_ok=True)
           path.write_text(json.dumps(qa,sort_keys=True,indent=2)+"\n")
           print("IGP_ALL56_REAL_SOURCE_NATIVE_PBP_ACTION_SHOT_QUERY_ACCEPTED",
@@ -128,9 +157,9 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f gamepulse/fusion/qa/igp_progress_20261029/igp_G4_all56_original_native_possession_product_readback_v2.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261029/igp_G4_all56_original_native_possession_product_readback_v3.json
           git diff --cached --check
-          git commit -q -m "qa(igp): full56 original-native NBA PBP action-shot and coarse 1Hz tracking query acceptance v2"
+          git commit -q -m "qa(igp): full56 original-native NBA PBP action-shot and coarse 1Hz tracking plus direct official-ten and disputed actor QA v3"
           for attempt in 1 2 3 4 5 6 7 8; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
