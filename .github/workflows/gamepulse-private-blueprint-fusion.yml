@@ -305,8 +305,12 @@ jobs:
                   verified_ids=catalog_ids.intersection(rows)
                   missing_from_this_index=sorted(catalog_ids.difference(rows))
                   assert verified_ids,"OFFICIAL_NBA_SOURCE_NO_CATALOG_OVERLAP"
+                  # Some accepted historical PBP index entries do not carry
+                  # a separate boxscore digest. Require the original PBP SHA,
+                  # and validate the boxscore SHA only when one is published.
                   assert all(len(rows[gid].get("source_pbp_sha256",""))==64 and
-                             len(rows[gid].get("source_boxscore_sha256",""))==64 and
+                             (not rows[gid].get("source_boxscore_sha256") or
+                              len(rows[gid]["source_boxscore_sha256"])==64) and
                              rows[gid].get("action_records",0)>=300 and
                              rows[gid].get("official_final")
                              for gid in verified_ids), "OFFICIAL_NBA_SOURCE_GRADE_DRIFT"
