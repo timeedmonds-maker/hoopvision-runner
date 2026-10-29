@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-0138-fullgame-recovery.yml",  # Narrow reviewed private NBA original source 0138 recovery; aggregate-only public output
     ".github/workflows/gamepulse-pr776-raised-hand-defender-jump-all56.yml",  # SHA-private 56-game shot height/jump descriptive analysis; aggregate QA only
     ".github/workflows/freeview-amen732-sixview-gaussian-model-input-preflight.yml",  # only private source input artifacts, public stage/status counts
     "tools/amen732_genuine_sixview_gaussian_preflight.py",  # six locked original source SHA, no public licensed image pixels
