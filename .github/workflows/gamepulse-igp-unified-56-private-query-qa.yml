@@ -35,7 +35,8 @@ jobs:
           python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600129 --action-number 790 --omit-positions > "$RUNNER_TEMP/shot.json"
           python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600129 --period 1 --clock-second 701 > "$RUNNER_TEMP/new.json"
           python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600009 --period 1 --clock-second 701 > "$RUNNER_TEMP/oldmodel.json"
-          python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600130 --period 1 --clock-second 600 > "$RUNNER_TEMP/absent.json"
+          python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600130 --period 1 --clock-second 600 > "$RUNNER_TEMP/recovered0130.json"
+          python3 gamepulse/fusion/query_igp_unified_2026_27_season_v1.py --game-id 0022600131 --period 4 --clock-second 100 > "$RUNNER_TEMP/late0131.json"
           python3 - <<'PY'
           import os,json
           from pathlib import Path
@@ -44,7 +45,8 @@ jobs:
           shot=json.loads((p/"shot.json").read_bytes())
           new=json.loads((p/"new.json").read_bytes())
           prior=json.loads((p/"oldmodel.json").read_bytes())
-          missing=json.loads((p/"absent.json").read_bytes())
+          recovered=json.loads((p/"recovered0130.json").read_bytes())
+          late=json.loads((p/"late0131.json").read_bytes())
           assert old["source_status"]=="PRESERVED_ACCEPTED_36_MODEL"
           assert old["full_companion_shot_source"]["status"]=="IDENTITY_MATCHED_PROVISIONAL_TIME_CHAIN"
           assert len(old["full_companion_shot_source"]["shot_details"]["source_features"])==30
@@ -56,15 +58,20 @@ jobs:
           assert new["model_tracking"]["status"]=="SAMPLED_MODEL"
           assert prior["model_tracking"]["status"] in (
               "SAMPLED_MODEL","NO_UNAMBIGUOUS_ELIGIBLE_GAMECLOCK_SAMPLE")
-          assert missing["model_tracking"]["status"]=="ORIGINAL_XYZ_SOURCE_UNRECOVERED"
-          assert shot["complete_ten_ball_56_coverage_pct"]==88.6084
+          assert recovered["model_tracking"]["status"]=="SAMPLED_MODEL"
+          assert late["model_tracking"]["status"]=="SAMPLED_MODEL"
+          assert recovered["original_archive_parts_verified"]==7
+          assert late["original_archive_parts_verified"]==8
+          assert late["observed_source_covers_recorded_game_end"] is True
+          assert shot["complete_ten_ball_56_coverage_pct"]==91.8301
           assert not old["physical_custody_certified"]
           print("IGP_PRIVATE_UNIFIED_SOURCE_QUERY_ACCEPTED",json.dumps({
-              "games_total":56,"source_xyz_games":54,
+              "games_total":56,"source_xyz_games":56,
               "new_model_lookup":new["model_tracking"]["status"],
               "historic_model_lookup":prior["model_tracking"]["status"],
               "new_shot_identity":shot["shot_source"]["status"],
-              "missing_game_preserved":missing["model_tracking"]["status"],
+              "recovered_0130":recovered["model_tracking"]["status"],
+              "late_0131":late["model_tracking"]["status"],
               "all56_1hz_completeness_pct":shot["complete_ten_ball_56_coverage_pct"]},
               sort_keys=True))
           PY
