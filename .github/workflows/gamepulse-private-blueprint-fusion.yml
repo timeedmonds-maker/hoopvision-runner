@@ -42,6 +42,7 @@ jobs:
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/catalog/2026-27-auto-refresh-provisional.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season36-catalog.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/index/index.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season36-existing.json"
           gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/tracking_onoff/index.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season-onoff-existing.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/fusion/status.json?ref=main' --jq .content | base64 -d > "$RUNNER_TEMP/season-fusion-status.json"
           python3 - <<'PY'
           import json,os
           from pathlib import Path
@@ -49,6 +50,7 @@ jobs:
           cat=json.loads((root/"season36-catalog.json").read_text())
           old=json.loads((root/"season36-existing.json").read_text())
           onoff=json.loads((root/"season-onoff-existing.json").read_text())
+          status=json.loads((root/"season-fusion-status.json").read_text())
           expected=set(["0022600104","0022600105","0022600106","0022600107","0022600108","0022600109","0022600110","0022600111"])
           assert cat["season"]=="2026-27" and cat["game_count"]==len(cat["games"]) and cat["game_count"]>=36
           assert expected.issubset(cat["games"])
@@ -57,11 +59,15 @@ jobs:
           assert set(old["games"]).issubset(cat["games"]) and len(old["games"])>=28, "EXISTING_INDEX_NOT_PRESERVED"
           assert onoff["schema"]=="gamepulse.2026-27-onoff-ppp.v1"
           assert set(onoff["games"]).issubset(cat["games"]), "ONOFF_INDEX_CONTAINS_UNVERIFIED_GAME"
-          # Do not silently skip 43-game rebuilding while a downstream private
-          # tracking ON/OFF index remains stuck at the old 36-game snapshot.
+          # The status pointer is a separate published private search surface.
+          # An earlier run can publish valid indexes but fail before updating it.
+          # Rebuild idempotently until this pointer also reflects the catalog.
+          assert status.get("schema")=="gamepulse.fusion-search-status.v1"
           complete=(set(old["games"])==set(cat["games"])
-                    and set(onoff["games"])==set(cat["games"]))
-          print("PRIVATE_SOURCE_GATE_PASSED",len(old["games"]),"search",len(onoff["games"]),"onoff",len(cat["games"]),"verified", "complete",complete)
+                    and set(onoff["games"])==set(cat["games"])
+                    and status.get("games")==cat["game_count"]
+                    and status.get("blueprint_games")==cat["game_count"])
+          print("PRIVATE_SOURCE_GATE_PASSED",len(old["games"]),"search",len(onoff["games"]),"onoff",len(cat["games"]),"verified","status",status.get("games"),"complete",complete)
           with open(os.environ["GITHUB_OUTPUT"],"a") as handle:
               handle.write("needed="+("false" if complete else "true")+"\n")
           PY
