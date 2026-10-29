@@ -58,6 +58,15 @@ jobs:
           print('IGP_GAP4_NBA_ORIGINAL_XY_EVENT_PROXIES_QA_PASS',
                 d['totals']['official_field_goal_attempts'],
                 d['totals']['direct_shooter_event_frames'])
+          from query_igp_unified_2026_27_season_v1 import query
+          for gid in expected:
+              official=json.loads(Path(f'gamepulse/fusion/official_pbp_timing/games/{gid}.json').read_bytes())
+              a=next(x for x in official['actions'] if x['action_type'] in ('2pt','3pt'))
+              result=query('.',gid,action_number=a['nba_action_number'],include_positions=False)
+              proxy=result['shot_event_original_xyz_geometry_context']
+              assert proxy['status']=='ORIGINAL_XYZ_AT_OFFICIAL_EVENT_TIME_NOT_SHOT_RELEASE'
+              assert proxy['source_geometry']['nba_person_id']==a['person_id']
+          print('IGP_GAP4_ALL_FOUR_CANONICAL_68_GAME_QUERY_READBACK_PASS')
           PY
       - name: Persist only private source-graded shot event geometry; leave 68 original/source ledgers immutable
         shell: bash
