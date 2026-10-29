@@ -1,4 +1,5 @@
 name: PR776 free CPU all56 defender mechanics 3PT and midrange
+# Audited, allowlisted, aggregate-only private analysis; canonical data never published here.
 on:
   push:
     branches: [main]
