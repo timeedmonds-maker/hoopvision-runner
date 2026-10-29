@@ -53,7 +53,6 @@ jobs:
             --root . --output gamepulse/fusion/qa/igp_progress_20261030/igp_68_official_ten_scene_possession_ab_v3.json \
             > "$RUNNER_TEMP/official-private.log" 2>&1 || {
               echo IGP_68_OFFICIAL_V3_FAILED_PRIVATE_DIAGNOSTIC
-              tail -n 15 "$RUNNER_TEMP/official-private.log" | sed -E 's/[0-9]{10,}/[PRIVATE_NUMBER]/g'
               exit 21
             }
           tail -n 1 "$RUNNER_TEMP/official-private.log"
@@ -61,7 +60,6 @@ jobs:
             --root . --output gamepulse/fusion/qa/igp_progress_20261030/igp_68_continuous_scene_full_qa_v1.json \
             > "$RUNNER_TEMP/continuous-private.log" 2>&1 || {
               echo IGP_68_CONTINUOUS_QA_FAILED_PRIVATE_DIAGNOSTIC
-              tail -n 15 "$RUNNER_TEMP/continuous-private.log" | sed -E 's/[0-9]{10,}/[PRIVATE_NUMBER]/g'
               exit 22
             }
           tail -n 1 "$RUNNER_TEMP/continuous-private.log"
