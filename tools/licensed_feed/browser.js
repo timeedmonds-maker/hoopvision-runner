@@ -1,7 +1,7 @@
 import EaseLive from '@ease-live/ease-live-bridge-web';
 let client;
 window.ephemeralFeed = {
-  initialize: ({accountId,programId}) => new Promise(resolve => {
+  initialize: ({accountId,programId,timeoutMs=16000}) => new Promise(resolve => {
     let settled = false;
     const done = value => {if (!settled) {settled = true; resolve(value);}};
     try {
@@ -14,7 +14,7 @@ window.ephemeralFeed = {
         client.on(name, () => done('error'));
       }
       client.init();
-      setTimeout(() => done('timeout'), 16000);
+      setTimeout(() => done('timeout'), Math.min(45000, Math.max(5000, timeoutMs)));
     } catch (_) {done('error');}
   }),
   seek: ms => {
