@@ -88,3 +88,5 @@ jobs:
 # Re-execute source-free and original NBA native action query after lazy optional sidecar import fix.
 
 # Repeat 56-game legacy-schema-compatible original source actor/clock integration QA.
+
+# Rerun original NBA source continuity QA after unit-test correction.
