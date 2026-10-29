@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      PINNED_PRIVATE_SHA: 5052e6cccba11da0abc46f6e0f3803d8b810bab7
+      PINNED_PRIVATE_SHA: eea9482865176d21d6ff09ed5a5569479c421eac
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -52,6 +52,9 @@ jobs:
           assert actual['heldout']['n'] >= 7 and actual['heldout']['p95_px'] < 5
           print('IGP_0138_VIDEO_APP_HELDOUT_PIXEL_QA',actual['heldout']['n'],actual['heldout']['p95_px'])
           PY
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_native_scene_model_v2.py'
+          python3 gamepulse/fusion/igp_0138_native_scene_v2_ball_qa.py --root . \
+            --output gamepulse/fusion/qa/igp_progress_20261030/igp_0138_native_scene_v2_ball_qa.json
           python3 gamepulse/fusion/igp_0138_native_scene_holdout_20261030.py --root .
       - name: Verify no source loss and retain candidate only in private branch
         shell: bash
@@ -75,6 +78,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_0138_native_scene_holdout_v1.json \
+            gamepulse/fusion/qa/igp_progress_20261030/igp_0138_native_scene_v2_ball_qa.json \
             gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/native_scene_additive/0022600138/full_native_candidate_scene_800ms.jsonl.gz
           git diff --cached --check
           git commit -q -m 'research(igp): SHA-backed 0138 native scene and masked ten-ball holdout'
