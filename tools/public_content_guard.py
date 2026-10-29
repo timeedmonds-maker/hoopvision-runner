@@ -12,7 +12,8 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-igp-native-scene-batch-qa.yml",  # private SHA original XYZ 480-frame readback; public aggregate only
     ".github/workflows/gamepulse-igp-native-scene-side-limit57.yml",  # private SHA 57-game source-proxy short-gap comparison; aggregate output only
     ".github/workflows/gamepulse-igp-68-native-scene-query-readback.yml",  # source-only original player/ball SHA private query QA with aggregate-only public output
-    ".github/workflows/gamepulse-igp-oct28-existing-13parts-materialize.yml",  # reviewed SHA-native-only 0136/0137 private 13part source materialization, no public XYZ\n    ".github/workflows/gamepulse-igp-68-native-low-rate-recovery.yml",  # source-only 11-game original SDK archive recovery; private SHA data only, no public XYZ
+    ".github/workflows/gamepulse-igp-oct28-existing-13parts-materialize.yml",  # reviewed SHA-native-only 0136/0137 private 13part source materialization, no public XYZ
+    ".github/workflows/gamepulse-igp-68-native-low-rate-recovery.yml",  # source-only 11-game original SDK archive recovery; private SHA data only, no public XYZ
     ".github/workflows/gamepulse-igp-native-scene-season68-benchmark.yml",  # SHA-private 68-index and 57-original-game source-only aggregate QA, no licensed XYZ publicly
     ".github/workflows/gamepulse-igp-0138-native-scene-model.yml",  # reviewed private-only SHA-pinned 0138 holdout; public logs aggregate-only
     ".github/workflows/gamepulse-integrated-autocapture.yml",  # automated original NBA game-to-private-SHA canonical integration; public metadata counts only
