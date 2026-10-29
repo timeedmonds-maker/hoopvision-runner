@@ -25,6 +25,7 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           python3 -m pip install -q --disable-pip-version-check 'numpy<2' 'opencv-python-headless==4.10.0.84'
+          python3 -m py_compile tools/amen732_archive_fresh_visual_correspondences.py
           python3 tools/amen732_archive_fresh_visual_correspondences.py --selftest
       - name: Acquire six distinct current official NBA camera videos from original streams
         run: |
