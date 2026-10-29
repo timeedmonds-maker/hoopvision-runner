@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-68-continuous-possession-readback.yml",  # SHA-pinned private 68-game PBP readback; public aggregate status only
     ".github/workflows/gamepulse-igp-68-continuous-scene-v1.yml",  # SHA-pinned private 68-game source reconstruction; public aggregate counts only
     ".github/workflows/gamepulse-igp-close4-defender-xfg-68-current.yml",  # SHA-only private 68-game NBA source defender ranking, public aggregate results
     ".github/workflows/gamepulse-igp-gap4-xyz-shot-geometry.yml",  # private SHA-verified original-player geometry at NBA shot-event UTC; aggregate-only public QA
