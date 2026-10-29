@@ -56,7 +56,10 @@ jobs:
             -p 'test_igp_post36_original_time_NBA_event_anchor_index_v1.py'
           python3 -m py_compile gamepulse/fusion/igp_post36_original_time_action_context_unified_query_qa_v1.py
           python3 -m py_compile gamepulse/fusion/igp_all56_source_actor_identity_clock_full_query_regression_v1.py
-          python3 gamepulse/fusion/igp_all56_source_actor_identity_clock_full_query_regression_v1.py --root .
+          python3 -m py_compile gamepulse/fusion/igp_post36_missing_official_actor_continuity_holdout_v1.py
+          python3 -m unittest discover -v -s gamepulse/fusion \
+            -p 'test_igp_post36_missing_official_actor_continuity_holdout_v1.py'
+          python3 gamepulse/fusion/igp_post36_missing_official_actor_continuity_holdout_v1.py --root .
       - name: Preserve passed QA only in the private canonical PR branch
         shell: bash
         run: |
@@ -64,9 +67,9 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f gamepulse/fusion/qa/igp_progress_20261029/igp_all56_actor_conflict_clock_native_pbp_shot_1hz_regression_v1.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261029/igp_post36_missing_official_actor_original_XYZ_continuity_masked_holdout_v1.json
           git diff --cached --check
-          git commit -q -m "qa(igp): full56 source+player ID+clock+PBP+shot+1Hz original SHA regression"
+          git commit -q -m "qa(igp): true NBA missing source ID continuity and masked original XY holdout"
           for attempt in 1 2 3 4 5 6 7 8; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
