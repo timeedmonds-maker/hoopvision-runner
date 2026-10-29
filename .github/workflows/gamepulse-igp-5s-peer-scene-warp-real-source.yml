@@ -1,5 +1,5 @@
 name: "IGP five-second masked original NBA player and peer scene warp QA"
-# Recheck source scene centroid: three-of-four accepted, three-of-five abstains
+# Recheck real-source 5s run after count variable fix; private aggregate only
 on:
   push:
     branches: [main]
