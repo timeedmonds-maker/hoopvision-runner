@@ -3,7 +3,7 @@ import {appendFileSync,readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 const TOKEN=process.env.GH_TOKEN;
 const NOW=Date.now();
-const MAX=6;
+const MAX=3;
 if(!TOKEN || !process.env.GITHUB_OUTPUT)throw Error('PRIVATE_TOKEN_OR_OUTPUT_MISSING');
 async function get(url,privateRead=false){
  if(privateRead){
