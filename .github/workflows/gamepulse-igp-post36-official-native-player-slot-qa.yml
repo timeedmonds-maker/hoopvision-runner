@@ -79,3 +79,5 @@ jobs:
           exit 23
 
 # Reviewed exact-path allowlist; full source and coordinate records remain private.
+
+# Re-run after matching post36 original source games to the full56 official PBP manifest by subset.
