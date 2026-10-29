@@ -131,6 +131,30 @@ jobs:
           print('IGP_0129_IDENTITY_PROXY_QA_PASS',
                 q['counts']['source_frame_found'],q['counts']['selected_official_all10_frames'])
           PY
+      - name: Official-ten-conditioned native scene A/B on same 18 source times
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_0129_official_roster_native_scene_ab_v1.py
+          python3 gamepulse/fusion/igp_0129_official_roster_native_scene_ab_v1.py \
+            --root . \
+            --output gamepulse/fusion/qa/igp_progress_20261030/igp_0129_official_roster_conditioned_scene_ab_v1.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path('gamepulse/fusion/qa/igp_progress_20261030/igp_0129_official_roster_conditioned_scene_ab_v1.json').read_bytes())
+          s=q['summary']
+          assert s['annotated_official_actions']==18
+          assert s['conditioned_official_player_slots']>=s['unconstrained_official_player_slots']
+          assert s['conditioned_complete10']>=s['unconstrained_complete10']
+          assert s['conditioned_incorrect_exclusion']==0
+          assert q['physical_possessions_certified']==0
+          assert not q['official_PBP_action_UTC_to_source_time_independently_verified']
+          print('IGP_OFFICIAL_ROSTER_CONDITIONED_SOURCE_PROXY_QA',
+                s['unconstrained_complete10'],s['conditioned_complete10'])
+          PY
       - name: Persist accepted clip QA only to private canonical branch
         shell: bash
         run: |
@@ -138,6 +162,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           qa=gamepulse/fusion/qa/igp_progress_20261030/igp_0129_annotated_clip_official_qa_v1.json
           actor_qa=gamepulse/fusion/qa/igp_progress_20261030/igp_0129_clip_official_event_native_actor_probe_v1.json
+          ab_qa=gamepulse/fusion/qa/igp_progress_20261030/igp_0129_official_roster_conditioned_scene_ab_v1.json
           python3 - <<'PY'
           import json
           from pathlib import Path
@@ -150,13 +175,15 @@ jobs:
           PY
           cp "$qa" "$RUNNER_TEMP/igp0129-private-qa.json"
           cp "$actor_qa" "$RUNNER_TEMP/igp0129-native-id-qa.json"
+          cp "$ab_qa" "$RUNNER_TEMP/igp0129-conditioned-ab-qa.json"
           git fetch -q origin "$BRANCH"
           git checkout -q -B clip-qa-staging "origin/$BRANCH"
           cp "$RUNNER_TEMP/igp0129-private-qa.json" "$qa"
           cp "$RUNNER_TEMP/igp0129-native-id-qa.json" "$actor_qa"
+          cp "$RUNNER_TEMP/igp0129-conditioned-ab-qa.json" "$ab_qa"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$qa" "$actor_qa"
+          git add -f "$qa" "$actor_qa" "$ab_qa"
           git diff --cached --check
           if git diff --cached --quiet; then
             echo IGP_0129_CLIP_SHA_QA_ALREADY_ACCEPTED
