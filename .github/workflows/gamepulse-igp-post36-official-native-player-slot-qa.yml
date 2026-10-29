@@ -80,3 +80,5 @@ jobs:
 # Reviewed exact-path allowlist; full source and coordinate records remain private.
 
 # Re-run after matching post36 original source games to the full56 official PBP manifest by subset.
+
+# Re-execute source-free and original NBA native action query after lazy optional sidecar import fix.
