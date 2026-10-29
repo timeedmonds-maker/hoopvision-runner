@@ -1,4 +1,5 @@
 name: IGP targeted five missing Oct28 original XYZ recovery (SHA resume)
+# Reviewed public content guard entries restored; retry remaining source capture.
 # Re-dispatched after exact security guard allowlist addition.
 on:
   push:
