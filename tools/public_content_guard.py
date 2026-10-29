@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen732-blackwell-access-preflight.yml",  # no-cost IAM/read-only GPU route check; no NBA source input published
     ".github/workflows/freeview-amen732-archive-to-current-pixel-crosswalk.yml",  # source pixels private/ephemeral, camera-matching metrics public only
     "tools/amen732_archive_fresh_visual_correspondences.py",  # private original vs fresh pixel matching, never source media in public repo
     ".github/workflows/gamepulse-igp-post36-official-native-player-slot-qa.yml",  # reviewed: private 20-game original NBA source and frozen36 read-only verification; aggregate public logs only; no artifacts
