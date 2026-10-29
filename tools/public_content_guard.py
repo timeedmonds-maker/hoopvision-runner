@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-integrated-autocapture.yml",  # automated original NBA game-to-private-SHA canonical integration; public metadata counts only
+    "tools/licensed_feed/igp_complete_season_plan.mjs",  # official fixture-only dynamic season planner; private SHA catalog readback, no raw records
     ".github/workflows/gamepulse-igp-oct28-twelve-nba-logical-chains.yml",  # only private original NBA PBP logical chains and SHA index outputs
     ".github/workflows/gamepulse-igp-oct28-blueprint-12-rich-source.yml",  # public official NBA original rich Blueprint reports, committed only private
     ".github/workflows/gamepulse-igp-oct28-eleven-native-recovery.yml",  # authenticated 11-game private SDK native 13-part recovery and SHA acceptance only
