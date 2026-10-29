@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      PINNED_PRIVATE_SHA: d41d004807d1bc0d0f996b666e7f16170c6e0793
+      PINNED_PRIVATE_SHA: d64b2ad76d6b0cf5d0f988547af718c67de5414e
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -59,6 +59,18 @@ jobs:
           python3 gamepulse/fusion/igp_native_scene_crossgame_qa_v2.py --root . \
             --output gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_v2_two_other_games_qa.json
           python3 gamepulse/fusion/igp_0138_user_video_scene_join_v1.py --root .
+          python3 - <<'PY'
+          from pathlib import Path
+          from igp_0138_user_video_scene_join_v1 import query
+          sample=query(Path('.'),9000,11000,limit=100)
+          assert len(sample['rows'])==11
+          assert sample['rows'][0]['video_ms']==9000
+          assert sample['rows'][-1]['video_ms']==11000
+          entire=query(Path('.'),0,95800,limit=480)
+          assert len(entire['rows'])==480
+          assert entire['physical_possessions_certified']==0
+          print('IGP_0138_SHA_BOUNDED_CLIP_VIDEO_TIME_QUERY_PASS',len(sample['rows']),len(entire['rows']))
+          PY
       - name: Verify no source loss and retain candidate only in private branch
         shell: bash
         run: |
