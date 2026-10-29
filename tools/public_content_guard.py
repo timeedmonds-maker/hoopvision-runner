@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-0131-8part-original-merge.yml",  # 7 original SHA Release parts plus one original SHA private Git SDK, materialized private only
     ".github/workflows/gamepulse-igp-oct27-0131-late-original-direct-git.yml",  # original authenticated NBA 0131 late SDK window, SHA private commit only
     ".github/workflows/gamepulse-igp-unified-56-two-real-source-recovery-model.yml",  # two original seven-part SDK sources modeled privately, SHA preserved, aggregate counts public
     ".github/workflows/gamepulse-igp-oct27-seven-part-original-xyz-recovery.yml",  # authentic 7-part SHA private NBA original XYZ recovery only, public counts, never source positions
