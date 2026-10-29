@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-0129-user-clip-semantic-private-qa.yml",  # source SHA private clip/PBP QA; aggregate-only public logs
     ".github/workflows/gamepulse-igp-68-native-index-hourly.yml",  # scheduled private SHA original tracking and official NBA chain reindex, no public coordinates
     ".github/workflows/gamepulse-igp-68-native-index-refresh.yml",  # private accepted NBA 68-game original XYZ and per-possession source-index QA
     ".github/workflows/gamepulse-igp-native-scene-batch-qa.yml",  # private SHA original XYZ 480-frame readback; public aggregate only
