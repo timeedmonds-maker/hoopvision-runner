@@ -59,7 +59,8 @@ jobs:
           python3 -m py_compile gamepulse/fusion/igp_post36_missing_official_actor_continuity_holdout_v1.py
           python3 -m unittest discover -v -s gamepulse/fusion \
             -p 'test_igp_post36_missing_official_actor_continuity_holdout_v1.py'
-          python3 gamepulse/fusion/igp_post36_missing_official_actor_continuity_holdout_v2.py --root .
+          python3 -m unittest discover -v -s gamepulse/fusion -p 'test_igp_post36_bounded_original_player_xyz_v1.py'
+          python3 gamepulse/fusion/igp_post36_bounded_original_xyz_real_query_qa_v1.py --root .
       - name: Preserve passed QA only in the private canonical PR branch
         shell: bash
         run: |
@@ -67,7 +68,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f gamepulse/fusion/qa/igp_progress_20261029/igp_post36_missing_official_actor_original_XYZ_continuity_masked_holdout_v2.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261029/igp_post36_bounded_original_xyz_real20_query_qa_v1.json
           git diff --cached --check
           git commit -q -m "qa(igp): all missing actor source frames and masked original XYZ 3D holdout"
           for attempt in 1 2 3 4 5 6 7 8; do
