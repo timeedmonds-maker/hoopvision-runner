@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-six-shooter-lineup-dossier.yml",  # private original NBA app and official PBP source-verified identity discrepancy QA; aggregate public logs only
     ".github/workflows/gamepulse-igp-clock-grade-query-readback.yml",  # reviewed private SHA-only NBA clock/action readback and safe aggregate log; no licensed coordinates
     ".github/workflows/gamepulse-igp-54game-clock-lineup-crosscheck.yml",  # SHA-verifies 54 original NBA companion packages against official shots; private QA only, aggregate logs
     ".github/workflows/gamepulse-igp-companion-pbp-clock-agreement-v1.yml",  # private original NBA companion/PBP clock diagnostics only, no public licensed data
