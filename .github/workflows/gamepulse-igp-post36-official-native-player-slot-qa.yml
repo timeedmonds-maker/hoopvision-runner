@@ -60,7 +60,7 @@ jobs:
           python3 -m unittest discover -v -s gamepulse/fusion \
             -p 'test_igp_post36_missing_official_actor_continuity_holdout_v1.py'
           python3 -m unittest discover -v -s gamepulse/fusion -p 'test_igp_post36_bounded_original_player_xyz_v1.py'
-          python3 gamepulse/fusion/igp_all56_source_actor_identity_clock_full_query_regression_v2.py --root .
+          python3 gamepulse/fusion/igp_post36_bounded_original_xyz_full_native_census_v1.py --root .
       - name: Preserve passed QA only in the private canonical PR branch
         shell: bash
         run: |
