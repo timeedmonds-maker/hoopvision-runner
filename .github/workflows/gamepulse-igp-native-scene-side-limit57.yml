@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      PINNED_PRIVATE_SHA: 83bf5df7eff867ab13e68774ca2ab6cda651464d
+      PINNED_PRIVATE_SHA: 3d4ac3a668a6833925aaf2b00e9ba974e1d33732
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
