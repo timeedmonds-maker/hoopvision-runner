@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-native-bounded-velocity-query-qa.yml",  # private original SDK SHA read-only query regression; aggregate only never source coordinates
     ".github/workflows/gamepulse-igp-cross-game-native-mask-challenger.yml",  # guarded SHA-original private NBA blocked XYZ holdout; only aggregate p50/p95/p99 in public logs
     ".github/workflows/gamepulse-igp-source-shot-utc-guard-qa.yml",  # private 54-source shot UTC guard SHA query readback, original data and coordinates never public
     ".github/workflows/gamepulse-igp-shot-start-lineup-paired-54.yml",  # private SHA-verified NBA source shot/start identity evidence; public only aggregated QA counts
