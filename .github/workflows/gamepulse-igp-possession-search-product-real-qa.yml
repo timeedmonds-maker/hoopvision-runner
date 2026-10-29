@@ -1,0 +1,59 @@
+name: "IGP native possession search product source QA"
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/gamepulse-igp-possession-search-product-real-qa.yml"]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-native-possession-search-product
+  cancel-in-progress: false
+jobs:
+  qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Safe checkout accepted private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Discover accepted G4 partition format without logging licensed XYZ
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          from pathlib import Path
+          import gzip,json
+          base=Path("gamepulse/fusion")
+          for gid in ("0022600009","0022600109"):
+            path=base/"materialized/igp_g4_original_native_player_ball_possession_v1"/(gid+".json.gz")
+            if not path.exists():
+              print("SAFE_G4_PARTITION_ABSENT",gid)
+              continue
+            data=json.loads(gzip.decompress(path.read_bytes()))
+            def info(k):
+              d=data[k]
+              return {"field":k,"type":type(d).__name__,"length":len(d) if hasattr(d,"__len__") else None,
+                  "field_keys":list(d[0])[:28] if isinstance(d,list) and d and isinstance(d[0],dict)
+                      else list(d)[:28] if isinstance(d,dict) else []}
+            print("SAFE_G4_PRIVATE_SCHEMA",gid,"top",type(data).__name__,
+                  "keys",list(data)[:35] if isinstance(data,dict) else [],
+                  "shapes",[info(k) for k in data if isinstance(data,dict)][:15])
+          for path in (base/"materialized/igp_g4_original_native_player_ball_possession_v1").glob("*"):
+            if path.is_file() and path.suffix==".py":
+              print("SAFE_G4_HELPER_FILENAME",path.name)
+          print("SAFE_FUSION_G4_MODULES",sorted(x.name for x in base.glob("*g4*.py"))[:40])
+          print("SAFE_FUSION_POSSESSION_QUERY_MODULES",sorted(x.name for x in base.glob("*possession*query*.py"))[:40])
+          PY
