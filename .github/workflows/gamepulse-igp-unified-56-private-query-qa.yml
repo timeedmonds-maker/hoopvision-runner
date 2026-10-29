@@ -86,3 +86,31 @@ jobs:
               "all56_1hz_completeness_pct":shot["complete_ten_ball_56_coverage_pct"]},
               sort_keys=True))
           PY
+
+      - name: Verify added shot UTC guard is available in the SAME unified season query
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          from query_igp_unified_2026_27_season_v1 import query
+          cases=[
+             ("0022600002",424,"BLOCK_PHYSICAL_ANCHOR_GT_60S"),
+             ("0022600102",112,"BLOCK_PHYSICAL_ANCHOR_GT_60S"),
+             ("0022600009",7,"SOURCE_PBP_UTC_LOGGED_AGREEMENT_LE_3S"),
+             ("0022600006",8,"COMPANION_SOURCE_PROGRAM_UNAVAILABLE")]
+          for gid,aid,expected in cases:
+              q=query(".",gid,action_number=aid,include_positions=False)
+              grade=q["original_companion_shot_utc_guard"]["grade"]
+              assert grade.startswith(expected),(gid,aid,grade)
+              assert q["physical_custody_certified"] is False
+              assert q["real_world_clock_alignment_certified"] is False
+              assert q["all_official_field_goal_attempts_indexed"]==10003
+          p=query(".","0022600009",period=1,clock_second=701,include_positions=False)
+          assert "original_companion_shot_utc_guard" not in p
+          print("IGP_CANONICAL_UNIFIED_SHOT_UTC_GUARD_QUERY_PASS",
+                {"real_games":4,"known_unsafe_UTC_blocked":2,
+                 "source_program_unavailable_explicit":1,
+                 "old_model_or_possession_mutations":0})
+          PY
