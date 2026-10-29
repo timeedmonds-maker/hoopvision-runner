@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen732-archive-to-current-pixel-crosswalk.yml",  # source pixels private/ephemeral, camera-matching metrics public only
+    "tools/amen732_archive_fresh_visual_correspondences.py",  # private original vs fresh pixel matching, never source media in public repo
     ".github/workflows/gamepulse-igp-post36-official-native-player-slot-qa.yml",  # reviewed: private 20-game original NBA source and frozen36 read-only verification; aggregate public logs only; no artifacts
     ".github/workflows/gamepulse-igp-post36-unlinked-identity-triage.yml",  # 20-game SHA-private native unlinked official-ten/source-ball diagnostic with aggregate-only public logs
     ".github/workflows/gamepulse-igp-post36-official-ten-pbp-native-evidence-qa.yml",  # private source NBA box + PBP substitution official-ten native identity 20-game QA, aggregates only
