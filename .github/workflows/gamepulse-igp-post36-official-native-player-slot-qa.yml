@@ -40,7 +40,7 @@ jobs:
             -p 'test_query_igp_g4_post36_native_possession_v1.py'
           python3 -m unittest discover -v -s gamepulse/fusion \
             -p 'test_igp_source_first_possession_product_v1.py'
-      - name: Actual original NBA 20-game source identity-slot and frozen 36-game SHA regression
+      - name: Full 20-game native XYZ original masked 3D coordinate evaluation
         shell: bash
         run: |
           set -euo pipefail
