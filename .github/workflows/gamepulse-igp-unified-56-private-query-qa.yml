@@ -61,7 +61,11 @@ jobs:
           assert len(old["canonical_official_shot_with_all_published_features"]["published_advanced_companion"]["source_biomechanics_features"])==30
           assert shot["canonical_official_shot_with_all_published_features"]["published_blueprint"] is not None
           assert shot["canonical_official_shot_with_all_published_features"]["nba_action_number"]==790
-          assert shot["advanced_30_feature_companion_source_games"]==1
+          assert shot["advanced_30_feature_companion_source_games"]==54
+          assert shot["official_shots_with_advanced_biomechanical_source"]==8797
+          assert shot["official_shots_with_any_published_xfg"]==9263
+          assert old["official_shots_with_advanced_biomechanical_source"]==8797
+          assert not old["raw_29joint_60hz_biomechanics_certified"]
           assert new["model_tracking"]["status"]=="SAMPLED_MODEL"
           assert prior["model_tracking"]["status"] in (
               "SAMPLED_MODEL","NO_UNAMBIGUOUS_ELIGIBLE_GAMECLOCK_SAMPLE")
