@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-54companion-app-index-qa.yml",  # private stored original NBA app event source indexing; only aggregate counts public
     ".github/workflows/gamepulse-igp-0006-companion-original-retry.yml",  # authorized original SDK 0006 companion source recovery retry, original payload remains private
     ".github/workflows/gamepulse-igp-all56-companion-app-packages-and-bio-v2.yml",  # source-verified private 56-game full app packages plus precise shot-feature join; only QA aggregates public
     ".github/workflows/gamepulse-igp-companion-two-sdk-availability-repair.yml",  # retry two verified timeout source SDK sessions, original data private
