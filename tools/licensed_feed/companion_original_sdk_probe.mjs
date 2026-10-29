@@ -82,9 +82,17 @@ try{
  await page.waitForFunction(()=>typeof window.ephemeralFeed?.initialize==='function',{timeout:12000});
  result.initialization_result=await page.evaluate(({programId,initTimeoutMs})=>
    window.ephemeralFeed.initialize({accountId:'nba',programId,timeoutMs:initTimeoutMs}),{programId,initTimeoutMs});
- if(result.initialization_result==='ready'){
+ if(result.initialization_result==='ready'||result.initialization_result==='timeout'){
+   // An app.ready timeout need not mean the SDK client failed to attach;
+   // attempt only standard SDK player.time emissions, never replay a URL.
+   result.sdk_seek_calls_attempted=0;
+   result.sdk_seek_calls_accepted=0;
    for(const minutes of [8,24,38,54,75,98,120,145,160]){
-     await page.evaluate(t=>window.ephemeralFeed.seek(t),start+minutes*60_000);
+     try{
+       const ok=await page.evaluate(t=>window.ephemeralFeed.seek(t),start+minutes*60_000);
+       result.sdk_seek_calls_attempted++;
+       if(ok)result.sdk_seek_calls_accepted++;
+     }catch{}
      await new Promise(resolve=>setTimeout(resolve,750));
    }
    await new Promise(resolve=>setTimeout(resolve,3200));
