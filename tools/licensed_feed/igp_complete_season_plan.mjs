@@ -1,5 +1,5 @@
 // NBA-only schedule/control metadata. No licensed player XYZ or raw app records leave private 104.
-import {appendFileSync} from 'node:fs';
+import {appendFileSync,readFileSync} from 'node:fs';
 import {execFileSync} from 'node:child_process';
 const TOKEN=process.env.GH_TOKEN;
 const NOW=Date.now();
@@ -29,12 +29,24 @@ async function get(url,privateRead=false){
  if(!res.ok)throw Error('NBA_PUBLIC_STATUS_'+res.status);
  return res.json();
 }
+let privateCheckout=null;
 async function privateFile(path){
-  const url='https://api.github.com/repos/timeedmonds-maker/104/contents/'+path+
-    '?ref=research%2Fgamepulse-clock-boundary-integrity-20261025';
-  const response=await get(url,true);
-  if(!response||response.encoding!=='base64')throw Error('PRIVATE_CANONICAL_INDEX_UNAVAILABLE');
-  return JSON.parse(Buffer.from(response.content.replace(/\s/g,''),'base64').toString('utf8'));
+ if(!path.startsWith('gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/'))
+   throw Error('PRIVATE_INDEX_PATH_OUTSIDE_CANONICAL');
+ if(privateCheckout===null){
+  const dir=process.env.RUNNER_TEMP+'/igp-autonomous-index';
+  const env=process.env;
+  execFileSync('gh',['auth','setup-git'],{timeout:30000,env});
+  execFileSync('git',['clone','-q','--depth=1','--filter=blob:none','--sparse',
+    '-b','research/gamepulse-clock-boundary-integrity-20261025',
+    'https://github.com/timeedmonds-maker/104.git',dir],
+    {timeout:90000,maxBuffer:300000,env});
+  execFileSync('git',['-C',dir,'sparse-checkout','set',
+    'gamepulse/fusion/materialized/igp_2026_27_unified_season_v3'],
+    {timeout:90000,maxBuffer:300000,env});
+  privateCheckout=dir;
+ }
+ return JSON.parse(readFileSync(privateCheckout+'/'+path,'utf8'));
 }
 let fixtures;
 for(const source of ['https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json',
