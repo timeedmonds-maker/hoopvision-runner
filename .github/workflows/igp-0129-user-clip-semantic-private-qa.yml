@@ -1,0 +1,88 @@
+name: IGP 0129 clip semantic private-source QA
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-0129-user-clip-semantic-private-qa.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Checkout verified private source
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Source-free clip tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_clip_semantic_evidence_v1.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_clip_semantic_evidence_v1.py'
+      - name: Real private source SHA readback and event QA (no XYZ in public logs)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from igp_clip_semantic_evidence_v1 import inspect
+          from igp_native_scene_season_68_benchmark_v1 import load_game
+          from query_igp_season68_native_scene_batch_v1 import batch
+          root=Path('.')
+          d=root/'gamepulse/fusion/qa/igp_progress_20261030'
+          ledger=json.loads((d/'igp_0129_user_clip_semantic_ledger_v1.json').read_bytes())
+          qa=json.loads((d/'igp_0129_user_clip_semantic_validation_v1.json').read_bytes())
+          assert ledger['clip_sha256']==qa['clip_sha256']
+          result=inspect(root,ledger,0,ledger['duration_ms'],100)
+          assert result['observations_returned']==15
+          assert result['matched_official_actions']==28
+          assert result['video_source_utc_calibrated'] is False
+          for row in result['rows']:
+              assert row['native_source_frame_utc_ms'] is None
+              for action in row['matched_official_pbp']:
+                  for key in ('lineup_before_full_substitution_group','lineup_after_full_substitution_group'):
+                      group=action[key]
+                      if group is not None:
+                          assert set(group)=={'DET','NYK'}
+                          assert all(len(ids)==5 for ids in group.values())
+          frames,manifest,manifest_sha=load_game(root,'0022600129')
+          assert len(frames)==36215
+          assert manifest_sha==ledger['original_native_game_manifest_sha256']
+          assert sum('ball' in xyz for t,xyz in frames)==27828
+          original=dict(frames)
+          timestamps=[frames[len(frames)//3][0],frames[len(frames)//2][0]]
+          native=batch(root,'0022600129',timestamps,nearest_tolerance_ms=0,max_side_ms=800)
+          assert native['matched_count']==2
+          tested=0
+          for s in native['scenes']:
+              scene=s['scene']
+              assert scene is not None
+              reference=original[s['matched_native_utc_ms']]
+              for pid,actor in scene['players_by_source_id'].items():
+                  if actor['grade']=='ORIGINAL_SDK_DIRECT':
+                      assert actor['xyz_native']==reference[pid]
+                      tested+=1
+              ball=scene['ball']
+              if ball and ball['grade']=='ORIGINAL_SDK_DIRECT':
+                  assert ball['xyz_native']==reference['ball']
+          assert tested>0
+          print('IGP_0129_CLIP_PRIVATE_SHA_READBACK_PASS', 'screen_action_refs=28',
+                'source_native_frames=36215','source_direct_players_checked='+str(tested),
+                'physical_possessions_certified=0', 'independent_video_accuracy=UNMEASURED')
+          PY
