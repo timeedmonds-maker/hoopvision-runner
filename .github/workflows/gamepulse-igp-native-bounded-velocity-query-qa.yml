@@ -1,4 +1,5 @@
 name: "IGP private native short-gap C0 source-first query readback"
+# Eight-game masked-source error reference; direct originals remain authoritative.
 on:
   push:
     branches: [main]
