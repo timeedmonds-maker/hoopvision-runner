@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-5s-peer-scene-warp-real-source.yml",  # private SHA NBA 5s other-player/ball source-only trajectory QA; no licensed coordinates in public logs
     ".github/workflows/gamepulse-igp-native-C0-full36-coverage.yml",  # SHA-verified private NBA native strict official-ten sample coverage, public only aggregate counts
     ".github/workflows/gamepulse-igp-sixgame-crossvalidate-velocity.yml",  # reproducible private source SHA NBA trajectory holdouts, only aggregate error metrics publicly
     ".github/workflows/gamepulse-igp-native-bounded-velocity-query-qa.yml",  # private original SDK SHA read-only query regression; aggregate only never source coordinates
