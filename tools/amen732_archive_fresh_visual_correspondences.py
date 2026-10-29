@@ -73,7 +73,7 @@ def compare(fresh,refs,out):
  feed={x["label"]:x for x in d["feeds"]}
  rows={}
  for label,(f0,f1) in PAIRS.items():
-  video_path=fresh/feed[label]["file"]]
+  video_path=fresh/feed[label]["file"]
   h=sha(video_path)
   assert h==feed[label]["native_media_sha256"]==pts[label]["clip_sha256"]
   embeddings,indices=decode_embeddings(video_path)
