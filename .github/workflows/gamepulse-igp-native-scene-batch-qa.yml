@@ -58,10 +58,16 @@ jobs:
                  'single_parity':q['single_scene_parity_cases'],
                  'games':list(q['per_game'])})
           PY
+          cp gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_batch_query_real_qa_v1.json "$RUNNER_TEMP/igp_batch_qa.json"
+          rm -f gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_batch_query_real_qa_v1.json
+          git fetch -q origin "$BRANCH"
+          git checkout -q -B qa-staging "origin/$BRANCH"
+          cp "$RUNNER_TEMP/igp_batch_qa.json" gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_batch_query_real_qa_v1.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_batch_query_real_qa_v1.json
           git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_BATCH_QA_ALREADY_PRESENT; exit 0; fi
           git commit -q -m 'qa(igp): SHA real 480-frame native clip batch parity in three games'
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
             git fetch -q origin "$BRANCH"
