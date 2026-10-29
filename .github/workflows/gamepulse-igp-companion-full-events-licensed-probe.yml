@@ -21,7 +21,7 @@ jobs:
       NBA_GAME_ID: ${{ matrix.id }}
       NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      IGP_PRIVATE_CAPTURE_DIR: ${{ runner.temp }}/igp-original
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-original-companion-source
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
     steps:
       - uses: actions/checkout@v4
