@@ -24,6 +24,7 @@ jobs:
       parts: ${{ steps.plan.outputs.parts }}
       games: ${{ steps.plan.outputs.games }}
       apps: ${{ steps.plan.outputs.apps }}
+      release_read_deferred: ${{ steps.plan.outputs.release_read_deferred }}
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -34,6 +35,7 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
+          node --check tools/licensed_feed/igp_complete_season_plan.mjs
           node --test tools/licensed_feed/season_core.test.mjs tools/licensed_feed/sdk_slot.test.mjs
       - id: plan
         name: Select all new and incomplete official final games, reusing original SHA parts
@@ -438,12 +440,13 @@ jobs:
           NATIVE_INDEX: ${{ needs.materialize.result }}
           COMPANION: ${{ needs.companion.result }}
           UNIFIED: ${{ needs.integrate-unified.result }}
+          RELEASE_READ_DEFERRED: ${{ needs.preflight.outputs.release_read_deferred }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import os
           x={n:os.environ[n] for n in ('DISCOVER','CAPTURE','CERTIFY','NATIVE_INDEX','COMPANION','UNIFIED')}
           print('IGP_UNIFIED_AUTOCAPTURE_STAGE_HEALTH',x)
-          if x['DISCOVER']!='success' or any(v=='failure' for v in x.values()):
+          if x['DISCOVER']!='success' or any(v=='failure' for v in x.values()) or int(os.environ.get('RELEASE_READ_DEFERRED') or '0')>0:
             raise SystemExit('INGESTION_INCOMPLETE__SCHEDULED_MISSING_SOURCE_RETRY_REQUIRED')
           PY
