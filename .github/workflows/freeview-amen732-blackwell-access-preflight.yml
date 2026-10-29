@@ -1,0 +1,47 @@
+name: Amen732 Blackwell GPU route IAM read-only preflight
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/freeview-amen732-blackwell-access-preflight.yml']
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      PROJECT_ID: project-d88c48c6-7f48-4c33-928
+      REGION: asia-southeast1
+      JOB: hoopvision-blackwell-release-worker
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: No public source media, no GPU job scheduled
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          echo GPU_READ_ONLY_PREFLIGHT_NO_EXECUTION
+      - name: Authenticate using existing HoopVision Google workload identity
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/234135421963/locations/global/workloadIdentityPools/github-actions/providers/github-104
+          service_account: hoopvision-github@project-d88c48c6-7f48-4c33-928.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Prove readable pre-existing canonical Blackwell job; never launch GPU
+        run: |
+          set -euo pipefail
+          gcloud run jobs describe "$JOB" \
+            --project "$PROJECT_ID" --region "$REGION" \
+            --format=json > "$RUNNER_TEMP/blackwell_metadata.json"
+          python3 - "$RUNNER_TEMP/blackwell_metadata.json" <<'PY'
+          import json,sys
+          d=json.load(open(sys.argv[1]))
+          raw=json.dumps(d)
+          assert 'nvidia-rtx-pro-6000' in raw
+          assert 'hoopvision-blackwell-release-worker' in raw
+          print("FREEVIEW_BLACKWELL_EXISTING_JOB_READABLE")
+          print("FREEVIEW_PUBLIC_RUNNER_SERVICE_ACCOUNT_AUTHORIZED")
+          print("NO_GPU_CHARGED_NO_JOB_STARTED")
+          PY
