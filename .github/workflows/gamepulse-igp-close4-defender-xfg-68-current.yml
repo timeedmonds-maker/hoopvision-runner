@@ -27,27 +27,27 @@ jobs:
           test -n "$GH_TOKEN"
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set \
-            gamepulse/fusion/igp_close4_defender_xfg_analysis_20261030.py \
-            gamepulse/fusion/qa/igp_progress_20261029 \
-            gamepulse/fusion/qa/igp_progress_20261030 \
-            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json \
-            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json \
-            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all56_v2 \
-            gamepulse/fusion/official_pbp_timing/games \
-            data/extensions/nba_blueprint_2026_27/games \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600132 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600133 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600134 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600135 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600136 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600137 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600138 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600139 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600140 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600141 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600142 \
-            gamepulse/fusion/evidence/companion_sdk_original_0022600143
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_close4_defender_xfg_analysis_20261030.py' \
+            '/gamepulse/fusion/qa/igp_progress_20261029/' \
+            '/gamepulse/fusion/qa/igp_progress_20261030/' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_biomechanics_all56_v2/' \
+            '/gamepulse/fusion/official_pbp_timing/games/' \
+            '/data/extensions/nba_blueprint_2026_27/games/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600132/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600133/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600134/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600135/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600136/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600137/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600138/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600139/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600140/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600141/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600142/' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600143/'
       - name: Calculate actual-minus-published-xFG for source-verified four-foot primary defender
         shell: bash
         run: |
