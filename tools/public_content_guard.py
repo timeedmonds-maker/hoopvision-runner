@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-oct28-twelve-nba-logical-chains.yml",  # only private original NBA PBP logical chains and SHA index outputs
     ".github/workflows/gamepulse-igp-oct28-blueprint-12-rich-source.yml",  # public official NBA original rich Blueprint reports, committed only private
     ".github/workflows/gamepulse-igp-oct28-eleven-native-recovery.yml",  # authenticated 11-game private SDK native 13-part recovery and SHA acceptance only
     ".github/workflows/gamepulse-igp-oct28-eleven-original-companion.yml",  # authorized original SDK companion captures saved privately, public counts only
