@@ -50,7 +50,31 @@ for(const source of ['https://cdn.nba.com/static/json/staticData/scheduleLeagueV
     break;
   }catch(error){console.log('NBA_SCHEDULE_FALLBACK',String(error).slice(0,90));}
 }
-if(!fixtures)throw Error('NO_AUTHORITATIVE_NBA_SCHEDULE');
+if(!fixtures){
+ const y=new Date(NOW-24*3600000).toISOString().slice(0,10);
+ const compact=y.replaceAll('-','');
+ const probes=[
+  'https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard?dates='+compact,
+  'https://www.nba.com/games?date='+y,
+  'https://cdn.nba.com/static/json/liveData/scoreboard/todaysScoreboard_00.json',
+  'https://stats.gleague.nba.com/stats/scoreboardv3?GameDate='+y+'&LeagueID=00',
+  'https://www.nba.com/inside-the-game/blueprint/0022600138',
+  'https://api-web.nba.com/games?date='+y
+ ];
+ await Promise.all(probes.map(async (url)=>{
+  try {
+   const res=await fetch(url,{headers:{'User-Agent':'Mozilla/5.0',
+     'Accept':'application/json,text/html,*/*','Referer':'https://www.nba.com/'},
+     signal:AbortSignal.timeout(6000)});
+   const raw=await res.text();
+   const match=(raw.match(/00226\\d{5}/g)||[]);
+   console.log('IGP_OFFICIAL_SCHEDULE_ALTERNATE_PROBE',new URL(url).hostname,
+       res.status,raw.length,'nba_game_ID_mentions',new Set(match).size);
+  } catch(e){console.log('IGP_OFFICIAL_SCHEDULE_ALTERNATE_PROBE_ERROR',
+    new URL(url).hostname,String(e).slice(0,65));}
+ }));
+ throw Error('NO_AUTHORITATIVE_NBA_SCHEDULE');
+}
 const index=await privateFile('gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json');
 if(index.official_games!==56||Object.keys(index.per_game_model).length!==56)
   throw Error('FROZEN_56_CHANGED');
