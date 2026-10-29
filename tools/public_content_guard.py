@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/freeview-amen732-sixview-gaussian-model-input-preflight.yml",  # only private source input artifacts, public stage/status counts
+    "tools/amen732_genuine_sixview_gaussian_preflight.py",  # six locked original source SHA, no public licensed image pixels
     ".github/workflows/freeview-amen732-blackwell-access-preflight.yml",  # no-cost IAM/read-only GPU route check; no NBA source input published
     ".github/workflows/freeview-amen732-archive-to-current-pixel-crosswalk.yml",  # source pixels private/ephemeral, camera-matching metrics public only
     "tools/amen732_archive_fresh_visual_correspondences.py",  # private original vs fresh pixel matching, never source media in public repo
