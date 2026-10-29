@@ -41,9 +41,16 @@ jobs:
           python3 -m py_compile gamepulse/fusion/igp_native_scene_season_68_benchmark_v1.py gamepulse/fusion/igp_native_scene_season68_fullsource_v2.py
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_native_scene_model_v2.py'
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_native_scene_season68_fullsource_v2.py'
-          python3 gamepulse/fusion/igp_native_scene_season68_fullsource_v2.py \
+          echo NATIVE_ORIGINAL_SOURCE_BENCHMARK > "$RUNNER_TEMP/igp68-stage.txt"
+          if ! python3 gamepulse/fusion/igp_native_scene_season68_fullsource_v2.py \
             --root . \
-            --output gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_season68_fullsource_v2.json
+            --output gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_season68_fullsource_v2.json \
+            > "$RUNNER_TEMP/igp68-private-log.txt" 2>&1; then
+            echo NATIVE_BENCHMARK_FAILED > "$RUNNER_TEMP/igp68-stage.txt"
+            echo IGP_FULL68_NATIVE_MODEL_FAILED_DETAILS_PRIVATE_ONLY
+            exit 21
+          fi
+          tail -n 1 "$RUNNER_TEMP/igp68-private-log.txt"
       - name: Confirm complete 68 status and commit only aggregate private QA
         shell: bash
         run: |
@@ -72,6 +79,10 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f gamepulse/fusion/qa/igp_progress_20261030/igp_native_scene_season68_fullsource_v2.json
           git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_FULL68_BENCHMARK_ALREADY_SHA_ACCEPTED
+            exit 0
+          fi
           git commit -q -m 'qa(igp): full original 68-game native player and ball heldout benchmark'
           for attempt in 1 2 3 4 5 6 7 8 9 10; do
             git fetch -q origin "$BRANCH"
@@ -83,3 +94,59 @@ jobs:
             sleep "$attempt"
           done
           exit 23
+      - name: Preserve any benchmark failure as private-only diagnostic
+        if: failure()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          if ! test -d "$RUNNER_TEMP/private/.git"; then
+            git clone -q --depth=1 --filter=blob:none --sparse -b "$BRANCH" \
+              https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+            git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          fi
+          cd "$RUNNER_TEMP/private"
+          dest="gamepulse/fusion/qa/igp_progress_20261030/igp_full68_private_runner_failure_${GITHUB_RUN_ID}.json"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          tmp=Path(os.environ['RUNNER_TEMP'])
+          log=tmp/'igp68-private-log.txt'
+          stage=tmp/'igp68-stage.txt'
+          body=log.read_bytes() if log.is_file() else b''
+          obj={'schema':'igp.full68-private-CI-failure-receipt.v1',
+               'github_run_id':os.environ.get('GITHUB_RUN_ID'),
+               'runner_commit_sha':os.environ.get('GITHUB_SHA'),
+               'pinned_private_sha':os.environ.get('PINNED_PRIVATE_SHA'),
+               'last_stage':stage.read_text().strip() if stage.is_file() else 'PRE_BENCHMARK',
+               'stderr_and_stdout_sha256':hashlib.sha256(body).hexdigest() if body else None,
+               'failure_details_private_only':body.decode(errors='replace')[-8000:],
+               'performance_accepted':False}
+          output=Path('gamepulse/fusion/qa/igp_progress_20261030')/('igp_full68_private_runner_failure_'+os.environ['GITHUB_RUN_ID']+'.json')
+          output.parent.mkdir(parents=True,exist_ok=True)
+          output.write_text(json.dumps(obj,indent=2,sort_keys=True)+'\n')
+          PY
+          cp "$dest" "$RUNNER_TEMP/igp68-private-failure.json"
+          git fetch -q origin "$BRANCH"
+          git checkout -q -B failed68-staging "origin/$BRANCH"
+          cp "$RUNNER_TEMP/igp68-private-failure.json" "$dest"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$dest"
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP68_FAIL_RECEIPT_ALREADY_PRIVATE
+            exit 0
+          fi
+          git commit -q -m 'qa(igp): preserve private full68 source benchmark failure diagnostics'
+          for attempt in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP68_FAILURE_RECEIPT_PRIVATE_ONLY
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 25
