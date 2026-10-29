@@ -118,15 +118,21 @@ const fresh=pending.filter(g=>!(g.id in add.games));
 const incomplete=pending.filter(g=>(g.id in add.games));
 const rotation=incomplete.length?Math.floor(NOW/(3*3600000))%incomplete.length:0;
 const selected=[...fresh,...incomplete.slice(rotation),...incomplete.slice(0,rotation)].slice(0,MAX);
-const parts=[],apps=[],games=[];
-let reused=0;
+const parts=[],apps=[],games=[],sdkGames=[];
+let reused=0,releaseReadDeferred=0;
 for(const game of selected){
-  const release=await get('https://api.github.com/repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-'+game.id,true);
-  const a=new Set((release?.assets||[]).map(x=>x.name));
-  for(let part=0;part<13;part++){
-    const k='sdk-part-'+String(part).padStart(2,'0');
-    if(a.has(k+'.tar.gz')&&a.has(k+'.json')){reused++;continue;}
-    parts.push({...game,part});
+  try {
+    const release=await get('https://api.github.com/repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-'+game.id,true);
+    const a=new Set((release?.assets||[]).map(x=>x.name));
+    for(let part=0;part<13;part++){
+      const k='sdk-part-'+String(part).padStart(2,'0');
+      if(a.has(k+'.tar.gz')&&a.has(k+'.json')){reused++;continue;}
+      parts.push({...game,part});
+    }
+    sdkGames.push(game);
+  } catch(err) {
+    releaseReadDeferred++;
+    console.log('IGP_NATIVE_RELEASE_METADATA_RETRY_NEXT_SCHEDULE',game.id);
   }
   if(!add.games[game.id]?.original_companion_original_event_body_sha256 ||
      add.games[game.id]?.source_capture_grades?.original_companion!=='COMPLETE_ORIGINAL_RESPONSE')
@@ -134,11 +140,12 @@ for(const game of selected){
   games.push(game);
 }
 const safe=items=>JSON.stringify({include:items.length?items:[{id:'none',tipoff:'1970-01-01T00:00:00Z',part:0}]});
-const entries={count:String(selected.length),games:safe(games),parts:safe(parts),
-  apps:safe(apps),selected:JSON.stringify(selected.map(x=>x.id))};
+const entries={count:String(selected.length),games:safe(sdkGames),parts:safe(parts),
+  apps:safe(apps),selected:JSON.stringify(selected.map(x=>x.id)),
+  release_read_deferred:String(releaseReadDeferred)};
 for(const [key,value] of Object.entries(entries))
   appendFileSync(process.env.GITHUB_OUTPUT,key+'='+value+'\n');
 console.log('IGP_AUTO_SEASON_DISCOVERY',JSON.stringify({
  official_final:fixtures.length,unified_games:56+Object.keys(add.games).length,
  gaps:pending.length,selected:games.length,missing_original_parts:parts.length,
- existing_parts_reused:reused,missing_companion:apps.length}));
+ existing_parts_reused:reused,missing_companion:apps.length,release_metadata_deferred:releaseReadDeferred}));
