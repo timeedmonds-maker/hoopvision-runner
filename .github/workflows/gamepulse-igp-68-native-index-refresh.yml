@@ -1,4 +1,5 @@
 name: IGP 68 original native XYZ and official possession index refresh
+# Repair-run: index SHA-verified recovered 0136/0137; preserve existing 56+12 source provenance.
 on:
   push:
     branches: [main]
