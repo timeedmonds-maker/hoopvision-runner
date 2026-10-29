@@ -30,11 +30,48 @@ jobs:
           export PYTHONPATH="$D/clock/gamepulse/fusion"
           python3 "$D/extract.py" --selftest
           python3 "$D/extract.py" --archive "$D/sdk" --release "$D/release.json" --fixture "$D/fixture.json" --out "$D/out.json"
-          python3 - "$D/out.json" "$D/put.json" <<'PY'
-          import sys,json,base64
-          with open(sys.argv[1],'rb') as f:blob=f.read()
-          req={'branch':'research/amen-wemby-freeze-spin-20261024','message':'data(freeview): source-SHA-verified original SDK Amen block Q4 position window','content':base64.b64encode(blob).decode()}
-          with open(sys.argv[2],'w') as f:json.dump(req,f)
+          # The original source fixture may already exist. Never overwrite differing
+          # native observations; only create a missing fixture or verify byte parity.
+          python3 - "$D/out.json" <<'PY'
+          import base64, hashlib, json, subprocess, sys
+
+          endpoint = ("repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/"
+                      "amen732_original_SDK_Q4_direct_XYZ_20261026.json")
+          branch = "research/amen-wemby-freeze-spin-20261024"
+          blob = open(sys.argv[1], "rb").read()
+          def fetch():
+              return subprocess.run(["gh", "api", f"{endpoint}?ref={branch}"],
+                                    capture_output=True, text=True)
+          current = fetch()
+          if current.returncode == 0:
+              data = json.loads(current.stdout)
+              if data.get("type") != "file" or data.get("encoding") != "base64":
+                  raise SystemExit("AMEN_Q4_EXISTING_FIXTURE_UNREADABLE")
+              old = base64.b64decode(data["content"])
+              if old != blob:
+                  print("AMEN_Q4_SOURCE_CONFLICT_NO_OVERWRITE",
+                        "existing_sha256=" + hashlib.sha256(old).hexdigest(),
+                        "recomputed_sha256=" + hashlib.sha256(blob).hexdigest())
+                  raise SystemExit(1)
+              print("AMEN_Q4_EXISTING_SOURCE_BYTES_VERIFIED", hashlib.sha256(blob).hexdigest())
+          elif "HTTP 404" in current.stderr:
+              payload = {
+                  "branch": branch,
+                  "message": "data(freeview): source-SHA-verified original SDK Amen block Q4 position window",
+                  "content": base64.b64encode(blob).decode(),
+              }
+              created = subprocess.run(["gh", "api", "-X", "PUT", endpoint, "--input", "-"],
+                                       input=json.dumps(payload), capture_output=True, text=True)
+              if created.returncode:
+                  raise SystemExit("AMEN_Q4_SOURCE_CREATE_FAILED: " + created.stderr)
+              readback = fetch()
+              if readback.returncode:
+                  raise SystemExit("AMEN_Q4_SOURCE_READBACK_FAILED: " + readback.stderr)
+              verified = base64.b64decode(json.loads(readback.stdout)["content"])
+              if verified != blob:
+                  raise SystemExit("AMEN_Q4_SOURCE_READBACK_MISMATCH")
+              print("AMEN_Q4_NEW_SOURCE_BYTES_VERIFIED", hashlib.sha256(blob).hexdigest())
+          else:
+              raise SystemExit("AMEN_Q4_SOURCE_LOOKUP_FAILED: " + current.stderr)
           PY
-          gh api -X PUT 'repos/timeedmonds-maker/104/contents/hoopvision/freeview/fixtures/amen732_original_SDK_Q4_direct_XYZ_20261026.json' --input "$D/put.json" >/dev/null
           echo AMEN732_Q4_PRIVATE_SDK_XYZ_PRESERVED
