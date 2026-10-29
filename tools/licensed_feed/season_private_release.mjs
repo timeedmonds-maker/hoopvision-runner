@@ -531,8 +531,11 @@ export async function run(){
    await requireOfficialFinal(game.id);
   }else if(Date.now()<game.start+315*60000)throw Error('priority_fullgame_not_ready');
   if(Date.now()>game.start+7*24*3600000)throw Error('priority_assignment_expired');
-  const index=readIndex();
-  await archiveGame(game,index,capture);
+  // Targeted source recovery is self-contained; do not gate real original SDK
+  // preservation on the separately shared season-index release/API quota.
+  // The canonical source catalog is rebuilt independently from game releases.
+  const index={schema:'gamepulse-season-index.v1',games:{}};
+  await archiveGame(game,index,capture,{skipSeasonIndex:true});
   if(index.games[game.id]?.status!=='complete')throw Error('priority_fullgame_incomplete');
   console.log('PRIVATE_PRIORITY_FULLGAME_CERTIFIED');
   return;
