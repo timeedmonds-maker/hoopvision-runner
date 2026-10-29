@@ -1,4 +1,5 @@
 name: "IGP native possession search product source QA"
+# Rerun with concurrent workflow allowlist synchronized and private-source guard
 on:
   push:
     branches: [main]
