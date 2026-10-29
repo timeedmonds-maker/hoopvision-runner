@@ -1,4 +1,5 @@
 # Source-only partner SDK capture: original per-game companion event JSON.
+# Guard reviewed before this workflow's source ingestion execution.
 # Public repository stores NO private source, signed URL or auth credential.
 name: "IGP NBA 2026-27 all remaining 54 real original ShotDetails biomechanics captures"
 on:
