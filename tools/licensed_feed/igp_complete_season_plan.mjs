@@ -74,7 +74,9 @@ for(const game of selected){
     if(a.has(k+'.tar.gz')&&a.has(k+'.json')){reused++;continue;}
     parts.push({...game,part});
   }
-  if(!add.games[game.id]?.original_companion_original_event_body_sha256)apps.push(game);
+  if(!add.games[game.id]?.original_companion_original_event_body_sha256 ||
+     add.games[game.id]?.source_capture_grades?.original_companion!=='COMPLETE_ORIGINAL_RESPONSE')
+       apps.push(game);
   games.push(game);
 }
 const safe=items=>JSON.stringify({include:items.length?items:[{id:'none',tipoff:'1970-01-01T00:00:00Z',part:0}]});
