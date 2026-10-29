@@ -1,3 +1,4 @@
+# Reviewed and explicitly permitted in tools/public_content_guard.py.
 name: "IGP 54-game original companion clock/lineup held-out crosscheck"
 on:
   push:
