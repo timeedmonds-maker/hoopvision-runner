@@ -33,6 +33,28 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/igp_clip_semantic_evidence_v1.py
           python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_clip_semantic_evidence_v1.py'
+      - name: Run SHA-checked annotated substitution and clock acceptance
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_0129_clip_semantic_acceptance_20261030.py
+          python3 gamepulse/fusion/igp_0129_clip_semantic_acceptance_20261030.py \
+            --root . \
+            --output gamepulse/fusion/qa/igp_progress_20261030/igp_0129_annotated_clip_official_qa_v1.json \
+            > "$RUNNER_TEMP/clip-qa-private.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          q=json.loads((Path(os.environ['RUNNER_TEMP'])/'clip-qa-private.json').read_text())
+          assert q['observations']==15
+          assert q['source_verified_official_event_links']==28
+          assert len(q['substitution_groups'])==2
+          assert q['native_source_utc_mapping_verified'] is False
+          assert q['independently_certified_physical_possessions_added']==0
+          print('IGP_CLIP_0129_OFFICIAL_ACTION_QA_PASS',15,28,2)
+          PY
       - name: Real private source SHA readback and event QA (no XYZ in public logs)
         shell: bash
         run: |
