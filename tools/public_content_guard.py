@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-oct28-eleven-native-recovery.yml",  # authenticated 11-game private SDK native 13-part recovery and SHA acceptance only
     ".github/workflows/gamepulse-igp-oct28-eleven-original-companion.yml",  # authorized original SDK companion captures saved privately, public counts only
     ".github/workflows/gamepulse-igp-post56-oct28-unified-qa.yml",  # private SHA-only 12-game additive validation; public aggregate logs only
     ".github/workflows/gamepulse-igp-0138-official-substitution-ten-v3.yml",  # Private NBA PBP starter substitution clock replay on 206 0138 possessions; withheld official ten QA
