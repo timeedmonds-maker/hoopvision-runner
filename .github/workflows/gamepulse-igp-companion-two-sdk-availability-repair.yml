@@ -23,6 +23,7 @@ jobs:
       NBA_GAME_ID: ${{ matrix.gid }}
       NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
       IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-original-companion-recheck
+      IGP_SDK_INIT_TIMEOUT_MS: '32000'
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
     steps:
       - uses: actions/checkout@v4
@@ -56,6 +57,7 @@ jobs:
                 echo IGP_ORIGINAL_LIVE_SDK_COMPLETE_COMPANION_RETRY_SUCCEEDED
                 break
               fi
+              grep 'IGP_COMPANION_AUTHORIZED_SDK_SHOT_SOURCE_PROBE' "$RUNNER_TEMP/private-source-retry.log" | tail -1 || true
               echo "IGP_SOURCE_SESSION_NOT_READY attempt=$attempt status=$state"
             else
               echo "IGP_SOURCE_BROWSER_STARTUP_RETRY attempt=$attempt"
