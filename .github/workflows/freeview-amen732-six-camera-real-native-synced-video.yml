@@ -101,3 +101,5 @@ jobs:
           PY
 
 # Re-evaluate executable script after source-video assembler syntax correction.
+
+# Source-only 11.6–13.7s block replay, rerun after verified public content policy fix.
