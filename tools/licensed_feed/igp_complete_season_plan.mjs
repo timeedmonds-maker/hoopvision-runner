@@ -8,7 +8,7 @@ async function get(url,privateRead=false){
   const res=await fetch(url,{headers:privateRead?{
     Authorization:'Bearer '+TOKEN,Accept:'application/vnd.github+json',
     'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
-    'Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/'}:{'User-Agent':'igp-auto-season'},
+    'Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/', 'Origin':'https://www.nba.com', 'Accept-Language':'en-US,en;q=0.9'}:{'User-Agent':'igp-auto-season'},
     signal:AbortSignal.timeout(30000)});
   if(res.status===404)return null;
   if(!res.ok)throw Error('NBA_OR_PRIVATE_STATUS_'+res.status);
@@ -23,11 +23,13 @@ async function privateFile(path){
 }
 let fixtures;
 for(const source of ['https://cdn.nba.com/static/json/staticData/scheduleLeagueV2.json',
+  'https://cdn.nba.com/static/json/staticData/scheduleLeagueV2_1.json',
+  'https://stats.nba.com/stats/scheduleleaguev2?LeagueID=00&Season=2026-27',
   'https://data.nba.com/data/10s/v2015/json/mobile_teams/nba/2026/league/00_full_schedule.json']){
   try {
     const payload=await get(source);
     let rows;
-    if(source.includes('scheduleLeagueV2'))rows=(payload.leagueSchedule.gameDates||[])
+    if(source.includes('scheduleLeagueV2')||source.includes('scheduleleaguev2'))rows=((payload.leagueSchedule||payload).gameDates||[])
       .flatMap(d=>d.games||[]).map(x=>({id:String(x.gameId),
         start:Date.parse(x.gameDateTimeUTC),status:String(x.gameStatus)==='3'}));
     else rows=(payload.data.lscd||[]).flatMap(m=>Array.isArray(m.mscd)?
