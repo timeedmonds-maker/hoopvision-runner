@@ -1,4 +1,5 @@
 name: "IGP original companion biomechanical full-event source retry for 0006 and 0086"
+# Targeted Oct30 reattempt after proving all 68 original native XYZ source manifests.
 on:
   push:
     branches: [main]
