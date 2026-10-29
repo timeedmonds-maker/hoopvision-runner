@@ -91,6 +91,8 @@ jobs:
           c=q['counts']
           assert q['evaluated_games']==68 and len(q['per_game'])==68
           assert c['official_lineup_source_verified']==68
+          assert c['official_paired_window_frames']>455116
+          assert all(v['counts']['PBP_paired_official_ten_windows']>0 for v in q['per_game'].values())
           assert all(v['official_lineup_verified_from_original_sources'] for v in q['per_game'].values())
           assert c['games']==68 and c['original_native_frames']>=2200000
           assert c['conditioned_all10_official_frames']>=c['baseline_all10_official_frames']
