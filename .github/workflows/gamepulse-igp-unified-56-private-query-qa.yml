@@ -55,6 +55,13 @@ jobs:
           assert shot["official_action"]["nba_action_number"]==790
           assert shot["shot_source"]["status"]=="MATCHED_BLUEPRINT_ACTION_SHOOTER_TYPE"
           assert shot["shot_source"]["published_shot"]["expFieldGoalPct"] is not None
+          assert old["canonical_official_shot_with_all_published_features"]["published_advanced_companion"] is not None
+          assert old["canonical_official_shot_with_all_published_features"]["nba_action_number"]==7
+          assert old["all_official_field_goal_attempts_indexed"]==10003
+          assert len(old["canonical_official_shot_with_all_published_features"]["published_advanced_companion"]["source_biomechanics_features"])==30
+          assert shot["canonical_official_shot_with_all_published_features"]["published_blueprint"] is not None
+          assert shot["canonical_official_shot_with_all_published_features"]["nba_action_number"]==790
+          assert shot["advanced_30_feature_companion_source_games"]==1
           assert new["model_tracking"]["status"]=="SAMPLED_MODEL"
           assert prior["model_tracking"]["status"] in (
               "SAMPLED_MODEL","NO_UNAMBIGUOUS_ELIGIBLE_GAMECLOCK_SAMPLE")
