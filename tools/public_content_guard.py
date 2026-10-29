@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-possession-search-product-real-qa.yml",  # private G4/native possession + all56 unified search real source QA; public safe aggregates
     ".github/workflows/gamepulse-igp-5s-multiscale-native-eightgame.yml",  # private 5s withheld actor trajectory six train two test SHA source-only QA
     ".github/workflows/gamepulse-igp-original-five-second-team-identity-v2.yml",  # original NBA official team exclusions from 18 source long-gap ID hypotheses, aggregate-only QA
     ".github/workflows/gamepulse-igp-original-five-second-alias-continuity.yml",  # private SHA original NBA gap actor overlap and endpoint diagnostics, no private XY logs
