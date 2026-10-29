@@ -7,7 +7,7 @@ on:
 permissions: {contents: read}
 concurrency:
   group: igp-season68-native-scene-benchmark
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   benchmark:
     runs-on: ubuntu-24.04
