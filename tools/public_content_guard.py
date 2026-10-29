@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-gap4-xyz-shot-geometry.yml",  # private SHA-verified original-player geometry at NBA shot-event UTC; aggregate-only public QA
     ".github/workflows/gamepulse-igp-oct30-four-biomechanics-source-gap-recovery.yml",  # private original SDK 0142/0143 and official Blueprint 0143 re-read, public aggregate only
     ".github/workflows/igp-0129-user-clip-semantic-private-qa.yml",  # source SHA private clip/PBP QA; aggregate-only public logs
     ".github/workflows/gamepulse-igp-68-native-index-hourly.yml",  # scheduled private SHA original tracking and official NBA chain reindex, no public coordinates
