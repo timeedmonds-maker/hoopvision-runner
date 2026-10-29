@@ -8,7 +8,10 @@ async function get(url,privateRead=false){
   const res=await fetch(url,{headers:privateRead?{
     Authorization:'Bearer '+TOKEN,Accept:'application/vnd.github+json',
     'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36',
-    'Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/', 'Origin':'https://www.nba.com', 'Accept-Language':'en-US,en;q=0.9'}:{'User-Agent':'igp-auto-season'},
+    'Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/', 'Origin':'https://www.nba.com', 'Accept-Language':'en-US,en;q=0.9'}:{'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      'Accept':'application/json, text/plain, */*',
+      'Referer':'https://www.nba.com/','Origin':'https://www.nba.com',
+      'Accept-Language':'en-US,en;q=0.9'},
     signal:AbortSignal.timeout(30000)});
   if(res.status===404)return null;
   if(!res.ok)throw Error('NBA_OR_PRIVATE_STATUS_'+res.status);
