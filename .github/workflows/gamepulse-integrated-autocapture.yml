@@ -344,6 +344,60 @@ jobs:
           python3 - <<'PY'
           import json
           from pathlib import Path
+          root=Path("gamepulse/fusion")
+          index=root/"materialized/igp_2026_27_unified_season_v3/index.json"
+          master=json.loads(index.read_bytes())
+          p=Path(master["post56_additive_oct28"]["index"])
+          additive=json.loads(p.read_bytes())
+          pending={}
+          for gid,g in sorted(additive["games"].items()):
+              source=g.get("original_companion_shot_crosswalk")
+              matched=0
+              if source:
+                  cross=json.loads(Path(source).read_bytes())
+                  matched=sum(e["official_join_status"]=="MATCHED_OFFICIAL_FGA_SHOOTER"
+                              for e in cross["shot_events"])
+              official=json.loads(Path(g["official_pbp_path"]).read_bytes())
+              fga=sum(x["action_type"] in ("2pt","3pt") for x in official["actions"])
+              coverage=matched/fga if fga else 0
+              app_grade=("COMPLETE_ORIGINAL_RESPONSE" if source and coverage>=.80
+                          else "PARTIAL_OR_UNAVAILABLE_ORIGINAL_SHOTS")
+              grades={
+                "official_nba_pbp_box":"SHA_VERIFIED",
+                "original_native_xyz":"SHA_FULL_13PART" if g.get("original_source_13_part_complete")
+                   else "UNMATERIALIZED_OR_SOURCE_UNAVAILABLE",
+                "original_companion":app_grade,
+                "original_nba_blueprint":"SOURCE_SHA_ACCEPTED" if
+                   g.get("published_blueprint_original_sha256") else "SOURCE_UNAVAILABLE",
+                "official_logical_chains":"SHA_VERIFIED" if
+                   g.get("nba_logical_chain_original_index_sha256") else "SOURCE_UNAVAILABLE",
+                "official_field_goal_attempts":fga,
+                "original_companion_shots_official_ID_matched":matched,
+                "original_companion_shot_coverage_pct":round(100*coverage,3),
+                "independent_physical_position_accuracy":"UNMEASURED",
+                "independent_physical_possessions_certified":0}
+              g["source_capture_grades"]=grades
+              complete=(grades["original_native_xyz"]=="SHA_FULL_13PART"
+                  and app_grade=="COMPLETE_ORIGINAL_RESPONSE"
+                  and grades["original_nba_blueprint"]=="SOURCE_SHA_ACCEPTED"
+                  and grades["official_logical_chains"]=="SHA_VERIFIED")
+              g["status"]="SOURCE_LAYERS_CAPTURED_AND_SHA_INDEXED" if complete else "SOURCE_GAPS_RETRY_REQUIRED"
+              if not complete:pending[gid]=grades
+          p.write_text(json.dumps(additive,sort_keys=True,indent=2)+"\n")
+          report={"schema":"igp.autonomous-2026-27-source-layer-watchdog.v1",
+             "unified_games":56+len(additive["games"]),
+             "new_games":len(additive["games"]),"source_incomplete_games":len(pending),
+             "pending_source_grades":pending,
+             "physical_possessions_certified":0,
+             "historical_56_model_data_replaced":False}
+          dst=root/"qa/igp_progress_20261030/igp_autonomous_capture_status_latest.json"
+          dst.parent.mkdir(parents=True,exist_ok=True)
+          dst.write_text(json.dumps(report,sort_keys=True,indent=2)+"\n")
+          print("IGP_AUTOMATIC_CAPTURE_QA",report["unified_games"],"pending",len(pending))
+          PY
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
           from query_igp_unified_2026_27_season_v1 import query
           p=Path("gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json")
           d=json.loads(p.read_bytes())
