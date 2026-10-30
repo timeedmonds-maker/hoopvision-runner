@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p4-human-app-heldout-fusion-v31.yml",  # existing human labelled NBA app heldout vs single IGP Fusion, original source private only
     ".github/workflows/gamepulse-igp-g1-three-more-original-native-games.yml",  # 3 private source original NBA 13part selected actor keyframe upstream flag QA, aggregates only
     ".github/workflows/gamepulse-igp-v31-halfcourt-touch-rockets-research.yml",  # source-SHA pinned private-only v3.1 Rockets halfcourt touch QA; public safe totals only
     ".github/workflows/gamepulse-igp-fusion-g1-original-upstream-integrated-query.yml",  # P4 original SDK selected actor upstream keyframe flags as immutable optin single IGP Fusion layer
