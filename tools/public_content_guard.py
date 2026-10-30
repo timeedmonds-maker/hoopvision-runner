@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p3-ten-game-fresh-context-holdout-v1.yml",  # source-original P3 six train / four new heldout NBA games, aggregate QA only
     ".github/workflows/gamepulse-igp-p3-frozen-eightgame-external-source-validation-v1.yml",  # original private NBA eight unseen P3 crossgame frozen-model QA, aggregate only
     ".github/workflows/gamepulse-igp-p3-multiagent-crossgame-source-blackout-v1.yml",  # private SHA NBA four-game P3 cross-game source masks; aggregate-only public QA
     ".github/workflows/gamepulse-igp-p2-original-source-negative-acceptance-v1.yml",  # source-locked P2 four-game negative research decision; aggregate only
