@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    "tools/licensed_feed/igp_p1_0122_bounded_original_sdk_recheck.mjs",  # source-only SDK bounded 0122 recheck, licensed content private
+    ".github/workflows/gamepulse-igp-0122-original-source-p1-two-part-recheck.yml",  # private original NBA SDK 0122 two-part reacquisition, aggregate only
     ".github/workflows/gamepulse-igp-68-p1-sparse-native-cadence-audit-v1.yml",  # SHA private NBA 3-game source cadence QA; no raw XYZ, public aggregate-only
     ".github/workflows/gamepulse-igp-0122-source-identity-gap-diagnostic-v1.yml",  # private SHA 0122 identity and native gap diagnosis; public aggregate-only
     ".github/workflows/gamepulse-igp-0092-approved-booker-source-alias-ab-v1.yml",  # approved game-only source ID correction: private SHA-backed A/B, aggregate QA only
