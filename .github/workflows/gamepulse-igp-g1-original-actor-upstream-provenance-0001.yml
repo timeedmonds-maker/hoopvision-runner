@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   original-source:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 85
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
