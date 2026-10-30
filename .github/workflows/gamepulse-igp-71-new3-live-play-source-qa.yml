@@ -1,4 +1,4 @@
-name: IGP 71 new3 and all71 live-clock reconstruction 800 and 1200 QA
+name: IGP 71 live-clock tracking and official fifth-player QA
 # Reviewed allowlisted private source evaluation: do not print XYZ
 on:
   push:
@@ -57,6 +57,7 @@ jobs:
           print('IGP71_NEW3_LIVE_OFFICIAL_PBP_PROXY',n,g)
           PY
           python3 gamepulse/fusion/igp_71_live_tracking_reconcile_v1.py --root . --output gamepulse/fusion/qa/igp_progress_20261031/igp_71_live_tracking_reconcile_v1.json
+          python3 gamepulse/fusion/igp_71_new3_fifth_player_live_qa_v1.py --root . --output gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_fifth_player_live_qa_v1.json
       - name: Preserve only QA in private canonical repo
         if: success()
         shell: bash
@@ -65,7 +66,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_live_play_tracking_qa_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_live_tracking_reconcile_v1.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_live_play_tracking_qa_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_live_tracking_reconcile_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_fifth_player_live_qa_v1.json
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP71_NEW3_LIVE_QA_ALREADY_CURRENT; exit 0; fi
           git commit -q -m 'qa(igp): 71 new3 exact live-clock source reconstruction 800ms accepted versus 1200ms shadow'
