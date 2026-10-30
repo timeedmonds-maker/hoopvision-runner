@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-0122-source-identity-gap-diagnostic-v1.yml",  # private SHA 0122 identity and native gap diagnosis; public aggregate-only
     ".github/workflows/gamepulse-igp-0092-approved-booker-source-alias-ab-v1.yml",  # approved game-only source ID correction: private SHA-backed A/B, aggregate QA only
     ".github/workflows/gamepulse-igp-68-priority1-source-triage-v1.yml",  # SHA-private 68-game existing receipt outlier audit; aggregate-only public logs
     ".github/workflows/gamepulse-igp-68-live-gap-census-v1.yml",  # pinned private all68 gap QA; public aggregate counts only
