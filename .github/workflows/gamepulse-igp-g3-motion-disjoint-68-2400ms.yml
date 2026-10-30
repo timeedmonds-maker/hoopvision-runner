@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Verify reviewed public guard and private licensed original NBA SHA branch
+      - name: Verify full reviewed public guard and private licensed original NBA SHA branch
         shell: bash
         run: |
           set -euo pipefail
