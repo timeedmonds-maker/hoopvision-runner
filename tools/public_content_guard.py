@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-fusion-p4-independent-video-possession.yml",  # private SHA-verified independent NBA Broadcast JPEG P4 possession research QA, public aggregate only
     ".github/workflows/gamepulse-igp-fusion-v3-68game-integration.yml",  # official source SHA 68game private research fusion entrypoint and public aggregate QA
     ".github/workflows/gamepulse-igp-p3-sourcegrade-v3-all68-query.yml",  # original NBA all68 source grade read-only QA, private values public counts only
     ".github/workflows/gamepulse-igp-p3-fastball-external8-replication.yml",  # third disjoint 8game original NBA ball source mask QA, source private
