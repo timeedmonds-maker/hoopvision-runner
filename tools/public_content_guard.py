@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-71-halfcourt-research-smoke.yml",  # source original NBA append3 all6 halfcourt source-grade outputs, public aggregate counters only
     ".github/workflows/gamepulse-igp-71-full-valid-gains-holdout.yml",  # reviewed private original NBA all71 masked source player XY and ball 3D 800/1200; public aggregate only
     ".github/workflows/gamepulse-igp-71-valid-gains-gates.yml",  # reviewed 71 original NBA source SHA and matched masked 800/1200 quality gates; aggregate public counts only
     ".github/workflows/gamepulse-igp-71-new3-live-play-source-qa.yml",  # private SHA original NBA three added games same live clock 800/1200 metrics; public only safe aggregate counts
