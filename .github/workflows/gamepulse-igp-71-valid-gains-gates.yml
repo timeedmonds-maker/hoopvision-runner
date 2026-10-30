@@ -66,6 +66,7 @@ jobs:
             exit 31
           }
           grep 'IGP71_PAIRED_MASKED_LIVE_FINAL' "$RUNNER_TEMP/holdout3.log" || true
+          python3 gamepulse/fusion/igp_71_valid_gains_release_decision_v1.py --root . --output gamepulse/fusion/qa/igp_progress_20261031/igp_71_valid_gains_release_decision_v1.json
       - name: Private QA acceptance commit
         shell: bash
         run: |
@@ -73,7 +74,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_progress_20261031/igp_71_source_context_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_matched_masked_800_v1200_v1.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261031/igp_71_source_context_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_matched_masked_800_v1200_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_valid_gains_release_decision_v1.json
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP71_VALID_GAINS_QA_ALREADY_PRESENT;exit 0;fi
           git commit -q -m 'qa(igp): all71 source context, new3 paired live 800-v1200 masked original holdout'
