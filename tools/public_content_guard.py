@@ -11,6 +11,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-igp-p4-human-app-sourcefirst-native-heldout-v2.yml",  # source-wide NBA original player XYZ versus human app heldout, not official promotion
     ".github/workflows/gamepulse-igp-p4-human-app-heldout-fusion-v31.yml",  # existing human labelled NBA app heldout vs single IGP Fusion, original source private only
     ".github/workflows/gamepulse-igp-g1-three-more-original-native-games.yml",  # 3 private source original NBA 13part selected actor keyframe upstream flag QA, aggregates only
+    ".github/workflows/gamepulse-igp-definition-aligned-touch-v2-rockets-20261031.yml",  # private source original NBA Rockets Bucks definition-aligned touch QA with public safe metrics only
     ".github/workflows/gamepulse-igp-v31-halfcourt-touch-rockets-research.yml",  # source-SHA pinned private-only v3.1 Rockets halfcourt touch QA; public safe totals only
     ".github/workflows/gamepulse-igp-fusion-g1-original-upstream-integrated-query.yml",  # P4 original SDK selected actor upstream keyframe flags as immutable optin single IGP Fusion layer
     ".github/workflows/gamepulse-igp-p4-g1-upstream-stratified-ball-holdout.yml",  # private original 13part actor provenance NBA source masked ball 3D holdout, aggregate only
