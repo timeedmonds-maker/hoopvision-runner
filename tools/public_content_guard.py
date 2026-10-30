@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p3-pbp-shot-blackout-v1.yml",  # original NBA full11 masked PBP shooter contextual model; private source and QA only
     ".github/workflows/gamepulse-igp-p3-all68-natural-event-gap-atlas.yml",  # Private 68 original NBA PBP and 10Hz source hole attribution, public aggregates only
     ".github/workflows/gamepulse-igp-p3-joint-external-risk-v1.yml",  # P3 four unseen NBA full11 original source masks; private receipts and aggregate logs only
     ".github/workflows/gamepulse-igp-p3-joint-all11-handler-blackout-v1.yml",  # SHA-private original all11 blackout; public aggregate QA, private licensed source only
