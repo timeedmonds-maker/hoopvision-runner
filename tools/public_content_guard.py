@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-71-new3-live-play-source-qa.yml",  # private SHA original NBA three added games same live clock 800/1200 metrics; public only safe aggregate counts
     ".github/workflows/gamepulse-igp-v31-71-integration-qa.yml",  # private 71-game SHA metadata only, source-graded metric tests, no XYZ or media in public logs
     ".github/workflows/gamepulse-igp-crash-the-glass-20261031.yml",  # frozen 68-game crash-the-glass private-only research, aggregate public counters
     ".github/workflows/gamepulse-igp-g3-shot-targeted-68-2400ms-source-qa.yml",  # private NBA68 SHA-original shot targeted all-actor blackout disjoint 34/34 validation aggregate only
