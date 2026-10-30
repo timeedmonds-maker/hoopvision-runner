@@ -26,7 +26,7 @@ jobs:
           test -n "$GH_TOKEN"
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 --sparse -b "$IGP_PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/public_nba_touch_season_snapshot_v1.py gamepulse/fusion/tests
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PINNED_PRIVATE_SHA"
       - name: Download immutable public NBA season tracking CSV and verify exact schema
         shell: bash
