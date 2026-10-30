@@ -126,8 +126,16 @@ jobs:
             local name="$1"
             local ref="$2"
             mkdir -p "$(dirname "$WORK/$name")"
-            gh api "repos/$PRIVATE_REPO/contents/$name?ref=$ref" --jq '.content' |
-              base64 --decode > "$WORK/$name"
+            local encoded="$WORK/$name.base64"
+            if ! gh api "repos/$PRIVATE_REPO/contents/$name?ref=$ref" --jq '.content' > "$encoded"; then
+              echo "EXPECTED_PRIVATE_SOURCE_MISSING_AT_PINNED_COMMIT:$name" >&2
+              return 1
+            fi
+            if ! base64 --decode < "$encoded" > "$WORK/$name"; then
+              echo "EXPECTED_PRIVATE_SOURCE_INVALID_BASE64:$name" >&2
+              return 1
+            fi
+            rm -f "$encoded"
             test -s "$WORK/$name"
           }
           fetch_private gamepulse/fusion/season_possession_tracking_crosswalk_2026.py "$SOURCE_COMMIT"
@@ -145,13 +153,21 @@ jobs:
           python3 -m py_compile "$WORK/gamepulse/fusion/season_possession_tracking_crosswalk_2026.py"
           python3 -m unittest discover -s "$WORK/gamepulse/fusion/tests" \
             -p 'test_season_possession_tracking_crosswalk_2026.py' -v
-          python3 - "$WORK/gamepulse/catalog/2026-27-integrated-current.json" "$WORK/gamepulse/fusion/index/interactions/index-2026-27.json" > "$RUNNER_TEMP/pulse-ids.json" <<'PY'
+          python3 - "$WORK/gamepulse/catalog/2026-27-integrated-current.json" "$WORK/gamepulse/fusion/official_pbp_timing/index-2026-27-expanded.json" "$WORK/gamepulse/fusion/index/interactions/index-2026-27.json" "$WORK/gamepulse/fusion/index/index.json" > "$RUNNER_TEMP/pulse-ids.json" <<'PY'
           import json,sys
-          catalog=json.load(open(sys.argv[1]))
-          interactions=json.load(open(sys.argv[2]))
-          games=set(catalog['games'])
-          assert games and set(interactions['games']) <= games
-          print(json.dumps({"games":sorted(games),"joined":sorted(interactions['games'])}))
+          catalog,official,interactions,tracking=(json.load(open(p)) for p in sys.argv[1:])
+          catalog_ids=set(catalog['games'])
+          official_ids=set(official['games'])
+          interaction_ids=set(interactions['games'])
+          tracking_ids=set(tracking['games'])
+          assert official_ids and official_ids <= catalog_ids, 'OFFICIAL_PBP_NOT_SUBSET_OF_CATALOG'
+          assert official_ids <= tracking_ids, 'OFFICIAL_PBP_TRACKING_VIEW_MISSING'
+          assert interaction_ids <= catalog_ids, 'INTERACTION_GAME_NOT_IN_CATALOG'
+          print(json.dumps({
+              "games":sorted(official_ids),
+              "joined":sorted(interaction_ids & official_ids),
+              "catalog_only_pbp_not_indexed":sorted(catalog_ids-official_ids),
+              "tracking_only_outside_pbp_cohort":sorted(tracking_ids-official_ids)}))
           PY
           python3 - "$RUNNER_TEMP/pulse-ids.json" > "$RUNNER_TEMP/private-paths.txt" <<'PY'
           import json,sys
@@ -259,7 +275,10 @@ jobs:
           python3 - "$RUNNER_TEMP/pulse-verified.json" <<'PY'
           import json,sys
           j=json.load(open(sys.argv[1]))
-          assert j['game_count'] == 36, 'CURRENT_SEASON_36_GAME_ACCEPTANCE_GATE'
+          assert j['game_count'] == 36, 'CURRENT_OFFICIAL_PBP_36_GAME_ACCEPTANCE_GATE'
+          assert j['catalog_game_count'] >= j['game_count']
+          assert len(j['catalog_only_pbp_not_indexed']) == j['catalog_game_count']-j['game_count']
+          assert j['catalog_only_source_state'] == 'PBP_NOT_INDEXED_NOT_ZERO_OR_CERTIFIED'
           assert j['official_pbp_games_indexed']==j['game_count']
           assert j['official_pbp_games_validated']+len(j['official_pbp_clock_anomaly_games'])==j['game_count']
           assert j['official_pbp_clock_anomaly_games']=={}
