@@ -1,5 +1,6 @@
 name: IGP v3.2 per-actor original SDK ball-grade game 0006 pilot
 # reviewed public-only QA, actor flags remain in private repository
+# retry source-free importer after canonical 20e6bea8 correction
 on:
   push:
     branches: [main]
