@@ -342,6 +342,29 @@ jobs:
           python3 gamepulse/fusion/igp_post56_blueprint_original_index_v1.py --root .
           python3 gamepulse/fusion/igp_post56_official_logical_chain_index_v1.py --root .
           python3 gamepulse/fusion/igp_post56_native_index_refresh_v1.py --root .
+          # New games receive the same source-graded 800ms official-ten/PBP
+          # reconstruction as the prior 68, in a separate immutable overlay.
+          # Never evaluate without all three native 13-part SHA source indexes.
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          base=Path("gamepulse/fusion/materialized/igp_all_original_xyz")
+          ids=("0022600144","0022600145","0022600146")
+          ready=all((base/g/"index.json").is_file() for g in ids)
+          if ready:
+            for gid in ids:
+              m=json.loads((base/gid/"index.json").read_bytes())
+              assert m["game_id"]==gid and m["capture_archive_all_13_parts_verified"]
+              assert m["original_archive_part_count_verified"]==13
+          import subprocess,sys
+          if ready:
+            subprocess.run([sys.executable,
+              "gamepulse/fusion/igp_71_new3_official_ten_possession_ab_v1.py",
+              "--root","."],check=True)
+          else:
+            print("IGP_NEW3_OFFICIAL_TEN_MODEL_PENDING_ORIGINAL_NATIVE_SOURCE",
+                  [g for g in ids if not (base/g/"index.json").is_file()])
+          PY
           python3 - <<'PY'
           import json
           from pathlib import Path
