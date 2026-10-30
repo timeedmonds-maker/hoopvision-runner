@@ -43,5 +43,11 @@ jobs:
           assert q['provider_upstream_interpolated_ball_rows']==1
           assert not row['ball_source_integrity']['query_source_ball_usable_for_physical_analysis_without_review']
           assert q['accepted_scene_coverage_unchanged']
-          print('IGP_V32_NATIVE_SOURCE_QUALITY_INTEGRATED_QUERY_PASSED warning_rows=1 source_changed=false')
+          from query_igp_v32_g1_rawfalse_ball_shadow_v1 import query as shadow_query
+          repaired=shadow_query('.',gid,t,t,hz=10)
+          assert repaired["shadow_candidate_rows"]==1
+          assert repaired["rows"][0]["source_grade_ball_reconstruction_shadow"]["grade"]=="RESEARCH_G1_ORIGINAL_UPSTREAM_FALSE_ONLY_BALL_65FTS"
+          assert repaired["rows"][0]["source_original_xyz_native"]==row["source_original_xyz_native"]
+          assert repaired["rows"][0]["complete_ten_plus_ball"]==row["complete_ten_plus_ball"]
+          print('IGP_V32_NATIVE_SOURCE_QUALITY_INTEGRATED_QUERY_PASSED provider_true=1 rawfalse_shadow=1 source_changed=false accepted_completeness_changed=false')
           PY
