@@ -39,3 +39,19 @@ jobs:
           assert j['no_source_modified'] and j['no_model_promoted']
           print('P3_BALL_HANDLER_SECOND_FOUR_QA',json.dumps(j['pooled_heldout'],sort_keys=True))
           PY
+
+      - name: Retain original-source confirmation privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          target=gamepulse/fusion/qa/igp_progress_20261030/igp_68_p3_secondfour_handler_frozen_confirmation_v1.json
+          git fetch -q origin research/igp-68-live-gap-census-20261030
+          git checkout -q -B confirm origin/research/igp-68-live-gap-census-20261030
+          cp "$RUNNER_TEMP/confirmation.json" "$target"
+          git add -f "$target"
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -q -m 'qa(igp): retain frozen handler independent source test'
+          git push -q origin HEAD:refs/heads/research/igp-68-live-gap-census-20261030
