@@ -1,4 +1,5 @@
 name: IGP P3 full68 native-live 10Hz PBP shot gap and source-anchor atlas
+# Source-only aggregate results; licensed NBA records are committed privately.
 on:
   push:
     branches: [main]
