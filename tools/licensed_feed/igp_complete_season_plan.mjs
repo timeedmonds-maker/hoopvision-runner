@@ -17,7 +17,23 @@ async function get(url,privateRead=false){
    }catch(error){
      const stderr=String(error.stderr||'');
      if(/HTTP 404|status 404|Not Found/.test(stderr))return null;
-     throw Error('PRIVATE_GITHUB_AUTH_OR_SOURCE_UNAVAILABLE');
+     // gh's release endpoint can be temporarily throttled while git source
+     // access continues working. Recheck through the documented release CLI,
+     // never infer that a source archive exists from an unreadable response.
+     const tag=u.pathname.split('/').at(-1);
+     if(u.pathname.includes('/releases/tags/') && /^gamepulse-sdk-00226\d{5}$/.test(tag)){
+       try{
+         const raw=execFileSync('gh',['release','view',tag,'--repo',
+           'timeedmonds-maker/104','--json','assets'],{
+             encoding:'utf8',timeout:30000,maxBuffer:2*1024*1024,env:process.env});
+         return JSON.parse(raw);
+       }catch(second){
+         const detail=String(second.stderr||'');
+         if(/HTTP 404|status 404|Not Found/.test(detail))return null;
+       }
+     }
+     throw Error(/rate.limit|secondary.rate.limit|HTTP 429/i.test(stderr)
+       ? 'PRIVATE_GITHUB_RATE_LIMITED' : 'PRIVATE_GITHUB_AUTH_OR_SOURCE_UNAVAILABLE');
    }
  }
  const res=await fetch(url,{headers:{
@@ -132,7 +148,15 @@ for(const game of selected){
     sdkGames.push(game);
   } catch(err) {
     releaseReadDeferred++;
-    console.log('IGP_NATIVE_RELEASE_METADATA_RETRY_NEXT_SCHEDULE',game.id);
+    console.log('IGP_NATIVE_RELEASE_METADATA_UNAVAILABLE_IDEMPOTENT_ATTEMPT',
+      game.id,err?.message==='PRIVATE_GITHUB_RATE_LIMITED'?'RATE_LIMIT':'UNAVAILABLE');
+    // The source archive's presence is UNKNOWN, not ABSENT. Dispatch the
+    // existing SHA-preserving capture/reconciliation worker on each part;
+    // it reads and validates existing assets before any write, and cannot
+    // claim completion until the real 13-part release has passed readback.
+    // Do not suppress collection because a metadata-only GET was throttled.
+    for(let part=0;part<13;part++) parts.push({...game,part});
+    sdkGames.push(game);
   }
   if(!add.games[game.id]?.original_companion_original_event_body_sha256 ||
      add.games[game.id]?.source_capture_grades?.original_companion!=='COMPLETE_ORIGINAL_RESPONSE')
