@@ -1,4 +1,5 @@
 name: IGP 71 new3 matched live-clock reconstruction 800 and 1200 QA
+# Reviewed allowlisted private source evaluation: do not print XYZ
 on:
   push:
     branches: [main]
