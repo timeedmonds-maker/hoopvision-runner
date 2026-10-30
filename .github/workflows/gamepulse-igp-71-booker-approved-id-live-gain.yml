@@ -66,7 +66,7 @@ jobs:
           assert SOURCE in row['source_original_xyz_native']
           assert row['derived_game_only_booker_identity_override_applied']
           assert row['scene'] and CANONICAL in row['scene']['players_by_source_id']
-          assert row['scene']['players_by_source_id'][CANONICAL]['xyz_native']==tuple(row['source_original_xyz_native'][SOURCE])
+          assert row['scene']['players_by_source_id'][CANONICAL]['xyz_native']==row['source_original_xyz_native'][SOURCE]
           assert output['game_scoped_Booker_previous_approval_provenance_verified']
           print('IGP71_BOOKER_DERIVED_TRACKING_QUERY_PROVENANCE',json.dumps({'game_only':True,'original_source_preserved':True,'derived_official_booker_present':True}))
           PY
