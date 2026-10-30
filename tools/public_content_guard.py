@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-g3-shot-targeted-68-2400ms-source-qa.yml",  # private NBA68 SHA-original shot targeted all-actor blackout disjoint 34/34 validation aggregate only
     ".github/workflows/gamepulse-igp-g3-nba-shot-conditional-ball-68-holdout.yml",  # SHA NBA original source shot-semantic 34dev34val 2400ms source-masked ball3D tail QA only
     ".github/workflows/nba-public-orebpct-research-20261031.yml",  # reviewed independent public NBA official rebounding stats research only, no private XYZ
     ".github/workflows/gamepulse-igp-g3-motion-disjoint-68-2400ms.yml",  # private original NBA G3 motion dev34 vs heldout34 source masked 2p4s, only aggregate logs
