@@ -64,3 +64,40 @@ jobs:
             results=list(pool.map(probe,endpoints.items()))
           print("OFFICIAL_NBA_TOUCH_PROBE_SAFE_META "+json.dumps(results,sort_keys=True))
           PY
+      - name: Inspect the public NBA Stats webpage for genuine embedded tracking rows
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os,re,json,html
+          from pathlib import Path
+          p=Path(os.environ["RUNNER_TEMP"])/"nba-touch-probe/nba_stats_page.response"
+          s=p.read_text(errors="replace")
+          names=["Bogdan Bogdanović","Amen Thompson","Oscar Tshiebwe","Clint Capela","Bruce Thornton","Fred VanVleet","Isaiah Crawford"]
+          probes={}
+          for name in names:
+              term=name.split(" ")[0]
+              probes[name]={"plain_name":name.lower() in s.lower(),
+                  "first_name":term.lower() in s.lower()}
+          next_data=re.search(r'<script[^>]*id="__NEXT_DATA__"[^>]*>(.*?)</script>',s,re.DOTALL)
+          next_summary={"present":bool(next_data)}
+          if next_data:
+              blob=next_data.group(1)
+              next_summary["length"]=len(blob)
+              try:
+                  data=json.loads(blob)
+                  next_summary["keys"]=list(data.keys())
+                  next_summary["props_keys"]=list((data.get("props") or {}).keys())
+                  next_summary["pageprops_keys"]=list(((data.get("props") or {}).get("pageProps") or {}).keys())[:20]
+              except ValueError:next_summary["json_parse"]=False
+          hints={
+            "data_nba_tracking":bool(re.search(r'\\bPAINT_TOUCHES\\b',s)),
+            "embedded_26_touches":bool(re.search(r'"touches"\\s*:\\s*26\\b',s)),
+            "table_elements":len(re.findall(r'<table\\b',s,re.I)),
+            "tbody_elements":len(re.findall(r'<tbody\\b',s,re.I)),
+            "html_next_flight_markers":s.count('self.__next_f.push'),
+            "total_html_bytes":len(s.encode()),
+            "player_name_probes":probes,
+            "next_data":next_summary,
+          }
+          print("NBA_TOUCH_PAGE_EMBEDDED_DATA_DIAGNOSTIC "+json.dumps(hints,sort_keys=True))
+          PY
