@@ -45,7 +45,7 @@ jobs:
           assert c['matched_player_slots_1200']>=c['matched_player_slots_800']
           assert c['complete_ten_ball_1200']>=c['complete_ten_ball_800']
           print('IGP71_VALID_GAIN_GATE',json.dumps({'games':71,'selected_frames':c['masked_live_complete_source_frames'],
-            'new_player_slots_1200':c['new_1200_player_slots'],'new_ball_frames_1200':c['new_1200_ball_frames'],
+            'new_player_slots_1200':c.get('new_1200_player_slots',0),'new_ball_frames_1200':c.get('new_1200_ball_frames',0),
             'original_source_video_accuracy_certified':False},sort_keys=True))
           PY
       - name: Write accepted private original-source QA only
