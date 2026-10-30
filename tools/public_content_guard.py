@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p2-fourgame-masked-method-comparison-v1.yml",  # private four-game source blackout direct-model comparison; public aggregate QA only
     ".github/workflows/gamepulse-igp-p2-fourgame-contiguous-gap-pilot-v1.yml",  # approved private SHA original NBA P2 source blackouts; public coverage-only
     ".github/workflows/gamepulse-igp-68-priority1-source-audit-release-gate-v1.yml",  # private SHA original source P1 five-game audited release gate; only aggregate public
     "tools/licensed_feed/igp_p1_0122_bounded_original_sdk_recheck.mjs",  # source-only SDK bounded 0122 recheck, licensed content private
