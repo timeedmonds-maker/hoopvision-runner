@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p3-fastball-external8-replication.yml",  # third disjoint 8game original NBA ball source mask QA, source private
     ".github/workflows/gamepulse-igp-p3-fastball-sourcegrade-v3-readback.yml",  # original NBA SDK private short-ball provenance grade; public aggregates only
     ".github/workflows/gamepulse-igp-p3-ball-natural-600ms-matched.yml",  # original NBA <=600ms P3 ball masked source validation; public aggregate only
     ".github/workflows/gamepulse-igp-p3-physics-all68-natural-shadow.yml",  # private original 68 NBA full-native scene candidate source audit; safe totals only
