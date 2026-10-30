@@ -23,6 +23,7 @@ ALLOWED_STATIC = {
     ".github/workflows/gamepulse-igp-p4-human-app-sourcefirst-native-heldout-v2.yml",  # source-wide NBA original player XYZ versus human app heldout, not official promotion
     ".github/workflows/gamepulse-igp-p4-human-app-heldout-fusion-v31.yml",  # existing human labelled NBA app heldout vs single IGP Fusion, original source private only
     ".github/workflows/gamepulse-igp-g1-three-more-original-native-games.yml",  # 3 private source original NBA 13part selected actor keyframe upstream flag QA, aggregates only
+    ".github/workflows/gamepulse-public-nba-touch-season-mirror-20261031.yml",  # public NBA season-level tracking mirror source SHA and private QA, aggregate public logs only
     ".github/workflows/gamepulse-nba-touch-official-source-probe-20261031.yml",  # source-only public NBA Stats player touch/paint endpoint diagnostic with safe status metadata
     ".github/workflows/gamepulse-igp-touch-v4-quality-sweep-20261031.yml",  # original private NBA 0138 player custody quality and time QA, aggregate-only
     ".github/workflows/gamepulse-igp-touch-v3-clock-control-sweep-20261031.yml",  # source SHA-pinned private NBA clock custody touch sensitivity, aggregate only
