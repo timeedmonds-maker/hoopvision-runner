@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v31-halfcourt-touch-sequence-query-20261031
-      PINNED_PRIVATE_SHA: befe94288197d0adc3a62cf9b9b6fdcc0e5aecc9
+      PINNED_PRIVATE_SHA: 6c6a6726619f10bb29bc43775208adcb20e0eb55
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -44,7 +44,7 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           # Original XYZ, touch timelines and full report stay inside private workspace.
           if ! python3 gamepulse/fusion/igp_halfcourt_touch_query_v1.py \
-                  --root . --games 0022600091,0022600009 --team HOU --zone paint \
+                  --root . --games all-team --team HOU --zone paint \
                   --output "$RUNNER_TEMP/rockets-halfcourt-private.json" \
                   >"$RUNNER_TEMP/rockets-halfcourt-private.log" 2>&1; then
             python3 - <<'PY'
@@ -61,10 +61,10 @@ jobs:
           from pathlib import Path
           r=json.loads((Path(os.environ['RUNNER_TEMP'])/'rockets-halfcourt-private.json').read_text())
           assert r['engine']=='igp-fusion-v3.1-research'
-          assert len(r['games'])==2 and r['certified_physical_possessions']==0
+          assert len(r['games'])>=2 and r['certified_physical_possessions']==0
           assert all(x['physical_touch_and_possession_certified'] is False for x in r['player_results'])
           assert len(r['player_results'])>=5
-          assert set(r['source_qa_by_game'])=={'0022600091','0022600009'}
+          assert {'0022600091','0022600009'}<=set(r['source_qa_by_game'])
           print('IGP_V31_ROCKETS_RESEARCH_SOURCE_GATES',json.dumps({
             'games':len(r['games']),
             'candidate_rows':len(r['matched_possessions']),
