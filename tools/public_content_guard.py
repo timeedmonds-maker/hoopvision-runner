@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p3-frozen-handler-eight-unseen-v1.yml",  # SHA-private NBA P3 ball handler eight unseen frozen 50 percent QA; aggregate only
     ".github/workflows/gamepulse-igp-p3-one-sided-duration-curve-v1.yml",  # SHA private NBA P3 causal one-sided mask 600-2400ms frozen model accuracy curve
     ".github/workflows/gamepulse-igp-p3-handler-frozen-confirmation-v1.yml",  # independent 4-game source-locked P3 handler w0.5 confirmation, aggregate only
     ".github/workflows/gamepulse-igp-p3-one-sided-eighttrain-eightunseen-v1.yml",  # private original NBA P3 causal one-sided source gap eight train/eight heldout
