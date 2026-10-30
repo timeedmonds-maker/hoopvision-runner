@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: 747a37aca5b3ca60cd1cda5e440410e3182ffae3
+      PINNED_PRIVATE_SHA: 28e2bde4309fdada2186251918ec430a4a74d775
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -55,6 +55,12 @@ jobs:
           assert q['original_source_XYZ_and_UTC_immutable']
           assert q['no_train_test_game_overlap'] and q['research_only_no_model_promotion']
           assert len(q['source_evidence'])==4
+          assert set(q['leave_one_game_out_folds'])=={'player','ball'}
+          for kind in ('player','ball'):
+            assert q['leave_one_game_out_pooled'][kind]['paired_targets']>=200
+            for gid,fold in q['leave_one_game_out_folds'][kind].items():
+              assert gid not in fold['train_games']
+              assert len(fold['train_games'])==3
           for kind in ('player','ball'):
             train=q['metrics'][kind]['train']['metrics']
             test=q['metrics'][kind]['test']['metrics']
@@ -62,7 +68,8 @@ jobs:
             assert test['baseline_C0']['n']==test['multiagent_residual']['n']
           print('IGP68_P3_CROSSGAME_MULTIAGENT_MASKED_SOURCE',json.dumps({
             kind:{'train':q['metrics'][kind]['train']['metrics'],
-                  'heldout_test':q['metrics'][kind]['test']['metrics']}
+                  'heldout_test':q['metrics'][kind]['test']['metrics'],
+                  'out_of_fold':q['leave_one_game_out_pooled'][kind]}
             for kind in ('player','ball')},sort_keys=True))
           PY
       - name: Commit private 4-game cross-game real-source QA receipt
