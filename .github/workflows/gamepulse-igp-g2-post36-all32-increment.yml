@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: 0479735bde3383f5e5a61964ae3395049708fe61
+      PINNED_PRIVATE_SHA: d3089b5bd47574ff9f547ea61d138a773d779431
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -68,6 +68,7 @@ jobs:
           assert 266165<q['all_G2_68_nonoverlap_candidate_native_frames']<=1412865
           assert q['remaining_outside_strict_and_G2_68_native_frames']>=0
           assert q['newly_accepted_tracking_scene_delta']==0
+          assert c['unified_Fusion_v31_native_G2_readbacks_verified']>=32
           assert q['independent_physical_possessions_certified']==0
           assert q['existing_NBA_historical_hybrid_source_unmodified']
           print('IGP_POST36_32_GAIN_SOURCE_AGGREGATE',json.dumps({
@@ -91,6 +92,10 @@ jobs:
           cp "$RUNNER_TEMP/igp-post36-32-qa-private.json" "$dest"
           git add -f "$dest"
           git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_POST36_32_QA_ALREADY_IDENTICAL
+            exit 0
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -q -m 'qa(igp): original NBA32 verified boxscore/PBP long/sub evidence incremental G2 source gains'
