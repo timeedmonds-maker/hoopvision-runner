@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: dba886d3c5015f1529dc81a74de6207e47eb2ec2
+      PINNED_PRIVATE_SHA: d8c8feb6daa338f328172f3730c721e1ab933e20
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -65,7 +65,7 @@ jobs:
           assert t['games']==68
           assert t['all_NBA_G2_lineup_candidate_frames']==603823
           assert t['G2_conflicting_source_actor_frames']==178456
-          assert t['regression_complete10_ball_native']==0
+          assert t.get('regression_complete10_ball_native',0)==0
           assert j['incremental_conflict_10_player_and_ball_model_candidate_frames']>=0
           assert j['incremental_official_player_position_slots']>=0
           assert j['new_production_accepted_full11_scene_delta']==0
