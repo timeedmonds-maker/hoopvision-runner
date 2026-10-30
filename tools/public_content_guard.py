@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-fusion-g1-original-upstream-integrated-query.yml",  # P4 original SDK selected actor upstream keyframe flags as immutable optin single IGP Fusion layer
     ".github/workflows/gamepulse-igp-p4-g1-upstream-stratified-ball-holdout.yml",  # private original 13part actor provenance NBA source masked ball 3D holdout, aggregate only
     ".github/workflows/gamepulse-igp-g1-original-actor-upstream-provenance-0001.yml",  # private SHA verified original 13part raw SDK player ball interpolation provenance, aggregate logs only
     ".github/workflows/gamepulse-igp-p4-video-clock-blind-holdout.yml",  # original NBA independent broadcast held-out video labels vs private companion timing and metadata QA
