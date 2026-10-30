@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p3-whole-scene-original-2p4s-mask-v1.yml",  # P3 original 11-actor whole-scene source blackout; public aggregate only
     ".github/workflows/gamepulse-igp-p3-all68-one-sided-scene-shadow-v1.yml",  # private original 68-game NBA source scene shadow; public aggregate only
     ".github/workflows/gamepulse-igp-p3-fourgame-one-sided-shadow-v1.yml",  # private source SHA real incomplete NBA scenes, counts only
     ".github/workflows/gamepulse-igp-p3-handler-original-source-acceptance-v1.yml",  # original NBA private P3 handler eight-unseen no-promotion release check
