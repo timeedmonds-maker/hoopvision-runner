@@ -38,6 +38,9 @@ jobs:
           assert row['source_original_native_timestamp']
           assert row['source_original_xyz_native'].get('ball') is not None
           assert row['ball_source_integrity']['original_spike_alert_at_utc_ms']==t
+          assert row['ball_source_integrity']['original_SDK_ball_keyframe_upstream_grade']=='SDK_UPSTREAM_INTERPOLATED_TRUE'
+          assert row['ball_source_integrity']['provider_upstream_interpolated_true_ball_source_involved']
+          assert q['provider_upstream_interpolated_ball_rows']==1
           assert not row['ball_source_integrity']['query_source_ball_usable_for_physical_analysis_without_review']
           assert q['accepted_scene_coverage_unchanged']
           print('IGP_V32_NATIVE_SOURCE_QUALITY_INTEGRATED_QUERY_PASSED warning_rows=1 source_changed=false')
