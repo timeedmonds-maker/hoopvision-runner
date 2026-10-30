@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p2-original-mask-uncertainty-frontier-v1.yml",  # original private SDK P2 uncertainty/abstention QA, aggregate only
     ".github/workflows/gamepulse-igp-p2-fourgame-masked-method-comparison-v1.yml",  # private four-game source blackout direct-model comparison; public aggregate QA only
     ".github/workflows/gamepulse-igp-p2-fourgame-contiguous-gap-pilot-v1.yml",  # approved private SHA original NBA P2 source blackouts; public coverage-only
     ".github/workflows/gamepulse-igp-68-priority1-source-audit-release-gate-v1.yml",  # private SHA original source P1 five-game audited release gate; only aggregate public
