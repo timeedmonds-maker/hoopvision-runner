@@ -1,5 +1,5 @@
 name: IGP Fusion v3.1 official fifth player original native all68 QA
-# Guard-reviewed aggregate-only source QA; pinned private research commit.
+# Guard-reviewed aggregate-only source QA; pinned private research commit, source coordinates private.
 on:
   push:
     branches: [main]
