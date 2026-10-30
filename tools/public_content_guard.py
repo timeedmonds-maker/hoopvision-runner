@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-g3-all68-conflict-physical-source-holdout.yml",  # private exact original NBA full68 G3 actor conflict recon source-only masked player/ball accuracy aggregate
     ".github/workflows/gamepulse-igp-g2-post36-all32-increment.yml",  # private original NBA 32 box and PBP roster replay, aggregate safe counts only
     ".github/workflows/gamepulse-igp-fifth-extra-actor-diagnostic.yml",  # private source all68 actor alias audit, public aggregate counts only
     ".github/workflows/gamepulse-igp-g2-legacy36-plus-68-bridge-acceptance.yml",  # original NBA 36 G2 SHA-verified long+sub source evidence aggregated with 68 short bridges private QA
