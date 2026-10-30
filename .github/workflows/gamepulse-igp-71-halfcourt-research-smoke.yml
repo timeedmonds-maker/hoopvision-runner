@@ -1,5 +1,5 @@
 name: IGP 71 halfcourt v3.1 new-source validation
-# Reviewed private-only original source and NBA PBP; public aggregate counts only.
+# Guard-approved private-only original source and NBA PBP; public aggregate counts only.
 on:
   push:
     branches: [main]
