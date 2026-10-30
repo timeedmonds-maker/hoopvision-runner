@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-consecutive-live-segment-bridge-pilot.yml",  # reviewed SHA-private same-official-roster adjacent clock-running NBA PBP bridge source masked research
     ".github/workflows/gamepulse-igp-v32-ball-40ft-source-forensics.yml",  # private NBA source original ball discrepancy and spike confirmation; safe aggregate only
     ".github/workflows/gamepulse-igp-v32-ballonly-hazard-all71.yml",  # private SHA-original ball hazard scene census and masked error QA all71, public safe totals only
     ".github/workflows/gamepulse-igp-v32-ballonly-hazard-sixgame.yml",  # SHA-private NBA original 71 selected 6game masked ball 3D hazard context research QA only
