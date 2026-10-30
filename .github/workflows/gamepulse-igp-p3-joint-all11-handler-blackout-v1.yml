@@ -1,4 +1,5 @@
 name: IGP P3 joint all11 blackout frozen handler external source benchmark
+# Explicitly guard-allowlisted, source SHA pinned; no licensed coordinates in public.
 on:
   push:
     branches: [main]
