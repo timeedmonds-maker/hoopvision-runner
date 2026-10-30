@@ -39,6 +39,17 @@ jobs:
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_68_p3_joint_external_uncertainty_v1.py'
           if ! python3 gamepulse/fusion/igp_68_p3_joint_external_uncertainty_v1.py --root . --output "$RUNNER_TEMP/p3-private.json" > "$RUNNER_TEMP/p3-private.log" 2>&1; then
             echo IGP_P3_PRIVATE_ORIGINAL_SOURCE_EVALUATION_FAILED
+            python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'p3-private.log'
+          lines=[x.strip() for x in p.read_text(errors='replace').splitlines() if x.strip()]
+          tail=lines[-1] if lines else 'NO_EXCEPTION_LOG'
+          # Strip all values, numbers and source identifiers from public diagnostic.
+          print('IGP_P3_FAILURE_CLASS', re.sub(r'[^A-Za-z_]','_',tail.split(':',1)[0])[:48])
+          print('IGP_P3_FAILURE_NONNUMERIC', re.sub(r'[^A-Za-z_]','_',tail)[:100])
+          print('IGP_P3_COMPLETED_GAME_COUNTS',sum(x.startswith('P3_UNSEEN_JOINT_SOURCE_GAME') for x in lines))
+          PY
             exit 41
           fi
           python3 - <<'PY'
