@@ -1,4 +1,5 @@
 name: IGP v3.1 71-game source-graded analytics QA
+# Reviewed public guard allowlist, frozen-source private-only metric validation
 on:
   push:
     paths:
