@@ -1,4 +1,4 @@
-name: IGP 71 live-clock tracking and official fifth-player QA
+name: IGP all71 matched live-clock 800 and 1200 plus fifth-ID QA
 # Reviewed allowlisted private source evaluation: do not print XYZ
 on:
   push:
@@ -12,7 +12,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 65
+    timeout-minutes: 90
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
@@ -58,6 +58,13 @@ jobs:
           PY
           python3 gamepulse/fusion/igp_71_live_tracking_reconcile_v1.py --root . --output gamepulse/fusion/qa/igp_progress_20261031/igp_71_live_tracking_reconcile_v1.json
           python3 gamepulse/fusion/igp_71_new3_fifth_player_live_qa_v1.py --root . --output gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_fifth_player_live_qa_v1.json
+          if ! test -f gamepulse/fusion/qa/igp_progress_20261031/igp_68_matched_live_1200_shadow_for71_v1.json; then
+            python3 gamepulse/fusion/igp_68_matched_live_1200_shadow_for71_v1.py --root . --output gamepulse/fusion/qa/igp_progress_20261031/igp_68_matched_live_1200_shadow_for71_v1.json >"$RUNNER_TEMP/private-shadow-68.log" 2>&1 || {
+              tail -35 "$RUNNER_TEMP/private-shadow-68.log" | sed -E 's/[0-9]{10,}/[UTC_REDACTED]/g'
+              exit 29
+            }
+          fi
+          python3 gamepulse/fusion/igp_71_research_1200_live_reconcile_v1.py --root . --output gamepulse/fusion/qa/igp_progress_20261031/igp_71_research_1200_live_reconcile_v1.json
       - name: Preserve only QA in private canonical repo
         if: success()
         shell: bash
@@ -66,7 +73,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_live_play_tracking_qa_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_live_tracking_reconcile_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_fifth_player_live_qa_v1.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_live_play_tracking_qa_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_live_tracking_reconcile_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_new3_fifth_player_live_qa_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_68_matched_live_1200_shadow_for71_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_research_1200_live_reconcile_v1.json
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP71_NEW3_LIVE_QA_ALREADY_CURRENT; exit 0; fi
           git commit -q -m 'qa(igp): 71 new3 exact live-clock source reconstruction 800ms accepted versus 1200ms shadow'
