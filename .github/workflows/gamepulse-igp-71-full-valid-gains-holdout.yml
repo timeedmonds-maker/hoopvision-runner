@@ -1,5 +1,5 @@
 name: IGP 71 full matched live masked 800 1200 holdout
-# Reviewed public-only aggregate outcomes. All original NBA data remains in private repository.
+# Reviewed, allowlisted public-only aggregate outcomes. All original NBA data remains in private repository.
 on:
   push:
     branches: [main]
