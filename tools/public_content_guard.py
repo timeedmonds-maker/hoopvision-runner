@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p3-one-sided-eighttrain-eightunseen-v1.yml",  # private original NBA P3 causal one-sided source gap eight train/eight heldout
     ".github/workflows/gamepulse-igp-p3-new-handler-ball-anchor-v1.yml",  # SHA-private P3 source-ball peer-handler hypothesis; aggregate-only public logs
     ".github/workflows/gamepulse-igp-p3-sixteengame-eighttrain-eightunseen-v1.yml",  # original private NBA P3 8train/8unseen fixed source QA; aggregate only
     ".github/workflows/gamepulse-igp-p3-ball-context-source-acceptance-v1.yml",  # P3 crossgame ball model private SDK QA receipts; public only aggregate score
