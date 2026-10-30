@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v31-halfcourt-touch-sequence-query-20261031
-      PINNED_PRIVATE_SHA: 41de61ee13f1aaa6423dfc141895c5ed3687c8f2
+      PINNED_PRIVATE_SHA: e521b32c45a22a2b7e204186360fa4a21921147e
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -27,7 +27,7 @@ jobs:
           test -n "$GH_TOKEN"
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion gamepulse/live
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$PINNED_PRIVATE_SHA"
       - name: Source-free tests of new contact location chronology and outcomes
         shell: bash
@@ -100,3 +100,78 @@ jobs:
           if done.returncode:raise RuntimeError('PRIVATE_RESEARCH_RESULT_PUBLISH_FAILED')
           print('IGP_HALFCOURT_ROCKETS_PRIVATE_RESEARCH_QA_SAVED')
           PY
+
+      - name: NBA Rockets Bucks playertracking touch calibration vs source episodes (PRIVATE)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          NBAFILE=""
+          for ep in boxscoreplayertrackv3 boxscoreplayertrackv2; do
+            dest="$RUNNER_TEMP/nba-playertrack-${ep}.json"
+            if curl --fail --silent --show-error --location --max-time 18 --retry 1 --retry-delay 1 \
+                 -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36' \
+                 -H 'Referer: https://www.nba.com/' -H 'Origin: https://www.nba.com' \
+                 -H 'x-nba-stats-origin: stats' -H 'x-nba-stats-token: true' \
+                 "https://stats.nba.com/stats/$ep?GameID=0022600138" -o "$dest" 2>/dev/null; then
+              if python3 - "$dest" <<'PY2'
+          import json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1]);o=json.loads(p.read_text())
+          if not isinstance(o,dict):raise ValueError('NOT_NBA_JSON')
+          if 'boxScorePlayerTrack' not in o and 'resultSets' not in o:raise ValueError('NOT_NBA_TRACKING_SCHEMA')
+          PY2
+              then
+                NBAFILE="$dest"
+                break
+              fi
+            fi
+          done
+          if [ -z "$NBAFILE" ]; then
+            echo NBA_GAME_PLAYERTRACK_REFERENCE_HTTP_UNAVAILABLE
+            python3 gamepulse/fusion/igp_game_player_touch_benchmark_v1.py --root . --game-id 0022600138 \
+              --output "$RUNNER_TEMP/igp-0138-player-touch-compare-private.json" \
+              > "$RUNNER_TEMP/igp-0138-benchmark-private.log" 2>&1
+          else
+            echo NBA_GAME_PLAYERTRACK_REFERENCE_JSON_AVAILABLE
+            python3 gamepulse/fusion/igp_game_player_touch_benchmark_v1.py --root . --game-id 0022600138 \
+              --nba-playertrack-file "$NBAFILE" \
+              --output "$RUNNER_TEMP/igp-0138-player-touch-compare-private.json" \
+              > "$RUNNER_TEMP/igp-0138-benchmark-private.log" 2>&1
+          fi
+          python3 - <<'PY2'
+          from pathlib import Path
+          import json,os
+          p=Path(os.environ['RUNNER_TEMP'])/'igp-0138-player-touch-compare-private.json'
+          r=json.loads(p.read_text())
+          assert r['game_id']=='0022600138' and len(r['per_player'])>=9
+          assert r['source_frames']>1000 and not r['physical_touch_certified']
+          print('IGP_V31_0138_TOUCH_BENCHMARK_PRIVATE_QA',json.dumps({
+            'game':r['game_id'],'source_frames':r['source_frames'],
+            'team_players':len(r['per_player']),
+            'nba_status':r['nba_comparison']['status'],
+            'raw_both_teams':r['original_source_contact_total_both_teams'],
+            'conservative_both_teams':r['existing_tracking_conservative_total_both_teams'],
+            'nba_matched_count':len([x for x in r['per_player'] if x['nba_touches'] is not None]),
+            'raw_wape':r['accuracy_raw'].get('weighted_absolute_percentage_error'),
+            'conservative_wape':r['accuracy_conservative'].get('weighted_absolute_percentage_error')},sort_keys=True))
+          PY2
+      - name: Publish private player touch benchmark counts, not original NBA XYZ
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY2'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          payload=(Path(os.environ['RUNNER_TEMP'])/'igp-0138-player-touch-compare-private.json').read_bytes()
+          endpoint='repos/timeedmonds-maker/104/contents/gamepulse/fusion/queries/igp_v31_rockets_bucks_0022600138_touch_benchmark_v1.json'
+          branch=os.environ['BRANCH']
+          old=subprocess.run(['gh','api',endpoint+'?ref='+branch],capture_output=True,text=True)
+          body={'branch':branch,'message':'qa(igp): per-player NBA Rockets Bucks touches comparison to original reconstructed source',
+                'content':base64.b64encode(payload).decode()}
+          if old.returncode==0:body['sha']=json.loads(old.stdout)['sha']
+          done=subprocess.run(['gh','api','-X','PUT',endpoint,'--input','-'],input=json.dumps(body),capture_output=True,text=True)
+          if done.returncode:raise RuntimeError('PRIVATE_BENCHMARK_PUBLISH_FAILED')
+          print('PRIVATE_0138_PLAYER_TOUCH_BENCHMARK_SAVED')
+          PY2
