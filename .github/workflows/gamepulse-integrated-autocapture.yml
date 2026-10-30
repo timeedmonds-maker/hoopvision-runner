@@ -338,6 +338,21 @@ jobs:
           python3 gamepulse/fusion/igp_official_20_additive_20261029.py --root .
           python3 gamepulse/fusion/igp_auto_extend_unified_season_2026.py --root .
           python3 scripts/update_nba_blueprint_daily_2026_27.py --daily --lookback 7 || echo IGP_BLUEPRINT_SOURCE_RETRY_NEXT_SCHEDULE
+          # Materialize and independently validate the *aggregate* without rewriting
+          # the original NBA Blueprint source reports. Identical repeated source
+          # event records are logged, conflicting identities still fail QA.
+          python3 scripts/build_nba_blueprint_2026_27.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          qa=json.loads(Path("data/extensions/nba_blueprint_2026_27/season_to_date/integration_qa.json").read_bytes())
+          new3={"0022600144","0022600145","0022600146"}
+          assert new3<=set(qa["game_ids"]),"IGP_NEW3_BLUEPRINT_NOT_IN_AGGREGATE"
+          assert qa["game_count"]>=71,"IGP_71_BLUEPRINT_AGGREGATE_GAME_COUNT_SHORT"
+          assert qa["shot_rows"]>=2388,"IGP_BLUEPRINT_SHOT_ROWS_REGRESSED"
+          print("IGP_71_BLUEPRINT_AGGREGATE_SHA_READY",qa["game_count"],qa["shot_rows"],
+                "identical_source_duplicates",len(qa["exact_identical_original_source_duplicate_shot_events"]))
+          PY
           python3 gamepulse/fusion/igp_post56_original_companion_index_v1.py --root .
           python3 gamepulse/fusion/igp_post56_blueprint_original_index_v1.py --root .
           python3 gamepulse/fusion/igp_post56_official_logical_chain_index_v1.py --root .
