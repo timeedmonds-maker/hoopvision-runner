@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-fifth-extra-actor-diagnostic.yml",  # private source all68 actor alias audit, public aggregate counts only
     ".github/workflows/gamepulse-igp-g2-legacy36-plus-68-bridge-acceptance.yml",  # original NBA 36 G2 SHA-verified long+sub source evidence aggregated with 68 short bridges private QA
     ".github/workflows/gamepulse-igp-fusion-fifth-player-all68.yml",  # SHA-pinned private NBA roster-only fifth identity census; aggregate public counts
     ".github/workflows/gamepulse-igp-71-final-blueprint-aggregate-readback.yml",  # reviewed 71game original source Blueprint private QA; public log aggregate only
