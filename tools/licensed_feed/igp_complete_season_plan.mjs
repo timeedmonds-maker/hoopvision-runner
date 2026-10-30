@@ -142,6 +142,14 @@ const selected=[...new Map(candidates.map(g=>[g.id,g])).values()].slice(0,MAX);
 const parts=[],apps=[],games=[],sdkGames=[];
 let reused=0,releaseReadDeferred=0;
 for(const game of selected){
+  // The master already contains a SHA-conserved 13-part native index for this
+  // game. A missing companion or Blueprint record is NOT a reason to fetch
+  // or recapture any licensed native release part, even under API throttling.
+  const alreadyNative=add.games[game.id]?.original_source_13_part_complete===true
+    && Boolean(add.games[game.id]?.original_xyz_manifest);
+  if(alreadyNative){
+    console.log('IGP_EXISTING_ORIGINAL_NATIVE_SOURCE_ALREADY_ACCEPTED',game.id);
+  } else {
   try {
     const release=await get('https://api.github.com/repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-'+game.id,true);
     const a=new Set((release?.assets||[]).map(x=>x.name));
@@ -162,6 +170,7 @@ for(const game of selected){
     // Do not suppress collection because a metadata-only GET was throttled.
     for(let part=0;part<13;part++) parts.push({...game,part});
     sdkGames.push(game);
+  }
   }
   if(!add.games[game.id]?.original_companion_original_event_body_sha256 ||
      add.games[game.id]?.source_capture_grades?.original_companion!=='COMPLETE_ORIGINAL_RESPONSE')
