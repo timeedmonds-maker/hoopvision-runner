@@ -33,6 +33,9 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 -m py_compile gamepulse/fusion/query_igp_v32_original_ball_source_grade_v2.py
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_original_ball_source_grade_v2.py'
+          python3 -m py_compile gamepulse/fusion/igp_v32_allgame_per_actor_source_provenance_v1.py gamepulse/fusion/query_igp_v32_original_ball_per_game_source_grade_v3.py
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_allgame_per_actor_source_provenance_v1.py'
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_query_igp_v32_original_ball_per_game_source_grade_v3.py'
           python3 - <<'PY'
           from query_igp_v32_original_ball_source_grade_v2 import query,TRUE
           from query_igp_v32_ball_source_integrity_overlay_v1 import query as old
