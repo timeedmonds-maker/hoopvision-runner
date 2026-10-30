@@ -37,7 +37,10 @@ jobs:
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_fusion_v31_p4_independent_broadcast_dense_frames_v1.py'
-          if ! python3 gamepulse/fusion/igp_fusion_v31_p4_independent_broadcast_dense_frames_v1.py --output "$RUNNER_TEMP/dense-broadcast-private.json" > "$RUNNER_TEMP/dense-broadcast-private.log" 2>&1; then
+          python3 -m venv "$RUNNER_TEMP/igp-video-venv"
+          "$RUNNER_TEMP/igp-video-venv/bin/python" -m pip install --quiet --disable-pip-version-check 'pillow==11.3.0' 'imageio-ffmpeg==0.6.0'
+          "$RUNNER_TEMP/igp-video-venv/bin/python" -c 'import PIL, imageio_ffmpeg; print("IGP_P4_SOURCE_DECODER_DEPS_READY")'
+          if ! "$RUNNER_TEMP/igp-video-venv/bin/python" gamepulse/fusion/igp_fusion_v31_p4_independent_broadcast_dense_frames_v1.py --output "$RUNNER_TEMP/dense-broadcast-private.json" > "$RUNNER_TEMP/dense-broadcast-private.log" 2>&1; then
             echo IGP_P4_ORIGINAL_BROADCAST_DENSE_DECODE_FAILED
             python3 - <<'PY'
           import os,re
