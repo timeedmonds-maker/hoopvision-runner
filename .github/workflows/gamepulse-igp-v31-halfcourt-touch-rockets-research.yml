@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v31-halfcourt-touch-sequence-query-20261031
-      PINNED_PRIVATE_SHA: 6c6a6726619f10bb29bc43775208adcb20e0eb55
+      PINNED_PRIVATE_SHA: 6224b818b53d70659e92825d7558d60f65a96de7
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
