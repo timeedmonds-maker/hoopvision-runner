@@ -133,7 +133,12 @@ const pending=fixtures.filter(g=>!(g.id in index.per_game_model)).filter(g=>{
 const fresh=pending.filter(g=>!(g.id in add.games));
 const incomplete=pending.filter(g=>(g.id in add.games));
 const rotation=incomplete.length?Math.floor(NOW/(3*3600000))%incomplete.length:0;
-const selected=[...fresh,...incomplete.slice(rotation),...incomplete.slice(0,rotation)].slice(0,MAX);
+// Recently final games get the first repair attempts; after 48 hours the
+// existing incomplete-game rotation resumes, preventing long-term starvation.
+const urgent=pending.filter(g=>NOW-g.start<=48*3600000)
+  .sort((a,b)=>b.start-a.start||b.id.localeCompare(a.id));
+const candidates=[...fresh,...urgent,...incomplete.slice(rotation),...incomplete.slice(0,rotation)];
+const selected=[...new Map(candidates.map(g=>[g.id,g])).values()].slice(0,MAX);
 const parts=[],apps=[],games=[],sdkGames=[];
 let reused=0,releaseReadDeferred=0;
 for(const game of selected){
