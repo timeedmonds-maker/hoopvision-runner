@@ -1,0 +1,71 @@
+# Original NBA SDK exact 13 SHA keyframe archive private provenance only.
+name: IGP v3.2 original SDK ball raw variant 40ft forensic
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-igp-v32-ball-source-variant-0001.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  variant:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public privacy guard and clone original source privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+      - name: Retrieve original SHA 13-part SDK keyframe variants
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          mkdir -p "$RUNNER_TEMP/original-parts"
+          gh api repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-0022600001 >"$RUNNER_TEMP/release.json"
+          gh release download gamepulse-sdk-0022600001 --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/original-parts" >/dev/null 2>&1 || {
+            echo IGP_V32_VERIFIED_13PART_ARCHIVE_DOWNLOAD_UNAVAILABLE
+            exit 81
+          }
+          python3 -m py_compile gamepulse/fusion/igp_v32_ball_original_sdk_variant_probe_0001_v1.py
+          python3 gamepulse/fusion/igp_v32_ball_original_sdk_variant_probe_0001_v1.py \
+            --root . --archives-dir "$RUNNER_TEMP/original-parts" \
+            --release-json "$RUNNER_TEMP/release.json" \
+            --output "$RUNNER_TEMP/private-ball-variants.json" >"$RUNNER_TEMP/private-variants.log" 2>&1 || {
+              echo IGP_V32_RAW_ORIGINAL_KEYFRAME_VARIANT_QA_FAILED
+              exit 82
+          }
+          grep '^IGP_V32_ORIGINAL_BALL_VARIANTS' "$RUNNER_TEMP/private-variants.log"
+      - name: Preserve alternative original source keyframes private
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          receipt="gamepulse/fusion/qa/igp_v32/igp_v32_ball_raw_original_variant_0001_v1.json"
+          gh auth setup-git
+          git fetch -q origin "$BRANCH"
+          git checkout -q -B original-variants "origin/$BRANCH"
+          cp "$RUNNER_TEMP/private-ball-variants.json" "$receipt"
+          git add -f "$receipt"
+          git diff --cached --check
+          if git diff --cached --quiet;then echo VARIANT_QA_ALREADY_SAVED;exit 0;fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -q -m 'qa(igp): original SHA 13part NBA ball keyframe variant forensic'
+          for n in 1 2 3 4 5 6;do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH";then echo IGP_V32_RAW_ORIGINAL_VARIANTS_QA_SAVED_PRIVATE;exit 0;fi
+            sleep "$n"
+          done
+          exit 83
