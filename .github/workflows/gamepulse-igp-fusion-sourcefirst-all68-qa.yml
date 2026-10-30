@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: a447ed00d435b24841b0d7e884d9a79211187b55
+      PINNED_PRIVATE_SHA: 324bb96df2f30a094f123f034b3c3a2c53e80065
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -37,6 +37,32 @@ jobs:
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_fusion_source_first_68_query_v1.py'
+      - name: Real NBA original source first CLI through unified engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_fusion_source_first_68_query_v1.py \
+            --root . --game-id 0022600138 --start-utc-ms 1793233762900 --end-utc-ms 1793233763100 \
+            --mode 10hz --output "$RUNNER_TEMP/sourcefirst-0138-private.json" \
+            > "$RUNNER_TEMP/sourcefirst-0138-private.log"
+          python3 gamepulse/fusion/igp_fusion_source_first_68_query_v1.py \
+            --root . --game-id 0022600001 --start-utc-ms 1792530816800 --end-utc-ms 1792530817000 \
+            --mode 10hz --output "$RUNNER_TEMP/sourcefirst-0001-private.json" \
+            > "$RUNNER_TEMP/sourcefirst-0001-private.log"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])
+          for gid in ('0022600138','0022600001'):
+            j=json.loads((p/('sourcefirst-'+gid[-4:]+'-private.json')).read_text())
+            assert j['game_id']==gid and len(j['rows'])==3
+            assert j['newly_accepted_model_positions']==0
+            assert j['original_source_PBP_and_official_alias_unchanged']
+            assert all(r['physical_possession_grade']=='UNVERIFIED' for r in j['rows'])
+          print("IGP_SOURCEFIRST_PRIVATE_CLI_REAL_TWO_GAME_PASSED")
+          PY
       - name: All 68 real original NBA source native hashes and official-roster overlay strata
         shell: bash
         run: |
@@ -100,6 +126,10 @@ jobs:
           cp "$RUNNER_TEMP/sourcefirst-all68-private.json" "$dest"
           git add -f "$dest"
           git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_SOURCEFIRST_ALL68_ALREADY_COMMITTED_IDENTICAL_QA
+            exit 0
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -q -m 'qa(igp): 68 NBA full original native XYZ source-first player ball outside strict lineup access'
