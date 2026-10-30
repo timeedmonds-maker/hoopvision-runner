@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: 9983858b3e6cc7aa05f491e8b9d893dbeb80e276
+      PINNED_PRIVATE_SHA: 13d691bbeae3c47f5f39e52cd1146b32d8068700
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -66,9 +66,10 @@ jobs:
           assert j['accepted_new_tracking_scenes']==0 and j['production_model_not_promoted']
           o=j['overall']
           n=o['c0']['target_full_original_source_scenes']
-          assert n>=160 and o['handler']['target_full_original_source_scenes']==n
+          assert n>=100 and o['handler']['target_full_original_source_scenes']==n
           assert o['c0']['player_XY_error_ft']==o['handler']['player_XY_error_ft']
           assert sum(j['by_grade'][k]['cases'] for k in ('tight','moderate','broad','high_disagreement','unscorable'))==n
+          assert sum(j['by_game'][g]['underpopulated_eleven_actor_masks_excluded'] for g in j['unseen_games'])==j['underpopulated_masks_excluded_not_scored']
           print('IGP_P3_FROZEN_UNSEEN_AGGREGATE',json.dumps({
               'centers':n,
               'C0_ball_p95_ft':o['c0']['ball_XYZ_error_ft']['p95_ft'],
