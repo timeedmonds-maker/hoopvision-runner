@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: e69dd5997d0fc5f2a34fe8e0c4d9fd0c8f155310
+      PINNED_PRIVATE_SHA: 0e7b52abcd54d9f5ffd8cce529acd69f5d921571
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -66,6 +66,7 @@ jobs:
           assert j['counts']['raw_original_coordinate_keyframes']==66512
           assert j['counts']['native_original_timestamp_rows']==33254
           assert j['counts']['native_selected_original_XYZ_actor_slots']>250000
+          assert j['counts']['P4_DET_video_case_NBA_logged_original_native_frames']==28
           assert not j['source_original_upstream_interpolated_False_is_physical_video_truth']
           assert j['newly_accepted_physical_positions']==0
           content=gzip.decompress(zipped)
