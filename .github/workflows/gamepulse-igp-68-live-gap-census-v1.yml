@@ -1,3 +1,4 @@
+# Reviewed against public content guard: private source, public aggregate QA only.
 name: IGP 68 live gap census research
 on:
   push:
