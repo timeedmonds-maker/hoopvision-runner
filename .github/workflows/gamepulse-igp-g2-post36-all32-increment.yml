@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: e7b3aefeff6f5f9959122bb7b22511c3daff8eb2
+      PINNED_PRIVATE_SHA: 0479735bde3383f5e5a61964ae3395049708fe61
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -77,7 +77,7 @@ jobs:
             'total_original68_G2_candidate_native':q['all_G2_68_nonoverlap_candidate_native_frames'],
             'new_32_long_native':c['new_long_native'],
             'new_32_sub_native':c['new_sub_native'],
-            'overlap_old_short_not_double_counted':c['already_new_short_bridge_native_overlap'],
+            'overlap_old_short_not_double_counted':c.get('already_new_short_bridge_native_overlap',0),
             'new_physically_certified':0,'production_promotions':0},sort_keys=True))
           PY
       - name: Persist only original NBA SHA verified 32 game results privately
