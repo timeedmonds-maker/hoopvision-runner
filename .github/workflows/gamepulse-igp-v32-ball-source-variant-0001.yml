@@ -1,5 +1,5 @@
 # Original NBA SDK exact 13 SHA keyframe archive private provenance only.
-name: IGP v3.2 original SDK ball raw variant 40ft forensic
+name: IGP v3.2 40ft ball original upstream provenance fallback
 on:
   push:
     branches: [main]
@@ -25,43 +25,39 @@ jobs:
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
-      - name: Retrieve original SHA 13-part SDK keyframe variants
+      - name: Verify prior original SHA 13-part keyframe provenance via Git data
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          mkdir -p "$RUNNER_TEMP/original-parts"
-          gh api repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-0022600001 >"$RUNNER_TEMP/release.json"
-          gh release download gamepulse-sdk-0022600001 --repo timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/original-parts" >/dev/null 2>&1 || {
-            echo IGP_V32_VERIFIED_13PART_ARCHIVE_DOWNLOAD_UNAVAILABLE
-            exit 81
-          }
-          python3 -m py_compile gamepulse/fusion/igp_v32_ball_original_sdk_variant_probe_0001_v1.py
-          python3 gamepulse/fusion/igp_v32_ball_original_sdk_variant_probe_0001_v1.py \
-            --root . --archives-dir "$RUNNER_TEMP/original-parts" \
-            --release-json "$RUNNER_TEMP/release.json" \
-            --output "$RUNNER_TEMP/private-ball-variants.json" >"$RUNNER_TEMP/private-variants.log" 2>&1 || {
-              echo IGP_V32_RAW_ORIGINAL_KEYFRAME_VARIANT_QA_FAILED
-              exit 82
-          }
-          grep '^IGP_V32_ORIGINAL_BALL_VARIANTS' "$RUNNER_TEMP/private-variants.log"
+          git fetch -q origin research/igp-68-live-gap-census-20261030
+          git show FETCH_HEAD:gamepulse/fusion/qa/igp_progress_20261030/igp_fusion_g1_original_actor_upstream_interp_0001_v1.jsonl.gz >"$RUNNER_TEMP/upstream-original.gz"
+          git show FETCH_HEAD:gamepulse/fusion/qa/igp_progress_20261030/igp_fusion_g1_original_actor_upstream_interp_0001_v1.json >"$RUNNER_TEMP/upstream-summary.json"
+          python3 gamepulse/fusion/igp_v32_ball_original_g1_upstream_spike_grade_v1.py \
+            --root . --original-sidecar "$RUNNER_TEMP/upstream-original.gz" \
+            --original-summary "$RUNNER_TEMP/upstream-summary.json" \
+            --output "$RUNNER_TEMP/private-ball-upstream.json" >"$RUNNER_TEMP/private-upstream.log" 2>&1 || {
+              echo IGP_V32_ORIGINAL_UPSTREAM_SPIKE_SHA_GRADE_FAILED
+              exit 84
+            }
+          grep '^IGP_V32_G1_SPIKE_PROVENANCE' "$RUNNER_TEMP/private-upstream.log"
       - name: Preserve alternative original source keyframes private
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          receipt="gamepulse/fusion/qa/igp_v32/igp_v32_ball_raw_original_variant_0001_v1.json"
+          receipt="gamepulse/fusion/qa/igp_v32/igp_v32_ball_upstream_original_g1_source_grade_v1.json"
           gh auth setup-git
           git fetch -q origin "$BRANCH"
           git checkout -q -B original-variants "origin/$BRANCH"
-          cp "$RUNNER_TEMP/private-ball-variants.json" "$receipt"
+          cp "$RUNNER_TEMP/private-ball-upstream.json" "$receipt"
           git add -f "$receipt"
           git diff --cached --check
           if git diff --cached --quiet;then echo VARIANT_QA_ALREADY_SAVED;exit 0;fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git commit -q -m 'qa(igp): original SHA 13part NBA ball keyframe variant forensic'
+          git commit -q -m 'qa(igp): verify SHA G1 original keyframe upstream ball anomaly flags'
           for n in 1 2 3 4 5 6;do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
