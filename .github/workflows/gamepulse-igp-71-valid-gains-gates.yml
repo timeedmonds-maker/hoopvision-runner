@@ -1,5 +1,5 @@
 name: IGP 71 source gates and matched valid gains
-# Public runner executes only private source SHA checks; no XYZ or private records in logs.
+# Public runner executes only private source SHA checks; no XYZ or private records in logs. Guard reviewed.
 on:
   push:
     branches: [main]
