@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: fd69853ecd9b9527535cf14c8ec4daa44367fed5
+      PINNED_PRIVATE_SHA: 633b3a6e7968b715c01d78377c50e5e609212ebb
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -72,7 +72,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          dest=gamepulse/fusion/qa/igp_progress_20261030/igp_fusion_v31_p4_independent_dense_broadcast_frames_v1.json
+          dest=gamepulse/fusion/qa/igp_progress_20261030/igp_fusion_v31_p4_independent_dense_broadcast_frames_compact_v2.json
           git fetch -q origin "$BRANCH"
           git checkout -q -B p4-dense-broadcast "origin/$BRANCH"
           cp "$RUNNER_TEMP/dense-broadcast-private.json" "$dest"
