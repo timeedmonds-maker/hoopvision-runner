@@ -357,25 +357,58 @@ jobs:
           python3 gamepulse/fusion/igp_post56_blueprint_original_index_v1.py --root .
           python3 gamepulse/fusion/igp_post56_official_logical_chain_index_v1.py --root .
           python3 gamepulse/fusion/igp_post56_native_index_refresh_v1.py --root .
-          # New games receive the same source-graded 800ms official-ten/PBP
-          # reconstruction as the prior 68, in a separate immutable overlay.
-          # Never evaluate without all three native 13-part SHA source indexes.
+          # The accepted new-three official-ten overlay is immutable. Repeat
+          # source/PBP/output SHA readback rather than recalculating and writing
+          # an already accepted QA file when only the additive metadata changed.
           python3 - <<'PY'
-          import json
+          import gzip,hashlib,json,subprocess,sys
           from pathlib import Path
-          base=Path("gamepulse/fusion/materialized/igp_all_original_xyz")
+          B=Path("gamepulse/fusion")
+          base=B/"materialized/igp_all_original_xyz"
+          qa=B/"qa/igp_progress_20261030/igp_71_new3_official_ten_scene_possession_ab_v1.json"
           ids=("0022600144","0022600145","0022600146")
+          digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
           ready=all((base/g/"index.json").is_file() for g in ids)
           if ready:
             for gid in ids:
               m=json.loads((base/gid/"index.json").read_bytes())
               assert m["game_id"]==gid and m["capture_archive_all_13_parts_verified"]
               assert m["original_archive_part_count_verified"]==13
-          import subprocess,sys
-          if ready:
-            subprocess.run([sys.executable,
-              "gamepulse/fusion/igp_71_new3_official_ten_possession_ab_v1.py",
-              "--root","."],check=True)
+            if not qa.is_file():
+              subprocess.run([sys.executable,
+                "gamepulse/fusion/igp_71_new3_official_ten_possession_ab_v1.py",
+                "--root","."],check=True)
+            index=json.loads(qa.read_bytes())
+            assert index["population_games"]==71 and index["evaluated_games"]==3
+            assert set(index["per_game"])==set(ids)
+            assert index["counts"]["official_lineup_source_verified"]==3
+            assert index["counts"]["original_native_frames"]==95402
+            for gid in ids:
+              e=index["per_game"][gid]
+              native=base/gid/"index.json"
+              pbp=B/"official_pbp_timing/games"/(gid+".json")
+              packed=Path(e["path"])
+              assert digest(native)==e["native_source_manifest_sha256"]
+              assert digest(pbp)==e["official_PBP_sha256"]
+              assert digest(packed)==e["sha256"]
+              obj=json.loads(gzip.decompress(packed.read_bytes()))
+              assert obj["game_id"]==gid and len(obj["logical_chains"])==e["counts"]["official_logical_chains"]
+              assert obj["source_native_timestamp_count"]==e["source_native_timestamps"]
+            print("IGP_NEW3_ACCEPTED_IMMUTABLE_MODEL_SHA_READBACK",len(ids),
+                  index["counts"]["original_native_frames"],
+                  index["counts"]["conditioned_all10_official_and_ball"])
+            # Verify the actual possession query path, not only metadata.
+            from query_igp_71_new3_official_possession_scene_v1 import query as possession_query
+            for gid in ids:
+              source=json.loads(gzip.decompress(Path(index["per_game"][gid]["path"]).read_bytes()))
+              chains=[c for c in source["logical_chains"]
+                      if c["original_logged_utc_candidate_ms"] is not None
+                      and c["native_frames_in_provisional_logical_interval"]>0]
+              assert chains, "NEW3_NO_SOURCE_LINKED_LOGICAL_CHAINS:"+gid
+              row=possession_query(".",gid,chains[0]["chain_id"],limit=1)
+              assert row["game_id"]==gid and row["physical_possessions_certified"]==0
+              assert row["possession_index_sha256"]==index["per_game"][gid]["sha256"]
+            print("IGP_NEW3_REAL_POSSESSION_NATIVE_QUERY_ACCEPTED",len(ids))
           else:
             print("IGP_NEW3_OFFICIAL_TEN_MODEL_PENDING_ORIGINAL_NATIVE_SOURCE",
                   [g for g in ids if not (base/g/"index.json").is_file()])
