@@ -15,7 +15,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v31-halfcourt-touch-sequence-query-20261031
-      PINNED_PRIVATE_SHA: 0dc6b8c6326bb35863cf06b43af61e2d23c78f23
+      PINNED_PRIVATE_SHA: 02ec4bede58310a093e41a69ef8070a8f1ecbb62
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -37,6 +37,7 @@ jobs:
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_touch_v3_clock_control_sweep.py'
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_touch_v4_control_quality_sweep.py'
       - name: NBA original source duration and control qualification (PRIVATE)
         shell: bash
