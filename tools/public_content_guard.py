@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-ballonly-unseen65-source-mask.yml",  # reviewed SHA-private IGP v32 65-game disjoint masked ball model source QA, aggregates only
     ".github/workflows/gamepulse-igp-v32-ballonly-sixgame-pilot.yml",  # reviewed source-private sixgame shadow ball-only speed QA; public aggregate only
     ".github/workflows/gamepulse-igp-v32-71-dualgrid-recovery-census.yml",  # reviewed private SHA 71game 10+ball root-cause census, public aggregates only
     ".github/workflows/gamepulse-igp-71-booker-approved-id-live-gain.yml",  # pre-approved 0092 Booker official ID only, private original SHA live 800/1200 aggregate, no public XYZ
