@@ -1,5 +1,5 @@
 name: IGP approved Booker source ID live 71 benchmark gain
-# Private original SDK source and approved NBA 0092 ID correction; public numeric aggregates only.
+# Guard-approved private SDK source and approved NBA 0092 ID correction; public numeric aggregates only.
 on:
   push:
     branches: [main]
