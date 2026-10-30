@@ -490,7 +490,7 @@ export async function run(){
  if(process.env.GITHUB_EVENT_NAME==='push'&&process.env.GAMEPULSE_PRODUCTION_ENABLED==='true'&&
     process.env.GAMEPULSE_PRIORITY_FANOUT!=='true')await probeGswPhoenixGap(capture);
  if(process.env.GAMEPULSE_PRIORITY_FANOUT==='true'){
-  if(PILOT||process.env.GITHUB_EVENT_NAME!=='push')throw Error('priority_context_invalid');
+  if(PILOT||!['push','schedule'].includes(process.env.GITHUB_EVENT_NAME))throw Error('priority_context_invalid');
   const game={id:process.env.GAMEPULSE_PRIORITY_ID,start:Date.parse(process.env.GAMEPULSE_PRIORITY_TIPOFF||'')};
   const plan=planGame(game),part=Number(process.env.GAMEPULSE_PRIORITY_PART);
   if(!Number.isSafeInteger(part)||part<0||part>12)throw Error('invalid_priority_part');
