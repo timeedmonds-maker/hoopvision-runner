@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: 0e7b52abcd54d9f5ffd8cce529acd69f5d921571
+      PINNED_PRIVATE_SHA: d47f1c52ee29f5bf7682772d08d6db89534ff543
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
