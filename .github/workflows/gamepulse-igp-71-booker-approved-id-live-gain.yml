@@ -38,6 +38,38 @@ jobs:
              exit 32
           }
           grep 'IGP71_BOOKER_LIVE_ID_FIX' "$RUNNER_TEMP/booker.log" || true
+          python3 gamepulse/fusion/igp_71_booker_corrected_live_reconcile_v1.py --root . --output gamepulse/fusion/qa/igp_progress_20261031/igp_71_booker_corrected_live_reconcile_v1.json
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          from igp_71_source_context_v1 import source_index,load_context
+          from igp_native_scene_season_68_benchmark_v1 import load_game,BASE
+          from igp_68_live_play_tracking_qa_v1 import official_event_pair_segments,clip_to_official_windows,segment_at,LIVE
+          from query_igp_71_source_first_live_v1 import query
+          from igp_source_player_id_corrections_2026 import SOURCE,CANONICAL
+          root=Path('.');gid='0022600092';idx=source_index(root)
+          ctx,entry=load_context(root,gid,entries=idx['per_game'])
+          frames,_,_=load_game(root,gid)
+          pbp=json.loads((root/BASE/'official_pbp_timing/games'/(gid+'.json')).read_bytes())
+          segments=clip_to_official_windows(official_event_pair_segments(pbp['actions'])[0],ctx['official_paired_windows'])
+          selected=None
+          for t,raw in frames:
+            if SOURCE not in raw:continue
+            for lo,hi,state,reason,wi in segments:
+              if lo<=t<=hi and state==LIVE and CANONICAL in set(map(str,ctx['official_paired_windows'][wi][3])):
+                selected=t;break
+            if selected is not None:break
+          assert selected is not None
+          output=query(root,gid,selected,selected,max_side_ms=800)
+          row=output['rows'][0]
+          assert row['source_original_native_timestamp']
+          assert SOURCE in row['source_original_xyz_native']
+          assert row['derived_game_only_booker_identity_override_applied']
+          assert row['scene'] and CANONICAL in row['scene']['players_by_source_id']
+          assert row['scene']['players_by_source_id'][CANONICAL]['xyz_native']==tuple(row['source_original_xyz_native'][SOURCE])
+          assert output['game_scoped_Booker_previous_approval_provenance_verified']
+          print('IGP71_BOOKER_DERIVED_TRACKING_QUERY_PROVENANCE',json.dumps({'game_only':True,'original_source_preserved':True,'derived_official_booker_present':True}))
+          PY
       - name: Private source-only QA receipt
         shell: bash
         run: |
@@ -45,7 +77,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f gamepulse/fusion/qa/igp_progress_20261031/igp_71_booker_approved_id_live_gain_qa_v1.json
+          git add -f gamepulse/fusion/qa/igp_progress_20261031/igp_71_booker_approved_id_live_gain_qa_v1.json gamepulse/fusion/qa/igp_progress_20261031/igp_71_booker_corrected_live_reconcile_v1.json
           git diff --cached --check
           if git diff --cached --quiet;then echo IGP71_BOOKER_VALID_GAIN_QA_CURRENT;exit 0;fi
           git commit -q -m 'qa(igp): game0092 approved Booker ID full native live matched 800/1200 original XYZ readback'
