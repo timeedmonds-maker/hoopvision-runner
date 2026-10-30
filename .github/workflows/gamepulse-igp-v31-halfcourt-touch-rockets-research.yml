@@ -2,7 +2,7 @@ name: IGP v3.1 halfcourt paint touch Rockets research readback
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-igp-v31-halfcourt-touch-rockets-research.yml']
+    paths: ['.github/workflows/gamepulse-igp-v31-halfcourt-touch-rockets-research.yml', 'tools/public_content_guard.py']
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
