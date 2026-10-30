@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: 50e1d0a4f462ee3a372710957b269cd6a215f0bb
+      PINNED_PRIVATE_SHA: d2549d4aa6fe5985a4ae9e3de4459a03dbe91191
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -61,7 +61,8 @@ jobs:
           assert not q['physical_video_to_SDK_subsecond_absolute_clock_verified']
           assert q['independently_certified_physical_possessions']==0
           assert q['newly_accepted_tracking_positions']==0
-          assert q['original_companion_position_event_source_provenance']['positions_show_events']>0
+          assert q['original_companion_position_event_source_provenance'].get('positions_show_events',0)==0
+          assert q['original_XYZ_archive_release_required_for_upstream_actor_flags']
           print('IGP_P4_ORIGINAL_NBA_VIDEO_BLIND_HOLDOUT',json.dumps({
              'source_blind_video_labels':q['holdout_video_clock_labels'],
              'fresh_original_SDK_matches':q['unseen_original_SDK_source_clock_matches'],
