@@ -64,6 +64,15 @@ jobs:
           export PYTHONPATH=gamepulse/fusion
           python3 gamepulse/fusion/igp_v32_0122_actor_identity_missingness_dossier_v1.py \
             --root . --out "$RUNNER_TEMP/per-actor/igp_v32_0122_actor_identity_missingness_dossier_v1.json"
+      - name: Read all SHA-original 0122 keyframe variants and rescore frozen S1 native plus 10Hz
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 gamepulse/fusion/igp_v32_0122_raw_variant_rescue_shadow_v1.py \
+            --root . --archive-dir "$RUNNER_TEMP/sdk" --release-json "$RUNNER_TEMP/release.json" \
+            --out "$RUNNER_TEMP/per-actor/igp_v32_0122_raw_variant_rescue_shadow_v1.json"
       - name: Retain SHA original metadata sidecars privately
         shell: bash
         run: |
@@ -74,10 +83,12 @@ jobs:
           cp "$RUNNER_TEMP/per-actor/summary.json" "$dest/igp_v32_upstream_${GAME}_summary.json"
           cp "$RUNNER_TEMP/per-actor/actor_flags.jsonl.gz" "$dest/igp_v32_upstream_${GAME}.jsonl.gz"
           cp "$RUNNER_TEMP/per-actor/igp_v32_0122_actor_identity_missingness_dossier_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_0122_actor_identity_missingness_dossier_v1.json"
+          cp "$RUNNER_TEMP/per-actor/igp_v32_0122_raw_variant_rescue_shadow_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_0122_raw_variant_rescue_shadow_v1.json"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$dest/igp_v32_upstream_${GAME}_summary.json" "$dest/igp_v32_upstream_${GAME}.jsonl.gz"
           git add -f gamepulse/fusion/qa/igp_v32/igp_v32_0122_actor_identity_missingness_dossier_v1.json
+          git add -f gamepulse/fusion/qa/igp_v32/igp_v32_0122_raw_variant_rescue_shadow_v1.json
           git diff --cached --check
           git commit -qm "qa(igp): game $GAME original SDK actor/ball provenance SHA"
           for n in 1 2 3 4 5 6; do
