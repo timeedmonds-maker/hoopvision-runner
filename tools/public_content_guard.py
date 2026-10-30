@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-existing-ball66-forensic.yml",  # reviewed SHA-private source original 0006 66ft masked ball baseline discrepancy forensic
     ".github/workflows/gamepulse-igp-v32-ball-source-quality-query-smoke.yml",  # source private optin query warning tests no original player xyz public
     ".github/workflows/gamepulse-igp-v32-ball-source-variant-0001.yml",  # verified original SDK thirteen-part private ball raw variant audit no public XYZ
     ".github/workflows/gamepulse-igp-v32-consecutive-live-bridge-all71.yml",  # source-private original NBA 71 same-lineup live PBP source bridge research, aggregate-only logs
