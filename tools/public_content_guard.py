@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p4-video-clock-blind-holdout.yml",  # original NBA independent broadcast held-out video labels vs private companion timing and metadata QA
     ".github/workflows/gamepulse-igp-p4-video-source-clock-joined.yml",  # original NBA private Broadcast+SDK P4 joined physical evidence, public aggregate only
     ".github/workflows/gamepulse-igp-p4-broadcast-vs-sdk-clock.yml",  # original private NBA SDK Time#show matched independent Broadcast scoreboard, aggregates only
     ".github/workflows/gamepulse-igp-p4-detroit-dense-broadcast-frames.yml",  # original authenticated NBA Broadcast video 0.5s review private only
