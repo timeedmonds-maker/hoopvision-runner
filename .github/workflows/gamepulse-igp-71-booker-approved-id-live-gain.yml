@@ -1,0 +1,58 @@
+name: IGP approved Booker source ID live 71 benchmark gain
+# Private original SDK source and approved NBA 0092 ID correction; public numeric aggregates only.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-igp-71-booker-approved-id-live-gain.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-71-booker-approved-source-id-gain
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public content guard
+        run: python3 tools/public_content_guard.py
+      - name: Apply only previously approved game0092 identity correction to live original QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_71_booker_approved_id_live_gain_qa_v1.py
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p test_igp_source_player_id_corrections_2026.py
+          python3 gamepulse/fusion/igp_71_booker_approved_id_live_gain_qa_v1.py --root . --output gamepulse/fusion/qa/igp_progress_20261031/igp_71_booker_approved_id_live_gain_qa_v1.json >"$RUNNER_TEMP/booker.log" 2>&1 || {
+             tail -60 "$RUNNER_TEMP/booker.log" | sed -E 's/[0-9]{10,}/[UTC_REDACTED]/g'
+             exit 32
+          }
+          grep 'IGP71_BOOKER_LIVE_ID_FIX' "$RUNNER_TEMP/booker.log" || true
+      - name: Private source-only QA receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_progress_20261031/igp_71_booker_approved_id_live_gain_qa_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet;then echo IGP71_BOOKER_VALID_GAIN_QA_CURRENT;exit 0;fi
+          git commit -q -m 'qa(igp): game0092 approved Booker ID full native live matched 800/1200 original XYZ readback'
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH";then echo IGP71_BOOKER_VALID_GAIN_PRIVATE_QA_COMMITTED;exit 0;fi
+            sleep "$attempt"
+          done
+          exit 24
