@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-68-live-gap-census-20261030
-      PINNED_PRIVATE_SHA: 633b3a6e7968b715c01d78377c50e5e609212ebb
+      PINNED_PRIVATE_SHA: 754a95af3bfbcc30bbfaa5040323ad16f2b3ac5e
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -60,7 +60,10 @@ jobs:
           assert j['independent_video_to_SDK_UTC_alignments_verified']==0
           assert j['independent_3D_ball_court_positions_certified']==0
           assert j['independent_physical_possessions_certified']==0
-          assert hashlib.sha256(base64.b64decode(j['private_contact_sheet_jpg_base64'])).hexdigest()==j['contact_sheet_sha256']
+          img=base64.b64decode(j['private_contact_sheet_jpg_base64'])
+          assert len(img)>15000 and img.startswith(bytes.fromhex('ffd8ff')) and img.endswith(bytes.fromhex('ffd9'))
+          assert hashlib.sha256(img).hexdigest()==j['contact_sheet_sha256']
+          assert j['contact_sheet_sha256']!=hashlib.sha256(b'').hexdigest()
           print('IGP_P4_PRIVATE_REAL_BROADCAST_DECODE',json.dumps({
              'sampled_frames':16,'distinct_original_video_frame_sha':
                len(set(x['frame_jpeg_sha256'] for x in j['private_frames_sha_and_pts'])),
@@ -72,7 +75,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          dest=gamepulse/fusion/qa/igp_progress_20261030/igp_fusion_v31_p4_independent_dense_broadcast_frames_compact_v2.json
+          dest=gamepulse/fusion/qa/igp_progress_20261030/igp_fusion_v31_p4_independent_dense_broadcast_frames_compact_v3.json
           git fetch -q origin "$BRANCH"
           git checkout -q -B p4-dense-broadcast "origin/$BRANCH"
           cp "$RUNNER_TEMP/dense-broadcast-private.json" "$dest"
