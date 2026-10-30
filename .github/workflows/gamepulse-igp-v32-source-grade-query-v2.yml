@@ -40,7 +40,7 @@ jobs:
           out=query(".",gid,t,t+200,hz=10)
           control=old(".",gid,t,t+200,hz=10)
           assert len(out["rows"])==len(control["rows"])==3
-          assert out["schema"].endswith("source-grade-v2")
+          assert out["schema"].endswith("ball-grade-v2")
           assert out["accepted_native_and_10hz_scene_completeness_unchanged"]
           assert out["rows"][0]["ball_source_provenance_v2"]["provider_interpolated_original_at_exact_t"]==TRUE
           assert all(a["scene"]==b["scene"] and a["source_original_xyz_native"]==b["source_original_xyz_native"]
