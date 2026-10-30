@@ -52,5 +52,16 @@ jobs:
           assert all(not r["ball_source_provenance_v2"]["physical_ball_accuracy_certified"] for r in out["rows"])
           other=query(".","0022600009",1792809248567,1792809248667,hz=10)
           assert all(r["ball_source_provenance_v2"]["grade"]=="OTHER_GAME_ORIGINAL_BALL_UPSTREAM_UNJOINED" for r in other["rows"])
+          from query_igp_v32_original_ball_per_game_source_grade_v3 import query as v3
+          g1=v3(".",gid,t,t+200,hz=10)
+          assert len(g1["rows"])==3 and g1["per_actor_original_archive_sidecar_sha256"]
+          assert g1["rows"][0]["ball_source_provenance_v3"]["original_ball_exact_t"]=="PROVIDER_INTERPOLATED_TRUE"
+          assert all(a["scene"]==b["scene"] and a["complete_ten_plus_ball"]==b["complete_ten_plus_ball"]
+                     and a["source_original_xyz_native"]==b["source_original_xyz_native"]
+                     for a,b in zip(g1["rows"],out["rows"]))
+          g9=v3(".","0022600009",1792809248567,1792809248667,hz=10)
+          assert all(x["ball_source_provenance_v3"]["original_ball_exact_t"]=="NOT_YET_JOINED"
+                     for x in g9["rows"])
+          print("IGP_V32_ORIGINAL_BALL_V3_PER_GAME_REAL_SOURCE_PASS G1_original_SHA_join=1 other_game_unknown=1 scene_regression=0")
           print("IGP_V32_ORIGINAL_NBA_BALL_SOURCE_GRADE_V2_QA_PASSED rows_g1=3 unknown_other=2 source_unchanged=1")
           PY
