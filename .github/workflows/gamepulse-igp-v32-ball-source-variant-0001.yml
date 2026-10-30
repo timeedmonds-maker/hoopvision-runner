@@ -52,7 +52,9 @@ jobs:
           git fetch -q origin "$BRANCH"
           git checkout -q -B original-variants "origin/$BRANCH"
           cp "$RUNNER_TEMP/private-ball-upstream.json" "$receipt"
-          git add -f "$receipt"
+          cp "$RUNNER_TEMP/upstream-original.gz" gamepulse/fusion/qa/igp_v32/igp_v32_g1_original_actor_upstream_by_utc_v1.jsonl.gz
+          cp "$RUNNER_TEMP/upstream-summary.json" gamepulse/fusion/qa/igp_v32/igp_v32_g1_upstream_original_source_summary_v1.json
+          git add -f "$receipt" gamepulse/fusion/qa/igp_v32/igp_v32_g1_original_actor_upstream_by_utc_v1.jsonl.gz gamepulse/fusion/qa/igp_v32/igp_v32_g1_upstream_original_source_summary_v1.json
           git diff --cached --check
           if git diff --cached --quiet;then echo VARIANT_QA_ALREADY_SAVED;exit 0;fi
           git config user.name 'github-actions[bot]'
