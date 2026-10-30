@@ -42,6 +42,11 @@ jobs:
               exit 84
             }
           grep '^IGP_V32_G1_SPIKE_PROVENANCE' "$RUNNER_TEMP/private-upstream.log"
+          python3 gamepulse/fusion/igp_v32_g1_false_source_ball_anchor_shadow_v1.py --root . --output "$RUNNER_TEMP/private-g1-sourcefalse.json" >"$RUNNER_TEMP/private-false-source.log" 2>&1 || {
+            echo IGP_V32_G1_FALSE_ANCHOR_SOURCE_MASK_TEST_FAILED
+            exit 85
+          }
+          grep '^IGP_V32_G1_FALSE_ANCHOR_BALL_SHADOW' "$RUNNER_TEMP/private-false-source.log"
       - name: Preserve alternative original source keyframes private
         shell: bash
         run: |
@@ -54,7 +59,8 @@ jobs:
           cp "$RUNNER_TEMP/private-ball-upstream.json" "$receipt"
           cp "$RUNNER_TEMP/upstream-original.gz" gamepulse/fusion/qa/igp_v32/igp_v32_g1_original_actor_upstream_by_utc_v1.jsonl.gz
           cp "$RUNNER_TEMP/upstream-summary.json" gamepulse/fusion/qa/igp_v32/igp_v32_g1_upstream_original_source_summary_v1.json
-          git add -f "$receipt" gamepulse/fusion/qa/igp_v32/igp_v32_g1_original_actor_upstream_by_utc_v1.jsonl.gz gamepulse/fusion/qa/igp_v32/igp_v32_g1_upstream_original_source_summary_v1.json
+          cp "$RUNNER_TEMP/private-g1-sourcefalse.json" gamepulse/fusion/qa/igp_v32/igp_v32_g1_false_anchors_ball_source_mask_shadow_v1.json
+          git add -f "$receipt" gamepulse/fusion/qa/igp_v32/igp_v32_g1_false_anchors_ball_source_mask_shadow_v1.json gamepulse/fusion/qa/igp_v32/igp_v32_g1_original_actor_upstream_by_utc_v1.jsonl.gz gamepulse/fusion/qa/igp_v32/igp_v32_g1_upstream_original_source_summary_v1.json
           git diff --cached --check
           if git diff --cached --quiet;then echo VARIANT_QA_ALREADY_SAVED;exit 0;fi
           git config user.name 'github-actions[bot]'
