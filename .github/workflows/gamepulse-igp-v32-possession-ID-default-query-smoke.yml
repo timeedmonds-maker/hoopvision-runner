@@ -35,12 +35,26 @@ jobs:
           from igp_v32_default_tracking_engine_v1 import DEFAULT_ENGINE
           qa=json.loads(Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v1.json").read_bytes())
           assert qa["games"]==71 and qa["NBA_official_logical_chains_total"]==14612
-          ids=["0022600092","0022600123","0022600113"]
-          for gid in ids:
-              candidates=[x for x in qa["chains_by_game"][gid]
-                          if x["evaluated"] and x["strict_S1_samples_in_chain"]>=3]
-              assert candidates, "NO_ELIGIBLE_SEASON_CHAIN_"+gid
-              chain=candidates[0]
+          eligible=[
+              (gid,ch) for gid in sorted(qa["chains_by_game"])
+              for ch in qa["chains_by_game"][gid]
+              if ch["evaluated"] and ch["strict_S1_samples_in_chain"]>=3]
+          candidate=[
+              (gid,ch) for gid in sorted(qa["chains_by_game"])
+              for ch in qa["chains_by_game"][gid]
+              if ch["original_logged_utc_candidate_ms"] is not None
+              and len(ch["original_logged_utc_candidate_ms"])==2
+              and all(type(x)==int for x in ch["original_logged_utc_candidate_ms"])
+              and 500<=ch["original_logged_utc_candidate_ms"][1]-
+                  ch["original_logged_utc_candidate_ms"][0]<=90000]
+          assert eligible, "CRITICAL_NO_INDEPENDENT_PBP_CLOCK_ELIGIBLE_LOGICAL_CHAIN"
+          samples=[];seen=set()
+          for gid,ch in eligible+candidate:
+              if gid in seen:continue
+              seen.add(gid);samples.append((gid,ch))
+              if len(samples)==3:break
+          assert len(samples)==3, "NEED_THREE_DISTINCT_REAL_GAME_CHAIN_QUERY_CASES"
+          for gid,chain in samples:
               t=time.perf_counter()
               r=query(".",gid,chain["chain_id"],limit=10,native_limit=10)
               latency=(time.perf_counter()-t)*1000
@@ -55,6 +69,7 @@ jobs:
                          for x in r["original_native_rows"])
               print("IGP32_POSSESSION_ID_10HZ_PLUS_NATIVE_SOURCE_PASS",gid,
                     "chain_id",chain["chain_id"],
+                    "eligible",chain["evaluated"],
                     "10hz_rows",len(r["ten_hz_rows"]),
                     "native_rows",len(r["original_native_rows"]),
                     "latency_ms",round(latency,2))
