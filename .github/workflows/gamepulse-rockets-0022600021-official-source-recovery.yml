@@ -52,6 +52,35 @@ jobs:
           assert q["game_id"]=="0022600021"
           print("NBA_FIRSTPARTY_SOURCE_DIAGNOSTIC_COUNTS_VERIFIED")
           PY
+      - name: Extract full official NBA event feed from first party game HTML
+        run: |
+          set -euo pipefail
+          gh api "repos/$PRIVATE_REPO/contents/gamepulse/live/igp32_0021_official_html_extract.py?ref=main" \
+            --jq '.content' | base64 -d > "$ORIGINAL_ROOT/official_html_extract.py"
+          python3 "$ORIGINAL_ROOT/official_html_extract.py" --root "$ORIGINAL_ROOT"
+      - name: Preserve official NBA HTML provenance and extracted actions privately
+        run: |
+          set -euo pipefail
+          for filename in official_nba_game_first_party_html.html official_nba_page_extracted_pbp.json igp32_0021_official_html_extract_qa.json; do
+            if test -s "$ORIGINAL_ROOT/$filename"; then
+              gh release upload "$TAG" "$ORIGINAL_ROOT/$filename" \
+                --repo "$PRIVATE_REPO" --clobber
+            fi
+          done
+          python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          f=Path(os.environ["ORIGINAL_ROOT"])/"igp32_0021_official_html_extract_qa.json"
+          endpoint=("repos/"+os.environ["PRIVATE_REPO"]+
+            "/contents/gamepulse/live/qa/igp32_0021_official_html_extract_qa.json")
+          body={"branch":"main","message":"qa(igp): retain actual NBA first-party HTML event extraction",
+                "content":base64.b64encode(f.read_bytes()).decode()}
+          previous=subprocess.run(["gh","api",endpoint],text=True,capture_output=True)
+          if previous.returncode==0:body["sha"]=json.loads(previous.stdout)["sha"]
+          subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+             input=json.dumps(body),text=True,check=True,stdout=subprocess.DEVNULL)
+          print("NBA_FIRST_PARTY_HTML_EVENT_QA_PRESERVED_PRIVATE")
+          PY
       - name: Preserve first party source bodies and SHA receipts privately
         run: |
           set -euo pipefail
