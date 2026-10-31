@@ -1,0 +1,94 @@
+# Public runner logs aggregate QA only; never prints licensed source XYZ.
+name: IGP P2B guarded source-backed three-game readback
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-igp-v32-p2b-guarded-source-readback.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-v32-p2b-guarded-source-readback
+  cancel-in-progress: false
+jobs:
+  original-nba-sha-readback:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/igp-v32-p2b-guarded-shadow-20261031
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Private source access and P2B source-free tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_v32_p2b_guarded_shadow_v1.py
+          python3 -m unittest discover -q -s gamepulse/fusion/tests \
+            -p 'test_igp_v32_p2b_guarded_shadow_v1.py'
+          echo IGP_P2B_GUARDED_SOURCE_FREE_QA_PASSED
+      - name: Original NBA SDK 3 game and anomalous source-anchor QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 - <<'PY' > "$RUNNER_TEMP/igp-p2b-guarded-private.log" 2>&1 || {
+          import json,hashlib
+          from pathlib import Path
+          from igp_71_source_context_v1 import source_index,load_context
+          from igp_native_scene_season_68_benchmark_v1 import load_game
+          from igp_native_scene_model_v2 import build_tracks
+          from igp_v32_71_dual_grid_recoverability_census_v1 import _derived
+          from igp_68_live_play_tracking_qa_v1 import (
+              LIVE,official_event_pair_segments,clip_to_official_windows)
+          from igp_v32_p2b_guarded_shadow_v1 import query,anchor_quality
+          from igp_v32_default_tracking_engine_v1 import DEFAULT_ENGINE
+          root=Path(".")
+          idx=source_index(root)
+          for gid in ("0022600006","0022600100","0022600101"):
+              ctx,e=load_context(root,gid,entries=idx["per_game"])
+              frames,_,sha=load_game(root,gid)
+              assert sha==e["native_source_manifest_sha256"]
+              rawpb=(root/"gamepulse/fusion/official_pbp_timing/games"/(gid+".json")).read_bytes()
+              assert hashlib.sha256(rawpb).hexdigest()==e["official_PBP_sha256"]
+              s=next(x for x in clip_to_official_windows(
+                  official_event_pair_segments(json.loads(rawpb)["actions"])[0],
+                  ctx["official_paired_windows"])
+                  if x[2]==LIVE and (x[0]+99)//100*100<=x[1])
+              at=(s[0]+99)//100*100
+              q=query(root,gid,at)
+              assert q["original_sdk_sha256"]==sha
+              assert q["official_nba_pbp_sha256"]==e["official_PBP_sha256"]
+              assert q["guarded_P2B_shadow"]["new_accepted_production_scenes"]==0
+              assert q["default_engine_changed"] is False
+          for gid,pid,t in (("0022600100","1641729",1792808356113),
+                            ("0022600101","1642377",1792808356068)):
+              frames,_,_=load_game(root,gid)
+              tracks=build_tracks(_derived(root,gid,frames))
+              assert pid in tracks
+              passflag,reason=anchor_quality(tracks[pid],t,t-300,t+300)
+              assert not passflag and "DISCONTINUITY" in reason
+          assert DEFAULT_ENGINE=="IGP32_ACCEPTED_SOURCE_QA_10HZ_71G_20261031"
+          print("3 original NBA games SHA-readback; 2 original source anchor anomalies reproduced; 0 production scene promotions")
+          PY
+            echo IGP_P2B_ORIGINAL_SOURCE_READBACK_FAILED
+            python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          log=(Path(os.environ["RUNNER_TEMP"])/"igp-p2b-guarded-private.log").read_text(errors="replace").splitlines()
+          line=next((x for x in reversed(log) if re.match(
+              r"^(?:AssertionError|ValueError|KeyError|TypeError|FileNotFoundError|ImportError|StopIteration):",x)),None)
+          print("IGP_P2B_REDACTED_SOURCE_FAILURE",re.sub(r"[0-9]{4,}","[ID]",line or "UNKNOWN")[:160])
+          PY
+            exit 41
+          }
+          echo IGP_P2B_GUARDED_THREEGAME_SHA_AND_TAIL_READBACK_PASSED
