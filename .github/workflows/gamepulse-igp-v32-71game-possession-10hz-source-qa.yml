@@ -1,4 +1,4 @@
-name: IGP32 71game all NBA logical PBP chain 10Hz source QA usability
+name: IGP32 V2 correct shared-endpoint chain 71game 10Hz source QA usability
 # Source privately SHA-verified; public output is count-only.
 on:
   push:
@@ -27,16 +27,16 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_v32_71_possession_10hz_source_qa_v1.py gamepulse/fusion/query_igp_v32_71_combined_research_scene_v1.py
-          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_possession_10hz_source_qa_v1.py'
-          python3 gamepulse/fusion/igp_v32_71_possession_10hz_source_qa_v1.py \
-            --root . --out gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v1.json
+          python3 -m py_compile gamepulse/fusion/igp_v32_71_possession_10hz_source_qa_v2.py gamepulse/fusion/query_igp_v32_71_combined_research_scene_v1.py
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_possession_10hz_source_qa_v2.py'
+          python3 gamepulse/fusion/igp_v32_71_possession_10hz_source_qa_v2.py \
+            --root . --out gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v2.json
       - name: Commit immutable private all71 possession-chain grade and full QA
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          p=gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v1.json
+          p=gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v2.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$p"
