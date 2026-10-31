@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-event-alignment-fixed-p2b-regression.yml",  # reviewed private original 71game exact P2B source mask regression no licensed raw positions in logs
     ".github/workflows/gamepulse-igp-v32-universal-event-query-smoke.yml",  # reviewed source SHA original PBP lineup and default P2B 10Hz single-event join, aggregate-only public logs
     ".github/workflows/gamepulse-igp-multiagent-p2b-disjoint-masked-qa.yml",  # private SHA-backed 71-cohort P2B vs P3 4-game disjoint original-source mask, aggregate metrics only
     ".github/workflows/gamepulse-igp-p2b-original-nearest-source-reconcile-20261031.yml",  # reviewed SHA private PBP action closest-original UTC ambiguity audit, public counts only
