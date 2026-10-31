@@ -1,4 +1,5 @@
 name: IGP32 permanently locked 10Hz accepted source QA default regression
+# Dedicated public-allowlisted regression: source XYZ stays in private repo
 on:
   push:
     branches: [main]
