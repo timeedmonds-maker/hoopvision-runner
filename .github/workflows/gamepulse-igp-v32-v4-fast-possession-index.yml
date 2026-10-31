@@ -1,3 +1,4 @@
+# Registered public-content guard: SHA-private only.
 # Metadata-only season chain index built in private repository; original XYZ
 # and per-game PBP remain private; public logs show aggregate chain QA only.
 name: IGP 3.2 V4 fast possession chain metadata materialization
