@@ -1,6 +1,6 @@
 # Private SDK XYZ stays in private 104. Only aggregate status reaches public logs.
 # Allowlisted in tools/public_content_guard.py after security review.
-name: IGP P2B guarded default release-candidate preflight
+name: IGP P2B guarded canonical default postmerge regression
 on:
   push:
     branches: [main]
@@ -13,7 +13,7 @@ jobs:
     timeout-minutes: 45
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_BRANCH: release/igp-v32-p2b-guarded-default-candidate-20261031
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
