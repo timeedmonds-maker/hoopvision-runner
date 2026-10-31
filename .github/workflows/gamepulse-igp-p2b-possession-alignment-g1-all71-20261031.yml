@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v32-p2b-all-action-crosswalk-20261031
-      PIN: ff37ff68a09f5579d2406b76870cabaa6c8daaab
+      PIN: 750f111a72cbe25f88e121cc99a3aa9c23dd6071
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
