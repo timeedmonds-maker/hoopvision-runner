@@ -93,3 +93,85 @@ jobs:
             exit 41
           }
           echo IGP_P2B_GUARDED_THREEGAME_SHA_AND_TAIL_READBACK_PASSED
+
+  guarded-all71-source-census:
+    needs: original-nba-sha-readback
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/igp-v32-p2b-guarded-shadow-20261031
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Original NBA all71 guarded 10Hz source QA, no public XYZ
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_v32_p2b_guarded_71game_source_census_v1.py
+          python3 gamepulse/fusion/igp_v32_p2b_guarded_71game_source_census_v1.py \
+            --root . --out "$RUNNER_TEMP/igp-p2b-guarded-71-private.json" \
+            > "$RUNNER_TEMP/igp-p2b-guarded-71-private.log" 2>&1 || {
+              echo IGP_P2B_GUARDED_71_SOURCE_QA_REJECTED
+              python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          log=(Path(os.environ["RUNNER_TEMP"])/"igp-p2b-guarded-71-private.log").read_text(errors="replace").splitlines()
+          line=next((x for x in reversed(log) if re.match(
+             r"^(?:AssertionError|ValueError|KeyError|TypeError|FileNotFoundError|ImportError|RuntimeError):",x)),None)
+          print("IGP_P2B_REDACTED_71_FAILURE",re.sub(r"[0-9]{4,}","[ID]",line or "UNKNOWN")[:160])
+          PY
+              exit 41
+            }
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          q=json.loads((Path(os.environ["RUNNER_TEMP"])/"igp-p2b-guarded-71-private.json").read_bytes())
+          assert q["frozen_10hz_population"]==1159651
+          assert q["accepted_IGP32_default_complete_unchanged"]==1002311
+          assert q["P2A_research_complete"]==1016498
+          assert q["P2B_original_unguarded_research_complete"]==1035995
+          assert 1016498<=q["P2B_new_guarded_shadow_complete"]<=1035995
+          assert q["production_promoted_scenes"]==0
+          assert len(q["per_game"])==71
+          print("IGP_P2B_GUARDED_71_SOURCE_COVERAGE_AND_RETROSPECTIVE_QA",
+              json.dumps({"S1_fixed_samples":q["frozen_10hz_population"],
+               "guarded_complete":q["P2B_new_guarded_shadow_complete"],
+               "guarded_coverage_pct":q["guarded_pct"],
+               "gain_vs_accepted":q["guarded_recovered_vs_accepted"],
+               "abstained_vs_old_P2B":q["guarded_lost_vs_unguarded"],
+               "production_promoted_scenes":0,
+               "physical_video_certified":False},sort_keys=True))
+          PY
+      - name: Commit immutable guarded source QA in private research branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          dest=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_guarded_71game_source_census_v1.json
+          test ! -e "$dest"
+          cp "$RUNNER_TEMP/igp-p2b-guarded-71-private.json" "$dest"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          gh auth setup-git
+          git add -f "$dest"
+          git diff --cached --check
+          git commit -q -m 'qa(igp): original SHA all71 P2B model-visible anchor guarded shadow 10Hz census'
+          for n in 1 2 3 4 5; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH" || exit 43
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo IGP_P2B_GUARDED_71_PRIVATE_SOURCE_QA_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 44
