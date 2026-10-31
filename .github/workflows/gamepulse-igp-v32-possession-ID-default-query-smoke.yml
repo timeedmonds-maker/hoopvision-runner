@@ -1,0 +1,62 @@
+name: IGP32 71game official PBP possession ID 10Hz default and original native smoke
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-igp-v32-possession-ID-default-query-smoke.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  possession-id-query:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify original 71game official chain SHA and read both S1 graded 10Hz and all original native
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/query_igp_v32_71_possession_source_qa_v1.py
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_possession_10hz_source_qa_v1.py'
+          python3 - <<'PY'
+          import json,time
+          from pathlib import Path
+          from query_igp_v32_71_possession_source_qa_v1 import query
+          from igp_v32_default_tracking_engine_v1 import DEFAULT_ENGINE
+          qa=json.loads(Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v1.json").read_bytes())
+          assert qa["games"]==71 and qa["NBA_official_logical_chains_total"]==14612
+          ids=["0022600092","0022600123","0022600113"]
+          for gid in ids:
+              candidates=[x for x in qa["chains_by_game"][gid]
+                          if x["evaluated"] and x["strict_S1_samples_in_chain"]>=3]
+              assert candidates, "NO_ELIGIBLE_SEASON_CHAIN_"+gid
+              chain=candidates[0]
+              t=time.perf_counter()
+              r=query(".",gid,chain["chain_id"],limit=10,native_limit=10)
+              latency=(time.perf_counter()-t)*1000
+              assert r["default_engine_id"]==DEFAULT_ENGINE and r["hz"]==10
+              assert r["tracking_usability"]==chain
+              assert r["physical_ball_custody_boundaries_certified"] is False
+              assert r["source_QA_not_independently_video_accurate_XY_ball3D"] is True
+              assert len(r["ten_hz_rows"])<=10 and len(r["original_native_rows"])<=10
+              assert r["original_source_manifest_sha256"]
+              assert all(x["utc_ms"]%100==0 for x in r["ten_hz_rows"])
+              assert all(x["original_source_grade"]=="ORIGINAL_NBA_SDK_NATIVE_UNMUTATED"
+                         for x in r["original_native_rows"])
+              print("IGP32_POSSESSION_ID_10HZ_PLUS_NATIVE_SOURCE_PASS",gid,
+                    "chain_id",chain["chain_id"],
+                    "10hz_rows",len(r["ten_hz_rows"]),
+                    "native_rows",len(r["original_native_rows"]),
+                    "latency_ms",round(latency,2))
+          print("IGP32_71GAME_PBP_CHAIN_DEFAULT_QUERY_SOURCE_NATIVE_IDENTITY_GRADE_PASS")
+          PY
