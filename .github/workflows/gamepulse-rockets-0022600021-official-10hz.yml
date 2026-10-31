@@ -117,7 +117,8 @@ jobs:
           git config user.name "IGP32 Original NBA Official Source QA"
           git config user.email "igp-source-qa@users.noreply.github.com"
           git add -f gamepulse/live/materialized/igp32_0022600021_firsthalf_official_10hz
-          git diff --cached --check
+          # Preserve original first-party NBA HTML byte-for-byte (including its own whitespace).
+          git -c core.whitespace=-blank-at-eol diff --cached --check
           git commit -qm "data(igp): persist NBA authorized original SDK and NBA.com Q1Q2 official source first"
           if git fetch -q origin main && git rebase -q origin/main && git push -q origin HEAD:refs/heads/main; then
             echo NBA_ORIGINAL_SHA_FIRST_HALF_EVIDENCE_PERSISTED_BEFORE_ENGINE
@@ -168,7 +169,8 @@ jobs:
           git config user.name "IGP32 Original NBA Official Source QA"
           git config user.email "igp-source-qa@users.noreply.github.com"
           git add -f gamepulse/live/materialized/igp32_0022600021_firsthalf_official_10hz
-          git diff --cached --check
+          # Preserve original first-party NBA HTML byte-for-byte (including its own whitespace).
+          git -c core.whitespace=-blank-at-eol diff --cached --check
           git commit -qm "data(igp): Rockets Dallas first half official NBA PBP ten plus ball 10Hz v3.2 private SHA"
           for attempt in 1 2 3 4 5 6 7 8; do
             git fetch -q origin main
