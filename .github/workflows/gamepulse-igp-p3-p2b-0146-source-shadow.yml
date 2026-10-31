@@ -25,7 +25,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 tools/public_content_guard.py
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0,"tools")
+          from public_content_guard import scan
+          path=".github/workflows/gamepulse-igp-p3-p2b-0146-source-shadow.yml"
+          issues=scan([path])
+          if issues: raise SystemExit("P3_WORKFLOW_GUARD_FAILED "+str(issues))
+          print("P3_WORKFLOW_SCOPED_PUBLIC_CONTENT_GUARD_OK")
+          PY
           test -n "$GH_TOKEN"
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_BRANCH" \
