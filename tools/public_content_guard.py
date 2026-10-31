@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p2b-original-native-action-context-all71-20261031.yml",  # SHA private all71 NBA original native action context; only aggregate public logs
     ".github/workflows/gamepulse-igp-p3-p2b-0146-source-shadow.yml",  # private original NBA SHA P3 vs P2B 0146 masked source QA; only aggregate outputs public
     ".github/workflows/gamepulse-igp-v32-event-alignment-fixed-p2b-regression.yml",  # reviewed private original 71game exact P2B source mask regression no licensed raw positions in logs
     ".github/workflows/gamepulse-igp-v32-universal-event-query-smoke.yml",  # reviewed source SHA original PBP lineup and default P2B 10Hz single-event join, aggregate-only public logs
