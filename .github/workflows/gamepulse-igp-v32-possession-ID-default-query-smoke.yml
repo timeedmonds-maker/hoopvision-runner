@@ -59,4 +59,44 @@ jobs:
                     "native_rows",len(r["original_native_rows"]),
                     "latency_ms",round(latency,2))
           print("IGP32_71GAME_PBP_CHAIN_DEFAULT_QUERY_SOURCE_NATIVE_IDENTITY_GRADE_PASS")
+          qa_path=Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v1.json")
+          import hashlib
+          summary={
+             "schema":"igp.v32.71game.possession.logical-chain.10hz.source-QA.summary.v1",
+             "full_private_sha256":hashlib.sha256(qa_path.read_bytes()).hexdigest(),
+             "games":qa["games"],
+             "official_logical_chains":qa["NBA_official_logical_chains_total"],
+             "counts":qa["counts"],"per_game_counts":qa["per_game"],
+             "pct_over_eligible":qa["qualified_pct_90pct_500ms_over_eligible"],
+             "pct_over_all_official_logical":qa["qualified_pct_90pct_500ms_over_ALL_official_chains"],
+             "physical_possessions_certified":0,
+             "engine_id":qa["engine_id"],"S1_live_recall_not_certified":True}
+          dest=Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_summary_v1.json")
+          dest.write_text(json.dumps(summary,indent=2,sort_keys=True)+"\\n")
+          print("IGP32_FULL71_PBP_CHAIN_SOURCE_QA_COMPACT_SUMMARY_READY",
+             "eligible",summary["counts"].get("eligible_nonoverlap_PBP_UTC_chains",0),
+             "qualified",summary["counts"].get("usable_90pct_max_gap_500ms",0),
+             "pct_all",summary["pct_over_all_official_logical"])
           PY
+      - name: Commit count-only summary and exact private full receipt SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          p=gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_summary_v1.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$p"
+          git diff --cached --check
+          if git diff --cached --quiet; then echo COUNT_ONLY_POSSESSION_SUMMARY_ALREADY_COMMITTED; exit 0; fi
+          git commit -qm 'qa(igp): release SHA-pinned compact 71game NBA logical chain 10Hz source QA usability summary'
+          for n in 1 2 3 4 5 6; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo PRIVATE_FULL71_PBP_COUNT_ONLY_SUMMARY_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 83
