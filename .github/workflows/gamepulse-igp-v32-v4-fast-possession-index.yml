@@ -85,7 +85,7 @@ jobs:
               'benchmark_not_general_p95_latency':True}
           import os
           p=Path(os.environ['RUNNER_TEMP'])/'v4_runtime_private.json'
-          p.write_text(json.dumps(output,indent=2,sort_keys=True)+'\\n')
+          p.write_text(json.dumps(output,indent=2,sort_keys=True)+'\n')
           print('V4_FAST_METADATA_INDEX_SOURCE_SHA_GATES_PASS',
                 json.dumps({'games':71,'chains':14612,
                 'fast_ms':[x['fast_metadata_ms'] for x in comparisons],
