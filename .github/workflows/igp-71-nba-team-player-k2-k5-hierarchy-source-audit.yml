@@ -1,3 +1,4 @@
+# Revision: invalid/zero-duration source rotations are tracked in quarantine QA.
 name: IGP 71 NBA team player and kman source QA
 on:
   workflow_dispatch:
