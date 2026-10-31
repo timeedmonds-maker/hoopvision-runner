@@ -10,6 +10,11 @@ on:
       - '.github/workflows/gamepulse-28game-possession-tracking-crosswalk.yml'
       - 'tools/public_content_guard.py'
   workflow_dispatch:
+    inputs:
+      private_source_commit:
+        description: 'Optional exact private 104 commit SHA for paired draft-PR source QA; blank uses main'
+        required: false
+        type: string
   schedule:
     - cron: '41 10 * * *'
 permissions:
@@ -35,7 +40,17 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_104_AUTH_NOT_AVAILABLE'; exit 3; }
-          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          if ! private_flag="$(gh api "repos/$PRIVATE_REPO" --jq .private 2>"$RUNNER_TEMP/private-preflight.err")"; then
+            if grep -qi 'rate limit exceeded' "$RUNNER_TEMP/private-preflight.err"; then
+              echo 'PRIVATE_104_API_RATE_LIMIT_EXHAUSTED_RETRY_AFTER_RESET' >&2
+            else
+              echo 'PRIVATE_104_AUTH_OR_API_PREFLIGHT_FAILED' >&2
+            fi
+            rm -f "$RUNNER_TEMP/private-preflight.err"
+            exit 3
+          fi
+          rm -f "$RUNNER_TEMP/private-preflight.err"
+          test "$private_flag" = true || { echo 'PRIVATE_104_REPO_NOT_PRIVATE'; exit 3; }
       - name: Independently recheck quarantined NBA source timelines
         shell: bash
         run: |
@@ -119,15 +134,49 @@ jobs:
           set -euo pipefail
           WORK="$RUNNER_TEMP/pulse-private"
           mkdir -p "$WORK"
-          SOURCE_COMMIT="$(gh api "repos/$PRIVATE_REPO/git/ref/heads/main" --jq .object.sha)"
+          # Allow a manual, source-pinned paired PR test without merging either draft.
+          # Scheduled and ordinary runs continue to use private main.
+          REQUESTED_SOURCE_COMMIT="${{ inputs.private_source_commit || '' }}"
+          if [[ -n "$REQUESTED_SOURCE_COMMIT" ]]; then
+            [[ "$REQUESTED_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+              echo 'PRIVATE_SOURCE_COMMIT_MUST_BE_EXACT_40_HEX_SHA' >&2; exit 3;
+            }
+            SOURCE_COMMIT="$REQUESTED_SOURCE_COMMIT"
+            VERIFIED_COMMIT="$(gh api "repos/$PRIVATE_REPO/git/commits/$SOURCE_COMMIT" --jq .sha)"
+            test "$VERIFIED_COMMIT" = "$SOURCE_COMMIT" || {
+              echo 'PINNED_PRIVATE_SOURCE_COMMIT_UNAVAILABLE' >&2; exit 3;
+            }
+          else
+            SOURCE_COMMIT="$(gh api "repos/$PRIVATE_REPO/git/ref/heads/main" --jq .object.sha)"
+          fi
           test "${#SOURCE_COMMIT}" -eq 40
+          echo "PRIVATE_SOURCE_PIN=$SOURCE_COMMIT"
           echo "SOURCE_COMMIT=$SOURCE_COMMIT" >> "$GITHUB_ENV"
           fetch_private () {
             local name="$1"
             local ref="$2"
             mkdir -p "$(dirname "$WORK/$name")"
-            gh api "repos/$PRIVATE_REPO/contents/$name?ref=$ref" --jq '.content' |
-              base64 --decode > "$WORK/$name"
+            local encoded="$WORK/$name.base64"
+            local fetch_err="$WORK/private-fetch-error.txt"
+            if ! gh api "repos/$PRIVATE_REPO/contents/$name?ref=$ref" --jq '.content' > "$encoded" 2>"$fetch_err"; then
+              if grep -qi 'rate limit exceeded' "$fetch_err"; then
+                echo "PRIVATE_SOURCE_API_RATE_LIMIT_EXHAUSTED_RETRY_AFTER_RESET:$name" >&2
+              elif grep -Eq 'HTTP 404|status 404' "$fetch_err"; then
+                echo "EXPECTED_PRIVATE_SOURCE_MISSING_AT_PINNED_COMMIT:$name" >&2
+              elif grep -Eq 'HTTP 401|status 401' "$fetch_err"; then
+                echo "PRIVATE_SOURCE_AUTHENTICATION_FAILED:$name" >&2
+              else
+                echo "PRIVATE_SOURCE_FETCH_FAILED_NOT_PROVEN_MISSING:$name" >&2
+              fi
+              rm -f "$encoded" "$fetch_err"
+              return 1
+            fi
+            rm -f "$fetch_err"
+            if ! base64 --decode < "$encoded" > "$WORK/$name"; then
+              echo "EXPECTED_PRIVATE_SOURCE_INVALID_BASE64:$name" >&2
+              return 1
+            fi
+            rm -f "$encoded"
             test -s "$WORK/$name"
           }
           fetch_private gamepulse/fusion/season_possession_tracking_crosswalk_2026.py "$SOURCE_COMMIT"
@@ -145,13 +194,21 @@ jobs:
           python3 -m py_compile "$WORK/gamepulse/fusion/season_possession_tracking_crosswalk_2026.py"
           python3 -m unittest discover -s "$WORK/gamepulse/fusion/tests" \
             -p 'test_season_possession_tracking_crosswalk_2026.py' -v
-          python3 - "$WORK/gamepulse/catalog/2026-27-integrated-current.json" "$WORK/gamepulse/fusion/index/interactions/index-2026-27.json" > "$RUNNER_TEMP/pulse-ids.json" <<'PY'
+          python3 - "$WORK/gamepulse/catalog/2026-27-integrated-current.json" "$WORK/gamepulse/fusion/official_pbp_timing/index-2026-27-expanded.json" "$WORK/gamepulse/fusion/index/interactions/index-2026-27.json" "$WORK/gamepulse/fusion/index/index.json" > "$RUNNER_TEMP/pulse-ids.json" <<'PY'
           import json,sys
-          catalog=json.load(open(sys.argv[1]))
-          interactions=json.load(open(sys.argv[2]))
-          games=set(catalog['games'])
-          assert games and set(interactions['games']) <= games
-          print(json.dumps({"games":sorted(games),"joined":sorted(interactions['games'])}))
+          catalog,official,interactions,tracking=(json.load(open(p)) for p in sys.argv[1:])
+          catalog_ids=set(catalog['games'])
+          official_ids=set(official['games'])
+          interaction_ids=set(interactions['games'])
+          tracking_ids=set(tracking['games'])
+          assert official_ids and official_ids <= catalog_ids, 'OFFICIAL_PBP_NOT_SUBSET_OF_CATALOG'
+          assert official_ids <= tracking_ids, 'OFFICIAL_PBP_TRACKING_VIEW_MISSING'
+          assert interaction_ids <= catalog_ids, 'INTERACTION_GAME_NOT_IN_CATALOG'
+          print(json.dumps({
+              "games":sorted(official_ids),
+              "joined":sorted(interaction_ids & official_ids),
+              "catalog_only_pbp_not_indexed":sorted(catalog_ids-official_ids),
+              "tracking_only_outside_pbp_cohort":sorted(tracking_ids-official_ids)}))
           PY
           python3 - "$RUNNER_TEMP/pulse-ids.json" > "$RUNNER_TEMP/private-paths.txt" <<'PY'
           import json,sys
@@ -259,7 +316,10 @@ jobs:
           python3 - "$RUNNER_TEMP/pulse-verified.json" <<'PY'
           import json,sys
           j=json.load(open(sys.argv[1]))
-          assert j['game_count'] == 36, 'CURRENT_SEASON_36_GAME_ACCEPTANCE_GATE'
+          assert j['game_count'] == 36, 'CURRENT_OFFICIAL_PBP_36_GAME_ACCEPTANCE_GATE'
+          assert j['catalog_game_count'] >= j['game_count']
+          assert len(j['catalog_only_pbp_not_indexed']) == j['catalog_game_count']-j['game_count']
+          assert j['catalog_only_source_state'] == 'PBP_NOT_INDEXED_NOT_ZERO_OR_CERTIFIED'
           assert j['official_pbp_games_indexed']==j['game_count']
           assert j['official_pbp_games_validated']+len(j['official_pbp_clock_anomaly_games'])==j['game_count']
           assert j['official_pbp_clock_anomaly_games']=={}
