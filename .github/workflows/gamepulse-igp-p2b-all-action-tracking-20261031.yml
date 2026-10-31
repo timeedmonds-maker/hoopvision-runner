@@ -8,7 +8,7 @@ on:
 permissions: {contents: read}
 concurrency:
   group: igp-p2b-71game-all-action-native-pbp
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   sourcefree-and-game0001:
     runs-on: ubuntu-24.04
@@ -170,7 +170,7 @@ jobs:
           if compact.exists() and json.loads(compact.read_bytes())!=summary:
               raise RuntimeError("REFUSE_P2B_SUMMARY_OVERWRITE")
           dest.write_bytes(raw)
-          compact.write_text(json.dumps(summary,sort_keys=True,indent=2)+"\\n")
+          compact.write_text(json.dumps(summary,sort_keys=True,indent=2)+"\n")
           print("IGP_P2B_FULL71_PRIVATE_QA_SHA256",summary["full_original_QA_SHA256"])
           PY
           git config user.name 'github-actions[bot]'
