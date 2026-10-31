@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v32-p2b-all-action-crosswalk-20261031
-      PIN: ec1792eb64efda347465270fe47922967574906b
+      PIN: 6d0a75117166f09dc485e0940cb0c1ea1cab129f
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -119,6 +119,42 @@ jobs:
           assert q["physical_custody_boundaries_certified"]==0
           print("P2B_PUBLISHED_NBA_TEAM_POSS_AND_CANONICAL_PBP_SOURCE_QA",json.dumps(c,sort_keys=True))
           PY
+      - name: NBA71 team AND player POSS independent constraints, source SHA verified
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile \
+            gamepulse/fusion/igp_v32_p2b_team_player_possession_triangulation_v1.py
+          python3 -m unittest -q \
+            gamepulse/fusion/tests/test_igp_v32_p2b_team_player_possession_triangulation_v1.py
+          python3 gamepulse/fusion/igp_v32_p2b_team_player_possession_triangulation_v1.py \
+            --root . --verify-source --out "$RUNNER_TEMP/p2b_nba_team_player_POSS_source71.json" \
+            > "$RUNNER_TEMP/p2b_nba_team_player_POSS_source71_private.log" 2>&1 || {
+              echo NBA71_TEAM_PLAYER_POSS_SOURCE_AUDIT_FAILED
+              exit 55
+            }
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          q=json.loads((Path(os.environ["RUNNER_TEMP"])/"p2b_nba_team_player_POSS_source71.json").read_bytes())
+          c=q["counts"]
+          assert q["games"]==71 and q["team_game_rows"]==142
+          assert c["nba_team_POSS"]==14552 and c["PBP_original_chains"]==14612
+          assert c["sum_player_POSS"]==73797 and c["sum_player_credit_overhang"]==1037
+          assert c["sum_player_credit_vs_five_chains"]==737
+          assert q["source_QA"]["SHA_PBP_games_verified"]==71
+          assert q["source_QA"]["player_ball_tracking_frames_required"]==0
+          assert q["physically_certified_custody_boundaries"]==0
+          print("IGP_NBA_TEAM_PLAYER_PBP_POSSESSION_SOURCE_TRIANGULATION_PASS",
+            json.dumps({"games":71,"team_rows":142,"player_rows":1597,
+            "team_POSS":c["nba_team_POSS"],"original_chains":c["PBP_original_chains"],
+            "NBA_player_POSS":c["sum_player_POSS"],
+            "player_credit_excess":c["sum_player_credit_overhang"],
+            "player_credit_vs_chain_residual":c["sum_player_credit_vs_five_chains"],
+            "physical_possessions_certified":0},sort_keys=True))
+          PY
       - name: Freeze official 81-game team Advanced POSS mirror
         shell: bash
         run: |
@@ -202,6 +238,7 @@ jobs:
           receipt=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_possession_alignment_71plus81_g1_20261031.json
           semantic=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_possession_semantics_original71_20261031.json
           accessible=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_all_original_chains_searchable71_20261031.json
+          triple=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_team_player_possession_triangulation_real71_20261031.json
           if [ ! -f "$receipt" ]; then
              cp "$RUNNER_TEMP/p2b_g1_verified_original71_nba81.json" "$receipt"
           fi
@@ -211,9 +248,12 @@ jobs:
           if [ ! -f "$accessible" ]; then
              cp "$RUNNER_TEMP/igp_p2b_unconditional_original71_qa.json" "$accessible"
           fi
-          git add -f "$receipt" "$semantic" "$accessible"
+          if [ ! -f "$triple" ]; then
+             cp "$RUNNER_TEMP/p2b_nba_team_player_POSS_source71.json" "$triple"
+          fi
+          git add -f "$receipt" "$semantic" "$accessible" "$triple"
           git diff --cached --check
-          if git diff --cached --quiet; then echo ALL_THREE_PRIVATE_QA_RECEIPTS_ALREADY_PRESERVED; exit 0; fi
+          if git diff --cached --quiet; then echo ALL_SOURCE_POSSESSION_QA_RECEIPTS_ALREADY_PRESERVED; exit 0; fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -q -m 'qa(igp): retain source-first possession candidate ledger 71 and NBA81 mirror'
