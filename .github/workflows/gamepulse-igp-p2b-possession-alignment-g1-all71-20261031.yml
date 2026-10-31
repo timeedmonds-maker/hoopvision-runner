@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v32-p2b-all-action-crosswalk-20261031
-      PIN: 7f50f68ec45bd4d527c0a76f77fcd5064af2c896
+      PIN: ff37ff68a09f5579d2406b76870cabaa6c8daaab
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -85,6 +85,39 @@ jobs:
           assert v["all_PBP_chains_queryable_regardless_of_P2B_scene_coverage"] is True
           assert v["physical_possessions_certified"]==0
           print("IGP_ALL_PBP_POSSESSIONS_SEARCHABLE_WITHOUT_10BALL_TRACKING",json.dumps(c,sort_keys=True))
+          PY
+      - name: NBA71 source team POSS and PBP chronological-grammar QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile \
+            gamepulse/fusion/igp_v32_p2b_possession_semantic_source_71_qa_v1.py \
+            gamepulse/fusion/query_igp_v32_p2b_published_team_poss_v1.py
+          python3 -m unittest -q \
+            gamepulse/fusion/tests/test_igp_v32_p2b_published_team_poss_v1.py \
+            gamepulse/fusion/tests/test_igp_v32_p2b_possession_alignment_core_v1.py
+          python3 gamepulse/fusion/igp_v32_p2b_possession_semantic_source_71_qa_v1.py \
+            --root . --out "$RUNNER_TEMP/p2b_nba_published_poss_source71.json" \
+            > "$RUNNER_TEMP/p2b_nba_published_poss_source71_private.log" 2>&1 || {
+              echo P2B_NBA71_PUBLISHED_POSS_SEMANTICS_QA_FAILED
+              exit 54
+            }
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          q=json.loads((Path(os.environ["RUNNER_TEMP"])/"p2b_nba_published_poss_source71.json").read_bytes())
+          c=q["counts"]
+          assert c["games"]==71 and c["team_game_rows"]==142
+          assert c["nba_published_team_possessions"]==14552
+          assert c["original_logical_chains"]==14612
+          assert c["all_original_chains_searchable_without_tracking"]==14612
+          assert c["original_official_PBP_actions"]==43419
+          assert c["sum_absolute_chain_minus_NBA_team_POSS"]==178
+          assert c["team_game_count_exact_matches"]==30
+          assert q["physical_custody_boundaries_certified"]==0
+          print("P2B_PUBLISHED_NBA_TEAM_POSS_AND_CANONICAL_PBP_SOURCE_QA",json.dumps(c,sort_keys=True))
           PY
       - name: Freeze official 81-game team Advanced POSS mirror
         shell: bash
