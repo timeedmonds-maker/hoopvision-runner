@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p2b-partial-native-action-evidence-all71-20261031.yml",  # source-private 71game partial actor+ball NBA action evidence; public aggregates only
     ".github/workflows/gamepulse-igp-p2b-native-p2b-action-union-all71-20261031.yml",  # private all71 SHA original native plus P2B bounded action evidence dedup union; aggregate logs only
     ".github/workflows/gamepulse-igp-p2b-native-action-source-evidence-20261031.yml",  # private original NBA 71game 500ms native ten+ball scorer action source QA; public counts only
     ".github/workflows/gamepulse-igp-p2b-original-native-action-context-all71-20261031.yml",  # SHA private all71 NBA original native action context; only aggregate public logs
