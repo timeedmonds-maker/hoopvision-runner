@@ -26,14 +26,14 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/query_igp_v32_71_possession_source_qa_v1.py
-          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_possession_10hz_source_qa_v1.py'
+          python3 -m py_compile gamepulse/fusion/query_igp_v32_71_possession_source_qa_v2.py
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_possession_10hz_source_qa_v2.py'
           python3 - <<'PY'
           import json,time
           from pathlib import Path
-          from query_igp_v32_71_possession_source_qa_v1 import query
+          from query_igp_v32_71_possession_source_qa_v2 import query
           from igp_v32_default_tracking_engine_v1 import DEFAULT_ENGINE
-          qa=json.loads(Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v1.json").read_bytes())
+          qa=json.loads(Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v2.json").read_bytes())
           assert qa["games"]==71 and qa["NBA_official_logical_chains_total"]==14612
           eligible=[
               (gid,ch) for gid in sorted(qa["chains_by_game"])
@@ -74,22 +74,36 @@ jobs:
                     "native_rows",len(r["original_native_rows"]),
                     "latency_ms",round(latency,2))
           print("IGP32_71GAME_PBP_CHAIN_DEFAULT_QUERY_SOURCE_NATIVE_IDENTITY_GRADE_PASS")
-          qa_path=Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v1.json")
+          qa_path=Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_v2.json")
           import hashlib
+          eligible_s1=[r for rows in qa["chains_by_game"].values()
+                       for r in rows if r["evaluated"] and
+                       r["unambiguous_strict_S1_samples_in_chain"]>=5]
+          passed_s1=[r for r in eligible_s1 if
+                     r["source_QA_complete_samples"]*10>=
+                         9*r["unambiguous_strict_S1_samples_in_chain"]
+                     and r["S1_longest_incomplete_run_ms"]<=500]
+          s1_diagnostics={
+              "chains_with_at_least_five_UNAMBIGUOUS_S1_10hz_samples":len(eligible_s1),
+              "S1_conditional_90pct_500ms_qualifying":len(passed_s1),
+              "S1_conditional_pct":round(100*len(passed_s1)/len(eligible_s1),5)
+                 if eligible_s1 else None,
+              "not_a_true_live_or_physical_possession_certification":True}
           summary={
              "schema":"igp.v32.71game.possession.logical-chain.10hz.source-QA.summary.v1",
              "full_private_sha256":hashlib.sha256(qa_path.read_bytes()).hexdigest(),
              "games":qa["games"],
              "official_logical_chains":qa["NBA_official_logical_chains_total"],
              "counts":qa["counts"],"per_game_counts":qa["per_game"],
+             "S1_conditional_diagnostics":s1_diagnostics,
              "pct_over_eligible":qa["qualified_pct_90pct_500ms_over_eligible"],
              "pct_over_all_official_logical":qa["qualified_pct_90pct_500ms_over_ALL_official_chains"],
              "physical_possessions_certified":0,
              "engine_id":qa["engine_id"],"S1_live_recall_not_certified":True}
-          dest=Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_summary_v1.json")
+          dest=Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_summary_v2.json")
           dest.write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
           print("IGP32_FULL71_PBP_CHAIN_SOURCE_QA_COMPACT_SUMMARY_READY",
-             "eligible",summary["counts"].get("eligible_nonoverlap_PBP_UTC_chains",0),
+             "eligible",summary["counts"].get("eligible_candidate_PBP_UTC_chains",0),
              "qualified",summary["counts"].get("usable_90pct_max_gap_500ms",0),
              "pct_all",summary["pct_over_all_official_logical"])
           PY
@@ -98,7 +112,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          p=gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_summary_v1.json
+          p=gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_summary_v2.json
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$p"
