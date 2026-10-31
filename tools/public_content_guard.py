@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-v3-companion-clock-54.yml",  # reviewed SHA-private 54game Time-event clock corroboration; no source XYZ or broadcast video in public logs
+    ".github/workflows/gamepulse-igp-v32-v4-fast-possession-index.yml",  # reviewed SHA-private 71game logical-PBP metadata materialization; public only counts and 3 latencies
     ".github/workflows/gamepulse-igp-v32-possession-ID-default-query-smoke.yml",  # reviewed: private 71game NBA PBP chain 10Hz original native source; public only IDs, counts and measured latency
     ".github/workflows/gamepulse-igp-v32-71game-possession-10hz-source-qa.yml",  # reviewed: original NBA SHA-private 71game 10Hz logical-chain QA, only pergame counts public no player XYZ
     ".github/workflows/gamepulse-igp-v32-default-10hz-release-regression.yml",  # reviewed: permanent 71game private SHA original source 10Hz source-QA engine lock, only IDs/grades/totals public
