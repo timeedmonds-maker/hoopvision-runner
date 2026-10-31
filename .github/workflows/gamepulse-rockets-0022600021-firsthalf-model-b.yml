@@ -1,6 +1,7 @@
 name: Rockets Dallas IGP v32 original source native Model B reconstruction QA
 # Original NBA SDK positions and reconstructed XYZ remain in PRIVATE 104 release.
 # Public Actions logs print aggregate slot coverage and masked original-source error only.
+# Retry: skip blank source-native JSONL rows; original capture and SHA remain unchanged.
 on:
   push:
     branches: [main]
