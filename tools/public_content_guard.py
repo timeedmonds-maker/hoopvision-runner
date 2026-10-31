@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-p2b-63unseen-71game-source.yml",  # private SHA original 1.2s 63 unseen NBA dev holdout and 71game coverage
     ".github/workflows/gamepulse-igp-v32-p2b-eightgame-bidirectional-source.yml",  # source SHA private two-side 1.2/1.8s 3plus actor 1-2s hard blackout pilot
     ".github/workflows/gamepulse-igp-v32-p2a-locked-71source-gate.yml",  # private SHA 71game P2A heldout DEV VAL gate, research only no physical claim
     ".github/workflows/gamepulse-igp-v32-p2a-scene-query-real.yml",  # read-only private original NBA P2A two-player ball bounded source scene query regression
