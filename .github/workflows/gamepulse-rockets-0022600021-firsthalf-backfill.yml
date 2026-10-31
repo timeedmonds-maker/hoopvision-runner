@@ -1,4 +1,5 @@
 name: Rockets Dallas original first half source-grade SDK backfill
+# Source privacy review: original NBA SDK archives and SHA receipts remain ONLY in private 104 Releases.
 on:
   push:
     branches: [main]
