@@ -44,6 +44,15 @@ jobs:
             --root . --out "$RUNNER_TEMP/p3-p2b-original-source-private.json" \
             > "$RUNNER_TEMP/p3-p2b-original-source-private.log" 2>&1 || {
               echo IGP_P3_P2B_ORIGINAL_SOURCE_EVALUATION_REJECTED
+              python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          lines=(Path(os.environ["RUNNER_TEMP"])/"p3-p2b-original-source-private.log").read_text(errors="replace").splitlines()
+          summary=next((s for s in reversed(lines) if re.match(r"^(?:\w+Error|AssertionError):",s)),"UNKNOWN")
+          kind=summary.split(":",1)[0] if ":" in summary else "UNKNOWN"
+          codes=re.findall(r"(?:FROZEN|P2B|SOURCE|RAW|PER_ACTOR|NO_|INVALID|MULTIAGENT|INSUFFICIENT|CURRENT)[A-Z0-9_]+",summary)
+          print("IGP_P3_P2B_SANITIZED_FIRSTCAUSE",kind,codes[:3])
+          PY
               exit 43
             }
           python3 - <<'PY'
