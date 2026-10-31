@@ -10,6 +10,11 @@ on:
       - '.github/workflows/gamepulse-28game-possession-tracking-crosswalk.yml'
       - 'tools/public_content_guard.py'
   workflow_dispatch:
+    inputs:
+      private_source_commit:
+        description: 'Optional exact private 104 commit SHA for paired draft-PR source QA; blank uses main'
+        required: false
+        type: string
   schedule:
     - cron: '41 10 * * *'
 permissions:
@@ -129,8 +134,23 @@ jobs:
           set -euo pipefail
           WORK="$RUNNER_TEMP/pulse-private"
           mkdir -p "$WORK"
-          SOURCE_COMMIT="$(gh api "repos/$PRIVATE_REPO/git/ref/heads/main" --jq .object.sha)"
+          # Allow a manual, source-pinned paired PR test without merging either draft.
+          # Scheduled and ordinary runs continue to use private main.
+          REQUESTED_SOURCE_COMMIT="${{ inputs.private_source_commit || '' }}"
+          if [[ -n "$REQUESTED_SOURCE_COMMIT" ]]; then
+            [[ "$REQUESTED_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]] || {
+              echo 'PRIVATE_SOURCE_COMMIT_MUST_BE_EXACT_40_HEX_SHA' >&2; exit 3;
+            }
+            SOURCE_COMMIT="$REQUESTED_SOURCE_COMMIT"
+            VERIFIED_COMMIT="$(gh api "repos/$PRIVATE_REPO/git/commits/$SOURCE_COMMIT" --jq .sha)"
+            test "$VERIFIED_COMMIT" = "$SOURCE_COMMIT" || {
+              echo 'PINNED_PRIVATE_SOURCE_COMMIT_UNAVAILABLE' >&2; exit 3;
+            }
+          else
+            SOURCE_COMMIT="$(gh api "repos/$PRIVATE_REPO/git/ref/heads/main" --jq .object.sha)"
+          fi
           test "${#SOURCE_COMMIT}" -eq 40
+          echo "PRIVATE_SOURCE_PIN=$SOURCE_COMMIT"
           echo "SOURCE_COMMIT=$SOURCE_COMMIT" >> "$GITHUB_ENV"
           fetch_private () {
             local name="$1"
