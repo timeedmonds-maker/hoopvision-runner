@@ -1,4 +1,4 @@
-name: IGP 3.2 materialize 71-game source-graded ball-only 10Hz research overlay
+name: IGP 3.2 6-game one-official-player short-edge 200 350 500ms source XY pilot
 on:
   push:
     branches: [main]
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  ball-P0:
+  one-player-edge:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Original SHA 71game 3D ball overlay source-first strict, read-back query checks
+      - name: Evaluate source-masked one-sided NBA source player missingness
         shell: bash
         run: |
           set -euo pipefail
@@ -26,35 +26,30 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_ball_speed_domain_challenger_v1.py'
-          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_query_igp_v32_71_ball_source_proxy_v1.py'
-          python3 -m py_compile gamepulse/fusion/igp_v32_71_ball_source_proxy_materialize_v1.py
-          python3 gamepulse/fusion/igp_v32_71_ball_source_proxy_materialize_v1.py \
-            --root . \
-            --overlay gamepulse/fusion/materialized/igp_v32_research_overlays/ball_p0_all71_source_80fts_v1.jsonl.gz \
-            --summary gamepulse/fusion/qa/igp_v32/igp_v32_71_ball_source_proxy_materialize_v1.json
-          for game in 0022600006 0022600092 0022600130 0022600146; do
-            python3 gamepulse/fusion/query_igp_v32_71_ball_source_proxy_v1.py \
-              --root . --game-id "$game" --limit 2000 --metrics-only
-          done
-      - name: Commit only source-preserving grade-filtered ball P0 overlay privately
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_single_missing_player_short_edge_challenger_v1.py'
+          mkdir -p "$RUNNER_TEMP/igp-qa"
+          python3 gamepulse/fusion/igp_v32_71_single_missing_player_short_edge_challenger_v1.py \
+            --root . --games 0022600006 0022600086 0022600111 0022600122 0022600130 0022600141 \
+            --masked-per-game 240 \
+            --out "$RUNNER_TEMP/igp-qa/igp_v32_sixgame_single_missing_player_short_edge_challenger_v1.json"
+      - name: Private commit measured source-masked player XY only
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          file="gamepulse/fusion/materialized/igp_v32_research_overlays/ball_p0_all71_source_80fts_v1.jsonl.gz"
-          qa="gamepulse/fusion/qa/igp_v32/igp_v32_71_ball_source_proxy_materialize_v1.json"
+          qa=gamepulse/fusion/qa/igp_v32/igp_v32_sixgame_single_missing_player_short_edge_challenger_v1.json
+          cp "$RUNNER_TEMP/igp-qa/igp_v32_sixgame_single_missing_player_short_edge_challenger_v1.json" "$qa"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$file" "$qa"
+          git add -f "$qa"
           git diff --cached --check
-          if git diff --cached --quiet; then echo IGP_P0_BALL71_ALREADY_COMMITTED; exit 0; fi
-          git commit -qm 'data(igp): 71-game +38162 original-anchored ball-only 10Hz P0 overlay source-grade'
+          if git diff --cached --quiet; then echo PLAYER_EDGE_PILOT_ALREADY_PUBLISHED; exit 0; fi
+          git commit -qm 'qa(igp): sixgame one-player 200/350/500ms real-source masked XY and exact S1 scene gains'
           for n in 1 2 3 4 5 6; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo IGP71_BALL_P0_SOURCE_GRADED_PRIVATE_OVERLAY_COMMITTED
+              echo IGP_PLAYER_SHORT_EDGE_PILOT_PRIVATE_COMMITTED
               exit 0
             fi
             sleep "$n"
