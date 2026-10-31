@@ -1,4 +1,4 @@
-# Private original NBA PBP/official roster contexts; public logs aggregate counts only.
+# Private original NBA PBP/official roster contexts; public logs aggregate counts only.\n# Revalidated with current public-content guard after concurrent runner workflow updates.
 name: IGP v3.2 all71 NBA event lineup substitution replay
 on:
   push:
