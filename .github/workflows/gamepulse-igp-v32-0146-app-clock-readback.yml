@@ -1,4 +1,5 @@
 # Reviewed public orchestration only. Licensed NBA source and video XYZ remain private.
+# 0146 atlas retry uses verified first-quarter period in the clock-stop guard.
 name: IGP 0146 app clock source-P2B readback
 on:
   push:
