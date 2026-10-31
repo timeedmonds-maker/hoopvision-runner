@@ -1,4 +1,4 @@
-name: IGP 3.2 game 0093 empirical on-court geometry and source-ID gate
+name: IGP 3.2 private source-graded game 0093 queryable research overlay
 on:
   push:
     branches: [main]
@@ -33,6 +33,10 @@ jobs:
             --root . --out "$RUNNER_TEMP/private-qa/igp_v32_0093_substitution_tracklet_adjudication_v1.json"
           python3 gamepulse/fusion/igp_v32_0093_source_actor_oncourt_geometry_audit_v1.py \
             --root . --out "$RUNNER_TEMP/private-qa/igp_v32_0093_source_actor_oncourt_geometry_audit_v1.json"
+          python3 gamepulse/fusion/igp_v32_0093_research_identity_overlay_v1.py \
+            --root . \
+            --overlay gamepulse/fusion/materialized/igp_v32_research_overlays/0022600093/identity_provisional_0093_v1.jsonl.gz \
+            --summary "$RUNNER_TEMP/private-qa/igp_v32_0093_research_identity_overlay_v1.json"
       - name: Publish SHA-original event/actor audit only to private canonical branch
         shell: bash
         run: |
@@ -46,9 +50,13 @@ jobs:
           geometry="gamepulse/fusion/qa/igp_v32/igp_v32_0093_source_actor_oncourt_geometry_audit_v1.json"
           cp "$RUNNER_TEMP/private-qa/igp_v32_0093_source_actor_oncourt_geometry_audit_v1.json" "$geometry"
           git add -f "$geometry"
+          overlay="gamepulse/fusion/materialized/igp_v32_research_overlays/0022600093/identity_provisional_0093_v1.jsonl.gz"
+          manifest="gamepulse/fusion/qa/igp_v32/igp_v32_0093_research_identity_overlay_v1.json"
+          cp "$RUNNER_TEMP/private-qa/igp_v32_0093_research_identity_overlay_v1.json" "$manifest"
+          git add -f "$overlay" "$manifest"
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_0093_AUDIT_ALREADY_PUBLISHED; exit 0; fi
-          git commit -qm 'qa(igp): 0093 opponent player source geometry on empirical NBA court'
+          git commit -qm 'research(igp): private queryable per-observation source graded identity inference 0093'
           for n in 1 2 3 4 5 6; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
