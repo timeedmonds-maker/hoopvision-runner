@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
-  group: rockets-dallas-firsthalf-igp32-official-10hz
+  group: rockets-dallas-firsthalf-igp32-official-10hz-source-ready
   cancel-in-progress: false
 jobs:
   official-10hz:
