@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-2027-player-advanced-rotations-probe-20261031.yml",  # public NBA advanced player-game and rotation parquet source schema only
     ".github/workflows/gamepulse-igp-open-nba-advanced-71game-crosswalk-20261031.yml",  # mirror NBA 2027 advanced team stats source-verified 71game private PBP comparison, aggregate only
     ".github/workflows/gamepulse-igp-open-nba-advanced-parquet-probe-20261031.yml",  # public NBA stats mirror DuckDB metadata and two source game ratings only
     ".github/workflows/gamepulse-igp-71-offrtg-inverse-original-source-audit.yml",  # reviewed private NBA 71game score and 17 advanced displayed-rate inversion; public aggregate only
