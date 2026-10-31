@@ -72,7 +72,7 @@ jobs:
              "physical_possessions_certified":0,
              "engine_id":qa["engine_id"],"S1_live_recall_not_certified":True}
           dest=Path("gamepulse/fusion/qa/igp_v32/igp_v32_71_possession_10hz_source_qa_summary_v1.json")
-          dest.write_text(json.dumps(summary,indent=2,sort_keys=True)+"\\n")
+          dest.write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
           print("IGP32_FULL71_PBP_CHAIN_SOURCE_QA_COMPACT_SUMMARY_READY",
              "eligible",summary["counts"].get("eligible_nonoverlap_PBP_UTC_chains",0),
              "qualified",summary["counts"].get("usable_90pct_max_gap_500ms",0),
