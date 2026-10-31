@@ -1,6 +1,6 @@
-name: IGP v3.2 original SDK provenance and raw-variant recovery game 0130
+name: IGP v3.2 original SDK provenance and raw-variant recovery game 0141
 # reviewed public-only QA, actor flags remain in private repository
-# Test restored 13-part legacy original source and frozen S1 keyframe recovery for game 0130.
+# Test restored 13-part legacy original source and frozen S1 keyframe recovery for game 0141.
 on:
   push:
     branches: [main]
@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      GAME: '0022600130'
+      GAME: '0022600141'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
