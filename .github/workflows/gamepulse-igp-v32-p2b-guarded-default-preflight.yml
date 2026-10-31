@@ -1,4 +1,5 @@
 # Private SDK XYZ stays in private 104. Only aggregate status reaches public logs.
+# Allowlisted in tools/public_content_guard.py after security review.
 name: IGP P2B guarded default release-candidate preflight
 on:
   push:
