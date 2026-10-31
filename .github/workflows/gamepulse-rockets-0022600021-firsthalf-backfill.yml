@@ -113,7 +113,8 @@ jobs:
           for kind in playbyplay boxscore; do
             url="https://cdn.nba.com/static/json/liveData/$kind/$kind""_0022600021.json"
             if curl --fail --silent --show-error --retry 3 --max-time 25 \
-                -H 'User-Agent: Mozilla/5.0' -H 'Accept: application/json' "$url" \
+                -H 'User-Agent: Mozilla/5.0' -H 'Accept: application/json' \
+                -H 'Referer: https://www.nba.com/' -H 'Origin: https://www.nba.com' "$url" \
                 -o "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-$kind.json"; then
               python3 - "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-$kind.json" <<'PY'
           import hashlib,json,sys
@@ -127,10 +128,17 @@ jobs:
               rm -f "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-$kind.json"
             fi
           done
-          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
-          (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
-          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/igp-original-companion-probe.log" ||
-            echo IGP_COMPANION_SDK_SOURCE_RETRY_NEEDED
+          gh release download "$TAG" --repo timeedmonds-maker/104 \
+            --pattern 'companion_*' --dir "$IGP_PRIVATE_CAPTURE_DIR" --clobber || true
+          if test -s "$IGP_PRIVATE_CAPTURE_DIR/companion_probe_receipt.json" && \
+             test -s "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json"; then
+            echo ORIGINAL_COMPANION_HALF_SNAPSHOT_ALREADY_PRESERVED
+          else
+            npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+            (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
+            node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/igp-original-companion-probe.log" ||
+              echo IGP_COMPANION_SDK_SOURCE_RETRY_NEEDED
+          fi
           python3 - <<'PY'
           import hashlib,json,os,subprocess
           from pathlib import Path
