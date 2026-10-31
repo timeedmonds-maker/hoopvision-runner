@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-universal-event-possession-alignment.yml",  # private SHA original 71game PBP event / logical possession / native SDK full census, aggregate-only public logs
     ".github/workflows/gamepulse-igp-v32-nineball-short-source-anchor.yml",  # private original SDK nine+ball same-official-ID short source anchor masked evaluation
     ".github/workflows/gamepulse-igp-v32-0146-app-clock-readback.yml",  # private SHA original 0146 user app 3 stop align & guarded P2B; public aggregate counts only
     ".github/workflows/gamepulse-igp-v32-extra-actor-fifth-crosswalk.yml",  # private original SDK 71g fifth-player extra-actor crosswalk and synthetic ID holdout aggregates
