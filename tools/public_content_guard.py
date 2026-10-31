@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-p2b-guarded-default-preflight.yml",  # private-SHA P2B guarded candidate 10Hz default rollback/source QA, public aggregate-only
     ".github/workflows/gamepulse-igp-v32-p2b-guarded-source-readback.yml",  # guarded P2B private source three-game QA, aggregate-only redacted public logs
     ".github/workflows/gamepulse-igp-v32-p2b-63unseen-locked1200-gate.yml",  # private original 63 unseen SHA-source 1.2s release gate, no physical promotion
     ".github/workflows/gamepulse-igp-v32-p2a-71game-source-extreme-tail.yml",  # exact 71 source heldout source motion tail forensic, no original XYZ in public
