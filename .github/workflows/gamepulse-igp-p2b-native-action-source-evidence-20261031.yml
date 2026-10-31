@@ -119,7 +119,7 @@ jobs:
           if summary.exists() and json.loads(summary.read_bytes())!=receipt:
               raise ValueError("REFUSE_ORIGINAL_NATIVE_ACTION_SUMMARY_REWRITE")
           original.write_bytes(raw)
-          summary.write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\\n")
+          summary.write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
           print("IGP_FULL71_NATIVE_NEAR_ACTION_RAW_QA_SHA256",receipt["full_QA_SHA256"])
           PY
           git config user.name 'github-actions[bot]'
