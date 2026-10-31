@@ -1,4 +1,5 @@
 # Private SHA original NBA coordinates and official PBP rows never go to public logs.
+# Stable official (period, action-number) joins permit differing source ledger order.
 name: IGP P2B 71game official action partial original-native player-ball census
 on:
   push:
