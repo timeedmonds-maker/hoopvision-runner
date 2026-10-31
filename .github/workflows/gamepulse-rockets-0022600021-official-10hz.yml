@@ -103,6 +103,27 @@ jobs:
           assert b["original_NBA_official_starer_five_plus_five_found"]
           print("REAL_NBA_FIRST_PARTY_PBP_AND_BOTH_OFFICIAL_STARTER_FIVES_SHA_READY")
           PY
+      - name: Persist original NBA SHA source before evaluating engine so failures cannot lose original evidence
+        run: |
+          set -euo pipefail
+          DST="$REPLAY_ROOT/private-main/gamepulse/live/materialized/igp32_0022600021_firsthalf_official_10hz"
+          mkdir -p "$DST/original_SDK_source_20261031_reacquired"
+          cp "$REPLAY_ROOT"/firsthalf-block-*.tar.gz "$DST/original_SDK_source_20261031_reacquired/"
+          cp "$REPLAY_ROOT"/firsthalf-block-*.json "$DST/original_SDK_source_20261031_reacquired/"
+          for name in official_nba_game_first_party_html.html official_nba_box_first_party_html.html official_nba_page_extracted_pbp.json official_nba_html_extracted_boxscore.json igp32_0021_official_html_extract_qa.json igp32_0021_official_box_html_qa.json; do
+            cp "$REPLAY_ROOT/$name" "$DST/$name"
+          done
+          cd "$REPLAY_ROOT/private-main"
+          git config user.name "IGP32 Original NBA Official Source QA"
+          git config user.email "igp-source-qa@users.noreply.github.com"
+          git add -f gamepulse/live/materialized/igp32_0022600021_firsthalf_official_10hz
+          git diff --cached --check
+          git commit -qm "data(igp): persist NBA authorized original SDK and NBA.com Q1Q2 official source first"
+          if git fetch -q origin main && git rebase -q origin/main && git push -q origin HEAD:refs/heads/main; then
+            echo NBA_ORIGINAL_SHA_FIRST_HALF_EVIDENCE_PERSISTED_BEFORE_ENGINE
+          else
+            echo NBA_ORIGINAL_SOURCE_PERSISTED_IN_WORKING_TREE_PENDING_FINAL_COMMIT
+          fi
       - name: Run actual accepted IGP3.2 first-half official-ten ten Hz engine
         run: |
           set -euo pipefail
