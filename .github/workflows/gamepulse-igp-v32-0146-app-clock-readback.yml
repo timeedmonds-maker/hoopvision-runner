@@ -90,6 +90,72 @@ jobs:
               "additional_P2B_vs_default":g["new_P2B_complete_beyond_previous"],
               "new_production_promotion":False},sort_keys=True))
           PY
+      - name: Annotated animation exact 69-gap P2B source atlas
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_v32_0146_animation_p2b_missing_scene_atlas_v1.py
+          python3 gamepulse/fusion/igp_v32_0146_animation_p2b_missing_scene_atlas_v1.py \
+            --root . --out "$RUNNER_TEMP/igp-0146-animation-gap-atlas-private.json" \
+            > "$RUNNER_TEMP/igp-0146-animation-gap-atlas-private.log" 2>&1 || {
+              echo IGP_0146_69HOLE_SOURCE_ATLAS_FAILED
+              python3 - <<'PY'
+          import re,os
+          from pathlib import Path
+          s=(Path(os.environ["RUNNER_TEMP"])/"igp-0146-animation-gap-atlas-private.log").read_text(errors="replace").splitlines()
+          a=next((z for z in reversed(s) if re.match(r"^(?:ValueError|AssertionError|KeyError|TypeError):",z)),"UNKNOWN")
+          code=a.split(":",1)[1].strip().split(":",1)[0] if ":" in a else "UNKNOWN"
+          code=code if re.fullmatch(r"[A-Z_0-9]{5,100}",code) else "UNCLASSIFIED"
+          print("IGP_0146_ANIMATION_ATLAS_SANITIZED_FIRSTCAUSE",code)
+          PY
+              exit 44
+            }
+          python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          r=json.loads((Path(os.environ["RUNNER_TEMP"])/"igp-0146-animation-gap-atlas-private.json").read_bytes())
+          c=r["counts"]
+          assert c["S1_running_10hz_total"]==982 and c["P2B_union_complete"]==913
+          assert c["S1_running_10hz_total"]-c["P2B_union_complete"]==69
+          assert len(r["incomplete_10hz_scenes_by_video_time"])==69
+          assert r["clock_stop_video_annotations_confirmed"]==3
+          assert r["training_position_labels_from_animation"]==0
+          print("IGP_0146_P2B_ANIMATION_ATLAS_AGGREGATE",json.dumps({
+              "complete":913,"grid":982,"holes":69,
+              "hole_types":{k:v for k,v in c.items() if k.startswith("incomplete_")},
+              "incomplete_runs":len(r["unresolved_contiguous_runs_by_length"]),
+              "rendered_animation_XY_labels_available":False},sort_keys=True))
+          PY
+      - name: Commit private 0146 animation-timed P2B gap atlas
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          dest=gamepulse/fusion/qa/igp_v32/igp_v32_0146_animation_p2b_missing_scene_atlas_v1.json
+          if test -e "$dest"; then
+            cmp -s "$RUNNER_TEMP/igp-0146-animation-gap-atlas-private.json" "$dest"
+            echo IGP_0146_P2B_ANIMATION_ATLAS_ALREADY_IDENTICAL
+            exit 0
+          fi
+          cp "$RUNNER_TEMP/igp-0146-animation-gap-atlas-private.json" "$dest"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          gh auth setup-git
+          git add -f "$dest"
+          git diff --cached --check
+          git commit -q -m 'qa(igp): 0146 video time anchored 69 source P2B incomplete scene atlas'
+          for n in 1 2 3 4 5; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH" || exit 47
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo IGP_0146_PRIVATE_ANIMATION_HOLE_ATLAS_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 48
       - name: Commit immutable original NBA aggregate QA to private research branch
         shell: bash
         run: |
