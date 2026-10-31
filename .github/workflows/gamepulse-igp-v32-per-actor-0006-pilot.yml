@@ -1,4 +1,4 @@
-name: IGP32 promote 350ms 71game source-QA with 0123 44.8ft outlier quarantine
+name: IGP 3.2 accepted source-graded 350ms readback and combined real scenes QA
 on:
   push:
     branches: [main]
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  promote-350ms:
+  source-qa-readback:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Verify original 44.8ft spike, 71game research source QA and promote model
+      - name: Test exact source spike exclusion and accepted 71game tracked player+ball scene queries
         shell: bash
         run: |
           set -euo pipefail
@@ -27,31 +27,14 @@ jobs:
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_0123_source_spike_promotion_v1.py'
-          python3 -m py_compile gamepulse/fusion/igp_v32_71_promote_player_350_source_qc_v1.py
-          python3 gamepulse/fusion/igp_v32_71_promote_player_350_source_qc_v1.py \
-            --root . \
-            --overlay gamepulse/fusion/materialized/igp_v32_accepted_source_quality/actor_350ms_71games_spike_quarantined_v1.jsonl.gz \
-            --summary gamepulse/fusion/qa/igp_v32/igp_v32_71_promoted_350ms_original_source_quality_v1.json
-      - name: Publish only private actor XYZ accepted analytical grade with SHA and outlier QA
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/private"
-          f=gamepulse/fusion/materialized/igp_v32_accepted_source_quality/actor_350ms_71games_spike_quarantined_v1.jsonl.gz
-          q=gamepulse/fusion/qa/igp_v32/igp_v32_71_promoted_350ms_original_source_quality_v1.json
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$f" "$q"
-          git diff --cached --check
-          if git diff --cached --quiet; then echo IGP32_ACCEPTED_350MS_SOURCE_QA_ALREADY_COMMITTED; exit 0; fi
-          git commit -qm 'data(igp): promote 350ms player XY accepted analytical source QA, quarantine exact 44.8ft SDK spike'
-          for n in 1 2 3 4 5 6; do
-            git fetch -q origin "$BRANCH"
-            git rebase -q "origin/$BRANCH"
-            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo IGP32_350MS_ACCEPTED_SOURCE_QA_SPIKE_EXCLUDED_COMMITTED
-              exit 0
-            fi
-            sleep "$n"
-          done
-          exit 83
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_promoted_source_query_v1.py'
+          python3 -m py_compile gamepulse/fusion/query_igp_v32_71_combined_research_scene_v1.py
+          python3 gamepulse/fusion/query_igp_v32_71_promoted_player_source_qc_v1.py \
+             --root . --game-id 0022600123 --limit 2000 --metrics-only
+          python3 gamepulse/fusion/query_igp_v32_71_combined_research_scene_v1.py \
+             --root . --game-id 0022600123 --limit 2
+          python3 gamepulse/fusion/query_igp_v32_71_combined_research_scene_v1.py \
+             --root . --game-id 0022600092 --limit 2
+          python3 gamepulse/fusion/query_igp_v32_71_combined_research_scene_v1.py \
+             --root . --game-id 0022600113 --limit 2
+          echo IGP_350MS_ACCEPTED_SOURCE_QA_FULL_REAL_READBACK_SUCCEEDED
