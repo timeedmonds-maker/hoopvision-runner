@@ -1,5 +1,6 @@
 name: Rockets Dallas original first half source-grade SDK backfill
 # Source privacy review: original NBA SDK archives and SHA receipts remain ONLY in private 104 Releases.
+# Source-grade rerun reads SHA-preserved original XYZ; duplicate source UTC variants are evidence, not a reason to discard XYZ.
 on:
   push:
     branches: [main]
