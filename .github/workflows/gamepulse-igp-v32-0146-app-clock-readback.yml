@@ -72,6 +72,7 @@ jobs:
           assert q["native_original_timestamps_whole_game"]==30261
           assert q["original_official_logical_chains"]==205
           assert q["new_production_promotion"] is False
+          assert q["schema"].endswith("readback.v2")
           c=q["clip_original_source_counts"]
           g=q["frozen_S1_running_P2B_clip_grid"]
           assert g["union_complete"]==g["previous_default_complete"]+g["new_P2B_complete_beyond_previous"]
@@ -84,6 +85,7 @@ jobs:
               "S1_running_10Hz_samples":g["frozen_S1_running_100ms_samples"],
               "default_complete":g["previous_default_complete"],
               "guarded_P2B_complete":g["guarded_P2B_complete"],
+              "companion_stop_veto_samples":g.get("companion_stop_clock_veto_samples",0),
               "guarded_plus_fallback_complete":g["union_complete"],
               "additional_P2B_vs_default":g["new_P2B_complete_beyond_previous"],
               "new_production_promotion":False},sort_keys=True))
@@ -93,7 +95,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          dest=gamepulse/fusion/qa/igp_v32/igp_v32_0146_user_app_clock_p2b_readback_source_v1.json
+          dest=gamepulse/fusion/qa/igp_v32/igp_v32_0146_user_app_clock_p2b_readback_source_v2.json
           mkdir -p "$(dirname "$dest")"
           if test -f "$dest"; then
             cmp -s "$RUNNER_TEMP/igp-0146-private-qa.json" "$dest"
