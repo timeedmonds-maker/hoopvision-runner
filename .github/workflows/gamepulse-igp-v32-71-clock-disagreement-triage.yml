@@ -1,4 +1,4 @@
-# Reviewed public CPU orchestrator only. All licensed NBA data/UTC details stay private.
+# Reviewed public CPU orchestrator only. All licensed NBA data/UTC details stay private.\n# Runner rerun with updated strict public workflow allowlist.
 name: IGP v3.2 frozen71 clock disagreement source triage
 on:
   push:
