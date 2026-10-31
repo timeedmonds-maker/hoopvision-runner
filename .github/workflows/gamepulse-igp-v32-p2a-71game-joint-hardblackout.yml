@@ -156,3 +156,4 @@ jobs:
             sleep "$n"
           done
           exit 44
+# QA source frozen absent per-game zero categories treated as count=0; retry original data pilot.
