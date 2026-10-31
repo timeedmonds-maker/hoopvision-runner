@@ -1,6 +1,6 @@
-name: IGP v3.2 original SDK actor provenance game 0122 validation
+name: IGP v3.2 original SDK provenance and raw-variant recovery game 0130
 # reviewed public-only QA, actor flags remain in private repository
-# Retest verified 0006 source-matching extractor on highest-loss game 0122.
+# Test restored 13-part legacy original source and frozen S1 keyframe recovery for game 0130.
 on:
   push:
     branches: [main]
@@ -14,7 +14,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      GAME: '0022600122'
+      GAME: '0022600130'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -56,23 +56,15 @@ jobs:
           assert s['newly_accepted_physical_positions']==0
           print('IGP_V32_GAME_SOURCE_PROVENANCE_VERIFIED',json.dumps({'source_games':1,'parts':13,'actor_grade_counts':{k:v for k,v in s['counts'].items() if k.startswith('native_selected_actor_flag_')},'ball_grade_counts':{k:v for k,v in s['counts'].items() if k.startswith('selected_ball_flag_')},'accepted_scene_delta':0},sort_keys=True))
           PY
-      - name: Diagnose game 0122 official missing actors and extra original source IDs (shadow only)
+      - name: Inspect all original SDK keyframe variants for any direct position recovery
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 gamepulse/fusion/igp_v32_0122_actor_identity_missingness_dossier_v1.py \
-            --root . --out "$RUNNER_TEMP/per-actor/igp_v32_0122_actor_identity_missingness_dossier_v1.json"
-      - name: Read all SHA-original 0122 keyframe variants and rescore frozen S1 native plus 10Hz
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/private"
-          export PYTHONPATH=gamepulse/fusion
-          python3 gamepulse/fusion/igp_v32_0122_raw_variant_rescue_shadow_v1.py \
-            --root . --archive-dir "$RUNNER_TEMP/sdk" --release-json "$RUNNER_TEMP/release.json" \
-            --out "$RUNNER_TEMP/per-actor/igp_v32_0122_raw_variant_rescue_shadow_v1.json"
+          python3 gamepulse/fusion/igp_v32_anygame_raw_variant_rescue_shadow_v1.py \
+            --root . --game-id "$GAME" --archive-dir "$RUNNER_TEMP/sdk" --release-json "$RUNNER_TEMP/release.json" \
+            --out "$RUNNER_TEMP/per-actor/igp_v32_raw_variant_rescue_shadow.json"
       - name: Retain SHA original metadata sidecars privately
         shell: bash
         run: |
@@ -82,13 +74,11 @@ jobs:
           mkdir -p "$dest"
           cp "$RUNNER_TEMP/per-actor/summary.json" "$dest/igp_v32_upstream_${GAME}_summary.json"
           cp "$RUNNER_TEMP/per-actor/actor_flags.jsonl.gz" "$dest/igp_v32_upstream_${GAME}.jsonl.gz"
-          cp "$RUNNER_TEMP/per-actor/igp_v32_0122_actor_identity_missingness_dossier_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_0122_actor_identity_missingness_dossier_v1.json"
-          cp "$RUNNER_TEMP/per-actor/igp_v32_0122_raw_variant_rescue_shadow_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_0122_raw_variant_rescue_shadow_v1.json"
+          cp "$RUNNER_TEMP/per-actor/igp_v32_raw_variant_rescue_shadow.json" "gamepulse/fusion/qa/igp_v32/igp_v32_raw_variant_rescue_${GAME}_shadow_v1.json"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$dest/igp_v32_upstream_${GAME}_summary.json" "$dest/igp_v32_upstream_${GAME}.jsonl.gz"
-          git add -f gamepulse/fusion/qa/igp_v32/igp_v32_0122_actor_identity_missingness_dossier_v1.json
-          git add -f gamepulse/fusion/qa/igp_v32/igp_v32_0122_raw_variant_rescue_shadow_v1.json
+          git add -f "gamepulse/fusion/qa/igp_v32/igp_v32_raw_variant_rescue_${GAME}_shadow_v1.json"
           git diff --cached --check
           git commit -qm "qa(igp): game $GAME original SDK actor/ball provenance SHA"
           for n in 1 2 3 4 5 6; do
