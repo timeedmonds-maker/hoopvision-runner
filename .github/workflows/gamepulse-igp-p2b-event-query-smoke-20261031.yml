@@ -3,7 +3,9 @@ name: IGP P2B official action to nearby sequence real query smoke
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/gamepulse-igp-p2b-event-query-smoke-20261031.yml']
+    paths:
+      - '.github/workflows/gamepulse-igp-p2b-event-query-smoke-20261031.yml'
+      - 'tools/public_content_guard.py'
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
