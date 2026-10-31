@@ -1,6 +1,6 @@
 # Licensed original NBA player XYZ stays in private 104 and private runner.
 # Public logs print only safe cross-game aggregate histograms.
-name: IGP 71game 10Hz incomplete 10 player and ball census
+name: IGP 71game 10Hz nine players plus ball track availability
 on:
   push:
     branches: [main]
@@ -32,8 +32,8 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_v32_p2b_default_incomplete_scene_census_v1.py
-          python3 gamepulse/fusion/igp_v32_p2b_default_incomplete_scene_census_v1.py \
+          python3 -m py_compile gamepulse/fusion/igp_v32_p2b_default_exact9_ball_track_availability_census_v2.py
+          python3 gamepulse/fusion/igp_v32_p2b_default_exact9_ball_track_availability_census_v2.py \
             --root . --out "$RUNNER_TEMP/igp-71-incomplete-actor-ball-private.json" \
             > "$RUNNER_TEMP/igp-71-incomplete-actor-ball-private.log" 2>&1 || {
               echo IGP_71_INCOMPLETE_SCENE_CENSUS_REJECTED
@@ -55,9 +55,12 @@ jobs:
           assert q["incomplete_scenes"]==144579
           assert q["new_default_complete_scenes"]==1015072
           assert len(q["by_game"])==71
-          assert sum(c[f"missing_players_{n}"] for n in range(11))==144579
+          assert sum(c.get(f"missing_players_{n}",0) for n in range(11))==144579
           assert c["ball_present"]+c["ball_missing"]==144579
-          assert sum(c[f"missing_{n}_ball_{b}"] for n in range(11) for b in ("present","missing"))==144579
+          assert sum(c.get(f"missing_{n}_ball_{b}",0) for n in range(11) for b in ("present","missing"))==144579
+          assert c["exact_9_players_ball_one_team_4of5_other_5of5"]==(
+            c["nine_plus_ball_missing_official_id_has_original_track_somewhere_in_game"]+
+            c["nine_plus_ball_no_official_ID_track_anywhere_in_original_game"])
           print("IGP_71_FULL10HZ_REMAINDER_SOURCE_QA",json.dumps({
             "s1_10hz":q["frozen_71_s1_10hz_samples"],
             "complete":q["new_default_complete_scenes"],
@@ -73,14 +76,14 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          dest=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_default_remaining_10hz_71game_census_v1.json
+          dest=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_default_exact9_ball_track_availability_census_v2.json
           test ! -e "$dest"
           cp "$RUNNER_TEMP/igp-71-incomplete-actor-ball-private.json" "$dest"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$dest"
           git diff --cached --check
-          git commit -q -m 'qa(igp): enumerate all71 remaining incomplete actor slots and ball at 10Hz'
+          git commit -q -m 'qa(igp): exact all71 9+ball missing tenth official player track and native extra position census'
           for n in 1 2 3 4 5 6 7 8; do
             git fetch -q origin "$PRIVATE_BRANCH"
             git rebase -q "origin/$PRIVATE_BRANCH" || exit 43
