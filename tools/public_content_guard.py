@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-p2b-original-nearest-source-reconcile-20261031.yml",  # reviewed SHA private PBP action closest-original UTC ambiguity audit, public counts only
     ".github/workflows/gamepulse-igp-p2b-event-query-smoke-20261031.yml",  # private licensed original source 12-event P2B query readback; public aggregate only
     ".github/workflows/gamepulse-igp-v32-71-clock-disagreement-triage.yml",  # private SHA source PBP SDK companion clock conflict triage, public counts only
     ".github/workflows/gamepulse-igp-p2b-action-context-20261031.yml",  # reviewed private NBA all71 action-window context; only aggregate totals public, original XYZ private
