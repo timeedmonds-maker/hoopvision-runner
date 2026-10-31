@@ -45,6 +45,21 @@ jobs:
             --root . --out "$RUNNER_TEMP/v2d-private.json" \
             >"$RUNNER_TEMP/v2d-private.log" 2>&1 || {
               echo IGP_V2D_PRIVATE_SOURCE_OR_FROZEN_DENOMINATOR_GATE_FAILED
+              # Print ONLY exception class and anonymized failure code; original
+              # source values, UTC observations and tracebacks remain private.
+              python3 - <<'PY'
+          from pathlib import Path
+          import os,re
+          p=Path(os.environ['RUNNER_TEMP'])/'v2d-private.log'
+          lines=p.read_text(errors='replace').splitlines()
+          last=next((s for s in reversed(lines) if re.match(
+              r'^(?:ValueError|KeyError|AssertionError|TypeError|FileNotFoundError|IndexError):',s)),None)
+          if last:
+              print('V2D_PRIVATE_FAIL_REASON',
+                    re.sub(r'[0-9]{4,}','[ID]',last)[:180])
+          else:
+              print('V2D_PRIVATE_FAIL_REASON UNCLASSIFIED')
+          PY
               exit 41
             }
           python3 - <<'PY'
