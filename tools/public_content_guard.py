@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-extra-actor-fifth-crosswalk.yml",  # private original SDK 71g fifth-player extra-actor crosswalk and synthetic ID holdout aggregates
     ".github/workflows/gamepulse-igp-v32-71-incomplete-scene-census.yml",  # reviewed IGP all71 missing-player and ball aggregate-only census
     ".github/workflows/gamepulse-igp-v32-p2b-guarded-default-preflight.yml",  # private-SHA P2B guarded candidate 10Hz default rollback/source QA, public aggregate-only
     ".github/workflows/gamepulse-igp-v32-p2b-guarded-source-readback.yml",  # guarded P2B private source three-game QA, aggregate-only redacted public logs
