@@ -1,4 +1,5 @@
 # Public orchestration only; original NBA actor XYZ, UTC and per-event detail remain private.
+# Privacy review: source-native observations cannot be promoted to independent physical action times.
 name: IGP P2B all71 original-native action context beyond S1
 on:
   push:
