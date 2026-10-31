@@ -1,4 +1,5 @@
 name: IGP32 71game all NBA logical PBP chain 10Hz source QA usability
+# Source privately SHA-verified; public output is count-only.
 on:
   push:
     branches: [main]
