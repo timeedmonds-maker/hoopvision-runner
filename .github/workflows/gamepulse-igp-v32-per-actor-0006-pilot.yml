@@ -1,4 +1,4 @@
-name: IGP 3.2 Original source alternative archive retrieval investigation
+name: IGP 3.2 BALL speed-domain 6-game pilot source-masked 3D and S1 A-B
 on:
   push:
     branches: [main]
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  archive-recovery:
+  ball-speed-domain:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Verify SHA candidate alt SDK source manifests with original raw archives
+      - name: Test ball speed model against frozen NBA source and official 10Hz player/ball scenes
         shell: bash
         run: |
           set -euo pipefail
@@ -26,28 +26,30 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_v32_priority_source_archive_variant_probe_v1.py
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_ball_speed_domain_challenger_v1.py'
           mkdir -p "$RUNNER_TEMP/igp-qa"
-          python3 gamepulse/fusion/igp_v32_priority_source_archive_variant_probe_v1.py \
-            --root . --out "$RUNNER_TEMP/igp-qa/igp_v32_priority_source_archive_variant_probe_v1.json"
-      - name: Persist tested original archival variants privately without source rewriting
+          python3 gamepulse/fusion/igp_v32_71_ball_speed_domain_challenger_v1.py \
+            --root . --games 0022600006 0022600086 0022600111 0022600122 0022600130 0022600141 \
+            --masked-per-game 200 \
+            --out "$RUNNER_TEMP/igp-qa/igp_v32_sixgame_ball_speed_domain_challenger_v1.json"
+      - name: Save source-masked ball speed 6-game pilot only in private repo
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          dest="gamepulse/fusion/qa/igp_v32/igp_v32_priority_source_archive_variant_probe_v1.json"
-          cp "$RUNNER_TEMP/igp-qa/igp_v32_priority_source_archive_variant_probe_v1.json" "$dest"
+          dst="gamepulse/fusion/qa/igp_v32/igp_v32_sixgame_ball_speed_domain_challenger_v1.json"
+          cp "$RUNNER_TEMP/igp-qa/igp_v32_sixgame_ball_speed_domain_challenger_v1.json" "$dst"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$dest"
+          git add -f "$dst"
           git diff --cached --check
-          if git diff --cached --quiet; then echo IGP_SOURCE_VARIANT_PROBE_ALREADY_COMMITTED; exit 0; fi
-          git commit -qm 'qa(igp): SHA-tested private alternate original tracking archive recovery candidates'
+          if git diff --cached --quiet; then echo ALREADY_COMMITTED; exit 0; fi
+          git commit -qm 'qa(igp): six-game ball-specific speed threshold vs frozen S1 source-masked 3D'
           for n in 1 2 3 4 5 6; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo IGP_PRIVATE_SOURCE_RECOVERY_VARIANTS_PUBLISHED
+              echo IGP_V32_BALL_SPEED_PILOT_SIXGAME_SOURCE_QA_PUBLISHED
               exit 0
             fi
             sleep "$n"
