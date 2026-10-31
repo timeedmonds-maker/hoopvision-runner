@@ -93,7 +93,7 @@ jobs:
           o.parent.mkdir(parents=True,exist_ok=True)
           if o.exists() and json.loads(o.read_bytes())!=rec:
               raise ValueError("CONTEXT_PILOT_IMMUTABLE_RECEIPT_CONFLICT")
-          o.write_text(json.dumps(rec,indent=2,sort_keys=True)+"\\n")
+          o.write_text(json.dumps(rec,indent=2,sort_keys=True)+"\n")
           PY
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -187,7 +187,7 @@ jobs:
           if summary.exists() and json.loads(summary.read_bytes())!=receipt:
               raise ValueError("CONTEXT_QA_SUMMARY_IMMUTABLE_DRIFT")
           qa.write_bytes(raw)
-          summary.write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\\n")
+          summary.write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
           print("IGP_P2B_ALL71_ACTION_CONTEXT_QA_SHA256",receipt["full_SHA256"])
           PY
           git config user.name 'github-actions[bot]'
