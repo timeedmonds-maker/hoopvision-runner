@@ -112,8 +112,8 @@ jobs:
           cp "$REPLAY_ROOT/official_nba_box_first_party_html.html" "$DEST/"
           cp "$REPLAY_ROOT/official_nba_page_extracted_pbp.json" "$DEST/"
           cp "$REPLAY_ROOT/official_nba_html_extracted_boxscore.json" "$DEST/"
-          cp "$REPLAY_ROOT/igp32_0021_official_html_extract_qa.json" "$DEST/"
-          cp "$REPLAY_ROOT/igp32_0021_official_box_html_qa.json" "$DEST/"
+          test -s "$DEST/igp32_0021_official_html_extract_qa.json"  # already SHA-preserved in original NBA private Git source
+          test -s "$DEST/igp32_0021_official_box_html_qa.json"  # already SHA-preserved in original NBA private Git source
           cd "$REPLAY_ROOT/private-main"
           git config user.name "IGP32 Original NBA Official Source QA"
           git config user.email "igp-source-qa@users.noreply.github.com"
