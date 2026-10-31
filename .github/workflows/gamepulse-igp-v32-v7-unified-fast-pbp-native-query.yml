@@ -1,3 +1,4 @@
+# V7 rerun corrected test expectation: invalid game remains GAME_NOT_IN_71_SOURCE_COHORT.
 name: IGP 3.2 V7 unified 71 game PBP plus original native query
 on:
   push:
