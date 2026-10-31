@@ -1,4 +1,4 @@
-name: IGP 3.2 verify committed 71-game P0 ball overlay SHA and 4 exact game readbacks
+name: IGP 3.2 71game source-graded 350ms player edge materialization and query
 on:
   push:
     branches: [main]
@@ -6,16 +6,16 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  verify-existing-private:
+  player-P0:
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: 75
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: No new source, independently verify remote 38,162 rows with SHA and P1 guards
+      - name: Materialize exact 71game source-graded P0 short-edge player positions and test query
         shell: bash
         run: |
           set -euo pipefail
@@ -26,31 +26,37 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_query_igp_v32_71_ball_source_proxy_v1.py'
-          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_ball_speed_domain_challenger_v1.py'
-          python3 - <<'PY'
-          import json,hashlib
-          from pathlib import Path
-          from query_igp_v32_71_ball_source_proxy_v1 import query,QA
-          metadata=json.loads(Path(QA).read_bytes())
-          assert metadata["rows"]==38162
-          assert metadata["new_complete_10hz_research_P0"]==38162
-          assert metadata["original_S1_grid_complete"]==923032
-          assert metadata["original_S1_grid_total"]==1159651
-          assert metadata["new_P1_or_P2_certified_10hz"]==0
-          assert len(metadata["per_game"])==71
-          assert metadata["source_anchor_le300ms_rows"]==38065
-          assert metadata["ball_motion_gt_generic_player_speed_rows"]==38162
-          seen=0
-          for game in ("0022600006","0022600092","0022600130","0022600146"):
-              q=query(Path("."),game_id=game,limit=2000)
-              assert q["total_matched"]==metadata["per_game"][game]["new_grid_complete_shadow"]
-              assert q["new_P1_or_P2_certified"]==0
-              print("IGP_71_SHA_BALL_REAL_GAME_READBACK",game,q["total_matched"],q["source_checksum_sha256"])
-              seen+=q["returned"]
-          print("IGP_71_EXISTING_BALL_SOURCE_GRADED_OVERLAY_VERIFIED",json.dumps({
-              "files":71,"source_sha":metadata["overlay_sha256"],
-              "rows":metadata["rows"],"P0_complete_pct":metadata["total_research_P0_complete_10hz_pct"],
-              "QA_source_SHA":metadata["challenger_71game_private_QA_SHA256"],
-              "four_real_game_returned":seen,"P1_accepted":0},sort_keys=True))
-          PY
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_single_missing_player_short_edge_challenger_v1.py'
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_query_igp_v32_71_single_player_edge_v1.py'
+          mkdir -p "$RUNNER_TEMP/igp-qa"
+          python3 gamepulse/fusion/igp_v32_71_single_player_edge_materialize_v1.py \
+            --root . \
+            --overlay gamepulse/fusion/materialized/igp_v32_research_overlays/player_71_350ms_one_side_10hz_p0.jsonl.gz \
+            --summary gamepulse/fusion/qa/igp_v32/igp_v32_71_single_player_edge_materialize_v1.json
+          python3 gamepulse/fusion/query_igp_v32_71_single_player_edge_v1.py \
+            --root . --game-id 0022600141 --limit 1000 --metrics-only
+          python3 gamepulse/fusion/query_igp_v32_71_single_player_edge_v1.py \
+            --root . --game-id 0022600006 --max-source-gap-ms 200 --limit 1000 --metrics-only
+      - name: Commit exact source-provenance P0 reviewed player XYZ only privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          data=gamepulse/fusion/materialized/igp_v32_research_overlays/player_71_350ms_one_side_10hz_p0.jsonl.gz
+          qa=gamepulse/fusion/qa/igp_v32/igp_v32_71_single_player_edge_materialize_v1.json
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f "$data" "$qa"
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_71_PLAYER_EDGE_ALREADY_COMMITTED; exit 0; fi
+          git commit -qm 'data(igp): 71game source 350ms player ID edge P0 graded original XY only'
+          for n in 1 2 3 4 5 6; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_71_PLAYER_EDGE_P0_SHA_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 83
