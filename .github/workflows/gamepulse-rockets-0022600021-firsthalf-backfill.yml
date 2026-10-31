@@ -129,6 +129,44 @@ jobs:
               rm -f "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-$kind.json"
             fi
           done
+          if ! test -s "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-playbyplay.json"; then
+            if curl --fail --silent --show-error --retry 2 --max-time 25 \
+              'https://stats.nba.com/stats/playbyplayv3?GameID=0022600021&StartPeriod=0&EndPeriod=0' \
+              -H 'User-Agent: Mozilla/5.0' -H 'Referer: https://www.nba.com/' \
+              -H 'Origin: https://www.nba.com' -H 'x-nba-stats-origin: stats' \
+              -H 'x-nba-stats-token: true' -H 'Accept: application/json' \
+              -o "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-stats-playbyplayv3.json"; then
+              python3 - "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-stats-playbyplayv3.json" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1]);data=json.loads(p.read_bytes())
+          assert data.get('game',{}).get('gameId')=='0022600021'
+          print('OFFICIAL_NBA_STATS_V3_PBP_SHA',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+            else
+              rm -f "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-stats-playbyplayv3.json"
+              echo NBA_STATS_V3_SOURCE_RETRY_NEEDED
+            fi
+          fi
+          if ! test -s "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-boxscore.json"; then
+            if curl --fail --silent --show-error --retry 2 --max-time 25 \
+              'https://stats.nba.com/stats/boxscoretraditionalv3?GameID=0022600021&StartPeriod=0&EndPeriod=0&StartRange=0&EndRange=0&RangeType=0' \
+              -H 'User-Agent: Mozilla/5.0' -H 'Referer: https://www.nba.com/' \
+              -H 'Origin: https://www.nba.com' -H 'x-nba-stats-origin: stats' \
+              -H 'x-nba-stats-token: true' -H 'Accept: application/json' \
+              -o "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-stats-boxscoretraditionalv3.json"; then
+              python3 - "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-stats-boxscoretraditionalv3.json" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1]);data=json.loads(p.read_bytes())
+          assert isinstance(data,dict) and len(data)>0
+          print('OFFICIAL_NBA_STATS_V3_BOX_SHA',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+            else
+              rm -f "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-stats-boxscoretraditionalv3.json"
+              echo NBA_STATS_V3_BOX_SOURCE_RETRY_NEEDED
+            fi
+          fi
           gh release download "$TAG" --repo timeedmonds-maker/104 \
             --pattern 'companion_*' --dir "$IGP_PRIVATE_CAPTURE_DIR" --clobber || true
           if test -s "$IGP_PRIVATE_CAPTURE_DIR/companion_probe_receipt.json" && \
@@ -149,7 +187,8 @@ jobs:
               a=json.loads(receipt.read_bytes())
               print('ORIGINAL_COMPANION_PROBE',a['status'],'SHOT_DETAILS',a['shot_detail_objects'])
           for f in [p/'firsthalf-nba-playbyplay.json',p/'firsthalf-nba-boxscore.json',
-                    p/'companion_probe_receipt.json',p/'companion_original_sdk_response.json']:
+                    p/'companion_probe_receipt.json',p/'companion_original_sdk_response.json',
+                    p/'firsthalf-nba-stats-playbyplayv3.json',p/'firsthalf-nba-stats-boxscoretraditionalv3.json']:
               if not f.is_file():continue
               json.loads(f.read_bytes())
               print('PRIVATE_SOURCE_SAVED_SHA',f.name,hashlib.sha256(f.read_bytes()).hexdigest())
