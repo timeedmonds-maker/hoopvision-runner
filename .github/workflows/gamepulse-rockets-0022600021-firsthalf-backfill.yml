@@ -1,0 +1,152 @@
+name: Rockets Dallas original first half source-grade SDK backfill
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-rockets-0022600021-firsthalf-backfill.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  firsthalf-source:
+    strategy:
+      fail-fast: false
+      max-parallel: 8
+      matrix:
+        block: [0,1,2,3,4,5,6,7]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME_ID: '0022600021'
+      GAME_TIPOFF_UTC: '2026-10-31T00:00:00Z'
+      GAMEPULSE_LIVE_ELAPSED_FASTLANE: 'true'
+      BLOCK: ${{ matrix.block }}
+      TAG: gamepulse-firsthalf-sdk-0022600021
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify privacy and SDK capability
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          cd tools/licensed_feed
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          npm install --ignore-scripts --no-audit --no-fund --silent
+          node --test capture.test.mjs sdk_slot.test.mjs
+      - name: Capture original ten-minute SHA-candidate source window
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/igp-firsthalf"
+          node --input-type=module <<'JS'
+          import {capture} from './tools/licensed_feed/capture.mjs';
+          import {planGame} from './tools/licensed_feed/season_core.mjs';
+          import {readFileSync,writeFileSync,copyFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const id=process.env.GAME_ID,block=Number(process.env.BLOCK);
+          const start=Date.parse(process.env.GAME_TIPOFF_UTC);
+          const plan=planGame({id,start});
+          const from=plan.begin+block*600000;
+          const job={game_id:id,account_id:'nba',program_id:'companion-'+id+'-positions',
+            part:Math.floor((from-plan.begin)/(300*5000)),start_ms:from,count:120};
+          const dir=process.env.RUNNER_TEMP+'/igp-firsthalf';
+          await capture(job,dir);
+          const m=JSON.parse(readFileSync(dir+'/manifest.json','utf8'));
+          if(m.game_id!==id || m.start_ms!==from || m.successful_windows!==120 ||
+             m.observed!==true || m.imputed!==false)
+            throw Error('original_sdk_source_coverage_failed');
+          const name='firsthalf-block-'+block;
+          const source=readFileSync(dir+'/checkpoint.tar.gz');
+          copyFileSync(dir+'/checkpoint.tar.gz',dir+'/'+name+'.tar.gz');
+          const digest=createHash('sha256').update(source).digest('hex');
+          writeFileSync(dir+'/'+name+'.json',JSON.stringify({...m,archive_sha256:digest,
+            window_end_ms:from+600000,source_original_not_independent_video_truth:true})+'\n');
+          console.log('PRIVATE_ORIGINAL_10MIN_CAPTURE',block,'KEYFRAMES',
+            m.unique_keyframes,'PLAYER',m.frames_with_players,'BALL',m.frames_with_ball);
+          JS
+      - name: Upload immutable original SDK positions privately
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1 ||
+            gh release create "$TAG" --repo timeedmonds-maker/104 --title "$TAG" \
+              --notes 'Original NBA authorized first-half source, SHA receipts, non-video-certified' --latest=false ||
+            gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null
+          gh release upload "$TAG" "$RUNNER_TEMP/igp-firsthalf/firsthalf-block-$BLOCK.tar.gz" \
+            "$RUNNER_TEMP/igp-firsthalf/firsthalf-block-$BLOCK.json" \
+            --repo timeedmonds-maker/104 --clobber
+          python3 - <<'PY'
+          import json,os,subprocess
+          root=os.environ['RUNNER_TEMP']+'/igp-firsthalf/firsthalf-block-'+os.environ['BLOCK']
+          m=json.load(open(root+'.json'))
+          release=json.loads(subprocess.check_output(['gh','api',
+            'repos/timeedmonds-maker/104/releases/tags/'+os.environ['TAG']]))
+          assets={a['name']:a for a in release['assets']}
+          asset='firsthalf-block-'+os.environ['BLOCK']+'.tar.gz'
+          assert assets[asset]['digest']=='sha256:'+m['archive_sha256']
+          print('PRIVATE_SOURCE_SHA_READBACK_OK',os.environ['BLOCK'])
+          PY
+  firsthalf-qa:
+    needs: firsthalf-source
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      TAG: gamepulse-firsthalf-sdk-0022600021
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Save private source-first half recovery and QA
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/firsthalf"
+          gh release download "$TAG" --repo timeedmonds-maker/104 \
+            --pattern 'firsthalf-block-*.json' --dir "$RUNNER_TEMP/firsthalf" --clobber
+          python3 - <<'PY'
+          import base64,json,os,subprocess
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'firsthalf'
+          blocks=[]; missing=[]
+          for k in range(8):
+              f=p/('firsthalf-block-'+str(k)+'.json')
+              if not f.exists(): missing.append(k);continue
+              m=json.loads(f.read_bytes())
+              assert m['game_id']=='0022600021' and m['successful_windows']==120
+              blocks.append({'block':k,'start_utc_ms':m['start_ms'],
+                 'end_utc_ms':m['window_end_ms'],'archive_sha256':m['archive_sha256'],
+                 'native_keyframes':m['unique_keyframes'],
+                 'frames_with_players':m['frames_with_players'],
+                 'frames_with_ball':m['frames_with_ball'],
+                 'empty_5s_windows':m['empty_windows']})
+          qa={'schema':'igp.v32-firsthalf-source-original-recovery-qa.v1',
+              'game_id':'0022600021',
+              'source_grade':'SHA_VERIFIED_ORIGINAL_SDK_WITH_PROVENANCE_REQUIRED',
+              'scope':'first 80 wallclock minutes from tipoff-minus-ten, NOT independently classified Q1/Q2 live',
+              'source_verified_blocks':len(blocks),'target_blocks':8,'missing_blocks':missing,
+              'native_source_keyframes_cumulative':sum(x['native_keyframes'] for x in blocks),
+              'source_frames_with_player_XYZ':sum(x['frames_with_players'] for x in blocks),
+              'source_frames_with_ball_XYZ':sum(x['frames_with_ball'] for x in blocks),
+              'original_source_sha_receipts':blocks,
+              'provider_upstream_interpolation_per_actor':'PENDING_V32_EXACT_ORIGINAL_VARIANT_CROSSWALK',
+              'official_period_clock_join':'PENDING_OFFICIAL_NBA_PBP',
+              'companion_shot_biomechanics':'PENDING_ORIGINAL_COMPANION_CAPTURE',
+              'physical_ten_player_tracking_certified':False,
+              'physical_possession_boundaries_certified':0,
+              'frozen_IGP_3_1_71G_unchanged':True,
+              'status':'COMPLETE_SOURCE_WINDOW_COLLECTION' if len(blocks)==8 else 'PARTIAL_SOURCE_WINDOW_COLLECTION'}
+          endpoint='repos/timeedmonds-maker/104/contents/gamepulse/live/qa/igp_v32_0022600021_firsthalf_original_window_qa.json'
+          raw=json.dumps(qa,sort_keys=True,indent=2).encode()
+          doc={'branch':'main','message':'qa(igp): source-preserve Rockets Dallas firsthalf recovery',
+             'content':base64.b64encode(raw).decode()}
+          old=subprocess.run(['gh','api',endpoint],capture_output=True,text=True)
+          if old.returncode==0:doc['sha']=json.loads(old.stdout)['sha']
+          subprocess.run(['gh','api','-X','PUT',endpoint,'--input','-'],
+             input=json.dumps(doc),text=True,check=True,stdout=subprocess.DEVNULL)
+          print('PRIVATE_FIRSTHALF_SOURCE_WINDOW_QA',
+             qa['source_verified_blocks'],qa['native_source_keyframes_cumulative'],
+             qa['source_frames_with_player_XYZ'],qa['source_frames_with_ball_XYZ'],
+             'MISSING_BLOCKS',len(missing))
+          if missing:raise ValueError('not_full_firsthalf_source_window_coverage')
+          PY
