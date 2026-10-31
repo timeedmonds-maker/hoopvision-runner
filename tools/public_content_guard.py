@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-2027-player-team-lineup-possession-consistency-probe.yml",  # public NBA Stats team/player mirror + official NBA lineup k=2/3/4/5 bounded probe
     ".github/workflows/gamepulse-igp-71-player-poss-stint-triage-20261031.yml",  # read already accepted private QA and emit aggregate sanitized possession substitution variance targets
     ".github/workflows/gamepulse-igp-71-player-offrtg-rotation-possession-audit-20261031.yml",  # reviewed original 71game NBA player OffRtg, POSS and substitution rotation source private QA
     ".github/workflows/gamepulse-igp-2027-player-advanced-rotations-probe-20261031.yml",  # public NBA advanced player-game and rotation parquet source schema only
