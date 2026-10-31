@@ -1,4 +1,4 @@
-name: IGP 3.2 private source-graded game 0093 queryable research overlay
+name: IGP 3.2 verified 0093 source-graded query API and regression
 on:
   push:
     branches: [main]
@@ -37,6 +37,11 @@ jobs:
             --root . \
             --overlay gamepulse/fusion/materialized/igp_v32_research_overlays/0022600093/identity_provisional_0093_v1.jsonl.gz \
             --summary "$RUNNER_TEMP/private-qa/igp_v32_0093_research_identity_overlay_v1.json"
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_query_igp_v32_research_identity_overlay_v1.py'
+          python3 gamepulse/fusion/query_igp_v32_research_identity_overlay_v1.py \
+            --root . --game-id 0022600093 --cadence NATIVE --limit 2000 --metrics-only
+          python3 gamepulse/fusion/query_igp_v32_research_identity_overlay_v1.py \
+            --root . --game-id 0022600093 --cadence 10HZ --limit 2000 --metrics-only
       - name: Publish SHA-original event/actor audit only to private canonical branch
         shell: bash
         run: |
@@ -56,7 +61,7 @@ jobs:
           git add -f "$overlay" "$manifest"
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_0093_AUDIT_ALREADY_PUBLISHED; exit 0; fi
-          git commit -qm 'research(igp): private queryable per-observation source graded identity inference 0093'
+          git commit -qm 'test(igp): SHA source-graded query API confirmed with private native and 10Hz readback'
           for n in 1 2 3 4 5 6; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
