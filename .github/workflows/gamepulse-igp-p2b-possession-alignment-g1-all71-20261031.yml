@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v32-p2b-all-action-crosswalk-20261031
-      PIN: a885ac99c8aaaee7d37a80c409ca3ab7b8c5ce6c
+      PIN: f6f5266b5a94a963c04eea751bdf10e59a25e54b
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -54,6 +54,37 @@ jobs:
             'candidate_sequences':len(q['sequences']),
             'chronology_conflict_actions':q['source_chronology_conflict_count'],
             'original_pbp_sha256':hashlib.sha256(raw).hexdigest()}))
+          PY
+      - name: Verify EVERY original PBP chain searchable with ZERO tracking
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile \
+            gamepulse/fusion/igp_v32_p2b_all_possessions_unconditional_v1.py \
+            gamepulse/fusion/igp_v32_p2b_all_possessions_71_source_qa_v1.py
+          python3 -m unittest -q \
+            gamepulse/fusion/tests/test_igp_v32_p2b_all_possessions_unconditional_v1.py
+          python3 gamepulse/fusion/igp_v32_p2b_all_possessions_71_source_qa_v1.py \
+            --root . --out "$RUNNER_TEMP/igp_p2b_unconditional_original71_qa.json" \
+            > "$RUNNER_TEMP/igp_p2b_unconditional_original71_private.log" 2>&1 || {
+              echo IGP_UNCONDITIONAL_PBP_SOURCE_QA_FAILED_CHECK_PRIVATE_LOG
+              exit 53
+            }
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          v=json.loads((Path(os.environ["RUNNER_TEMP"])/"igp_p2b_unconditional_original71_qa.json").read_text())
+          c=v["counts"]
+          assert c["games"]==71
+          assert c["original_PBP_chains"]==14612
+          assert c["searchable_without_tracking"]==14612
+          assert c["original_PBP_actions"]==43419
+          assert c["original_native_source_inventory_NOT_READ"]==2376002
+          assert v["all_PBP_chains_queryable_regardless_of_P2B_scene_coverage"] is True
+          assert v["physical_possessions_certified"]==0
+          print("IGP_ALL_PBP_POSSESSIONS_SEARCHABLE_WITHOUT_10BALL_TRACKING",json.dumps(c,sort_keys=True))
           PY
       - name: Freeze official 81-game team Advanced POSS mirror
         shell: bash
