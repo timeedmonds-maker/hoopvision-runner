@@ -8,6 +8,7 @@ on:
 permissions: {contents: read}
 jobs:
   firsthalf-source:
+    if: github.event_name != 'push' || github.event.head_commit.message != 'ci(igp): enrich Rockets Q1Q2 source with events PBP and v32 provenance'
     strategy:
       fail-fast: false
       max-parallel: 8
@@ -99,12 +100,59 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Capture original official PBP boxscore and authorized companion event source privately
+        env:
+          NBA_GAME_ID: '0022600021'
+          NBA_TIPOFF_UTC: '2026-10-31T00:00:00Z'
+          IGP_PRIVATE_CAPTURE_DIR: ${{ runner.temp }}/firsthalf
+        run: |
+          set -euo pipefail
+          mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
+          for kind in playbyplay boxscore; do
+            url="https://cdn.nba.com/static/json/liveData/$kind/$kind""_0022600021.json"
+            if curl --fail --silent --show-error --retry 3 --max-time 25 \
+                -H 'User-Agent: Mozilla/5.0' -H 'Accept: application/json' "$url" \
+                -o "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-$kind.json"; then
+              python3 - "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-$kind.json" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          p=Path(sys.argv[1])
+          assert json.loads(p.read_bytes()).get('game',{}).get('gameId')=='0022600021'
+          print('OFFICIAL_NBA_SOURCE_SHA_VERIFIED',p.name,hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+            else
+              echo "NBA_OFFICIAL_SOURCE_RETRY_NEEDED"
+              rm -f "$IGP_PRIVATE_CAPTURE_DIR/firsthalf-nba-$kind.json"
+            fi
+          done
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/igp-original-companion-probe.log" ||
+            echo IGP_COMPANION_SDK_SOURCE_RETRY_NEEDED
+          python3 - <<'PY'
+          import hashlib,json,os,subprocess
+          from pathlib import Path
+          p=Path(os.environ['IGP_PRIVATE_CAPTURE_DIR'])
+          receipt=p/'companion_probe_receipt.json'
+          if receipt.exists():
+              a=json.loads(receipt.read_bytes())
+              print('ORIGINAL_COMPANION_PROBE',a['status'],'SHOT_DETAILS',a['shot_detail_objects'])
+          for f in [p/'firsthalf-nba-playbyplay.json',p/'firsthalf-nba-boxscore.json',
+                    p/'companion_probe_receipt.json',p/'companion_original_sdk_response.json']:
+              if not f.is_file():continue
+              json.loads(f.read_bytes())
+              print('PRIVATE_SOURCE_SAVED_SHA',f.name,hashlib.sha256(f.read_bytes()).hexdigest())
+              subprocess.run(['gh','release','upload',os.environ['TAG'],str(f),
+                '--repo','timeedmonds-maker/104','--clobber'],check=True)
+          PY
       - name: Save private source-first half recovery and QA
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/firsthalf"
           gh release download "$TAG" --repo timeedmonds-maker/104 \
-            --pattern 'firsthalf-block-*.json' --dir "$RUNNER_TEMP/firsthalf" --clobber
+            --pattern 'firsthalf-block-*' --dir "$RUNNER_TEMP/firsthalf" --clobber
           python3 - <<'PY'
           import base64,json,os,subprocess
           from pathlib import Path
@@ -150,4 +198,36 @@ jobs:
              qa['source_frames_with_player_XYZ'],qa['source_frames_with_ball_XYZ'],
              'MISSING_BLOCKS',len(missing))
           if missing:raise ValueError('not_full_firsthalf_source_window_coverage')
+          PY
+      - name: Run accepted IGP32 exact original per-actor source-grade and official event QA
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/firsthalf"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/live/igp_v32_live_half_source_grade.py?ref=main' \
+            --jq .content | base64 -d > "$ROOT/igp_v32_live_half_source_grade.py"
+          python3 -m py_compile "$ROOT/igp_v32_live_half_source_grade.py"
+          python3 "$ROOT/igp_v32_live_half_source_grade.py" \
+            --root "$ROOT" --output "$ROOT/igp_v32_0022600021_firsthalf_source_grade.json" \
+            --sidecar "$ROOT/igp-v32-0022600021-firsthalf-peractor-source-flags.jsonl.gz"
+          gh release upload "$TAG" "$ROOT/igp_v32_0022600021_firsthalf_source_grade.json" \
+            "$ROOT/igp-v32-0022600021-firsthalf-peractor-source-flags.jsonl.gz" \
+            --repo timeedmonds-maker/104 --clobber
+          python3 - <<'PY'
+          import base64,json,os,subprocess,time
+          from pathlib import Path
+          p=Path(os.environ['RUNNER_TEMP'])/'firsthalf/igp_v32_0022600021_firsthalf_source_grade.json'
+          raw=p.read_bytes()
+          endpoint='repos/timeedmonds-maker/104/contents/gamepulse/live/qa/igp_v32_0022600021_firsthalf_enriched_source_qa.json'
+          for i in range(10):
+              before=subprocess.run(['gh','api',endpoint],capture_output=True,text=True)
+              body={'branch':'main',
+                    'message':'qa(igp): preserve Rockets Dallas firsthalf upstream source provenance PBP companion',
+                    'content':base64.b64encode(raw).decode()}
+              if before.returncode==0:body['sha']=json.loads(before.stdout)['sha']
+              out=subprocess.run(['gh','api','-X','PUT',endpoint,'--input','-'],
+                input=json.dumps(body),text=True,capture_output=True)
+              if out.returncode==0:break
+              time.sleep(i+1)
+          else:raise RuntimeError('PRIVATE_SOURCE_GRADE_QA_PUBLISH_FAILED')
+          print('IGP_V32_FIRSTHALF_PRIVATE_SOURCEGRADE_QA_COMMITTED')
           PY
