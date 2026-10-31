@@ -1,4 +1,4 @@
-name: IGP 3.2 6-game one-official-player short-edge 200 350 500ms source XY pilot
+name: IGP 3.2 71game one missing official player strict 200 350 500ms XY
 on:
   push:
     branches: [main]
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  one-player-edge:
+  season-player-edge:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Evaluate source-masked one-sided NBA source player missingness
+      - name: Verify 71game frozen official context and masked source player XY
         shell: bash
         run: |
           set -euo pipefail
@@ -29,27 +29,26 @@ jobs:
           python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_71_single_missing_player_short_edge_challenger_v1.py'
           mkdir -p "$RUNNER_TEMP/igp-qa"
           python3 gamepulse/fusion/igp_v32_71_single_missing_player_short_edge_challenger_v1.py \
-            --root . --games 0022600006 0022600086 0022600111 0022600122 0022600130 0022600141 \
-            --masked-per-game 240 \
-            --out "$RUNNER_TEMP/igp-qa/igp_v32_sixgame_single_missing_player_short_edge_challenger_v1.json"
-      - name: Private commit measured source-masked player XY only
+            --root . --masked-per-game 140 \
+            --out "$RUNNER_TEMP/igp-qa/igp_v32_71game_single_missing_player_short_edge_challenger_v1.json"
+      - name: Commit only aggregate original-source XY A B QA in canonical private PR 776
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          qa=gamepulse/fusion/qa/igp_v32/igp_v32_sixgame_single_missing_player_short_edge_challenger_v1.json
-          cp "$RUNNER_TEMP/igp-qa/igp_v32_sixgame_single_missing_player_short_edge_challenger_v1.json" "$qa"
+          qa=gamepulse/fusion/qa/igp_v32/igp_v32_71game_single_missing_player_short_edge_challenger_v1.json
+          cp "$RUNNER_TEMP/igp-qa/igp_v32_71game_single_missing_player_short_edge_challenger_v1.json" "$qa"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$qa"
           git diff --cached --check
-          if git diff --cached --quiet; then echo PLAYER_EDGE_PILOT_ALREADY_PUBLISHED; exit 0; fi
-          git commit -qm 'qa(igp): sixgame one-player 200/350/500ms real-source masked XY and exact S1 scene gains'
+          if git diff --cached --quiet; then echo PLAYER_EDGE_SEASON_ALREADY_PUBLISHED; exit 0; fi
+          git commit -qm 'qa(igp): 71game player single missing edge 200 350 500ms and source-masked XY'
           for n in 1 2 3 4 5 6; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo IGP_PLAYER_SHORT_EDGE_PILOT_PRIVATE_COMMITTED
+              echo IGP_71_SINGLE_PLAYER_SHORT_EDGE_PRIVATE_QA_PUBLISHED
               exit 0
             fi
             sleep "$n"
