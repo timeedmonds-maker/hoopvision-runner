@@ -59,7 +59,7 @@ jobs:
           assert q['strict_S1_immutable'] and not q['source_XYZ_and_PBP_modified']
           assert q['S1E_confirmed_physical_live_samples']==0
           assert q['physically_certified_possession_boundaries']==0
-          assert q['counts']['original_companion_time_events']==24873
+          assert q['counts']['original_Time_show_records']==24873
           assert q['counts']['source_QA_complete_within_original_S1']>0
           print('V3_SHA_COMPANION_CLOCK_GATES_PASS_54_GAMES_NO_PHYSICAL_CLAIM')
           print('V3_COUNTS',json.dumps({
