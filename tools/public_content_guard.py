@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-v2d-sixgame-original-clock-voids.yml",  # 6game SHA-private original SDK source time-void QA no licensed XYZ or UTC in public logs
     ".github/workflows/gamepulse-igp-v32-v3b-outside-s1-original-native.yml",  # SHA-private original SDK native XYZ census for clock-corrob time outside strict S1; public aggregate counts only
     ".github/workflows/gamepulse-igp-v32-v3-companion-clock-54.yml",  # reviewed SHA-private 54game Time-event clock corroboration; no source XYZ or broadcast video in public logs
     ".github/workflows/gamepulse-igp-v32-v4-fast-possession-index.yml",  # reviewed SHA-private 71game logical-PBP metadata materialization; public only counts and 3 latencies
