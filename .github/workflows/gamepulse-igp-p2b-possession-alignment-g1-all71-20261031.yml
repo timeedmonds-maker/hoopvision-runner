@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v32-p2b-all-action-crosswalk-20261031
-      PIN: dbd7fa0d95b7a07100fb35002acfb53326af1fb3
+      PIN: 16227979dba29ddb3324b8271a9eb1ccc23d3572
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -187,6 +187,54 @@ jobs:
             "clean_non_substitution_residual":514,
             "strong_no_boundary_cases":8,"physical_possessions_certified":0},sort_keys=True))
           PY
+      - name: Player credit semantics vs substitution and FT grammar on 71 SHA original PBP games
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile \
+            gamepulse/fusion/igp_v32_p2b_player_credit_event_exposure_71_v1.py \
+            gamepulse/fusion/igp_v32_p2b_player_credit_residual_constraints_v1.py
+          python3 -m unittest -q \
+            gamepulse/fusion/tests/test_igp_v32_p2b_player_credit_event_exposure_71_v1.py
+          python3 gamepulse/fusion/igp_v32_p2b_player_credit_residual_constraints_v1.py \
+            --root . --out "$RUNNER_TEMP/p2b_1597_player_residual_lowerbound_source.json" \
+            > "$RUNNER_TEMP/p2b_1597_player_lowerbound_private.log" 2>&1 || {
+              echo NBA_PLAYER_RESIDUAL_SOURCE_CONSTRAINT_FAILED
+              exit 56
+            }
+          python3 gamepulse/fusion/igp_v32_p2b_player_credit_event_exposure_71_v1.py \
+            --root . --out "$RUNNER_TEMP/p2b_71_player_credit_event_source.json" \
+            > "$RUNNER_TEMP/p2b_player_credit_event_private.log" 2>&1 || {
+              echo ORIGINAL71_PBP_SUBSTITUTION_FT_PLAYER_CREDIT_SOURCE_QA_FAILED
+              exit 57
+            }
+          python3 - <<'PY'
+          import os,json
+          from pathlib import Path
+          tmp=Path(os.environ["RUNNER_TEMP"])
+          a=json.loads((tmp/"p2b_1597_player_residual_lowerbound_source.json").read_bytes())
+          b=json.loads((tmp/"p2b_71_player_credit_event_source.json").read_bytes())
+          x=a["counts"];y=b["counts"]
+          assert x["player_games"]==1597
+          assert x["published_player_POSS"]==73797
+          assert x["abs_residual_provisional_minus_NBA"]==1916
+          assert x["minimum_abs_residual_after_perfect_near_sub_adjustment"]==517
+          assert x["reliable_minimum_abs_residual_after_perfect_near_sub_adjustment"]==514
+          assert len(a["high_priority_eight_player_event_grammar_cases"])==8
+          assert y["team_games"]==142 and y["player_credit_overhang"]==1037
+          assert b["physical_possession_custody_certified"]==0
+          print("ORIGINAL_NBA71_PLAYER_CREDIT_EVENT_SOURCE_QA_PASS",json.dumps({
+              "player_games":1597,"player_source_credits":73797,
+              "near_substitution_only_unexplained_lower_bound":517,
+              "clean_source_lower_bound":514,
+              "team_games":y["team_games"],"player_credit_excess":y["player_credit_overhang"],
+              "incoming_substitution_events":y["substitution_in_players"],
+              "inbound_subs_at_FT_clock":y["substitution_in_at_any_FT_clock"],
+              "team_games_excess_beyond_sub_in_count":y["team_game_rows_with_overhang_above_sub_count"],
+              "physical_certified":0},sort_keys=True))
+          PY
       - name: Freeze official 81-game team Advanced POSS mirror
         shell: bash
         run: |
@@ -271,6 +319,8 @@ jobs:
           semantic=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_possession_semantics_original71_20261031.json
           accessible=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_all_original_chains_searchable71_20261031.json
           triple=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_team_player_possession_triangulation_real71_20261031.json
+          playerbound=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_player_residual_bounds_real71_20261031.json
+          playerevents=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_player_event_exposure_real71_20261031.json
           individual=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_playercredit_residual_bound_real1597_20261031.json
           if [ ! -f "$receipt" ]; then
              cp "$RUNNER_TEMP/p2b_g1_verified_original71_nba81.json" "$receipt"
@@ -287,7 +337,13 @@ jobs:
           if [ ! -f "$individual" ]; then
              cp "$RUNNER_TEMP/p2b_nba1597_playercredit_source71.json" "$individual"
           fi
-          git add -f "$receipt" "$semantic" "$accessible" "$triple" "$individual"
+          if [ ! -f "$playerbound" ]; then
+             cp "$RUNNER_TEMP/p2b_1597_player_residual_lowerbound_source.json" "$playerbound"
+          fi
+          if [ ! -f "$playerevents" ]; then
+             cp "$RUNNER_TEMP/p2b_71_player_credit_event_source.json" "$playerevents"
+          fi
+          git add -f "$receipt" "$semantic" "$accessible" "$triple" "$playerbound" "$playerevents" "$individual"
           git diff --cached --check
           if git diff --cached --quiet; then echo ALL_SOURCE_POSSESSION_QA_RECEIPTS_ALREADY_PRESERVED; exit 0; fi
           git config user.name 'github-actions[bot]'
