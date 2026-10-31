@@ -1,4 +1,4 @@
-name: IGP 3.2 0123 44.8ft original source actor spike adjudication
+name: IGP 3.2 71game fused read-only source-graded 10Hz NBA scene query end to end
 on:
   push:
     branches: [main]
@@ -6,16 +6,16 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  original-player-spike:
+  scene-union-query:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 75
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Reproduce original actor 44.8ft masked error and inspect unmodified source geometry
+      - name: SHA source verifies 5 games fused ball player and original 3.1 PBP query
         shell: bash
         run: |
           set -euo pipefail
@@ -26,28 +26,29 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_v32_0123_44ft_source_spike_adjudication_v1.py
-          mkdir -p "$RUNNER_TEMP/private-qa"
-          python3 gamepulse/fusion/igp_v32_0123_44ft_source_spike_adjudication_v1.py \
-            --root . --out "$RUNNER_TEMP/private-qa/igp_v32_0123_44ft_source_spike_adjudication_v1.json"
-      - name: Store SHA anchored original native actor source anomaly privately
+          python3 -m py_compile gamepulse/fusion/query_igp_v32_71_combined_research_scene_v1.py
+          python3 -m py_compile gamepulse/fusion/igp_v32_combined_research_query_live_private_receipt_v1.py
+          mkdir -p "$RUNNER_TEMP/igp-qa"
+          python3 gamepulse/fusion/igp_v32_combined_research_query_live_private_receipt_v1.py \
+            --root . --out "$RUNNER_TEMP/igp-qa/igp_v32_71_combined_research_query_private_receipt_v1.json"
+      - name: Commit verified fused source graded query readback QA only to private PR 776
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          qa=gamepulse/fusion/qa/igp_v32/igp_v32_0123_44ft_source_spike_adjudication_v1.json
-          cp "$RUNNER_TEMP/private-qa/igp_v32_0123_44ft_source_spike_adjudication_v1.json" "$qa"
+          qa=gamepulse/fusion/qa/igp_v32/igp_v32_71_combined_research_query_private_receipt_v1.json
+          cp "$RUNNER_TEMP/igp-qa/igp_v32_71_combined_research_query_private_receipt_v1.json" "$qa"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f "$qa"
           git diff --cached --check
-          if git diff --cached --quiet; then echo IGP_0123_SOURCE_SPIKE_PREVIOUSLY_RECONCILED; exit 0; fi
-          git commit -qm 'qa(igp): exact 0123 original SDK 44.8ft source actor spike audit provenance'
+          if git diff --cached --quiet; then echo IGP_71_COMBINED_QUERY_ALREADY_PUBLISHED; exit 0; fi
+          git commit -qm 'qa(igp): five real SHA-original game readbacks on fused original plus P0 ball and actor tracking'
           for n in 1 2 3 4 5 6; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo IGP_44FT_SOURCE_SPIKE_ORIGINAL_SHA_QA_PRIVATE_COMMITTED
+              echo IGP_71_COMBINED_QUERY_READBACK_PRIVATE_COMMITTED
               exit 0
             fi
             sleep "$n"
