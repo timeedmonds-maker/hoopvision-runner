@@ -80,6 +80,55 @@ jobs:
               "complete_S1_scenes":13142,
               "original_sources_unchanged":True},sort_keys=True))
           PY
+      - name: Commit private source-verified one-game pilot receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          raw=(Path(os.environ["RUNNER_TEMP"])/"igp-p2b-0001-action-qa.json").read_bytes()
+          x=json.loads(raw)
+          g=x["games"]["0022600001"]
+          d={"schema":"igp.v32.p2b.official-action.0001.original-source-pilot.v1",
+             "game_id":"0022600001",
+             "pilot_QA_sha256":hashlib.sha256(raw).hexdigest(),
+             "original_pbp_sha256":g["official_pbp_sha256"],
+             "original_native_manifest_sha256":g["native_sdk_manifest_sha256"],
+             "official_action_count":g["official_action_count"],
+             "action_tracking_counts":g["action_tracking_counts"],
+             "companion_source_counts":g["action_original_companion_clock_counts"],
+             "source_10hz_counts":g["source_S1_mask_counts"],
+             "logical_chain_counts":g["chain_counts"],
+             "physical_action_time_certified":False}
+          out=Path("gamepulse/fusion/qa/igp_v32/igp_v32_p2b_0001_official_action_source_pilot_20261031.json")
+          out.parent.mkdir(parents=True,exist_ok=True)
+          if out.exists() and json.loads(out.read_bytes())!=d:
+              raise RuntimeError("REFUSE_P2B_0001_PILOT_QA_REWRITE")
+          out.write_text(json.dumps(d,indent=2,sort_keys=True)+"\n")
+          print("IGP_P2B_0001_ORIGINAL_ACTION_PILOT_RECEIPT",d["official_action_count"])
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/qa/igp_v32/igp_v32_p2b_0001_official_action_source_pilot_20261031.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_P2B_PILOT_ALREADY_COMMITTED
+            exit 0
+          fi
+          git commit -q -m 'qa(igp): 0001 P2B all official actions source pilot'
+          gh auth setup-git
+          for n in 1 2 3 4; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || exit 43
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_P2B_ONE_GAME_PILOT_COMMITTED_PRIVATE
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 44
   full71-private-source-qa:
     needs: sourcefree-and-game0001
     runs-on: ubuntu-24.04
