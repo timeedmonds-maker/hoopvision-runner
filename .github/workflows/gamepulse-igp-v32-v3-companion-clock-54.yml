@@ -1,3 +1,4 @@
+# Registered public-content guard: SHA-private only.
 # Only aggregated source-QA counters reach public logs. Original SDK/companion
 # content, player positions, and exact per-chain UTC data stay in private 104.
 name: IGP 3.2 V3 companion clock corroboration 54 of 71
