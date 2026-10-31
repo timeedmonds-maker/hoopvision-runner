@@ -1,5 +1,6 @@
 # Reviewed source-private multi-agent vs actual P2B guarded bracket on the same masks.
 # Rerun after accepted 0130/0131 13-part source manifest routing fix.
+# Public guard now also recognizes the separately reviewed original native-action QA.
 # Public logs contain only aggregate QA; model, original XYZ and provenance stay private.
 name: IGP P3 multiagent vs P2B disjoint original-source QA
 on:
