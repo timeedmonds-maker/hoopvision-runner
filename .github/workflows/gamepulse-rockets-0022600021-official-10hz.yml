@@ -1,0 +1,121 @@
+name: Rockets Dallas official NBA IGP32 ten player plus ball 10Hz first half
+# Uses primary NBA.com first-party event + boxscore original SHA, never SDK source-tens.
+# Runs existing frozen 71game IGP32 engine modules; private full XYZ only.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/gamepulse-rockets-0022600021-official-10hz.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: rockets-dallas-firsthalf-igp32-official-10hz
+  cancel-in-progress: false
+jobs:
+  official-10hz:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE: timeedmonds-maker/104
+      TAG: gamepulse-firsthalf-sdk-0022600021
+      ACCEPTED_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify original NBA privacy and exact accepted 10Hz engine
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/$PRIVATE --jq .private)" = true
+          echo NBA_OFFICIAL_10HZ_ENGINE_PRIVATE_ONLY
+      - name: Obtain immutable full first half SHA parts and original NBA source
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/igp32-official-q1q2"
+          mkdir -p "$ROOT"
+          echo "REPLAY_ROOT=$ROOT" >> "$GITHUB_ENV"
+          for n in $(seq 1 20); do
+            PARTS=$(gh api "repos/$PRIVATE/releases/tags/$TAG" --jq \
+              '[.assets[].name | select(test("^firsthalf-block-(8|9)\\\\.tar\\\\.gz$"))] | length' || echo 0)
+            if test "$PARTS" = 2; then break; fi
+            sleep 6
+          done
+          gh release download "$TAG" --repo "$PRIVATE" \
+            --pattern 'firsthalf-block-*' --dir "$ROOT" --clobber
+          test "$(find "$ROOT" -name 'firsthalf-block-*.tar.gz' | wc -l)" -eq 10
+          test "$(find "$ROOT" -name 'firsthalf-block-*.json' | wc -l)" -eq 10
+          for name in official_nba_page_extracted_pbp.json official_nba_html_extracted_boxscore.json official_nba_game_first_party_html.html; do
+            gh release download "$TAG" --repo "$PRIVATE" --pattern "$name" --dir "$ROOT" --clobber
+            test -s "$ROOT/$name"
+          done
+          echo NBA_ORIGINAL_PBP_STARTERS_10_PRIVATE_SOURCE_PARTS_READY
+      - name: Hydrate original accepted PR776 IGP32 engine and clock
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$ACCEPTED_BRANCH" \
+            "https://github.com/$PRIVATE.git" "$REPLAY_ROOT/accepted"
+          git -C "$REPLAY_ROOT/accepted" sparse-checkout set gamepulse/fusion
+          test -s "$REPLAY_ROOT/accepted/gamepulse/fusion/igp_v32_default_tracking_engine_v1.py"
+          test -s "$REPLAY_ROOT/accepted/gamepulse/fusion/igp_g4_post36_official_ten_evidence_v1.py"
+          test -s "$REPLAY_ROOT/accepted/gamepulse/fusion/igp_71_new3_live_play_tracking_qa_v1.py"
+          for name in igp32_0021_official_10hz_replay.py; do
+            gh api "repos/$PRIVATE/contents/gamepulse/live/$name?ref=main" \
+               --jq .content | base64 -d > "$REPLAY_ROOT/$name"
+          done
+          python3 -m py_compile "$REPLAY_ROOT/igp32_0021_official_10hz_replay.py"
+      - name: Execute official NBA first half ten-player plus ball at full 10Hz
+        run: |
+          set -euo pipefail
+          export PYTHONPATH="$REPLAY_ROOT/accepted/gamepulse/fusion"
+          python3 "$REPLAY_ROOT/igp32_0021_official_10hz_replay.py" \
+            --root "$REPLAY_ROOT" \
+            --qa "$REPLAY_ROOT/igp32_0021_firsthalf_10hz_official_qa.json" \
+            --out "$REPLAY_ROOT/igp32-0022600021-firsthalf-official-ten-plus-ball-10hz.jsonl.gz"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path(os.environ["REPLAY_ROOT"])
+          q=json.loads((root/"igp32_0021_firsthalf_10hz_official_qa.json").read_text())
+          c=q["live_10hz_counts"]
+          assert q["real_official_NBA_PBP_and_starting_rosters_recovered"] is True
+          assert q["official_pbp_starters_and_substitutions_replayed"] is True
+          assert q["original_SDK_XYZ_mutated"] is False
+          assert c["live_10hz_grid_total"]>100
+          assert (c["live_10hz_baseline_800_complete"]+c.get("live_10hz_new_ball80_complete",0)+
+                  c.get("live_10hz_new_player350_complete",0)==c["live_10hz_complete_ten_ball"])
+          assert hashlib.sha256((root/q["full_scene_private_asset"]).read_bytes()).hexdigest()==q["full_scene_private_asset_sha256"]
+          print("OFFICIAL_NBA_Q1Q2_ACCEPTED_IGP32_10HZ_PASS",
+               "native",q["original_native_source_timestamps"],
+               "10hz",c["live_10hz_grid_total"],"complete",c["live_10hz_complete_ten_ball"],
+               "percentage",q["accepted_IGP32_complete_pct"])
+          PY
+      - name: Preserve actual full ten player ball 10Hz scenes privately and QA commit
+        run: |
+          set -euo pipefail
+          gh release upload "$TAG" \
+            "$REPLAY_ROOT/igp32-0022600021-firsthalf-official-ten-plus-ball-10hz.jsonl.gz" \
+            "$REPLAY_ROOT/igp32_0021_firsthalf_10hz_official_qa.json" \
+            --repo "$PRIVATE" --clobber
+          python3 - <<'PY'
+          import json,os,subprocess,base64
+          from pathlib import Path
+          root=Path(os.environ["REPLAY_ROOT"])
+          path=root/"igp32_0021_firsthalf_10hz_official_qa.json"
+          q=json.loads(path.read_bytes())
+          release=json.loads(subprocess.check_output(
+             ["gh","api","repos/"+os.environ["PRIVATE"]+"/releases/tags/"+os.environ["TAG"]]))
+          asset=next(a for a in release["assets"] if a["name"]==q["full_scene_private_asset"])
+          assert asset["digest"]=="sha256:"+q["full_scene_private_asset_sha256"]
+          target=("repos/"+os.environ["PRIVATE"]+
+               "/contents/gamepulse/live/qa/igp32_0021_firsthalf_10hz_official_qa.json")
+          body={"branch":"main",
+                "message":"qa(igp): Rockets Dallas 10Hz all NBA official first-half ten-player-ball accepted v3.2",
+                "content":base64.b64encode(path.read_bytes()).decode()}
+          prev=subprocess.run(["gh","api",target],capture_output=True,text=True)
+          if prev.returncode==0:body["sha"]=json.loads(prev.stdout)["sha"]
+          subprocess.run(["gh","api","-X","PUT",target,"--input","-"],
+             input=json.dumps(body),text=True,check=True,stdout=subprocess.DEVNULL)
+          print("OFFICIAL_NBA_10HZ_FULL_PLAYER_AND_BALL_PRIVATE_RELEASE_SHA_MATCHED")
+          PY
