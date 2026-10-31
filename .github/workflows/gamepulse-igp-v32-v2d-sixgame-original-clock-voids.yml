@@ -74,12 +74,17 @@ jobs:
           assert not q['source_coordinates_and_NBA_PBP_modified']
           assert q['new_completed_10hz_scenes_accepted']==0
           assert q['physical_custody_boundaries_certified']==0
+          assert (a['S1_10hz_source_any_xyz_within800ms']+
+                  a['S1_10hz_no_ANY_player_OR_ball_XYZ_within800ms'])==a['strict_S1_10hz_total']
           print('IGP_V2D_SIXGAME_ORIGINAL_SOURCE_QA_PASS',json.dumps({
              'games':6,'S1_clock_10hz':a['strict_S1_10hz_total'],
              'no_original_native_within_800ms':a['strict_10hz_no_original_native_within800ms'],
              'no_original_native_inside_recorded_span':a.get('strict_no_native_between_first_last_source',0),
              'no_original_native_before_capture':a.get('strict_no_native_before_first_saved_source',0),
              'no_original_native_after_capture':a.get('strict_no_native_after_last_saved_source',0),
+             'strict_no_player_xyz_within800ms':a['S1_10hz_no_ANY_original_player_XYZ_within800ms'],
+             'strict_no_ball_xyz_within800ms':a['S1_10hz_no_ANY_original_ball_XYZ_within800ms'],
+             'strict_neither_player_nor_ball_xyz_within800ms':a['S1_10hz_no_ANY_player_OR_ball_XYZ_within800ms'],
              'accepted_new_scenes':0},sort_keys=True))
           PY
       - name: Save forensic original-source SHA QA privately
