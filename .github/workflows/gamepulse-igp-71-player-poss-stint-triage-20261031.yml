@@ -27,8 +27,7 @@ jobs:
           gh auth setup-git
           git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" \
             https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
-          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion/qa/igp_v32 \
-            gamepulse/fusion/igp_v32_71_player_possession_variance_triage_v1.py
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
           python3 -m py_compile gamepulse/fusion/igp_v32_71_player_possession_variance_triage_v1.py
           python3 gamepulse/fusion/igp_v32_71_player_possession_variance_triage_v1.py \
