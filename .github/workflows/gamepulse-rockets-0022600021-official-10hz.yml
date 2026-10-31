@@ -45,86 +45,35 @@ jobs:
           test -s "$ROOT/private-main/gamepulse/live/igp32_0021_official_10hz_replay.py"
           test -s "$ROOT/accepted/gamepulse/fusion/igp_v32_default_tracking_engine_v1.py"
           echo PRIVATE_ACCEPTED_GIT_KERNEL_AND_OFFICIAL_SOURCE_CODE_READY
-      - name: Reacquire exact original NBA SDK timebase in private runner memory
+      - name: Read previously committed immutable licensed SDK and firstparty official NBA PBP
         run: |
           set -euo pipefail
-          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
-          (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
-          node --input-type=module <<'JS'
-          import {capture} from './tools/licensed_feed/capture.mjs';
-          import {planGame} from './tools/licensed_feed/season_core.mjs';
-          import {readFileSync,writeFileSync,copyFileSync,mkdirSync} from 'node:fs';
-          import {createHash} from 'node:crypto';
-          const root=process.env.REPLAY_ROOT,gid=process.env.NBA_GAME_ID;
-          const plan=planGame({id:gid,start:Date.parse(process.env.GAME_TIPOFF_UTC)});
-          const tasks=Array.from({length:10},(_,i)=>i);
-          async function part(block) {
-            const from=plan.begin+block*600000;
-            const j={game_id:gid,account_id:'nba',program_id:'companion-'+gid+'-positions',
-              part:Math.floor((from-plan.begin)/(300*5000)),start_ms:from,count:120};
-            const dest=root+'/source-capture-'+block;mkdirSync(dest,{recursive:true});
-            await capture(j,dest);
-            const m=JSON.parse(readFileSync(dest+'/manifest.json','utf8'));
-            if(m.game_id!==gid||m.start_ms!==from||m.successful_windows!==120||
-               m.observed!==true||m.imputed!==false)throw Error('LICENSED_SDK_SOURCE_NOT_VERIFIED');
-            const prefix='firsthalf-block-'+block;
-            const src=readFileSync(dest+'/checkpoint.tar.gz');
-            const checksum=createHash('sha256').update(src).digest('hex');
-            copyFileSync(dest+'/checkpoint.tar.gz',root+'/'+prefix+'.tar.gz');
-            writeFileSync(root+'/'+prefix+'.json',JSON.stringify({
-               ...m,archive_sha256:checksum,window_end_ms:from+600000,
-               original_SDK_licensed_source_reacquired_after_release_API_rate_limit:true,
-               identity_truth_not_inferred_from_SDK_cooccurrence:true})+'\n');
-            return {block,native:m.unique_keyframes,players:m.frames_with_players,ball:m.frames_with_ball};
-          }
-          const stats=[];
-          for(let i=0;i<tasks.length;i+=3) {
-            const ret=await Promise.all(tasks.slice(i,i+3).map(part));
-            stats.push(...ret);
-            for(const r of ret)console.log('NBA_ORIGINAL_SDK_BACKFILL_VERIFIED',r.block,r.native,r.players,r.ball);
-          }
-          if(stats.length!==10)throw Error('INCOMPLETE_ORIGINAL_GAME_FIRST_HALF_SOURCE');
-          console.log('ORIGINAL_LICENSED_NBA_SDK_10_BLOCKS_FULLY_RECAPTURED');
-          JS
+          SRC="$REPLAY_ROOT/private-main/gamepulse/live/materialized/igp32_0022600021_firsthalf_official_10hz"
+          test -d "$SRC/original_SDK_source_20261031_reacquired"
+          cp "$SRC/original_SDK_source_20261031_reacquired"/firsthalf-block-*.tar.gz "$REPLAY_ROOT/"
+          cp "$SRC/original_SDK_source_20261031_reacquired"/firsthalf-block-*.json "$REPLAY_ROOT/"
           test "$(find "$REPLAY_ROOT" -maxdepth 1 -name 'firsthalf-block-*.tar.gz' | wc -l)" -eq 10
           test "$(find "$REPLAY_ROOT" -maxdepth 1 -name 'firsthalf-block-*.json' | wc -l)" -eq 10
-      - name: Retrieve original NBA.com first-party PBP, official rosters and Q2 end
-        run: |
-          set -euo pipefail
-          python3 "$REPLAY_ROOT/private-main/gamepulse/live/igp32_0021_official_html_extract.py" --root "$REPLAY_ROOT"
-          python3 "$REPLAY_ROOT/private-main/gamepulse/live/igp32_0021_official_html_boxscore.py" --root "$REPLAY_ROOT"
-          python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          p=Path(os.environ["REPLAY_ROOT"])
-          a=json.loads((p/"igp32_0021_official_html_extract_qa.json").read_text())
-          b=json.loads((p/"igp32_0021_official_box_html_qa.json").read_text())
-          assert a["extracted_official_NBA_action_array"]
-          assert b["original_NBA_official_starer_five_plus_five_found"]
-          print("REAL_NBA_FIRST_PARTY_PBP_AND_BOTH_OFFICIAL_STARTER_FIVES_SHA_READY")
-          PY
-      - name: Persist original NBA SHA source before evaluating engine so failures cannot lose original evidence
-        run: |
-          set -euo pipefail
-          DST="$REPLAY_ROOT/private-main/gamepulse/live/materialized/igp32_0022600021_firsthalf_official_10hz"
-          mkdir -p "$DST/original_SDK_source_20261031_reacquired"
-          cp "$REPLAY_ROOT"/firsthalf-block-*.tar.gz "$DST/original_SDK_source_20261031_reacquired/"
-          cp "$REPLAY_ROOT"/firsthalf-block-*.json "$DST/original_SDK_source_20261031_reacquired/"
-          for name in official_nba_game_first_party_html.html official_nba_box_first_party_html.html official_nba_page_extracted_pbp.json official_nba_html_extracted_boxscore.json igp32_0021_official_html_extract_qa.json igp32_0021_official_box_html_qa.json; do
-            cp "$REPLAY_ROOT/$name" "$DST/$name"
+          for name in official_nba_game_first_party_html.html official_nba_box_first_party_html.html official_nba_page_extracted_pbp.json official_nba_html_extracted_boxscore.json; do
+            cp "$SRC/$name" "$REPLAY_ROOT/$name"
+            test -s "$REPLAY_ROOT/$name"
           done
-          cd "$REPLAY_ROOT/private-main"
-          git config user.name "IGP32 Original NBA Official Source QA"
-          git config user.email "igp-source-qa@users.noreply.github.com"
-          git add -f gamepulse/live/materialized/igp32_0022600021_firsthalf_official_10hz
-          # Preserve original first-party NBA HTML byte-for-byte (including its own whitespace).
-          git -c core.whitespace=-blank-at-eol diff --cached --check
-          git commit -qm "data(igp): persist NBA authorized original SDK and NBA.com Q1Q2 official source first"
-          if git fetch -q origin main && git rebase -q origin/main && git push -q origin HEAD:refs/heads/main; then
-            echo NBA_ORIGINAL_SHA_FIRST_HALF_EVIDENCE_PERSISTED_BEFORE_ENGINE
-          else
-            echo NBA_ORIGINAL_SOURCE_PERSISTED_IN_WORKING_TREE_PENDING_FINAL_COMMIT
-          fi
+          python3 - <<'PY'
+          import json,os,hashlib
+          from pathlib import Path
+          root=Path(os.environ["REPLAY_ROOT"])
+          for k in range(10):
+              name="firsthalf-block-"+str(k)
+              m=json.loads((root/(name+".json")).read_bytes())
+              digest=hashlib.sha256((root/(name+".tar.gz")).read_bytes()).hexdigest()
+              assert m["archive_sha256"]==digest and m["game_id"]=="0022600021"
+          a=json.loads((root/"official_nba_page_extracted_pbp.json").read_bytes())
+          b=json.loads((root/"official_nba_html_extracted_boxscore.json").read_bytes())
+          assert a["game"]["gameId"]==b["game"]["gameId"]=="0022600021"
+          assert len(a["game"]["actions"])>=400
+          print("SHA_PINNED_ORIGINAL_SDK_TEN_PARTS_AND_OFFICIAL_NBA_FIRSTHALF_SOURCE_READY",
+                len(a["game"]["actions"]))
+          PY
       - name: Run actual accepted IGP3.2 first-half official-ten ten Hz engine
         run: |
           set -euo pipefail
