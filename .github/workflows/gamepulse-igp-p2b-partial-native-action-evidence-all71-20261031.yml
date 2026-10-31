@@ -53,7 +53,7 @@ jobs:
           if s:
               k,_,detail=s.partition(":")
               code=detail.strip().split(":",1)[0].split(" ",1)[0]
-              print("IGP_PARTIAL_NATIVE_FAILURE",k,code if re.fullmatch(r"[A-Z0-9_]{6,90}",code) else "REDACTED")
+              print("IGP_PARTIAL_NATIVE_FAILURE",k,code if re.fullmatch(r"[A-Z0-9_]{6,90}",code) else ("MISSING_SCHEMA_"+code.upper() if k=="KeyError" and re.fullmatch(r"[A-Za-z_]{4,60}",code) else "REDACTED"))
           else:print("IGP_PARTIAL_NATIVE_FAILURE UNCLASSIFIED")
           PY
               exit 41
