@@ -55,6 +55,13 @@ jobs:
                   or not result["official_log_time_only_not_physical_event_time"]
                   or result["physical_ball_custody_certified"]):
                   raise ValueError("UNVERIFIED_ACTION_P2B_ORIGINAL_QUERY")
+              partial=result["original_NBA_native_partial_player_ball_context"]
+              if (partial["official_action_number"]!=r["official_action_number"]
+                  or partial["exact_physical_action_time_independently_certified"]
+                  or (partial["peak_verified_official_player_slots_with_ball_same_tick"]==10
+                      and not result["original_NBA_native_tracking_nearby_window"][
+                          "closest_direct_official_ten_ball_nonstop_native_utc_ms"] is not None)):
+                  raise ValueError("P2B_ORIGINAL_PARTIAL_ACTION_CONTEXT_CONFLICT")
               union=result["native_plus_P2B_deduplicated_source_context_grade"]
               if (union["official_action_number"]!=r["official_action_number"]
                   or not union["original_native_or_P2B_context_not_independently_physical_time_certified"]
