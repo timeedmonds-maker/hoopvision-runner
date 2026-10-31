@@ -1,6 +1,4 @@
-name: IGP v3.2 original SDK provenance and raw-variant recovery game 0141
-# reviewed public-only QA, actor flags remain in private repository
-# Test restored 13-part legacy original source and frozen S1 keyframe recovery for game 0141.
+name: IGP 3.2 original 0122 missing-player source-gap root causes
 on:
   push:
     branches: [main]
@@ -8,17 +6,16 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  provenance:
+  source-gap:
     runs-on: ubuntu-24.04
-    timeout-minutes: 110
+    timeout-minutes: 75
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      GAME: '0022600141'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Verify public guard and source-free per-actor variants
+      - name: Public guard, private SHA-verified source and official PBP
         shell: bash
         run: |
           set -euo pipefail
@@ -29,62 +26,30 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_v32_allgame_per_actor_source_provenance_v1.py
-          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_allgame_per_actor_source_provenance_v1.py'
-      - name: Download SHA-original SDK releases and match actor XYZ locally
+          python3 -m py_compile gamepulse/fusion/igp_v32_0122_gap_rootcause_by_player_and_window_v1.py
+          mkdir -p "$RUNNER_TEMP/rootcause"
+          python3 gamepulse/fusion/igp_v32_0122_gap_rootcause_by_player_and_window_v1.py \
+            --root . --out "$RUNNER_TEMP/rootcause/igp_v32_0122_gap_rootcause_by_player_and_window_v1.json"
+      - name: Preserve original per-player cause and window QA privately
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          export PYTHONPATH=gamepulse/fusion
-          mkdir -p "$RUNNER_TEMP/sdk" "$RUNNER_TEMP/per-actor"
-          gh api "repos/timeedmonds-maker/104/releases/tags/gamepulse-sdk-$GAME" > "$RUNNER_TEMP/release.json"
-          gh release download "gamepulse-sdk-$GAME" -R timeedmonds-maker/104 --pattern 'sdk-part-*.tar.gz' --dir "$RUNNER_TEMP/sdk"
-          test "$(find "$RUNNER_TEMP/sdk" -maxdepth 1 -name 'sdk-part-*.tar.gz' | wc -l)" -eq 13
-          python3 gamepulse/fusion/igp_v32_allgame_per_actor_source_provenance_v1.py \
-            --root . --game-id "$GAME" --archive-dir "$RUNNER_TEMP/sdk" --release-json "$RUNNER_TEMP/release.json" \
-            --sidecar "$RUNNER_TEMP/per-actor/actor_flags.jsonl.gz" --out "$RUNNER_TEMP/per-actor/summary.json"
-          python3 - <<'PY'
-          import json,os,hashlib
-          from pathlib import Path
-          root=Path(os.environ['RUNNER_TEMP'])/'per-actor'
-          s=json.loads((root/'summary.json').read_bytes())
-          assert s['game_id']==os.environ['GAME']
-          assert s['counts']['original_archive_parts_sha_verified']==13
-          assert s['per_actor_time_and_selected_coordinate_matched_fraction']>0
-          assert s['sidecar_sha256']==hashlib.sha256((root/'actor_flags.jsonl.gz').read_bytes()).hexdigest()
-          assert s['newly_accepted_physical_positions']==0
-          print('IGP_V32_GAME_SOURCE_PROVENANCE_VERIFIED',json.dumps({'source_games':1,'parts':13,'actor_grade_counts':{k:v for k,v in s['counts'].items() if k.startswith('native_selected_actor_flag_')},'ball_grade_counts':{k:v for k,v in s['counts'].items() if k.startswith('selected_ball_flag_')},'accepted_scene_delta':0},sort_keys=True))
-          PY
-      - name: Inspect all original SDK keyframe variants for any direct position recovery
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/private"
-          export PYTHONPATH=gamepulse/fusion
-          python3 gamepulse/fusion/igp_v32_anygame_raw_variant_rescue_shadow_v1.py \
-            --root . --game-id "$GAME" --archive-dir "$RUNNER_TEMP/sdk" --release-json "$RUNNER_TEMP/release.json" \
-            --out "$RUNNER_TEMP/per-actor/igp_v32_raw_variant_rescue_shadow.json"
-      - name: Retain SHA original metadata sidecars privately
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RUNNER_TEMP/private"
-          dest="gamepulse/fusion/qa/igp_v32/upstream_actors_71"
-          mkdir -p "$dest"
-          cp "$RUNNER_TEMP/per-actor/summary.json" "$dest/igp_v32_upstream_${GAME}_summary.json"
-          cp "$RUNNER_TEMP/per-actor/actor_flags.jsonl.gz" "$dest/igp_v32_upstream_${GAME}.jsonl.gz"
-          cp "$RUNNER_TEMP/per-actor/igp_v32_raw_variant_rescue_shadow.json" "gamepulse/fusion/qa/igp_v32/igp_v32_raw_variant_rescue_${GAME}_shadow_v1.json"
+          dst=gamepulse/fusion/qa/igp_v32/igp_v32_0122_gap_rootcause_by_player_and_window_v1.json
+          cp "$RUNNER_TEMP/rootcause/igp_v32_0122_gap_rootcause_by_player_and_window_v1.json" "$dst"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$dest/igp_v32_upstream_${GAME}_summary.json" "$dest/igp_v32_upstream_${GAME}.jsonl.gz"
-          git add -f "gamepulse/fusion/qa/igp_v32/igp_v32_raw_variant_rescue_${GAME}_shadow_v1.json"
+          git add -f "$dst"
           git diff --cached --check
-          git commit -qm "qa(igp): game $GAME original SDK actor/ball provenance SHA"
+          if git diff --cached --quiet; then echo IGP_0122_ROOTCAUSE_ALREADY_PUBLISHED; exit 0; fi
+          git commit -qm 'qa(igp): 0122 original source player-gap timelines and official window causes'
           for n in 1 2 3 4 5 6; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
-            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo IGP_GAME_ACTOR_PROVENANCE_PRIVATE_PUBLISHED; exit 0; fi
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_0122_ROOTCAUSE_PRIVATE_QA_PUBLISHED
+              exit 0
+            fi
             sleep "$n"
           done
           exit 83
