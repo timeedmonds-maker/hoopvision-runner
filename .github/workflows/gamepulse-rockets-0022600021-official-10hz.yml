@@ -37,7 +37,7 @@ jobs:
           echo "REPLAY_ROOT=$ROOT" >> "$GITHUB_ENV"
           for n in $(seq 1 20); do
             PARTS=$(gh api "repos/$PRIVATE/releases/tags/$TAG" --jq \
-              '[.assets[].name | select(test("^firsthalf-block-(8|9)\\\\.tar\\\\.gz$"))] | length' || echo 0)
+              '[.assets[].name | select(.=="firsthalf-block-8.tar.gz" or .=="firsthalf-block-9.tar.gz")] | length' || echo 0)
             if test "$PARTS" = 2; then break; fi
             sleep 6
           done
