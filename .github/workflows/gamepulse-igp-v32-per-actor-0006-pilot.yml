@@ -1,4 +1,4 @@
-name: IGP 3.2 0093 window8 time-local identity shadow native and 10Hz
+name: IGP 3.2 game 0093 independent NBA PBP substitution + source tracklet audit
 on:
   push:
     branches: [main]
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 jobs:
-  source-gap:
+  adjudicate:
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
-      - name: Public guard, private SHA-verified source and official PBP
+      - name: Verify public isolation and private SHA original NBA sources
         shell: bash
         run: |
           set -euo pipefail
@@ -26,59 +26,29 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
           cd "$RUNNER_TEMP/private"
           export PYTHONPATH=gamepulse/fusion
-          python3 -m py_compile gamepulse/fusion/igp_v32_0122_gap_rootcause_by_player_and_window_v1.py
-          python3 -m py_compile gamepulse/fusion/igp_v32_0122_actor_balance_counterfactual_v1.py
-          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_0122_actor_balance_counterfactual_v1.py'
-          mkdir -p "$RUNNER_TEMP/rootcause"
-          python3 gamepulse/fusion/igp_v32_0122_gap_rootcause_by_player_and_window_v1.py \
-            --root . --out "$RUNNER_TEMP/rootcause/igp_v32_0122_gap_rootcause_by_player_and_window_v1.json"
-          python3 gamepulse/fusion/igp_v32_0122_actor_balance_counterfactual_v1.py \
-            --root . --out "$RUNNER_TEMP/rootcause/igp_v32_0122_actor_balance_counterfactual_v1.json"
-          python3 gamepulse/fusion/igp_v32_71_id_only_source_capacity_frontier_v1.py \
-            --root . --out "$RUNNER_TEMP/rootcause/igp_v32_71_id_only_source_capacity_frontier_v1.json"
-          for game in 0022600093 0022600009; do
-            python3 gamepulse/fusion/igp_v32_anygame_actor_balance_counterfactual_v1.py \
-              --root . --game-id "$game" \
-              --out "$RUNNER_TEMP/rootcause/igp_v32_actor_balance_${game}_v1.json"
-          done
-          for game in 0022600093 0022600009; do
-            python3 gamepulse/fusion/igp_v32_anygame_actor_pair_episode_dossier_v1.py \
-              --root . --game-id "$game" \
-              --out "$RUNNER_TEMP/rootcause/igp_v32_actor_pair_${game}_v1.json"
-          done
-          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_0093_time_local_identity_shadow_v1.py'
-          python3 gamepulse/fusion/igp_v32_0093_time_local_identity_shadow_v1.py \
-            --root . --out "$RUNNER_TEMP/rootcause/igp_v32_0093_window8_time_local_identity_shadow_v1.json"
-      - name: Preserve original per-player cause and window QA privately
+          python3 -m py_compile gamepulse/fusion/igp_v32_0093_substitution_tracklet_adjudication_v1.py
+          python3 -m unittest discover -q -s gamepulse/fusion/tests -p 'test_igp_v32_0093_substitution_tracklet_adjudication_v1.py'
+          mkdir -p "$RUNNER_TEMP/private-qa"
+          python3 gamepulse/fusion/igp_v32_0093_substitution_tracklet_adjudication_v1.py \
+            --root . --out "$RUNNER_TEMP/private-qa/igp_v32_0093_substitution_tracklet_adjudication_v1.json"
+      - name: Publish SHA-original event/actor audit only to private canonical branch
         shell: bash
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/private"
-          dst=gamepulse/fusion/qa/igp_v32/igp_v32_0122_gap_rootcause_by_player_and_window_v1.json
-          cp "$RUNNER_TEMP/rootcause/igp_v32_0122_gap_rootcause_by_player_and_window_v1.json" "$dst"
-          cp "$RUNNER_TEMP/rootcause/igp_v32_0122_actor_balance_counterfactual_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_0122_actor_balance_counterfactual_v1.json"
-          cp "$RUNNER_TEMP/rootcause/igp_v32_71_id_only_source_capacity_frontier_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_71_id_only_source_capacity_frontier_v1.json"
+          dest="gamepulse/fusion/qa/igp_v32/igp_v32_0093_substitution_tracklet_adjudication_v1.json"
+          cp "$RUNNER_TEMP/private-qa/igp_v32_0093_substitution_tracklet_adjudication_v1.json" "$dest"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$dst" gamepulse/fusion/qa/igp_v32/igp_v32_0122_actor_balance_counterfactual_v1.json gamepulse/fusion/qa/igp_v32/igp_v32_71_id_only_source_capacity_frontier_v1.json
-          for game in 0022600093 0022600009; do
-            cp "$RUNNER_TEMP/rootcause/igp_v32_actor_balance_${game}_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_actor_balance_${game}_v1.json"
-            git add -f "gamepulse/fusion/qa/igp_v32/igp_v32_actor_balance_${game}_v1.json"
-          done
-          for game in 0022600093 0022600009; do
-            cp "$RUNNER_TEMP/rootcause/igp_v32_actor_pair_${game}_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_actor_pair_${game}_v1.json"
-            git add -f "gamepulse/fusion/qa/igp_v32/igp_v32_actor_pair_${game}_v1.json"
-          done
-          cp "$RUNNER_TEMP/rootcause/igp_v32_0093_window8_time_local_identity_shadow_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_0093_window8_time_local_identity_shadow_v1.json"
-          git add -f "gamepulse/fusion/qa/igp_v32/igp_v32_0093_window8_time_local_identity_shadow_v1.json"
+          git add -f "$dest"
           git diff --cached --check
-          if git diff --cached --quiet; then echo IGP_0122_ROOTCAUSE_ALREADY_PUBLISHED; exit 0; fi
-          git commit -qm 'qa(igp): native and 10Hz shadow gain from time-local 0093 source actor sequence'
+          if git diff --cached --quiet; then echo IGP_0093_AUDIT_ALREADY_PUBLISHED; exit 0; fi
+          git commit -qm 'qa(igp): 0093 NBA official Q1/Q4 substitution and original actor tracklet'
           for n in 1 2 3 4 5 6; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo IGP_0122_ROOTCAUSE_PRIVATE_QA_PUBLISHED
+              echo IGP_0093_PRIVATE_SUBSTITUTION_EVIDENCE_COMMITTED
               exit 0
             fi
             sleep "$n"
