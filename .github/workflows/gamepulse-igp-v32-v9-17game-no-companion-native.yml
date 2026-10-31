@@ -143,3 +143,4 @@ jobs:
             sleep "$n"
           done
           exit 44
+# Source readback schema key corrected in private canonical branch; rerun original 17 game QA.
