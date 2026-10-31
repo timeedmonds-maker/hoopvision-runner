@@ -1,5 +1,6 @@
 # V8 read-only official NBA chain -> separate original native and 10Hz S1 tiers.
 # Retry after correcting the V8 source-free unit import path in private PR #776.
+# Rerun: accepted legacy V4 deep queries use official_NBA_logical_chain_id (checked alias).
 # All XYZ and original source data stay private; public logs show aggregate QA.
 name: IGP 3.2 V8 unified 71 game original source chain query QA
 on:
