@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-71game-possession-10hz-source-qa.yml",  # reviewed: original NBA SHA-private 71game 10Hz logical-chain QA, only pergame counts public no player XYZ
     ".github/workflows/gamepulse-igp-v32-default-10hz-release-regression.yml",  # reviewed: permanent 71game private SHA original source 10Hz source-QA engine lock, only IDs/grades/totals public
     ".github/workflows/gamepulse-rockets-0022600021-q2-tail-source.yml",  # NBA licensed SDK 0021 elapsed Q2 tail direct source SHA private release only
     ".github/workflows/gamepulse-rockets-0022600021-official-10hz.yml",  # exact NBA first-party PBP+five starters official S1 accepted engine private XYZ and aggregates only
