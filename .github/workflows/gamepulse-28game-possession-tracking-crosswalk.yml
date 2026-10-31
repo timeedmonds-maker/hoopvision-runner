@@ -35,7 +35,17 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "${GH_TOKEN:-}" || { echo 'PRIVATE_104_AUTH_NOT_AVAILABLE'; exit 3; }
-          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          if ! private_flag="$(gh api "repos/$PRIVATE_REPO" --jq .private 2>"$RUNNER_TEMP/private-preflight.err")"; then
+            if grep -qi 'rate limit exceeded' "$RUNNER_TEMP/private-preflight.err"; then
+              echo 'PRIVATE_104_API_RATE_LIMIT_EXHAUSTED_RETRY_AFTER_RESET' >&2
+            else
+              echo 'PRIVATE_104_AUTH_OR_API_PREFLIGHT_FAILED' >&2
+            fi
+            rm -f "$RUNNER_TEMP/private-preflight.err"
+            exit 3
+          fi
+          rm -f "$RUNNER_TEMP/private-preflight.err"
+          test "$private_flag" = true || { echo 'PRIVATE_104_REPO_NOT_PRIVATE'; exit 3; }
       - name: Independently recheck quarantined NBA source timelines
         shell: bash
         run: |
@@ -127,10 +137,21 @@ jobs:
             local ref="$2"
             mkdir -p "$(dirname "$WORK/$name")"
             local encoded="$WORK/$name.base64"
-            if ! gh api "repos/$PRIVATE_REPO/contents/$name?ref=$ref" --jq '.content' > "$encoded"; then
-              echo "EXPECTED_PRIVATE_SOURCE_MISSING_AT_PINNED_COMMIT:$name" >&2
+            local fetch_err="$WORK/private-fetch-error.txt"
+            if ! gh api "repos/$PRIVATE_REPO/contents/$name?ref=$ref" --jq '.content' > "$encoded" 2>"$fetch_err"; then
+              if grep -qi 'rate limit exceeded' "$fetch_err"; then
+                echo "PRIVATE_SOURCE_API_RATE_LIMIT_EXHAUSTED_RETRY_AFTER_RESET:$name" >&2
+              elif grep -Eq 'HTTP 404|status 404' "$fetch_err"; then
+                echo "EXPECTED_PRIVATE_SOURCE_MISSING_AT_PINNED_COMMIT:$name" >&2
+              elif grep -Eq 'HTTP 401|status 401' "$fetch_err"; then
+                echo "PRIVATE_SOURCE_AUTHENTICATION_FAILED:$name" >&2
+              else
+                echo "PRIVATE_SOURCE_FETCH_FAILED_NOT_PROVEN_MISSING:$name" >&2
+              fi
+              rm -f "$encoded" "$fetch_err"
               return 1
             fi
+            rm -f "$fetch_err"
             if ! base64 --decode < "$encoded" > "$WORK/$name"; then
               echo "EXPECTED_PRIVATE_SOURCE_INVALID_BASE64:$name" >&2
               return 1
