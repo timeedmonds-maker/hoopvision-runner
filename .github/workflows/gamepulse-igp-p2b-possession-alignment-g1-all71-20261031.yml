@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v32-p2b-all-action-crosswalk-20261031
-      PIN: 6d0a75117166f09dc485e0940cb0c1ea1cab129f
+      PIN: bc8721cf9cc8f65139aaf6c80666a08f2594e171
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -155,6 +155,38 @@ jobs:
             "player_credit_vs_chain_residual":c["sum_player_credit_vs_five_chains"],
             "physical_possessions_certified":0},sort_keys=True))
           PY
+      - name: All 1597 player-POSS source credits and optimistic substitution-only residual lower bound
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_v32_p2b_player_credit_residual_constraints_v1.py
+          python3 -m unittest -q gamepulse/fusion/tests/test_igp_v32_p2b_player_credit_residual_constraints_v1.py
+          python3 gamepulse/fusion/igp_v32_p2b_player_credit_residual_constraints_v1.py \
+            --root . --out "$RUNNER_TEMP/p2b_nba1597_playercredit_source71.json" \
+            > "$RUNNER_TEMP/p2b_nba1597_playercredit_source71_private.log" 2>&1 || {
+              echo NBA_1597_PLAYER_SOURCE_CREDIT_QA_FAILED
+              exit 56
+            }
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          v=json.loads((Path(os.environ["RUNNER_TEMP"])/"p2b_nba1597_playercredit_source71.json").read_text())
+          c=v["counts"]
+          assert c["player_games"]==1597
+          assert c["published_player_POSS"]==73797
+          assert c["abs_residual_provisional_minus_NBA"]==1916
+          assert c["minimum_abs_residual_after_perfect_near_sub_adjustment"]==517
+          assert c["reliable_minimum_abs_residual_after_perfect_near_sub_adjustment"]==514
+          assert len(v["high_priority_eight_player_event_grammar_cases"])==8
+          assert v["physical_ball_custody_certified"] is False
+          print("P2B_1597_PLAYER_POSS_SUBSTITUTION_ONLY_LOWER_BOUND_PASS",
+            json.dumps({"player_games":1597,"abs_discrepancy":1916,
+            "optimistic_non_substitution_residual":517,
+            "clean_non_substitution_residual":514,
+            "strong_no_boundary_cases":8,"physical_possessions_certified":0},sort_keys=True))
+          PY
       - name: Freeze official 81-game team Advanced POSS mirror
         shell: bash
         run: |
@@ -239,6 +271,7 @@ jobs:
           semantic=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_possession_semantics_original71_20261031.json
           accessible=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_all_original_chains_searchable71_20261031.json
           triple=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_team_player_possession_triangulation_real71_20261031.json
+          individual=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_playercredit_residual_bound_real1597_20261031.json
           if [ ! -f "$receipt" ]; then
              cp "$RUNNER_TEMP/p2b_g1_verified_original71_nba81.json" "$receipt"
           fi
@@ -251,7 +284,10 @@ jobs:
           if [ ! -f "$triple" ]; then
              cp "$RUNNER_TEMP/p2b_nba_team_player_POSS_source71.json" "$triple"
           fi
-          git add -f "$receipt" "$semantic" "$accessible" "$triple"
+          if [ ! -f "$individual" ]; then
+             cp "$RUNNER_TEMP/p2b_nba1597_playercredit_source71.json" "$individual"
+          fi
+          git add -f "$receipt" "$semantic" "$accessible" "$triple" "$individual"
           git diff --cached --check
           if git diff --cached --quiet; then echo ALL_SOURCE_POSSESSION_QA_RECEIPTS_ALREADY_PRESERVED; exit 0; fi
           git config user.name 'github-actions[bot]'
