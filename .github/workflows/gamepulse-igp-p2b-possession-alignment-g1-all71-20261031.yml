@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       BRANCH: research/igp-v32-p2b-all-action-crosswalk-20261031
-      PIN: 750f111a72cbe25f88e121cc99a3aa9c23dd6071
+      PIN: ec1792eb64efda347465270fe47922967574906b
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -200,10 +200,20 @@ jobs:
           git fetch -q origin "$BRANCH"
           git checkout -q -B p2b-source-qa "origin/$BRANCH"
           receipt=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_possession_alignment_71plus81_g1_20261031.json
-          if [ -f "$receipt" ]; then echo ORIGINAL_RECEIPT_ALREADY_PRESERVED; exit 0; fi
-          cp "$RUNNER_TEMP/p2b_g1_verified_original71_nba81.json" "$receipt"
-          git add -f "$receipt"
+          semantic=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_possession_semantics_original71_20261031.json
+          accessible=gamepulse/fusion/qa/igp_v32/igp_v32_p2b_all_original_chains_searchable71_20261031.json
+          if [ ! -f "$receipt" ]; then
+             cp "$RUNNER_TEMP/p2b_g1_verified_original71_nba81.json" "$receipt"
+          fi
+          if [ ! -f "$semantic" ]; then
+             cp "$RUNNER_TEMP/p2b_nba_published_poss_source71.json" "$semantic"
+          fi
+          if [ ! -f "$accessible" ]; then
+             cp "$RUNNER_TEMP/igp_p2b_unconditional_original71_qa.json" "$accessible"
+          fi
+          git add -f "$receipt" "$semantic" "$accessible"
           git diff --cached --check
+          if git diff --cached --quiet; then echo ALL_THREE_PRIVATE_QA_RECEIPTS_ALREADY_PRESERVED; exit 0; fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -q -m 'qa(igp): retain source-first possession candidate ledger 71 and NBA81 mirror'
