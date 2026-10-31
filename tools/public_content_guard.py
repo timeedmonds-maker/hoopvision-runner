@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/gamepulse-igp-v32-v7-unified-fast-pbp-native-query.yml",  # 71game fast PBP metadata preserves defaults; opt-in 54game source-native SHA XYZ, no licensed logs
     ".github/workflows/gamepulse-igp-v32-v5b-native-to-official-pbp-54.yml",  # 54game private SHA-native-to-unique-logical-NBA-PBP UTC bridges no licensed coordinates in public runner
     ".github/workflows/gamepulse-igp-v32-v6-original-release-39parts.yml",  # 3game 39 original SDK private release part SHA-vs-index forensics; public aggregate only
     ".github/workflows/gamepulse-igp-v32-v5-original-native-postings-54.yml",  # private SHA-native 54-game outside-S1 exact source observations index; no licensed XYZ in public logs
