@@ -1,4 +1,5 @@
 # Public runner logs aggregate QA only; never prints licensed source XYZ.
+# Explicitly reviewed and added to tools/public_content_guard.py allowlist.
 name: IGP P2B guarded source-backed three-game readback
 on:
   push:
