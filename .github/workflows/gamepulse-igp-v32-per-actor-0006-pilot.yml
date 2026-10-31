@@ -1,4 +1,4 @@
-name: IGP 3.2 0122 source actor balance and physical ID-only upper bound
+name: IGP 3.2 71-game direct ID-only ceiling source QA
 on:
   push:
     branches: [main]
@@ -34,6 +34,8 @@ jobs:
             --root . --out "$RUNNER_TEMP/rootcause/igp_v32_0122_gap_rootcause_by_player_and_window_v1.json"
           python3 gamepulse/fusion/igp_v32_0122_actor_balance_counterfactual_v1.py \
             --root . --out "$RUNNER_TEMP/rootcause/igp_v32_0122_actor_balance_counterfactual_v1.json"
+          python3 gamepulse/fusion/igp_v32_71_id_only_source_capacity_frontier_v1.py \
+            --root . --out "$RUNNER_TEMP/rootcause/igp_v32_71_id_only_source_capacity_frontier_v1.json"
       - name: Preserve original per-player cause and window QA privately
         shell: bash
         run: |
@@ -42,12 +44,13 @@ jobs:
           dst=gamepulse/fusion/qa/igp_v32/igp_v32_0122_gap_rootcause_by_player_and_window_v1.json
           cp "$RUNNER_TEMP/rootcause/igp_v32_0122_gap_rootcause_by_player_and_window_v1.json" "$dst"
           cp "$RUNNER_TEMP/rootcause/igp_v32_0122_actor_balance_counterfactual_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_0122_actor_balance_counterfactual_v1.json"
+          cp "$RUNNER_TEMP/rootcause/igp_v32_71_id_only_source_capacity_frontier_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_71_id_only_source_capacity_frontier_v1.json"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f "$dst" gamepulse/fusion/qa/igp_v32/igp_v32_0122_actor_balance_counterfactual_v1.json
+          git add -f "$dst" gamepulse/fusion/qa/igp_v32/igp_v32_0122_actor_balance_counterfactual_v1.json gamepulse/fusion/qa/igp_v32/igp_v32_71_id_only_source_capacity_frontier_v1.json
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_0122_ROOTCAUSE_ALREADY_PUBLISHED; exit 0; fi
-          git commit -qm 'qa(igp): source actor capacity versus true missing positions in frozen 0122'
+          git commit -qm 'qa(igp): 71-game native ID-only upper bound and exact 0122 gap classification'
           for n in 1 2 3 4 5 6; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
