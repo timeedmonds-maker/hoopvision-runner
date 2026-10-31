@@ -1,4 +1,4 @@
-name: IGP 3.2 high-priority 0093 and 0009 source actor capacity
+name: IGP 3.2 0093 and 0009 actor-pair sequence evidence
 on:
   push:
     branches: [main]
@@ -41,6 +41,11 @@ jobs:
               --root . --game-id "$game" \
               --out "$RUNNER_TEMP/rootcause/igp_v32_actor_balance_${game}_v1.json"
           done
+          for game in 0022600093 0022600009; do
+            python3 gamepulse/fusion/igp_v32_anygame_actor_pair_episode_dossier_v1.py \
+              --root . --game-id "$game" \
+              --out "$RUNNER_TEMP/rootcause/igp_v32_actor_pair_${game}_v1.json"
+          done
       - name: Preserve original per-player cause and window QA privately
         shell: bash
         run: |
@@ -57,9 +62,13 @@ jobs:
             cp "$RUNNER_TEMP/rootcause/igp_v32_actor_balance_${game}_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_actor_balance_${game}_v1.json"
             git add -f "gamepulse/fusion/qa/igp_v32/igp_v32_actor_balance_${game}_v1.json"
           done
+          for game in 0022600093 0022600009; do
+            cp "$RUNNER_TEMP/rootcause/igp_v32_actor_pair_${game}_v1.json" "gamepulse/fusion/qa/igp_v32/igp_v32_actor_pair_${game}_v1.json"
+            git add -f "gamepulse/fusion/qa/igp_v32/igp_v32_actor_pair_${game}_v1.json"
+          done
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_0122_ROOTCAUSE_ALREADY_PUBLISHED; exit 0; fi
-          git commit -qm 'qa(igp): direct source-only actor capacity for games 0093 and 0009'
+          git commit -qm 'qa(igp): original NBA actor-pair window episodes 0093 and 0009'
           for n in 1 2 3 4 5 6; do
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
