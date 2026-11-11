@@ -133,8 +133,8 @@ jobs:
           out="$RUNNER_TEMP/courtsketch-$GID-full160"
           python3 "$RUNNER_TEMP/private/gamepulse/third_party/courtsketch/courtsketch_capture_full160_batch_v1.py" \
             --root "$RUNNER_TEMP/private" \
-            --original "$RUNNER_TEMP/courtsketch-$GID-native/courtsketch_$GID_L1_unique_native_frames.jsonl.gz" \
-            --source-qa "$RUNNER_TEMP/courtsketch-$GID-native/courtsketch_$GID_QA_final.json" \
+            --original "$RUNNER_TEMP/courtsketch-$GID-native/courtsketch_${GID}_L1_unique_native_frames.jsonl.gz" \
+            --source-qa "$RUNNER_TEMP/courtsketch-$GID-native/courtsketch_${GID}_QA_final.json" \
             --output "$out"
           python3 - <<'PY'
           import os,json,pathlib,hashlib
