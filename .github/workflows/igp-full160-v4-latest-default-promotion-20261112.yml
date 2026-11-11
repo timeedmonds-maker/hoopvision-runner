@@ -60,7 +60,9 @@ jobs:
           git -C "$P" sparse-checkout set --no-cone \
             '/gamepulse/fusion/igp_full160_unified_v4_builder_v1.py' \
             '/gamepulse/fusion/igp_full160_source_default_v1.py' \
+            '/gamepulse/fusion/igp_full160_source_default.py' \
             '/gamepulse/fusion/igp_full160_matchup_zone_query_v1.py' \
+            '/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/matchup_zone_source_v1/**' \
             '/gamepulse/fusion/qa/igp_fullx/LATEST.json' \
             '/gamepulse/fusion/qa/igp_fullx/full160_default_source_graded_gap_register_20261112.json' \
             '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
@@ -218,4 +220,27 @@ jobs:
           assert registered['full160_latest_default']['manifest_sha256']==latest['canonical_manifest_sha256']
           print('FULL160_V4_PERSISTENT_CANONICAL_DEFAULT_POINTER_SHA_READBACK_PASS',
                 'release',latest['release_tag'])
+          PY
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          root=Path.cwd()
+          sys.path.insert(0,str(root/'gamepulse/fusion'))
+          import igp_full160_source_default as q
+          import igp_full160_source_default_v1 as original
+          summary=q.query(root,kind='summary')
+          assert summary['version']=='v4'
+          assert summary['source_graded_counts']['published_gravity_qualified_player_game_rows']==1571
+          assert summary['source_graded_counts']['direct_original_defender_offender_matchup_pairs']==32448
+          missing=q.query(root,'0022600189',kind='game')
+          assert missing['matchup_original_source_pair_rows'] is None
+          assert missing['zone_team_game_record_count']==2
+          team=q.query(root,'0022600214',kind='zone_defense',team='MIA')
+          assert len(team['team_games'])==1
+          assert team['team_games'][0]['defense']['zone_possessions']==13
+          assert team['team_games'][0]['defense']['zone_points_allowed']==11
+          matchup=q.query(root,'0022600208',kind='matchup',limit=2)
+          assert matchup['source_pair_rows']>0 and len(matchup['rows'])==2
+          assert original.DEFAULT_DATABASE=='FULL160'
+          print('FULL160_V4_STABLE_DEFAULT_QUERY_GRAVITY_MATCHUP_ZONE_KNOWN_GAME_PASS')
           PY
