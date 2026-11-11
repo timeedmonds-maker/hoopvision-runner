@@ -1,0 +1,102 @@
+# Reviewed read-only public CPU worker. All licensed original XYZ and derived rows
+# remain in private 104. No GPU, external paid compute, or fresh SDK acquisitions.
+name: IGP Full160 six-game original P2B plus companion Blueprint source release CPU
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full160-six-original-guarded-integrate-20261111.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full160-private-original-readback-once
+  cancel-in-progress: false
+jobs:
+  integrate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 105
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce public guard and private source destination
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          echo IGP_FULL160_PUBLIC_BOUNDARY_PRIVATE_CPU_PASS
+      - name: Build native original and P2B guarded candidate; full160 shot and event source release
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/igp-full160-private"
+          git clone -q --no-checkout --filter=blob:none --depth=1 \
+            -b research/igp-six-native-census-20261111 \
+            https://github.com/timeedmonds-maker/104.git "$dest"
+          git -C "$dest" sparse-checkout init --no-cone
+          git -C "$dest" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/live_original_20261111/' \
+            '/gamepulse/fusion/materialized/igp_0211_original_gameplay_source_v1/' \
+            '/gamepulse/fusion/materialized/igp_0212_live_original_xyz_v1/' \
+            '/gamepulse/fusion/official_pbp_timing/games/002260021*.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/002260021*/boxscore.json' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_002260021*/sdk_observed_original.json' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600216/sdk_original_receipt.json' \
+            '/data/extensions/nba_blueprint_2026_27/games/002260021*/' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/qa/igp_20261111/nov10_six_unified_native_census_v1.json' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL154_a34448e3099c_v2.json'
+          git -C "$dest" checkout -q research/igp-six-native-census-20261111
+          cd "$dest"
+          test -f gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL154_a34448e3099c_v2.json
+          test -f data/extensions/nba_blueprint_2026_27/games/0022600216/blueprint_report_raw.json
+          python3 -m py_compile \
+            gamepulse/fusion/igp_full160_nov10_original_guarded_v1.py \
+            gamepulse/fusion/igp_full160_nov10_incremental_shot_event_v1.py \
+            gamepulse/fusion/igp_fullx_rolling_shot_event_multiview_v2.py
+          python3 gamepulse/fusion/igp_full160_nov10_original_guarded_v1.py --root .
+          python3 gamepulse/fusion/igp_full160_nov10_incremental_shot_event_v1.py --root .
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          b=pathlib.Path('gamepulse/fusion')
+          q=json.loads((b/'qa/igp_20261111/nov10_full160_guarded_six_v1.json').read_text())
+          p=json.loads((b/'qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json').read_text())
+          x=(pathlib.Path('.')/p['index_path']).read_bytes()
+          d=json.loads(x)
+          assert p['game_count']==160 and d['game_count']==160
+          assert hashlib.sha256(x).hexdigest()==p['index_sha256']
+          assert len(d['games'])==160
+          assert q['counts']['s1_10hz_samples']==108360
+          assert q['counts']['frozen_800ms_complete']==87449
+          assert q['counts']['p2b_guarded_complete']>=87449
+          assert sum(z['counts']['official_fga'] for z in d['games'].values())==d['counts']['official_fga']
+          assert all(d['games'][gid]['original_native_source_present'] for gid in q['game_ids'])
+          assert all(d['games'][gid]['source_sha256']['ORIGINAL_COMPANION'] for gid in q['game_ids'])
+          print('IGP_FULL160_SIX_GAME_FINAL_RELEASE_GATES_PASSED',json.dumps({
+              'games':160,'original_six_native':183561,
+              'baseline_complete_10hz':q['counts']['frozen_800ms_complete'],
+              'guarded_complete_10hz':q['counts']['p2b_guarded_complete'],
+              'official_fga_full160':d['counts']['official_fga'],
+              'companion_exact_full160':d['counts']['companion_exact'],
+              'blueprint_exact_full160':d['counts']['blueprint_exact']
+          },sort_keys=True))
+          PY
+          git config user.name "Integrated Pulse QA"
+          git config user.email "igp-qa@users.noreply.github.com"
+          git add --sparse -f \
+            gamepulse/fusion/materialized/igp_full160_nov10_original_graded_v1 \
+            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_fullx_v2 \
+            gamepulse/fusion/qa/igp_20261111 \
+            gamepulse/fusion/qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_*.json
+          git commit -qm 'data(IGP): preserve six original source games, guarded S1 shadow, and release Full160 multi-source event joins'
+          git push -q origin HEAD:refs/heads/research/igp-six-native-census-20261111
+          echo IGP_FULL160_PRIVATE_SOURCE_GRADED_RELEASE_SHA_COMMITTED
+      - name: Record guard scope
+        if: always()
+        run: |
+          echo 'Private-only licensed NBA XYZ, source graded 160-game FGA/companion/Blueprint/xFG, NBA PBP, optional videos. Guarded P2B is not an independently certified tracking release. Public output is aggregate counts. Free CPU only.' >> "$GITHUB_STEP_SUMMARY"
