@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/courtsketch-capture-0208-full160-handoff-20261112.yml",  # reviewed single free CPU Full160 0208 source B800+P2B guarded shadow, 551 PBP actions, all XYZ private 104 only
     ".github/workflows/courtsketch-0208-final-native-integration-20261112.yml",  # reviewed single free-CPU final source-preserved CourtSketch 0208 L0-L2 private 104 integration; no public licensed coords
     ".github/workflows/courtsketch-0208-private-archive-decode-20261112.yml",  # private archived CourtSketch data schema and coordinates: free CPU-only, private output only
     ".github/workflows/courtsketch-rockets-nuggets-0208-onepass-20261112.yml",  # reviewed one-pass public free CPU; raw CourtSketch tracking remains strictly private 104
