@@ -163,3 +163,70 @@ jobs:
             gh release upload "$tag" "$root/blueprint_report_raw.json" -R "$PRIVATE_REPO" --clobber >/dev/null
           fi
           echo FULL160_BLUEPRINT_0189_ORIGINAL_SOURCE_RECEIPT_PRIVATE
+
+  original-nba-positions-0189:
+    # Independent second source when CourtSketch capture has no native XYZ.
+    # Uses the previously licensed source programme, never bypasses authorization.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      NBA_GAME_ID: '0022600189'
+      NBA_TIPOFF_UTC: '2026-11-07T22:00:00Z'
+      IGP_SDK_SOURCE_VARIANT: positions
+      IGP_SDK_INIT_TIMEOUT_MS: '22000'
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-original-0189-position-probe
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify private original NBA SDK authorization and public confidentiality guard
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          test -n "${GH_TOKEN:-}"
+          mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
+      - name: Retrieve original authorized positions variant and grade only actual observation
+        run: |
+          set -euo pipefail
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/sdk-0189-probe.log" 2>&1 || true
+          test -s "$IGP_PRIVATE_CAPTURE_DIR/companion_probe_receipt.json"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          root=pathlib.Path(os.environ['IGP_PRIVATE_CAPTURE_DIR'])
+          receipt=json.loads((root/'companion_probe_receipt.json').read_bytes())
+          assert receipt['game_id']=='0022600189'
+          assert receipt['authentication_bypass_attempted'] is False
+          assert receipt['raw_29joint_pose_60hz_observed'] is False
+          assert receipt['app_program_variant']=='positions'
+          raw=root/'companion_original_sdk_response.json'
+          if raw.exists():
+              assert receipt['status']=='FULL_EVENT_RESPONSE_OBSERVED'
+              assert hashlib.sha256(raw.read_bytes()).hexdigest()==receipt['original_body_sha256']
+          print('FULL160_0189_SECOND_AUTHORIZED_ORIGINAL_SOURCE',
+              'status',receipt['status'],
+              'original_position_slot_200s',receipt.get('observed_200_slot_responses',0),
+              'original_shot_details',receipt.get('original_body_shot_details_count',0))
+          PY
+      - name: Preserve source-verified positions programme receipt and any observed original response privately
+        run: |
+          set -euo pipefail
+          tag="igp-full160-0189-original-nba-positions-20261112"
+          if ! gh release view "$tag" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release create "$tag" -R "$PRIVATE_REPO" --target "$PRIVATE_REF" \
+              --title 'Full160 0189 independent original NBA SDK positions source probe' \
+              --notes 'Separate authorized original positions source. Does not certify ten players or any coordinates absent from the feed.' >/dev/null
+          fi
+          gh release upload "$tag" "$IGP_PRIVATE_CAPTURE_DIR/companion_probe_receipt.json" \
+              -R "$PRIVATE_REPO" --clobber >/dev/null
+          if test -s "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json"; then
+            gh release upload "$tag" "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json" \
+              -R "$PRIVATE_REPO" --clobber >/dev/null
+          fi
+          echo FULL160_0189_ORIGINAL_NBA_SDK_POSITION_VARIANT_PRIVATE_SOURCE_GRADE_STORED
