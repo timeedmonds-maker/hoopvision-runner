@@ -257,22 +257,16 @@ jobs:
                   if isinstance(p,dict):
                       source_players=list(p.items())
                   else:
-                      source_players=[(entry[0],entry[1:]) for entry in p
-                                      if isinstance(entry,list) and len(entry)>=3]
-                  for player,axes in source_players:
-                      if not isinstance(axes,list) or len(axes)<2:
-                          counts["unsupported_player_record"]+=1
+                      source_players=[(entry[0],entry[1]) for entry in p
+                                      if isinstance(entry,list) and len(entry)==2]
+                  for player,series in source_players:
+                      if not isinstance(series,list) or len(series)!=n:
+                          counts["player_series_length_mismatch"]+=1
                           continue
-                      xs,ys=axes[:2]
-                      if not (isinstance(xs,list) and isinstance(ys,list) and
-                              len(xs)==n and len(ys)==n):
-                          counts["player_axis_length_mismatch"]+=1
-                          continue
-                      zcol=axes[2] if len(axes)>2 and isinstance(axes[2],list) and len(axes[2])==n else None
-                      unpacked.append((player,xs,ys,zcol))
+                      unpacked.append((player,series))
                       if isinstance(player,(int,str)):observed_actor_ids.add(str(player))
-                  good_ball=len(b)>=3 and all(isinstance(col,list) and len(col)==n for col in b[:3])
-                  if not good_ball:counts["ball_axis_length_mismatch"]+=1
+                  good_ball=len(b)==n
+                  if not good_ball:counts["ball_series_length_mismatch"]+=1
                   if not ok_time:counts["unrecognized_time_type"]+=1
                   if not ok_time or not unpacked:
                       counts["unusable_clip_payload"]+=1
@@ -282,13 +276,16 @@ jobs:
                       if isinstance(timecode,(int,float,str)):
                           unique_times.add(str(timecode))
                       actors=[]
-                      for player,xs,ys,zs in unpacked:
-                          x,y=xs[i],ys[i]
-                          if scal(x) and scal(y) and x is not None and y is not None:
-                              actors.append([player,x,y,zs[i] if zs is not None else None])
-                      ball=[col[i] for col in b] if good_ball else None
+                      for player,series in unpacked:
+                          sample=series[i]
+                          if isinstance(sample,list) and len(sample)>=2:
+                              x,y=sample[:2]
+                              if scal(x) and scal(y) and x is not None and y is not None:
+                                  actors.append([player,x,y,
+                                      sample[2] if len(sample)>=3 else None])
+                      ball=b[i] if good_ball and isinstance(b[i],list) else None
                       row={"source_sha256":src["sha256"],"time_native":timecode,
-                           "players_native_xy":actors,
+                           "players_native_xyz":actors,
                            "ball_native_columns":ball,
                            "source_frame_slot":i}
                       dst.write(json.dumps(row,separators=(",",":"),default=str)+"\n")
