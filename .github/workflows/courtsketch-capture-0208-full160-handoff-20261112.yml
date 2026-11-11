@@ -1,0 +1,223 @@
+# Public CPU-only orchestration. Licensed originals and model rows remain private 104.
+name: CourtSketch Capture 0208 Full160 original B800 P2B shadow 10Hz PBP integration
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/courtsketch-capture-0208-full160-handoff-20261112.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: courtsketch-capture-0208-full160-10hz-source-private-once
+  cancel-in-progress: false
+jobs:
+  full160:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GIT_TERMINAL_PROMPT: '0'
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+      SOURCE_TAG: courtsketch-original-0022600208-20261112
+      MODEL_TAG: courtsketch-full160-0022600208-10hz-v1
+      PROCESSOR_BLOB_SHA: 32631748457d8aa008675eb79b5fbebd67ce9dab
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce source secrecy and no paid infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          gh auth setup-git
+          echo COURTSKETCH_CAPTURE_FULL160_PRIVATE_BOUNDARY_VERIFIED
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Fetch Full160 original models and original official PBP without modifying originals
+        shell: bash
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/full160-private"
+          git clone -q --no-checkout --filter=blob:none --depth=1 \
+            -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$dest"
+          git -C "$dest" sparse-checkout init --no-cone
+          git -C "$dest" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600208.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600208/boxscore.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_fullx_v2/FULL154_a34448e3099c/shots/0022600208.jsonl.gz' \
+            '/gamepulse/third_party/courtsketch/0022600208/*.py' \
+            '/gamepulse/third_party/courtsketch/0022600208/*.json'
+          git -C "$dest" checkout -q "$PRIVATE_REF"
+          test "$(git -C "$dest" rev-parse HEAD)" != ""
+          script="gamepulse/third_party/courtsketch/0022600208/courtsketch_capture_full160_0208.py"
+          test "$(gh api "repos/$PRIVATE_REPO/contents/$script?ref=$PRIVATE_REF" --jq .sha)" = "$PROCESSOR_BLOB_SHA"
+          test -s "$dest/$script"
+          python3 -m py_compile "$dest/$script"
+          python3 "$dest/$script" --self-test
+          echo COURTSKETCH_CAPTURE_FULL160_PROCESSOR_BLOB_SHA_VERIFIED
+      - name: Download preserved original CourtSketch Capture L1 exactly once
+        shell: bash
+        run: |
+          set -euo pipefail
+          data="$RUNNER_TEMP/courtsketch-input"
+          mkdir -p "$data"
+          gh release download "$SOURCE_TAG" -R "$PRIVATE_REPO" \
+            --pattern 'courtsketch_0022600208_L1_unique_native_frames.jsonl.gz' \
+            --dir "$data" >/dev/null
+          test -s "$data/courtsketch_0022600208_L1_unique_native_frames.jsonl.gz"
+          test -s "$RUNNER_TEMP/full160-private/gamepulse/third_party/courtsketch/0022600208/final_source_qa_v1.json"
+          echo COURTSKETCH_CAPTURE_ORIGINAL_L1_PRIVATE_SOURCE_PRESENT
+      - name: Apply existing Full160 B800 and guarded P2B original-source models once
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$RUNNER_TEMP/full160-private"
+          script="$base/gamepulse/third_party/courtsketch/0022600208/courtsketch_capture_full160_0208.py"
+          data="$RUNNER_TEMP/courtsketch-input"
+          python3 "$script" --root "$base" \
+            --original "$data/courtsketch_0022600208_L1_unique_native_frames.jsonl.gz" \
+            --source-qa "$base/gamepulse/third_party/courtsketch/0022600208/final_source_qa_v1.json" \
+            --output "$RUNNER_TEMP/courtsketch-full160-output"
+          python3 - <<'PY'
+          import os,json,pathlib,hashlib
+          d=pathlib.Path(os.environ['RUNNER_TEMP'])/'courtsketch-full160-output'
+          qa=json.loads((d/'courtsketch_capture_0208_full160_qa.json').read_text())
+          ix=json.loads((d/'courtsketch_capture_0208_full160_index.json').read_text())
+          c=qa['full160_reconstruction_counts']
+          assert qa['source_conservation']['original_native_timestamps']==19880
+          assert qa['source_conservation']['original_source_actor_xyz']==194071
+          assert qa['source_conservation']['original_source_ball_xyz']==19694
+          assert c['S1_pbp_clock_running_10hz_samples']==19126
+          assert c['B_800ms_complete_ten_ball']>=c['original_official_ten_source_proxy_exact_ten_ball']
+          assert c['P2B_1200ms_guarded_shadow_complete_ten_ball']>=c['B_800ms_complete_ten_ball']
+          assert qa['official_event_index']['official_PBP_actions']==551
+          assert qa['official_event_index']['official_FGA']==174
+          assert qa['mask_source_holdout']['sampled_full_native_scene_holdouts']>=20
+          assert qa['source_original_5hz_untouched'] and not qa['P2B_production_promoted']
+          assert ix['official_PBP_event_count']==551 and ix['original_game_FGA']==174
+          for name,v in qa['files'].items():
+              assert hashlib.sha256((d/name).read_bytes()).hexdigest()==v['sha256']
+          print('COURTSKETCH_CAPTURE_FULL160_PRIVATE_TESTED',
+                'S1_10Hz',c['S1_pbp_clock_running_10hz_samples'],
+                'source_exact',c['original_official_ten_source_proxy_exact_ten_ball'],
+                'B_complete',c['B_800ms_complete_ten_ball'],
+                'P2B_shadow_complete',c['P2B_1200ms_guarded_shadow_complete_ten_ball'],
+                'PBP',qa['official_event_index']['official_PBP_actions'],
+                'FGA',qa['official_event_index']['official_FGA'])
+          PY
+      - name: Materialize queryable 10Hz and PBP Parquet tables on CPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --only-binary=:all: pyarrow==20.0.0
+          python3 - <<'PY'
+          import os,gzip,json,hashlib,pathlib
+          import pyarrow as pa
+          import pyarrow.parquet as pq
+          d=pathlib.Path(os.environ['RUNNER_TEMP'])/'courtsketch-full160-output'
+          stem='courtsketch_capture_0208_full160'
+          outputs={}
+          for kind,name in (('tracking',stem+'_s1_10hz_baseline_and_P2B_shadow.jsonl.gz'),
+                            ('pbp',stem+'_official_551_event_index.jsonl.gz')):
+              with gzip.open(d/name,'rt',encoding='utf-8') as f:
+                  rows=[json.loads(line) for line in f]
+              if kind=='tracking':
+                  tab=pa.table({
+                    'game_id':pa.array([r['game_id'] for r in rows],type=pa.string()),
+                    'utc_ms':pa.array([r['utc_ms'] for r in rows],type=pa.int64()),
+                    'period':pa.array([r['official_period'] for r in rows],type=pa.int8()),
+                    'source_timestamp_exact':pa.array([r['original_timestamp_exact'] for r in rows],type=pa.bool_()),
+                    'original_ten_plus_ball':pa.array([r['original_10player_ball_official_proxy_exact'] for r in rows],type=pa.bool_()),
+                    'B_complete_ten_plus_ball':pa.array([r['B_800ms_complete_ten_ball'] for r in rows],type=pa.bool_()),
+                    'P2B_shadow_complete_ten_plus_ball':pa.array([r['P2B_1200ms_shadow_complete_ten_ball'] for r in rows],type=pa.bool_()),
+                    'players_B800_json':pa.array([json.dumps(r['players_by_official_id_B800'],separators=(',',':')) for r in rows],type=pa.string()),
+                    'ball_B800_json':pa.array([json.dumps(r['ball_B800'],separators=(',',':')) for r in rows],type=pa.string()),
+                    'players_P2B_shadow_json':pa.array([json.dumps(r['players_by_official_id_P2B_shadow'],separators=(',',':')) for r in rows],type=pa.string()),
+                    'ball_P2B_shadow_json':pa.array([json.dumps(r['ball_P2B_shadow'],separators=(',',':')) for r in rows],type=pa.string()),
+                    'provenance_json':pa.array([json.dumps({'source':r['source_layer'],'capture_sha':r['source_capture_sha256'],
+                        'official_ten_pbp_proxy':r['official_ten_pbp_proxy'],'added_p2b_ids':r['P2B_additional_inferred_actor_ids']},
+                        separators=(',',':')) for r in rows],type=pa.string())})
+              else:
+                  tab=pa.table({
+                    'game_id':pa.array([r['game_id'] for r in rows],type=pa.string()),
+                    'official_action_number':pa.array([r['official_action_number'] for r in rows],type=pa.int32()),
+                    'official_utc_ms':pa.array([r['official_utc_ms'] for r in rows],type=pa.int64()),
+                    'period':pa.array([r['official_period'] for r in rows],type=pa.int8()),
+                    'action_type':pa.array([r['action_type'] for r in rows],type=pa.string()),
+                    'source_native_nearest_json':pa.array([json.dumps(r['original_native_source_nearest'],separators=(',',':')) for r in rows],type=pa.string()),
+                    'model_10hz_nearest_json':pa.array([json.dumps(r['full160_10hz_nearest'],separators=(',',':')) for r in rows],type=pa.string()),
+                    'shot_full160_json':pa.array([json.dumps(r.get('official_fga_with_full160_tracking'),separators=(',',':')) for r in rows],type=pa.string()),
+                    'physical_possession_boundary_certified':pa.array([False for _ in rows],type=pa.bool_())})
+              path=d/(stem+'_'+kind+'.parquet')
+              pq.write_table(tab,path,compression='zstd',version='2.6',row_group_size=3000)
+              outputs[path.name]={'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),
+                                  'bytes':path.stat().st_size,'rows':tab.num_rows,
+                                  'columns':tab.column_names}
+          (d/(stem+'_parquet_manifest.json')).write_text(json.dumps(outputs,indent=2,sort_keys=True)+'\n')
+          assert outputs[stem+'_tracking.parquet']['rows']==19126
+          assert outputs[stem+'_pbp.parquet']['rows']==551
+          print('COURTSKETCH_CAPTURE_FULL160_PRIVATE_PARQUET_19126_551_PASS')
+          PY
+      - name: Preserve derived research models and all SHA outputs in private 104 Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view "$MODEL_TAG" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release create "$MODEL_TAG" -R "$PRIVATE_REPO" --target "$PRIVATE_REF" \
+              --title 'CourtSketch Capture 0208 — Full160 B800 10 Hz and guarded P2B shadow' \
+              --notes 'Original captured 5Hz retained in separate immutable source release. B and P2B are source-anchored models; P2B is research-only, not physical truth.' >/dev/null
+          fi
+          out="$RUNNER_TEMP/courtsketch-full160-output"
+          gh release upload "$MODEL_TAG" -R "$PRIVATE_REPO" \
+            "$out/courtsketch_capture_0208_full160_s1_10hz_baseline_and_P2B_shadow.jsonl.gz" \
+            "$out/courtsketch_capture_0208_full160_official_551_event_index.jsonl.gz" \
+            "$out/courtsketch_capture_0208_full160_qa.json" \
+            "$out/courtsketch_capture_0208_full160_index.json" \
+            "$out/courtsketch_capture_0208_full160_tracking.parquet" \
+            "$out/courtsketch_capture_0208_full160_pbp.parquet" \
+            "$out/courtsketch_capture_0208_full160_parquet_manifest.json" \
+            --clobber >/dev/null
+          echo COURTSKETCH_CAPTURE_PRIVATE_104_FULL160_DATASET_RELEASE_SAVED
+      - name: Register additive Full160 overlay index without changing frozen 160-game shot ledger
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,base64,hashlib,pathlib,subprocess,time
+          d=pathlib.Path(os.environ['RUNNER_TEMP'])/'courtsketch-full160-output'
+          repo=os.environ['PRIVATE_REPO'];branch=os.environ['PRIVATE_REF']
+          pairs=[
+            ('courtsketch_capture_0208_full160_qa.json','gamepulse/third_party/courtsketch/0022600208/full160_10hz_qa_v1.json'),
+            ('courtsketch_capture_0208_full160_index.json','gamepulse/third_party/courtsketch/0022600208/full160_10hz_index_v1.json'),
+            ('courtsketch_capture_0208_full160_parquet_manifest.json','gamepulse/third_party/courtsketch/0022600208/full160_10hz_parquet_manifest_v1.json')]
+          for src,dst in pairs:
+            raw=(d/src).read_bytes()
+            endpoint='repos/'+repo+'/contents/'+dst
+            for attempt in range(8):
+              info=subprocess.run(['gh','api',endpoint+'?ref='+branch],capture_output=True,text=True)
+              packet={'branch':branch,'message':'data(igp): CourtSketch Capture exact 0208 Full160 B and shadow P2B 10Hz overlay, original source preserved',
+                      'content':base64.b64encode(raw).decode()}
+              if info.returncode==0:packet['sha']=json.loads(info.stdout)['sha']
+              result=subprocess.run(['gh','api','-X','PUT',endpoint,'--input','-'],
+                                    input=json.dumps(packet),capture_output=True,text=True)
+              if result.returncode==0:break
+              time.sleep(attempt+1)
+            else:raise RuntimeError('COURTSKETCH_CAPTURE_PRIVATE_INDEX_WRITE_FAILED')
+            after=json.loads(subprocess.check_output(['gh','api',endpoint+'?ref='+branch],text=True))
+            assert base64.b64decode(after['content'])==raw,'PRIVATE_INDEX_CONTENT_READBACK_MISMATCH'
+          q=json.loads((d/pairs[0][0]).read_text())
+          c=q['full160_reconstruction_counts']
+          print('COURTSKETCH_CAPTURE_FULL160_PRIVATE_ACCEPTED',
+                'native',q['source_conservation']['original_native_timestamps'],
+                '10hz',c['S1_pbp_clock_running_10hz_samples'],
+                'B_complete',c['B_800ms_complete_ten_ball'],
+                'P2B_shadow_complete',c['P2B_1200ms_guarded_shadow_complete_ten_ball'],
+                'official_pbp_events',q['official_event_index']['official_PBP_actions'],
+                'official_fga',q['official_event_index']['official_FGA'])
+          PY
