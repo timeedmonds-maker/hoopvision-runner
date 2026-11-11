@@ -1,0 +1,175 @@
+# Public CPU orchestration only; original NBA XYZ, companion biomechanics, Blueprint and Gravity remain PRIVATE in 104.
+name: Integrated Pulse FULL160 multi-modal default source SHA acceptance
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full160-default-multimodal-source-acceptance-20261112.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full160-multimodal-default-onepass-20261112
+  cancel-in-progress: false
+jobs:
+  full160-default:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+      RELEASE: igp-full160-multimodal-original-source-default-20261112
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce source confinement to private GitHub and no paid GPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          echo FULL160_160GAME_PRIVATE_CPU_SOURCE_GATE_PASS
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Read only the exact source-preserved Full160 shot, biomechanics, xFG, Gravity and tracking records
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="$RUNNER_TEMP/full160-private"
+          git clone -q --no-checkout --filter=blob:none --depth=1 \
+              -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$DIR"
+          git -C "$DIR" sparse-checkout init --no-cone
+          git -C "$DIR" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_full160_source_default_v1.py' \
+            '/gamepulse/fusion/igp_full121_source_default_v1.py' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_fullx_v2/**' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_*/sdk_observed_original.json' \
+            '/data/extensions/nba_blueprint_2026_27/games/*/blueprint_report_raw.json' \
+            '/data/extensions/nba_gravity_2026_27/nba_gravity_2026_27_player_game_unified_source_verified_20261111_v2.csv' \
+            '/gamepulse/third_party/courtsketch/*/full160_10hz_qa_v1.json' \
+            '/gamepulse/third_party/courtsketch/*/full160_10hz_index_v1.json'
+          git -C "$DIR" checkout -q "$PRIVATE_REF"
+          test -s "$DIR/gamepulse/fusion/igp_full160_source_default_v1.py"
+          test -s "$DIR/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json"
+          test -s "$DIR/data/extensions/nba_gravity_2026_27/nba_gravity_2026_27_player_game_unified_source_verified_20261111_v2.csv"
+          python3 -m py_compile "$DIR/gamepulse/fusion/igp_full160_source_default_v1.py"
+          python3 "$DIR/gamepulse/fusion/igp_full160_source_default_v1.py" --self-test
+          python3 - <<'PY'
+          import os,sys,pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'full160-private'
+          sys.path.insert(0,str(root/'gamepulse/fusion'))
+          import igp_full160_source_default_v1 as m
+          x=m.load_release(root)
+          assert x['default_database']=='FULL160'
+          assert len(x['games'])==160
+          assert x['counts']['official_fga']==28147
+          assert x['counts']['official_actions']==96113
+          assert x['source_original_XYZ_games']>=159
+          assert x['original_companion_games']>=156
+          assert x['original_blueprint_games']>=159
+          assert x['gravity_provider_games']>=85
+          assert len(x['courtsketch_10hz_games'])>=7
+          print('FULL160_160GAME_SOURCE_DEFAULT_SHA_AND_SEVEN_COURTSKETCH_GATES_PASS',
+                'indexed',len(x['games']),'original_native_games',x['source_original_XYZ_games'],
+                'companion',x['original_companion_games'],'blueprint',x['original_blueprint_games'],
+                'gravity_provider',x['gravity_provider_games'],
+                'courtSketch_models',len(x['courtsketch_10hz_games']))
+          PY
+      - name: Validate full 160-game SHA original source and materialize exact official FGA xFG biomechanics Gravity joins
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="$RUNNER_TEMP/full160-private"
+          OUT="$RUNNER_TEMP/full160-released"
+          python3 "$DIR/gamepulse/fusion/igp_full160_source_default_v1.py" \
+             --root "$DIR" --build --out "$OUT"
+          python3 - <<'PY'
+          import pathlib,os,json,hashlib,gzip
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'full160-released'
+          q=json.loads((out/'qa.json').read_bytes())
+          idx=json.loads((out/'index.json').read_bytes())
+          assert q['default_database']==idx['default_database']=='FULL160'
+          assert q['game_count']==len(idx['games'])==160
+          assert q['counts']['official_FGA']==28147
+          assert q['counts']['official_actions']==96113
+          assert q['features_rows']==28147
+          assert q['counts']['published_xfg']>23000
+          assert q['counts']['source_30feature_biomechanics']>23000
+          assert q['counts']['defensiveInfo']>23000
+          assert q['counts']['published_Gravity_spotlight_games']>=159
+          assert q['counts']['published_gravity_qualified_player_game_rows']>=1464
+          assert q['full_source_coverage_certified'] is False
+          assert q['physical_possession_boundaries_certified'] is False
+          assert q['B800_reconstruction_is_not_original_source']
+          assert q['P2B_shadow_is_not_production']
+          assert hashlib.sha256((out/'index.json').read_bytes()).hexdigest()==q['index_sha256']
+          assert hashlib.sha256((out/q['features_file']).read_bytes()).hexdigest()==q['features_sha256']
+          with gzip.open(out/q['features_file'],'rt') as f:
+              seen={};n=0
+              for line in f:
+                  x=json.loads(line);n+=1
+                  gid=x['game_id']; aid=x['official_action_number']
+                  assert isinstance(aid,int) and gid in idx['games']
+                  assert aid not in seen.setdefault(gid,set()),'DUPLICATE_OFFICIAL_FGA'
+                  seen[gid].add(aid)
+              assert n==28147
+          print('FULL160_DEFAULT_ACTUAL_28147_FGA_xFG_BIOMECHANICS_GRAVITY_SOURCE_SHA_ACCEPTED',
+                json.dumps({k:q['counts'][k] for k in
+                  ['source_companion_exact','source_blueprint_exact','published_xfg',
+                   'source_30feature_biomechanics','defensiveInfo','release_info',
+                   'published_Gravity_spotlight_games',
+                   'published_gravity_qualified_player_game_rows']},sort_keys=True))
+          PY
+      - name: Publish source-preserved Full160 indexes and detailed shot observations in private GitHub release
+        shell: bash
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/full160-released"
+          if ! gh release view "$RELEASE" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release create "$RELEASE" -R "$PRIVATE_REPO" --target "$PRIVATE_REF" \
+               --title "Full160 unified source-grade PBP, xFG, biomechanics, Gravity and tracking default" \
+               --notes "Every official FGA retained. Published original xFG, biomech and gravity only; unknowns explicit null. Original XYZ SHA-conserved. B/P2B separately graded; no unverified physical custody." >/dev/null
+          fi
+          gh release upload "$RELEASE" "$out/index.json" "$out/qa.json" \
+            "$out/full160_original_official_shots_advanced_features_xfg_gravity_v1.jsonl.gz" \
+             -R "$PRIVATE_REPO" --clobber >/dev/null
+          echo FULL160_SOURCE_GRADED_MULTIMODAL_PRIVATE_RELEASE_SAVED
+      - name: Commit Full160 audited source manifest and acceptance to private canonical branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,pathlib,subprocess,base64,json,time,hashlib
+          repo=os.environ['PRIVATE_REPO'];ref=os.environ['PRIVATE_REF']
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'full160-released'
+          pairs=[
+            ('qa.json','gamepulse/fusion/qa/igp_fullx/full160_default_multimodal_source_acceptance_v1.json'),
+            ('index.json','gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/index.json')]
+          for src,dest in pairs:
+            data=(root/src).read_bytes();api='repos/'+repo+'/contents/'+dest
+            for attempt in range(8):
+              put={'branch':ref,
+                   'message':'data(igp): source-graded Full160 accepted all-source cohort, published xFG biomechanics and Gravity',
+                   'content':base64.b64encode(data).decode()}
+              existing=subprocess.run(['gh','api',api+'?ref='+ref],capture_output=True,text=True)
+              if existing.returncode==0:put['sha']=json.loads(existing.stdout)['sha']
+              r=subprocess.run(['gh','api','-X','PUT',api,'--input','-'],
+                 input=json.dumps(put),text=True,capture_output=True)
+              if r.returncode==0:break
+              time.sleep(attempt+1)
+            else:raise RuntimeError('FULL160_SOURCE_DEFAULT_PRIVATE_COMMIT_FAILED')
+            chk=json.loads(subprocess.check_output(['gh','api',api+'?ref='+ref],text=True))
+            assert base64.b64decode(chk['content'])==data
+          qa=json.loads((root/'qa.json').read_bytes())
+          print('FULL160_PRIVATE_DEFAULT_MULTIMODAL_SOURCE_RECEIPTS_SHA_VERIFIED',
+                'games',qa['game_count'],'official_fga',qa['features_rows'],
+                'companion',qa['counts']['source_companion_exact'],
+                'xfg',qa['counts']['published_xfg'],
+                'biomechanics',qa['counts']['source_30feature_biomechanics'],
+                'gravity_games',qa['counts']['published_Gravity_spotlight_games'])
+          PY
