@@ -95,6 +95,10 @@ jobs:
           cd "$D"
           git add --sparse -f gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/matchup_zone_source_v1
           git diff --cached --check >/dev/null
+          if git diff --cached --quiet; then
+            echo FULL160_MATCHUP_ZONE_ALREADY_COMMITTED_NO_REWRITE
+            exit 0
+          fi
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git commit -q -m 'data(full160): 32448 direct matchup pairs, 53 games source-verified zone deltas'
@@ -112,7 +116,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          D="$RUNNER_TEMP/full160-matchup-zone-private/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/matchup_zone_source_v1"
+          P="$RUNNER_TEMP/full160-matchup-zone-private"
+          for F in full160_official_defender_offender_matchups_20261112_v1.csv.gz full160_official_zone_team_game_deltas_20261112_v1.jsonl full160_matchup_zone_game_coverage_20261112_v1.json full160_matchup_zone_20261112_v1_qa.json; do
+            git -C "$P" show "HEAD:gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/matchup_zone_source_v1/$F" > "$RUNNER_TEMP/$F"
+            test -s "$RUNNER_TEMP/$F"
+          done
+          D="$RUNNER_TEMP"
           if gh release view "$RELEASE" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
             echo FULL160_MATCHUP_ZONE_RELEASE_ALREADY_EXISTS
           else
