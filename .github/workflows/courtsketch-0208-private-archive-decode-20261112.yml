@@ -92,7 +92,7 @@ jobs:
                             "z":d.get("z",d.get("Z",d.get("posZ"))),
                             "id":idval,"team":team,"time":tm,"period":period,
                             "candidate_only":True}
-                      out.write(json.dumps(item,separators=(",",":"),default=str)+"\\n")
+                      out.write(json.dumps(item,separators=(",",":"),default=str)+"\n")
                       candidate_counts["xy_objects"]+=1
                       if idval is not None:candidate_counts["xy_objects_with_id"]+=1
                       if tm is not None:candidate_counts["xy_objects_with_time_context"]+=1
@@ -172,7 +172,7 @@ jobs:
                 "explicit_notice":"Coordinate rows are unvalidated candidates. Do not promote as original official 10+ball or claim full-game coverage without temporal/identity validation.",
                 "source_retrieval_repeated":False}
               (wd/"courtsketch-0022600208-decode-qa.json").write_text(
-                  json.dumps(report,indent=2,sort_keys=True)+"\\n")
+                  json.dumps(report,indent=2,sort_keys=True)+"\n")
               print("COURTSKETCH_ARCHIVE_SHA_MATCH",original_response_sha)
               print("COURTSKETCH_CANDIDATE_XY",candidate_counts["xy_objects"],
                     "WITH_ID",candidate_counts["xy_objects_with_id"],
