@@ -12,10 +12,12 @@ export function activeGames(schedule,now=Date.now()){
   const start=Date.parse(g.gameDateTimeUTC||'');
   const status=Number(g.gameStatus);
   if(!Number.isSafeInteger(start)||![1,2,3].includes(status))continue;
+  // Prearm Whistle Capture 25 minutes before tipoff to tolerate GitHub schedule
+  // delay and give each game an independent official FINAL watcher.
   // Arm the existing licensed feed shortly BEFORE official tipoff, including
   // games whose published status has not advanced to in-progress.
   // Keep recently final games eligible; originals are never reconstructed.
-  if(now<start-8*60000||now>start+6*3600000)continue;
+  if(now<start-25*60000||now>start+6*3600000)continue;
   games.set(id,{id,tipoff:new Date(start).toISOString()});
  }
  const selected=[...games.values()].sort((a,b)=>a.tipoff.localeCompare(b.tipoff));
