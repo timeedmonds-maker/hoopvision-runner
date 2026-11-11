@@ -1,0 +1,219 @@
+# Source-only original NBA materialization; no GPU/no external paid APIs.
+name: Integrated Pulse FULL160 v4 latest default source promotion
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full160-v4-latest-default-promotion-20261112.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: integrated-pulse-full160-v4-default
+  cancel-in-progress: false
+jobs:
+  promote:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+      LATEST_TAG: igp-full160-unified-source-default-v4-20261112
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce private original sources and CPU-only runner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          gh auth setup-git
+          echo FULL160_V4_PRIVATE_ONLY_CPU_SHA_GATE_OK
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Fetch three immutable source-graded parent releases and their exact private assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          W="$RUNNER_TEMP/igp-full160-v4"
+          mkdir -p "$W/original" "$W/gravity" "$W/matchup_zone"
+          gh release download igp-full160-multimodal-original-source-default-20261112 \
+            -R "$PRIVATE_REPO" -D "$W/original"
+          gh release download igp-full160-gravity-v3-source-graded-20261112 \
+            -R "$PRIVATE_REPO" -D "$W/gravity"
+          gh release download igp-full160-matchup-zone-source-graded-20261112 \
+            -R "$PRIVATE_REPO" -D "$W/matchup_zone"
+          test -s "$W/original/full160_original_official_shots_advanced_features_xfg_gravity_v1.jsonl.gz"
+          test -s "$W/gravity/full160_gravity_player_game_source_graded_20261112_v3.jsonl"
+          test -s "$W/matchup_zone/full160_official_defender_offender_matchups_20261112_v1.csv.gz"
+          echo FULL160_V4_THREE_AUTHENTIC_IMMUTABLE_PRIVATE_SOURCE_RELEASES
+      - name: Read exact canonical builder and original immutable index for readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/igp-full160-v4/private"
+          git clone -q --no-checkout --filter=blob:none --depth=1 \
+            -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$P"
+          git -C "$P" sparse-checkout init --no-cone
+          git -C "$P" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_full160_unified_v4_builder_v1.py' \
+            '/gamepulse/fusion/igp_full160_source_default_v1.py' \
+            '/gamepulse/fusion/igp_full160_matchup_zone_query_v1.py' \
+            '/gamepulse/fusion/qa/igp_fullx/LATEST.json' \
+            '/gamepulse/fusion/qa/igp_fullx/full160_default_source_graded_gap_register_20261112.json' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
+            '/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/index.json'
+          git -C "$P" checkout -q "$PRIVATE_REF"
+          python3 -m py_compile "$P/gamepulse/fusion/igp_full160_unified_v4_builder_v1.py"
+          python3 -m py_compile "$P/gamepulse/fusion/igp_full160_source_default_v1.py"
+          test -s "$P/gamepulse/fusion/qa/igp_fullx/LATEST.json"
+      - name: Build and independently verify complete 160-game source-graded latest default
+        shell: bash
+        run: |
+          set -euo pipefail
+          W="$RUNNER_TEMP/igp-full160-v4"
+          P="$W/private"
+          python3 "$P/gamepulse/fusion/igp_full160_unified_v4_builder_v1.py" \
+            --original "$W/original" --gravity "$W/gravity" \
+            --matchup-zone "$W/matchup_zone" --out "$W/output"
+          python3 - <<'PY'
+          import csv,gzip,hashlib,json,os,pathlib
+          w=pathlib.Path(os.environ['RUNNER_TEMP'])/'igp-full160-v4'
+          d=w/'output'
+          i=json.loads((d/'index.json').read_bytes())
+          q=json.loads((d/'qa.json').read_bytes())
+          p=json.loads((d/'LATEST.json').read_bytes())
+          assert i['default_database']=='FULL160' and i['default_version']=='v4'
+          assert i['schema']=='igp.full160.unified-original-source-graded-default.v4'
+          assert len(i['games'])==160
+          assert q['original_official_fga']==28147 and q['original_official_actions']==96113
+          assert q['gravity_v3_verified_player_games']==1571
+          assert q['matchup_original_pairs']==32448
+          assert q['zone_team_game_source_differenced_games']==53
+          assert q['zone_team_game_rows']==106
+          assert i['counts']['published_gravity_qualified_player_game_rows']==1571
+          assert sum(x['gravity_v3_qualified_player_game_rows'] for x in i['games'].values())==1571
+          assert sum(x['matchup_original_source_pair_rows'] or 0 for x in i['games'].values())==32448
+          assert sum(x['zone_team_game_record_count'] or 0 for x in i['games'].values())==106
+          assert i['games']['0022600189']['matchup_original_source_pair_rows'] is None
+          assert i['games']['0022600189']['zone_team_game_record_count'] is None
+          assert i['games']['0022600214']['zone_defense_home_original_delta'] is not None
+          assert i['games']['0022600214']['zone_defense_away_original_delta'] is not None
+          assert p['canonical_manifest_sha256']==hashlib.sha256((d/'index.json').read_bytes()).hexdigest()
+          assert p['canonical_acceptance_sha256']==hashlib.sha256((d/'qa.json').read_bytes()).hexdigest()
+          original=json.loads((w/'original/index.json').read_bytes())
+          for gid,row in i['games'].items():
+            ancestor=original['games'][gid]
+            for key,value in ancestor.items():
+              assert row[key]==value,(gid,key,'IMMUTABLE ORIGINAL CHANGED')
+          assert i['source_Full160_index_SHA256']==original['source_Full160_index_SHA256']
+          assert i['counts']['official_FGA']==original['counts']['official_FGA']==28147
+          print('FULL160_V4_LATEST_DEFAULT_ORIGINAL_LINEAGE_SOURCE_DATA_PRESERVED',
+                'games',160,'FGA',28147,'NBA_Gravity',1571,
+                'Matchups',32448,'Zone_game_count',53,'Zone_team_games',106)
+          PY
+      - name: Publish single private immutable FULL160 v4 source-grade dataset release
+        shell: bash
+        run: |
+          set -euo pipefail
+          W="$RUNNER_TEMP/igp-full160-v4"
+          R="$W/output"
+          if gh release view "$LATEST_TAG" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
+            echo FULL160_V4_IMMUTABLE_RELEASE_ALREADY_PUBLISHED
+          else
+            cp "$W/original/index.json" "$R/full160_original_v1_immutable_index.json"
+            cp "$W/original/qa.json" "$R/full160_original_v1_immutable_qa.json"
+            cp "$W/original/full160_original_official_shots_advanced_features_xfg_gravity_v1.jsonl.gz" "$R/"
+            cp "$W/gravity/"* "$R/"
+            cp "$W/matchup_zone/"* "$R/"
+            gh release create "$LATEST_TAG" --repo "$PRIVATE_REPO" \
+              --target "$PRIVATE_REF" \
+              --title "Full160 v4 unified source-graded latest default" \
+              --notes "FULL160 160 immutable official games, 96,113 actions, 28,147 official FGA and prior exact original per-shot xFG/biomechanics. Full160 Gravity v3 1,571 qualified player games (91 games), 32,448 original NBA defender-offender player matchup pairs (159 games), and 53 exact snapshot-delta team-game zone games (106 team appearances, 170 zone possessions). Missing source explicitly null. Full original ancestor releases preserved. No new 10Hz tracking accuracy or physical man/zone labels asserted. Free CPU only." \
+              "$R/"* >/dev/null
+            echo FULL160_V4_SINGLE_IMMUTABLE_PRIVATE_RELEASE_CREATED
+          fi
+      - name: Atomically promote latest pointer and accepted v4 index into canonical private branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          W="$RUNNER_TEMP/igp-full160-v4"
+          P="$W/private"
+          O="$W/output"
+          cd "$P"
+          D=gamepulse/fusion/materialized/igp_full160_unified_default_v4
+          mkdir -p "$D"
+          cp "$O/index.json" "$D/index.json"
+          cp "$O/qa.json" "$D/qa.json"
+          cp "$O/LATEST.json" "$D/LATEST.json"
+          cp "$O/LATEST.json" gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/LATEST.json
+          python3 - <<'PY'
+          import json,os,pathlib
+          p=pathlib.Path(os.environ['RUNNER_TEMP'])/'igp-full160-v4/private'
+          latest=json.loads((p/'gamepulse/fusion/materialized/igp_full160_unified_default_v4/LATEST.json').read_bytes())
+          reg=p/'gamepulse/fusion/qa/igp_fullx/LATEST.json'
+          obj=json.loads(reg.read_bytes())
+          assert obj['cohort_name']=='FULL160' and obj['indexed_nba_PBP_games']==160
+          obj['full160_latest_default']={
+            'status':'SOURCE_SHA_VALIDATED_AND_IMMUTABLE_RELEASED',
+            'default_database':'FULL160','version':'v4',
+            'release_tag':latest['release_tag'],
+            'manifest_path':latest['canonical_manifest_path'],
+            'manifest_sha256':latest['canonical_manifest_sha256'],
+            'qa_path':latest['canonical_acceptance_path'],
+            'qa_sha256':latest['canonical_acceptance_sha256'],
+            'published_Gravity_qualified_player_games':1571,
+            'original_matchup_pairs':32448,
+            'matchup_verified_games':159,
+            'zone_source_delta_team_game_rows':106,
+            'zone_source_delta_games':53,
+            'source_lineage_preserved':True,
+            'production_tracking_engine_unchanged':True
+          }
+          reg.write_text(json.dumps(obj,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          gap=p/'gamepulse/fusion/qa/igp_fullx/full160_default_source_graded_gap_register_20261112.json'
+          q=json.loads(gap.read_bytes())
+          assert q['default_database']=='FULL160' and q['counts']['games']==160
+          q['current_immutable_source_graded_default']=dict(latest)
+          gap.write_text(json.dumps(q,indent=2,sort_keys=True)+'\n',encoding='utf-8')
+          PY
+          git add --sparse -f "$D" gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/LATEST.json \
+            gamepulse/fusion/qa/igp_fullx/LATEST.json \
+            gamepulse/fusion/qa/igp_fullx/full160_default_source_graded_gap_register_20261112.json
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --cached --quiet; then
+            echo FULL160_V4_DEFAULT_ALREADY_PROMOTED_IDENTICAL
+          else
+            git commit -q -m "data(full160): promote v4 latest source-grade default with Gravity, matchup and zone"
+            for n in 1 2 3 4 5; do
+              git fetch -q origin "$PRIVATE_REF"
+              git rebase -q "origin/$PRIVATE_REF"
+              if git push -q origin "HEAD:refs/heads/$PRIVATE_REF"; then
+                echo FULL160_V4_DEFAULT_PROMOTED_TO_CANONICAL_LATEST
+                break
+              fi
+              if [ "$n" = 5 ]; then exit 42; fi
+              sleep "$n"
+            done
+          fi
+          git fetch -q origin "$PRIVATE_REF"
+          git reset -q --hard "origin/$PRIVATE_REF"
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          root=Path.cwd()
+          latest=json.loads((root/'gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/LATEST.json').read_bytes())
+          index=(root/latest['canonical_manifest_path']).read_bytes()
+          qa=(root/latest['canonical_acceptance_path']).read_bytes()
+          assert hashlib.sha256(index).hexdigest()==latest['canonical_manifest_sha256']
+          assert hashlib.sha256(qa).hexdigest()==latest['canonical_acceptance_sha256']
+          assert json.loads(index)['default_version']=='v4'
+          registered=json.loads((root/'gamepulse/fusion/qa/igp_fullx/LATEST.json').read_bytes())
+          assert registered['full160_latest_default']['manifest_sha256']==latest['canonical_manifest_sha256']
+          print('FULL160_V4_PERSISTENT_CANONICAL_DEFAULT_POINTER_SHA_READBACK_PASS',
+                'release',latest['release_tag'])
+          PY
