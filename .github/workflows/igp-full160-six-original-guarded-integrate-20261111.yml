@@ -1,4 +1,4 @@
-# Reviewed read-only public CPU worker. All licensed original XYZ and derived rows
+# Reviewed and explicitly allowlisted public CPU worker. All licensed original XYZ and derived rows
 # remain in private 104. No GPU, external paid compute, or fresh SDK acquisitions.
 name: IGP Full160 six-game original P2B plus companion Blueprint source release CPU
 on:
