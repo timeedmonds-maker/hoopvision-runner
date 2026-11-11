@@ -1,0 +1,175 @@
+# Public orchestration only: CourtSketch original source and detailed QA stay private 104.
+name: CourtSketch 0208 one-pass source-native L0-L2 final integration
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/courtsketch-0208-final-native-integration-20261112.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: courtsketch-0208-final-native-once-20261112
+  cancel-in-progress: false
+jobs:
+  integrate-final:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+      SOURCE_TAG: courtsketch-original-0022600208-20261112
+      SCRIPT_SHA256: c692e8938b1cd98411b1e1e73f631457409934e55b774a31c71b73df6931f602
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Protect confidential licensed source and validate free CPU-only target
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          echo PRIVATE_104_SOURCE_BOUNDARY_VERIFIED
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install deterministic CPU-only Parquet backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet --only-binary=:all: pyarrow==20.0.0
+          python -c 'import pyarrow; assert pyarrow.__version__ == "20.0.0"'
+          echo CPU_ONLY_PARQUET_RUNTIME_READY
+      - name: Fetch once from preserved SHA originals and official NBA PBP
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/0208-original"
+          mkdir -p "$SRC" "$SRC/output"
+          gh release download "$SOURCE_TAG" --repo "$PRIVATE_REPO" \
+            --pattern 'courtsketch-0022600208-original-browser-payloads.tar.gz' \
+            --dir "$SRC" >/dev/null
+          gh api "repos/$PRIVATE_REPO/contents/gamepulse/third_party/courtsketch/0022600208/manifest_20261112.json?ref=$PRIVATE_REF" \
+            --jq .content | base64 -d > "$SRC/capture_manifest.json"
+          gh api "repos/$PRIVATE_REPO/contents/gamepulse/fusion/official_pbp_timing/games/0022600208.json?ref=$PRIVATE_REF" \
+            --jq .content | base64 -d > "$SRC/official_pbp.json"
+          gh api "repos/$PRIVATE_REPO/contents/gamepulse/third_party/courtsketch/0022600208/finalize_20261112.py?ref=$PRIVATE_REF" \
+            --jq .content | base64 -d > "$SRC/finalize_20261112.py"
+          echo "$SCRIPT_SHA256  $SRC/finalize_20261112.py" | sha256sum --check --status
+          python3 - <<'PY'
+          import os,hashlib,json,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"0208-original"
+          manifest=json.loads((root/"capture_manifest.json").read_bytes())
+          assert manifest["game_id"]=="0022600208"
+          assert manifest["distinct_network_bodies"]==347
+          assert manifest["capture_certifies_complete_game"] is False
+          archive=root/"courtsketch-0022600208-original-browser-payloads.tar.gz"
+          assert hashlib.sha256(archive.read_bytes()).hexdigest()==manifest["private_archive_sha256"]
+          official=json.loads((root/"official_pbp.json").read_bytes())
+          assert official["game_id"]=="0022600208"
+          assert len(official["actions"])==551
+          assert official["official_final"]["away"]["score"]==100
+          assert official["official_final"]["home"]["score"]==110
+          print("FULL_ORIGINAL_SOURCE_AND_OFFICIAL_551_ACTION_PBP_SHA_VERIFIED")
+          PY
+      - name: Deterministic self-tests and ONE full archived-source integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          SRC="$RUNNER_TEMP/0208-original"
+          python3 "$SRC/finalize_20261112.py" --self-test
+          python3 "$SRC/finalize_20261112.py" \
+            --source-archive "$SRC/courtsketch-0022600208-original-browser-payloads.tar.gz" \
+            --manifest "$SRC/capture_manifest.json" \
+            --official-pbp "$SRC/official_pbp.json" \
+            --output-dir "$SRC/output" \
+            --parquet
+          python3 - <<'PY'
+          import os,json,gzip,pathlib,hashlib
+          out=pathlib.Path(os.environ["RUNNER_TEMP"])/"0208-original"/"output"
+          qa=json.loads((out/"courtsketch_0022600208_QA_final.json").read_text())
+          idx=json.loads((out/"courtsketch_0022600208_L2_game_index.json").read_text())
+          assert qa["all_capture_response_files_sha_verified"]==347
+          assert qa["source_clip_response_count"]==345
+          assert qa["source_counts"]["time_slots_raw"]==34740
+          assert qa["dedup"]["source_unique_native_timestamps"]==19880
+          assert qa["acceptance"]["source_timestamp_conservation_pass"]
+          assert qa["acceptance"]["no_interpolation_or_reconstruction"]
+          assert qa["acceptance"]["official_ten_identity_certified"] is False
+          assert qa["acceptance"]["physical_possession_boundary_certified"] is False
+          assert idx["frozen_original_sdk_source_untouched"]
+          required=("courtsketch_0022600208_L1_original_window_rows.parquet",
+                    "courtsketch_0022600208_L1_unique_native_frames.parquet",
+                    "courtsketch_0022600208_L2_pbp_time_join.parquet")
+          for file in required:
+            assert (out/file).stat().st_size > 1000,file
+            assert qa["l1_l2_files"][file]["sha256"] == hashlib.sha256((out/file).read_bytes()).hexdigest()
+          print("COURTSKETCH_0208_FULL_NATIVE_L0_L1_L2_HASHED_PUBLISH_GATE_PASS")
+          PY
+      - name: Publish all original native frame datasets only into private repository release
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/0208-original/output"
+          gh release upload "$SOURCE_TAG" \
+            "$OUT"/courtsketch_0022600208_L1_original_window_rows.jsonl.gz \
+            "$OUT"/courtsketch_0022600208_L1_unique_native_frames.jsonl.gz \
+            "$OUT"/courtsketch_0022600208_L2_pbp_time_join.jsonl.gz \
+            "$OUT"/courtsketch_0022600208_L1_original_window_rows.parquet \
+            "$OUT"/courtsketch_0022600208_L1_unique_native_frames.parquet \
+            "$OUT"/courtsketch_0022600208_L2_pbp_time_join.parquet \
+            "$OUT"/courtsketch_0022600208_QA_final.json \
+            "$OUT"/courtsketch_0022600208_L2_game_index.json \
+            "$OUT"/courtsketch_0022600208_clips_provenance.json \
+            --repo "$PRIVATE_REPO" --clobber >/dev/null
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          tag=os.environ["SOURCE_TAG"];repo=os.environ["PRIVATE_REPO"]
+          assets=json.loads(subprocess.check_output(["gh","api",f"repos/{repo}/releases/tags/{tag}"],text=True))["assets"]
+          m={x["name"]:x for x in assets}
+          wanted=["courtsketch_0022600208_L1_unique_native_frames.parquet",
+                  "courtsketch_0022600208_L2_pbp_time_join.parquet",
+                  "courtsketch_0022600208_L1_original_window_rows.parquet",
+                  "courtsketch_0022600208_QA_final.json",
+                  "courtsketch-0022600208-original-browser-payloads.tar.gz"]
+          assert all(m.get(x,{}).get("size",0)>1000 for x in wanted),"PRIVATE_RELEASE_ASSET_MISSING"
+          print("PRIVATE_104_ORIGINAL_AND_PARQUET_RELEASE_VERIFIED",len(wanted),"required_assets")
+          PY
+      - name: Register canonical source-graded index and SHA report on private 104 branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess,time
+          o=pathlib.Path(os.environ["RUNNER_TEMP"])/"0208-original"/"output"
+          repo=os.environ["PRIVATE_REPO"];branch=os.environ["PRIVATE_REF"]
+          pairs=[
+            ("courtsketch_0022600208_QA_final.json",
+             "gamepulse/third_party/courtsketch/0022600208/final_source_qa_v1.json"),
+            ("courtsketch_0022600208_L2_game_index.json",
+             "gamepulse/third_party/courtsketch/0022600208/accepted_source_graded_l2_index_v1.json")]
+          for src,dest in pairs:
+              raw=(o/src).read_bytes()
+              endpoint=f"repos/{repo}/contents/{dest}"
+              for attempt in range(5):
+                  payload={"branch":branch,
+                           "message":"data(igp): CourtSketch 0208 independently graded deduplicated original L0-L2 source",
+                           "content":base64.b64encode(raw).decode()}
+                  previous=subprocess.run(["gh","api",endpoint+"?ref="+branch],
+                                          capture_output=True,text=True)
+                  if previous.returncode==0:
+                      payload["sha"]=json.loads(previous.stdout)["sha"]
+                  save=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                                      input=json.dumps(payload),capture_output=True,text=True)
+                  if save.returncode==0:break
+                  time.sleep(attempt+1)
+              else:raise RuntimeError("PRIVATE_SOURCE_INDEX_COMMIT_FAILED")
+              current=json.loads(subprocess.check_output(["gh","api",endpoint+"?ref="+branch],text=True))
+              echoed=base64.b64decode(current["content"])
+              assert echoed==raw and hashlib.sha256(echoed).digest()==hashlib.sha256(raw).digest()
+          qa=json.loads((o/pairs[0][0]).read_text())
+          print("COURTSKETCH_PRIVATE_FINAL_INTEGRATION_VERIFIED",
+                "unique_native_times",qa["dedup"]["source_unique_native_timestamps"],
+                "all_four_quarters",qa["acceptance"]["all_four_periods_have_source_positions"],
+                "source_l1_accepted",qa["acceptance"]["l1_source_query_acceptance"],
+                "full_game_certified",qa["acceptance"]["complete_original_full_game_tracking_certified"])
+          PY
