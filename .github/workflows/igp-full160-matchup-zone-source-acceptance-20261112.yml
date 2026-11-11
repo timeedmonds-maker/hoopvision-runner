@@ -43,6 +43,9 @@ jobs:
           git -C "$D" sparse-checkout init --no-cone
           git -C "$D" sparse-checkout set --no-cone \
             '/gamepulse/fusion/igp_full160_matchup_zone_backfill_v1.py' \
+            '/gamepulse/fusion/igp_full160_matchup_zone_query_v1.py' \
+            '/gamepulse/fusion/tests/test_igp_full160_matchup_zone_source_v1.py' \
+            '/gamepulse/fusion/igp_full160_source_default_v1.py' \
             '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
             '/gamepulse/fusion/qa/nba_zone_official_20261105/2026-27/Regular-Season/**'
           git -C "$D" checkout -q "$PRIVATE_BRANCH"
@@ -62,6 +65,8 @@ jobs:
           OUT="$D/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/matchup_zone_source_v1"
           cd "$D"
           python3 gamepulse/fusion/igp_full160_matchup_zone_backfill_v1.py --root "$D" --matchup-source "$M" --out "$OUT"
+          python3 -m py_compile gamepulse/fusion/igp_full160_matchup_zone_query_v1.py gamepulse/fusion/igp_full160_source_default_v1.py
+          python3 -m unittest discover -v -s gamepulse/fusion/tests -p 'test_igp_full160_matchup_zone_source_v1.py'
           python3 - <<'PY'
           import csv,gzip,hashlib,json,os,pathlib
           d=pathlib.Path(os.environ['RUNNER_TEMP'])/'full160-matchup-zone-private/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/matchup_zone_source_v1'
