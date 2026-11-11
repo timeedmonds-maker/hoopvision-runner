@@ -1,0 +1,205 @@
+name: CourtSketch 0208 archived source decode - no recapture
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/courtsketch-0208-private-archive-decode-20261112.yml'
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: courtsketch-0208-archive-decode-single-20261112
+  cancel-in-progress: false
+jobs:
+  decode-captured-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      REPO: timeedmonds-maker/104
+      REF: research/gamepulse-clock-boundary-integrity-20261025
+      TAG: courtsketch-original-0022600208-20261112
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify private-only source and source-preservation guard
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/$REPO --jq .private)" = true
+      - name: Download existing archived tracking once and decode all 347 responses
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/courtsketch"
+          gh release download "$TAG" --repo "$REPO" --pattern '*.tar.gz' \
+            --dir "$RUNNER_TEMP/courtsketch" >/dev/null
+          python3 - <<'PY'
+          import collections,gzip,hashlib,io,json,os,pathlib,re,tarfile
+          from urllib.parse import urlsplit
+          wd=pathlib.Path(os.environ["RUNNER_TEMP"])/"courtsketch"
+          arc=next(wd.glob("*.tar.gz"))
+          manifest_path="gamepulse/third_party/courtsketch/0022600208/manifest_20261112.json"
+          import subprocess,base64
+          orig=json.loads(base64.b64decode(json.loads(subprocess.check_output(
+              ["gh","api",f"repos/{os.environ['REPO']}/contents/{manifest_path}?ref={os.environ['REF']}"],
+              text=True))["content"]))
+          digest=hashlib.sha256(arc.read_bytes()).hexdigest()
+          assert digest==orig["private_archive_sha256"],"IMMUTABLE_SOURCE_HASH_MISMATCH"
+          with tarfile.open(arc,"r:gz") as tf:
+              available={m.name:m for m in tf.getmembers() if m.isfile()}
+              names=sorted(x for x in available if "/responses/" in x and x.endswith((".json",".bin")))
+              index_file=next(x for x in available if x.endswith("/responses-index.json"))
+              index=json.load(tf.extractfile(available[index_file]))
+              index_by_basename={pathlib.PurePosixPath(r["file"]).name:r for r in index}
+              assert len(names)==orig["distinct_network_bodies"]==len(index),"CAPTURE_RESPONSE_COUNT_MISMATCH"
+              original_response_sha=0
+              root_patterns=collections.Counter()
+              key_patterns=collections.Counter()
+              spatial_patterns=collections.Counter()
+              timeline_patterns=collections.Counter()
+              list_shapes=collections.Counter()
+              url_paths=collections.Counter()
+              period_counts=collections.Counter()
+              candidate_counts=collections.Counter()
+              candidate_records=0
+              candidates_path=wd/"courtsketch-0022600208-coordinate-candidates.jsonl.gz"
+              def shape(x):
+                  if isinstance(x,dict):return "object"
+                  if isinstance(x,list):return "array"
+                  if x is None:return "null"
+                  return type(x).__name__
+              def digest_path(k):
+                  return re.sub(r"\\[\\d+\\]","[]",k)[:170]
+              def emit(d,source,loc,ctx,out):
+                  nonlocal_dummy=0
+                  poskeys=next(((a,b) for a,b in [
+                       ("x","y"),("X","Y"),("posX","posY"),("courtX","courtY"),
+                       ("xFeet","yFeet"),("x_ft","y_ft"),("px","py"),
+                       ("locationX","locationY")] if a in d and b in d),None)
+                  if poskeys and all(isinstance(d[z],(int,float)) and not isinstance(d[z],bool)
+                                    for z in poskeys):
+                      idval=next((d[k] for k in ("playerId","personId","person_id","player_id","id","player","nbaId")
+                                  if k in d and isinstance(d[k],(int,str))),None)
+                      team=next((d[k] for k in ("teamId","team","team_id") if k in d),None)
+                      tm=next((d[k] for k in ("timestamp","time","t","ts","timeMs","time_ms","clock","frame","gameClock")
+                               if k in d),None)
+                      period=next((d[k] for k in ("period","quarter","q") if k in d),None)
+                      if tm is None:tm=ctx.get("time")
+                      if period is None:period=ctx.get("period")
+                      item={"source_sha256":source,"node_path":loc,
+                            "x":d[poskeys[0]],"y":d[poskeys[1]],
+                            "z":d.get("z",d.get("Z",d.get("posZ"))),
+                            "id":idval,"team":team,"time":tm,"period":period,
+                            "candidate_only":True}
+                      out.write(json.dumps(item,separators=(",",":"),default=str)+"\\n")
+                      candidate_counts["xy_objects"]+=1
+                      if idval is not None:candidate_counts["xy_objects_with_id"]+=1
+                      if tm is not None:candidate_counts["xy_objects_with_time_context"]+=1
+                      if "ball" in loc.lower():candidate_counts["xy_ball_context"]+=1
+                      spatial_patterns[digest_path(loc)]+=1
+                  return
+              with gzip.open(candidates_path,"wt",encoding="utf-8") as out:
+                  for i,name in enumerate(names):
+                      payload=tf.extractfile(available[name]).read()
+                      src=index_by_basename[pathlib.PurePosixPath(name).name]
+                      if hashlib.sha256(payload).hexdigest()!=src["sha256"]:
+                          raise RuntimeError("SOURCE_RESPONSE_SHA_MISMATCH")
+                      original_response_sha+=1
+                      url_paths[urlsplit(src.get("source_url","")).path]+=1
+                      try:d=json.loads(payload)
+                      except Exception:
+                          candidate_counts["non_json"]+=1
+                          continue
+                      root_patterns[shape(d)]+=1
+                      if isinstance(d,dict):
+                          key_patterns["root:"+",".join(sorted(d)[:16])[:180]]+=1
+                      queue=[(d,"$",{},0)]
+                      visited=0
+                      while queue and visited<500_000:
+                          val,loc,ctx,depth=queue.pop()
+                          visited+=1
+                          if depth>32:continue
+                          if isinstance(val,dict):
+                              keys=val.keys()
+                              if len(val)<=75:
+                                  sig=",".join(sorted(keys)[:20])
+                                  if any(k in val for k in ("frames","players","ball","positions","tracking","moments","samples","coordinates","data","events")):
+                                      key_patterns["shape:"+sig[:160]]+=1
+                              newctx=dict(ctx)
+                              for k in ("timestamp","timestampMs","time_ms","utc_ms","time","t","ts","gameClock","clock","frame"):
+                                  if k in val and isinstance(val[k],(int,float,str)):
+                                      newctx["time"]=val[k]
+                                      timeline_patterns[k]+=1
+                                      break
+                              for k in ("period","quarter","periodNumber","q"):
+                                  if k in val and isinstance(val[k],int):
+                                      newctx["period"]=val[k]
+                                      if 1<=val[k]<=4:period_counts[str(val[k])]+=1
+                                      break
+                              emit(val,src["sha256"],loc,newctx,out)
+                              for k,v in val.items():
+                                  if isinstance(v,(dict,list)):
+                                      queue.append((v,loc+"."+str(k),newctx,depth+1))
+                          elif isinstance(val,list):
+                              if val:
+                                  first=val[0]
+                                  list_shapes[shape(first)]+=1
+                                  if len(val)>1 and isinstance(first,list):
+                                      list_shapes["nested_number_vector_"+str(len(first))]+=1
+                              for j,v in enumerate(val):
+                                  if isinstance(v,(dict,list)):
+                                      queue.append((v,loc+f"[{j}]",ctx,depth+1))
+              report={
+                "schema":"igp.courtsketch.archived-source-decode-qa.v1",
+                "game_id":"0022600208",
+                "capture_archive_sha256":digest,
+                "captured_response_files":len(names),
+                "source_response_sha256_verified":original_response_sha,
+                "original_source_bytes":orig["network_payload_bytes"],
+                "original_archive_bytes":arc.stat().st_size,
+                "root_json_types":dict(root_patterns),
+                "top_response_url_paths":url_paths.most_common(12),
+                "root_and_spatial_object_signatures":key_patterns.most_common(30),
+                "candidate_xy_counts":dict(candidate_counts),
+                "observed_period_fields":dict(period_counts),
+                "time_key_counts":dict(timeline_patterns),
+                "observed_array_shapes":list_shapes.most_common(12),
+                "top_xy_node_paths":spatial_patterns.most_common(14),
+                "derived_coordinate_candidates_sha256":hashlib.sha256(candidates_path.read_bytes()).hexdigest(),
+                "derived_coordinate_candidates_bytes":candidates_path.stat().st_size,
+                "game_xyz_certified":False,
+                "explicit_notice":"Coordinate rows are unvalidated candidates. Do not promote as original official 10+ball or claim full-game coverage without temporal/identity validation.",
+                "source_retrieval_repeated":False}
+              (wd/"courtsketch-0022600208-decode-qa.json").write_text(
+                  json.dumps(report,indent=2,sort_keys=True)+"\\n")
+              print("COURTSKETCH_ARCHIVE_SHA_MATCH",original_response_sha)
+              print("COURTSKETCH_CANDIDATE_XY",candidate_counts["xy_objects"],
+                    "WITH_ID",candidate_counts["xy_objects_with_id"],
+                    "WITH_TIME",candidate_counts["xy_objects_with_time_context"])
+              print("COURTSKETCH_PRIVATE_QA_PREPARED")
+          PY
+      - name: Save complete derived data and QA privately, SHA-check release readback
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="$RUNNER_TEMP/courtsketch"
+          gh release upload "$TAG" \
+            "$DIR/courtsketch-0022600208-coordinate-candidates.jsonl.gz" \
+            "$DIR/courtsketch-0022600208-decode-qa.json" \
+            --repo "$REPO" --clobber >/dev/null
+          python3 - <<'PY'
+          import json,base64,os,pathlib,subprocess
+          wd=pathlib.Path(os.environ["RUNNER_TEMP"])/"courtsketch"
+          r=wd/"courtsketch-0022600208-decode-qa.json"
+          dest="gamepulse/third_party/courtsketch/0022600208/decode_qa_20261112.json"
+          endpoint=f"repos/{os.environ['REPO']}/contents/{dest}"
+          packet={"branch":os.environ["REF"],"message":"data(gamepulse): private CourtSketch 0208 original 347-response exhaustive decode and source QA",
+                  "content":base64.b64encode(r.read_bytes()).decode()}
+          existing=subprocess.run(["gh","api",endpoint+"?ref="+os.environ["REF"]],text=True,capture_output=True)
+          if existing.returncode==0:packet["sha"]=json.loads(existing.stdout)["sha"]
+          sub=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                             input=json.dumps(packet),capture_output=True,text=True)
+          if sub.returncode:raise SystemExit("PRIVATE_DECODE_QA_WRITE_FAILED")
+          print("COURTSKETCH_ALL_SOURCE_FILES_DECODED_AND_PRIVATE_QA_WRITTEN")
+          PY
