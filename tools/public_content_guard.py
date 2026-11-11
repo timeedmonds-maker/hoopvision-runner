@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/courtsketch-0208-private-archive-decode-20261112.yml",  # private archived CourtSketch data schema and coordinates: free CPU-only, private output only
     ".github/workflows/courtsketch-rockets-nuggets-0208-onepass-20261112.yml",  # reviewed one-pass public free CPU; raw CourtSketch tracking remains strictly private 104
     ".github/workflows/igp-nov09-eight-guarded-shortgap-cpu-20261111.yml",  # reviewed free-CPU original private Nov09 XYZ bounded shadow, SHA-source-only, source-masked QA, public aggregate counts only
     ".github/workflows/igp-full160-six-native-season-registry-20261111.yml",  # vetted CPU source SHA-only Full160 private native metadata and OKC original companion crosswalk, no public data
