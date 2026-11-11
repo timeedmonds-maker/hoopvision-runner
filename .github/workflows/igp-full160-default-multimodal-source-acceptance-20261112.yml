@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
-  group: igp-full160-multimodal-default-onepass-20261112
+  group: igp-full160-multimodal-default-fresh-20261112
   cancel-in-progress: false
 jobs:
   full160-default:
