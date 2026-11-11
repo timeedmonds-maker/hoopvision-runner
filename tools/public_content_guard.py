@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full160-six-original-guarded-integrate-20261111.yml",  # reviewed free CPU-only source SHA full160 private original XYZ, official companion/Blueprint shot joins and P2B shadow; aggregate-only public logs
     ".github/workflows/igp-nov10-six-unified-native-census-20261111.yml",  # reviewed public CPU-only private SHA source and official-clock ten-player census; no licensed XYZ or IDs in public logs, QA committed private
     ".github/workflows/gamepulse-boston-postfinal-sdk-20261111.yml",  # reviewed CPU-only exact game 0022600212 authorised SDK final-state source read, licensed originals and timestamps saved SHA-private 104 only, never public
     ".github/workflows/gamepulse-0211-10ball-clock-audit-20261111.yml",  # reviewed read-only source-SHA original 0211 coverage census, public aggregate counts only, all NBA XYZ private 104
