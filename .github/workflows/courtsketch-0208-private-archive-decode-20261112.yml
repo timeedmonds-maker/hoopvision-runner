@@ -203,3 +203,140 @@ jobs:
           if sub.returncode:raise SystemExit("PRIVATE_DECODE_QA_WRITE_FAILED")
           print("COURTSKETCH_ALL_SOURCE_FILES_DECODED_AND_PRIVATE_QA_WRITTEN")
           PY
+
+      - name: Decode native packed player and ball timeseries to private full-resolution JSONL
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import collections,gzip,hashlib,json,os,pathlib,tarfile,base64,subprocess
+          wd=pathlib.Path(os.environ["RUNNER_TEMP"])/"courtsketch"
+          arc=next(wd.glob("*.tar.gz"))
+          report=json.loads((wd/"courtsketch-0022600208-decode-qa.json").read_text())
+          counts=collections.Counter()
+          shapes=collections.Counter()
+          source_files=0
+          unique_times=set()
+          observed_actor_ids=set()
+          frame_file=wd/"courtsketch-0022600208-native-timeseries.jsonl.gz"
+          summary_file=wd/"courtsketch-0022600208-native-timeseries-qa.json"
+          def scal(v):
+              return v is None or (isinstance(v,(int,float)) and not isinstance(v,bool))
+          def kind(v):
+              if isinstance(v,list):return "list"
+              if isinstance(v,dict):return "dict"
+              return type(v).__name__
+          with tarfile.open(arc,"r:gz") as tf,gzip.open(frame_file,"wt",encoding="utf-8") as dst:
+              members={m.name:m for m in tf.getmembers() if m.isfile()}
+              by_name={pathlib.PurePosixPath(r["file"]).name:r for r in json.load(tf.extractfile(next(
+                   m for m in members.values() if m.name.endswith("/responses-index.json"))))}
+              for m in sorted(members.values(),key=lambda e:e.name):
+                  if "/responses/" not in m.name or not m.name.endswith(".json"):
+                      continue
+                  raw=tf.extractfile(m).read()
+                  src=by_name.get(pathlib.PurePosixPath(m.name).name)
+                  assert src is not None and hashlib.sha256(raw).hexdigest()==src["sha256"]
+                  d=json.loads(raw)
+                  if not isinstance(d,dict) or set(d)!={"t","players","ball"}:
+                      counts["non_frame_payloads"]+=1
+                      continue
+                  source_files+=1
+                  t,p,b=d["t"],d["players"],d["ball"]
+                  shapes["time_"+kind(t)]+=1
+                  shapes["players_"+kind(p)]+=1
+                  shapes["ball_"+kind(b)]+=1
+                  if not isinstance(t,list) or not isinstance(p,list) or not isinstance(b,list):
+                      counts["unsupported_outer_schema"]+=1
+                      continue
+                  n=len(t)
+                  counts["frame_time_slots"]+=n
+                  shapes["player_group_sizes_"+str(len(p))]+=1
+                  shapes["ball_column_count_"+str(len(b))]+=1
+                  ok_time=all(isinstance(x,(int,float,str)) for x in t)
+                  unpacked=[]
+                  for entry in p:
+                      if not isinstance(entry,list) or len(entry)!=3:
+                          counts["unsupported_player_record"]+=1
+                          continue
+                      player,xs,ys=entry
+                      if not (isinstance(xs,list) and isinstance(ys,list) and
+                              len(xs)==n and len(ys)==n):
+                          counts["player_axis_length_mismatch"]+=1
+                          continue
+                      unpacked.append((player,xs,ys))
+                      if isinstance(player,(int,str)):observed_actor_ids.add(str(player))
+                  good_ball=len(b)>=3 and all(isinstance(col,list) and len(col)==n for col in b[:3])
+                  if not good_ball:counts["ball_axis_length_mismatch"]+=1
+                  if not ok_time:counts["unrecognized_time_type"]+=1
+                  if not ok_time or not unpacked:
+                      counts["unusable_clip_payload"]+=1
+                      continue
+                  counts["usable_clip_payloads"]+=1
+                  for i,timecode in enumerate(t):
+                      if isinstance(timecode,(int,float,str)):
+                          unique_times.add(str(timecode))
+                      actors=[]
+                      for player,xs,ys in unpacked:
+                          x,y=xs[i],ys[i]
+                          if scal(x) and scal(y) and x is not None and y is not None:
+                              actors.append([player,x,y])
+                      ball=[col[i] for col in b] if good_ball else None
+                      row={"source_sha256":src["sha256"],"time_native":timecode,
+                           "players_native_xy":actors,
+                           "ball_native_columns":ball,
+                           "source_frame_slot":i}
+                      dst.write(json.dumps(row,separators=(",",":"),default=str)+"\n")
+                      counts["materialized_native_time_rows"]+=1
+                      counts["materialized_player_xy"]+=len(actors)
+                      if len(actors)>=10:counts["at_least_10_player_slots"]+=1
+                      if ball is not None and all(scal(z) and z is not None for z in ball[:3]):
+                          counts["ball_xyz_column_candidates"]+=1
+                      if len(actors)>=10 and ball is not None and all(
+                              scal(z) and z is not None for z in ball[:3]):
+                          counts["ten_plus_ball_native_candidates"]+=1
+          output={
+             "schema":"igp.courtsketch.0022600208.native-packed-recovery-qa.v1",
+             "game_id":"0022600208",
+             "immutable_capture_archive_sha256":report["capture_archive_sha256"],
+             "source_frame_endpoint_responses":source_files,
+             "counts":dict(counts),
+             "schema_shapes":dict(shapes),
+             "source_native_unique_timestamp_values":len(unique_times),
+             "distinct_player_id_column_values":len(observed_actor_ids),
+             "normalized_native_rows_sha256":hashlib.sha256(frame_file.read_bytes()).hexdigest(),
+             "normalized_native_rows_bytes":frame_file.stat().st_size,
+             "original_coordinate_units_verified":False,
+             "original_ball_column_semantics_verified":False,
+             "official_ten_identity_validated":False,
+             "captured_full_game_coverage_validated":False,
+             "note":"Lossless native numeric columns; verify frame timebase, units, IDs and actual quarters before promoting. No interpolation used.",
+          }
+          summary_file.write_text(json.dumps(output,indent=2,sort_keys=True)+"\n")
+          print("COURTSKETCH_NATIVE_ARRAY_EXTRACTION_COMPLETE",
+                "raw_endpoints",source_files,
+                "materialized_time_rows",counts["materialized_native_time_rows"],
+                "player_xy",counts["materialized_player_xy"],
+                "ten_plus_ball_candidates",counts["ten_plus_ball_native_candidates"])
+          PY
+          DIR="$RUNNER_TEMP/courtsketch"
+          gh release upload "$TAG" \
+            "$DIR/courtsketch-0022600208-native-timeseries.jsonl.gz" \
+            "$DIR/courtsketch-0022600208-native-timeseries-qa.json" \
+            --repo "$REPO" --clobber >/dev/null
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess
+          wd=pathlib.Path(os.environ["RUNNER_TEMP"])/"courtsketch"
+          report=wd/"courtsketch-0022600208-native-timeseries-qa.json"
+          dest="gamepulse/third_party/courtsketch/0022600208/native_timeseries_qa_20261112.json"
+          endpoint=f"repos/{os.environ['REPO']}/contents/{dest}"
+          d={"branch":os.environ["REF"],
+             "message":"data(gamepulse): original CourtSketch 0208 packed native frames and private SHA coverage",
+             "content":base64.b64encode(report.read_bytes()).decode()}
+          previous=subprocess.run(["gh","api",endpoint+"?ref="+os.environ["REF"]],
+                                  text=True,capture_output=True)
+          if previous.returncode==0:d["sha"]=json.loads(previous.stdout)["sha"]
+          saved=subprocess.run(["gh","api","-X","PUT",endpoint,"--input","-"],
+                               input=json.dumps(d),text=True,capture_output=True)
+          if saved.returncode:raise SystemExit("COURTSKETCH_NATIVE_QA_PRIVATE_WRITE_FAILED")
+          print("COURTSKETCH_PRIVATE_NATIVE_TIMESERIES_SAVED")
+          PY
