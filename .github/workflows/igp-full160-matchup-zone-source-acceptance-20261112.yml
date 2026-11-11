@@ -1,0 +1,127 @@
+# Public free-CPU only. Detailed NBA source records remain private in 104.
+name: Integrated Pulse FULL160 direct matchups and official zone game deltas
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full160-matchup-zone-source-acceptance-20261112.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: full160-matchup-zone-source-grade-20261112
+  cancel-in-progress: false
+jobs:
+  reconcile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      RELEASE: igp-full160-matchup-zone-source-graded-20261112
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Source-confinement and free-CPU-only gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = "true"
+          gh auth setup-git
+          echo FULL160_MATCHUP_ZONE_PRIVATE_FREE_CPU_PASS
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Sparse private source readback from canonical and main
+        shell: bash
+        run: |
+          set -euo pipefail
+          D="$RUNNER_TEMP/full160-matchup-zone-private"
+          M="$RUNNER_TEMP/full160-matchup-zone-main-source"
+          git clone -q --no-checkout --filter=blob:none --depth=1 -b "$PRIVATE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$D"
+          git -C "$D" sparse-checkout init --no-cone
+          git -C "$D" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_full160_matchup_zone_backfill_v1.py' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
+            '/gamepulse/fusion/qa/nba_zone_official_20261105/2026-27/Regular-Season/**'
+          git -C "$D" checkout -q "$PRIVATE_BRANCH"
+          git clone -q --no-checkout --filter=blob:none --depth=1 -b main "https://github.com/$PRIVATE_REPO.git" "$M"
+          git -C "$M" sparse-checkout init --no-cone
+          git -C "$M" sparse-checkout set --no-cone \
+            '/data/extensions/nba_blueprint_2026_27/matchups/season_to_date/**'
+          git -C "$M" checkout -q main
+          test -s "$M/data/extensions/nba_blueprint_2026_27/matchups/season_to_date/defender_offender_matchups.csv"
+          python3 -m py_compile "$D/gamepulse/fusion/igp_full160_matchup_zone_backfill_v1.py"
+      - name: Build and independently reconcile both original NBA layers
+        shell: bash
+        run: |
+          set -euo pipefail
+          D="$RUNNER_TEMP/full160-matchup-zone-private"
+          M="$RUNNER_TEMP/full160-matchup-zone-main-source"
+          OUT="$D/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/matchup_zone_source_v1"
+          cd "$D"
+          python3 gamepulse/fusion/igp_full160_matchup_zone_backfill_v1.py --root "$D" --matchup-source "$M" --out "$OUT"
+          python3 - <<'PY'
+          import csv,gzip,hashlib,json,os,pathlib
+          d=pathlib.Path(os.environ['RUNNER_TEMP'])/'full160-matchup-zone-private/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/matchup_zone_source_v1'
+          q=json.loads((d/'full160_matchup_zone_20261112_v1_qa.json').read_bytes())
+          cov=json.loads((d/'full160_matchup_zone_game_coverage_20261112_v1.json').read_bytes())['games']
+          zone=[json.loads(s) for s in (d/'full160_official_zone_team_game_deltas_20261112_v1.jsonl').read_text().splitlines()]
+          assert len(cov)==q['full160_games']==160
+          assert q['matchup_source_verified_games']==159
+          assert q['matchup_direct_defender_offender_pair_rows']==32448
+          assert q['matchup_source_missing_games']==['0022600189']
+          assert q['zone_games']==53 and len(zone)==q['zone_team_games']==106
+          assert len(q['zone_windows'])==7
+          assert sum(x['matchup_rows'] or 0 for x in cov)==32448
+          assert sum(x['zone_team_game_count'] or 0 for x in cov)==106
+          assert q['zone_all_team_delta_count_conservation']['zone_possessions']==170
+          assert q['zone_all_team_delta_count_conservation']['zone_points_allowed']==157
+          assert not any(x['physical_per_possession_zone_labels'] for x in zone)
+          original=d/'full160_official_defender_offender_matchups_20261112_v1.csv.gz'
+          with gzip.open(original,'rb') as f: uncompressed=f.read()
+          assert hashlib.sha256(uncompressed).hexdigest()==q['matchup_source_main_csv_sha256']
+          assert sum(1 for _ in csv.DictReader(uncompressed.decode('utf-8-sig').splitlines()))==32448
+          for filename,digest in q['sha256'].items():
+              assert hashlib.sha256((d/filename).read_bytes()).hexdigest()==digest
+          print('FULL160_MATCHUP_ZONE_ALL_SOURCE_SHA_GAMES_AND_OPPONENT_PAIRS_PASS')
+          PY
+      - name: Commit additive derived data to canonical private Full160
+        shell: bash
+        run: |
+          set -euo pipefail
+          D="$RUNNER_TEMP/full160-matchup-zone-private"
+          cd "$D"
+          git add -f gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/matchup_zone_source_v1
+          git diff --cached --check >/dev/null
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -q -m 'data(full160): 32448 direct matchup pairs, 53 games source-verified zone deltas'
+          for attempt in 1 2 3 4 5; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo FULL160_MATCHUP_ZONE_CANONICAL_COMMITTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 42
+      - name: Publish additive release privately without overwriting Full160
+        shell: bash
+        run: |
+          set -euo pipefail
+          D="$RUNNER_TEMP/full160-matchup-zone-private/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/matchup_zone_source_v1"
+          if gh release view "$RELEASE" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
+            echo FULL160_MATCHUP_ZONE_RELEASE_ALREADY_EXISTS
+          else
+            gh release create "$RELEASE" -R "$PRIVATE_REPO" --target "$PRIVATE_BRANCH" \
+              --title "FULL160 original per-game matchups and source-delta zone team games" \
+              --notes "32,448 original NBA offender-defender matchup pairs across 159 games; one original unreported matchup game 0022600189. Exact cumulative NBA zone source deltas across 53 games and 106 teams, 170 zone possessions, 157 zone points, double-side opponent verified. No per-possession zone/man labels or per-shot defender identity certified. Free CPU only." \
+              "$D/full160_official_defender_offender_matchups_20261112_v1.csv.gz" \
+              "$D/full160_official_zone_team_game_deltas_20261112_v1.jsonl" \
+              "$D/full160_matchup_zone_game_coverage_20261112_v1.json" \
+              "$D/full160_matchup_zone_20261112_v1_qa.json" >/dev/null
+            echo FULL160_MATCHUP_ZONE_PRIVATE_RELEASE_CREATED
+          fi
