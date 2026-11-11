@@ -1,0 +1,251 @@
+name: CourtSketch Rockets Nuggets 0208 one-pass source capture
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/courtsketch-rockets-nuggets-0208-onepass-20261112.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: courtsketch-0208-onepass-source-20261112
+  cancel-in-progress: false
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      RELEASE_TAG: courtsketch-original-0022600208-20261112
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Validate confidential licensed-source boundary before network read
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          echo COURTSKETCH_PRIVATE_DESTINATION_VERIFIED
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install browser for one full-game network capture
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet playwright==1.56.0
+          python -m playwright install --with-deps chromium > "$RUNNER_TEMP/courtsketch-browser-install.txt" 2>&1
+          echo COURTSKETCH_BROWSER_READY
+      - name: Recover actual publicly viewable CourtSketch game 0208 network payloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import gzip, hashlib, json, os, re, tarfile, time
+          from collections import Counter
+          from pathlib import Path
+          from urllib.parse import urlsplit, parse_qsl, urlencode, urlunsplit
+          from playwright.sync_api import sync_playwright
+          root=Path(os.environ["RUNNER_TEMP"])/"courtsketch-source-0208"
+          responses=root/"responses"; responses.mkdir(parents=True,exist_ok=True)
+          records=[]; hashes={}; errs=[]; total=[0]; ws_count=[0]
+          MAX_BODY=150_000_000; MAX_TOTAL=1_250_000_000
+          def safe_url(url):
+              try:
+                  u=urlsplit(url)
+                  q=[(k,v) for k,v in parse_qsl(u.query,keep_blank_values=True)
+                     if not re.search(r"token|auth|key|signature|session|secret|sig",k,re.I)]
+                  return urlunsplit((u.scheme,u.netloc,u.path,urlencode(q),""))
+              except Exception:return "unavailable"
+          def record_payload(url,ctype,body,kind,status):
+              if not isinstance(body,bytes) or not body or len(body)>MAX_BODY:
+                  return
+              if total[0]+len(body)>MAX_TOTAL:
+                  errs.append("storage_bound_reached")
+                  return
+              digest=hashlib.sha256(body).hexdigest()
+              if digest in hashes:return
+              total[0]+=len(body)
+              extension=".json" if "json" in ctype or body[:1] in (b"{",b"[") else ".bin"
+              name=f"{len(hashes)+1:05d}-{digest[:16]}{extension}"
+              (responses/name).write_bytes(body);hashes[digest]=name
+              records.append({"file":"responses/"+name,"sha256":digest,"size":len(body),
+                              "source_url":safe_url(url),"kind":kind,
+                              "content_type":ctype,"status":status})
+          def response_event(resp):
+              url=resp.url;host=(urlsplit(url).hostname or "").lower()
+              if not (host.endswith("courtsketch.com") or host.endswith("nba.com")
+                      or host.endswith("nba.net")):return
+              ct=(resp.headers.get("content-type") or "").lower()
+              if any(t in ct for t in ("text/html","text/css","javascript","image/","font/","video/","audio/")):
+                  return
+              if resp.request.resource_type not in ("xhr","fetch","other","websocket","eventsource") and not any(x in ct for x in ("json","octet-stream","protobuf")):
+                  return
+              try:record_payload(url,ct,resp.body(),resp.request.resource_type,resp.status)
+              except Exception as e:errs.append("response:"+type(e).__name__)
+          def collect_ws(ws):
+              def frame_event(frame):
+                  ws_count[0]+=1
+                  body=frame if isinstance(frame,bytes) else str(frame).encode("utf-8",errors="replace")
+                  record_payload(ws.url,"websocket-frame",body,"websocket",101)
+              ws.on("framereceived",frame_event)
+          summary={"game_id":"0022600208","match":"DEN @ HOU","date_us":"2026-11-09",
+                   "source":"CourtSketch actual browser network payloads",
+                   "original_source_nba_attributed":True,
+                   "capture_certifies_complete_game":False,
+                   "performed_on_utc":time.strftime("%Y-%m-%dT%H:%M:%SZ",time.gmtime()),
+                   "viewer":"https://courtsketch.com/tracking#src=game&g=0022600208&n=0"}
+          with sync_playwright() as pw:
+              browser=pw.chromium.launch(headless=True,args=["--disable-dev-shm-usage","--no-sandbox"])
+              context=browser.new_context(viewport={"width":1480,"height":1000},accept_downloads=False)
+              context.on("response",response_event)
+              context.on("websocket",collect_ws)
+              page=context.new_page()
+              try:
+                  page.goto(summary["viewer"],wait_until="domcontentloaded",timeout=60000)
+                  page.wait_for_timeout(9000)
+                  try:page.get_by_role("button",name="Got it").click(timeout=1000)
+                  except Exception:pass
+                  # Deep link already carries the exact NBA game ID. Confirm/choose it
+                  # in the game's own drop-down when the data-backed choices load.
+                  for sel in page.locator("select").all():
+                      try:
+                          options=sel.locator("option").all()
+                          for option in options:
+                              v=option.get_attribute("value") or ""
+                              label=option.inner_text() or ""
+                              joint=v+" "+label
+                              if ("0022600208" in joint or "22600208" in joint or
+                                   (re.search("DEN|Denver|Nuggets",joint,re.I)
+                                    and re.search("HOU|Houston|Rockets",joint,re.I))):
+                                  sel.select_option(value=v,timeout=2000)
+                                  summary["game_dropdown_selected"]=True
+                                  break
+                      except Exception:pass
+                  page.wait_for_timeout(6500)
+                  try:page.get_by_role("button",name="One game").click(timeout=2000)
+                  except Exception:pass
+                  try:page.get_by_role("button",name="Build queue").click(timeout=4500)
+                  except Exception:pass
+                  page.wait_for_timeout(7000)
+                  summary["queue_built_attempted"]=True
+                  hashes_seen=[]
+                  stationary=0
+                  # One continuous full-game playback: advance all clips while recording
+                  # each XHR/fetch/WS source response, not an SDK interpolation run.
+                  for n in range(650):
+                      before=(page.url,len(hashes))
+                      try:page.keyboard.press("ArrowRight")
+                      except Exception as e:errs.append("advance:"+type(e).__name__);break
+                      page.wait_for_timeout(400)
+                      now=(page.url,len(hashes))
+                      if now==before:stationary+=1
+                      else:stationary=0
+                      if n>=50 and stationary>=35:break
+                  summary["next_play_requests"]=n+1
+                  page.wait_for_timeout(5500)
+                  # Hash-link index walk is an independent exhaustive fallback for
+                  # the game's shareable play IDs when the queue did not auto-advance.
+                  if len(hashes)<20:
+                      for n in range(325):
+                          page.evaluate("(v)=>{window.location.hash=v}",
+                              f"src=game&g=0022600208&n={n}")
+                          page.wait_for_timeout(240)
+                      page.wait_for_timeout(5000)
+                      summary["direct_play_hash_requests"]=325
+                  summary["final_viewer_url"]=safe_url(page.url)
+                  try:
+                      ptext=page.locator("body").inner_text(timeout=3000)
+                      summary["viewer_showed_request_failed"]=bool(re.search("Request failed \\(404\\)",ptext))
+                      summary["viewer_showed_load_a_clip"]="Load a clip" in ptext
+                      summary["viewer_text_length"]=len(ptext)
+                  except Exception:pass
+                  try:page.screenshot(path=str(root/"viewer-final.png"),full_page=False,timeout=5000)
+                  except Exception:pass
+              except Exception as e:
+                  errs.append("viewer:"+type(e).__name__+":"+str(e)[:150])
+              finally:
+                  browser.close()
+          # Validate only observed shape, not interpolated or inferred positions.
+          keyframes=0; period_values=set(); has_positions=0; json_payloads=0
+          for r in records:
+              path=root/r["file"]
+              try:doc=json.loads(path.read_bytes());json_payloads+=1
+              except Exception:continue
+              stack=[doc];visited=0
+              while stack and visited<100_000:
+                  obj=stack.pop();visited+=1
+                  if isinstance(obj,dict):
+                      if any(k in obj for k in ("positions","players","moments","frames")):
+                          has_positions+=1
+                      if "positions" in obj and any(k in obj for k in ("timestamp","timestampMs","utcMs","time_ms","utc_ms")):
+                          keyframes+=1
+                      for pkey in ("period","periodNumber","quarter"):
+                          if pkey in obj and isinstance(obj[pkey],int) and 1<=obj[pkey]<=4:
+                              period_values.add(obj[pkey])
+                      stack.extend(v for v in obj.values() if isinstance(v,(dict,list)))
+                  elif isinstance(obj,list):
+                      stack.extend(v for v in obj if isinstance(v,(dict,list)))
+          summary.update({"distinct_network_bodies":len(records),"network_payload_bytes":total[0],
+              "response_kind_counts":dict(Counter(r["kind"] for r in records)),
+              "json_bodies":json_payloads,
+              "observed_timestamp_positions_objects":keyframes,
+              "objects_with_position_like_keys":has_positions,
+              "period_hints_from_json":sorted(period_values),
+              "websocket_frames_received":ws_count[0],
+              "errors":errs[:100],
+              "network_response_sha256_manifest":"responses-index.json"})
+          (root/"responses-index.json").write_text(json.dumps(records,indent=2,sort_keys=True)+"\n")
+          (root/"manifest.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
+          archive=root.parent/"courtsketch-0022600208-original-browser-payloads.tar.gz"
+          with tarfile.open(archive,"w:gz") as tar:
+              tar.add(root,arcname="courtsketch-original-0022600208")
+          summary["private_archive_name"]=archive.name
+          summary["private_archive_sha256"]=hashlib.sha256(archive.read_bytes()).hexdigest()
+          summary["private_archive_size"]=archive.stat().st_size
+          (root/"manifest.json").write_text(json.dumps(summary,indent=2,sort_keys=True)+"\n")
+          print("COURTSKETCH_ONEPASS_CAPTURE",
+                "responses",len(records),"json_bodies",json_payloads,
+                "explicit_timestamp_positions",keyframes,
+                "archive_bytes",archive.stat().st_size)
+          # Publish gate in next step: evidence can be incomplete; never call it full
+          # game just because a browser response loaded.
+          PY
+      - name: Save source captures and independent QA ONLY to private repository 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          ROOT="$RUNNER_TEMP/courtsketch-source-0208"
+          ARCHIVE="$RUNNER_TEMP/courtsketch-0022600208-original-browser-payloads.tar.gz"
+          test -s "$ROOT/manifest.json"
+          test -s "$ARCHIVE"
+          if ! gh release view "$RELEASE_TAG" --repo "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --repo "$PRIVATE_REPO" --target "$PRIVATE_BRANCH" \
+              --title "CourtSketch 0208 original browser capture - provenance pending QA" \
+              --notes "Actual browser-observed CourtSketch payloads; no claim of full-game coordinate completeness." >/dev/null
+          fi
+          gh release upload "$RELEASE_TAG" "$ARCHIVE" "$ROOT/manifest.json" \
+             --repo "$PRIVATE_REPO" --clobber >/dev/null
+          python3 - <<'PY'
+          import base64,json,os,subprocess,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"courtsketch-source-0208"
+          path="gamepulse/third_party/courtsketch/0022600208/manifest_20261112.json"
+          repo=os.environ["PRIVATE_REPO"];branch=os.environ["PRIVATE_BRANCH"]
+          endpoint="repos/"+repo+"/contents/"+path
+          d={"branch":branch,"message":"data(gamepulse): private CourtSketch 0208 browser source receipt (not accepted)",
+             "content":base64.b64encode((root/"manifest.json").read_bytes()).decode("ascii")}
+          prior=subprocess.run(["gh","api",endpoint+"?ref="+branch],capture_output=True,text=True)
+          if prior.returncode==0:d["sha"]=json.loads(prior.stdout)["sha"]
+          saved=subprocess.run(["gh","api","--method","PUT",endpoint,"--input","-"],
+                               input=json.dumps(d),capture_output=True,text=True)
+          if saved.returncode:raise SystemExit("PRIVATE_MANIFEST_WRITE_FAILED")
+          manifest=json.loads((root/"manifest.json").read_text())
+          print("COURTSKETCH_PRIVATE_MANIFEST_SAVED",
+                "captured_bodies",manifest["distinct_network_bodies"],
+                "timestamp_position_objects",manifest["observed_timestamp_positions_objects"],
+                "full_game_certified",manifest["capture_certifies_complete_game"])
+          PY
+          echo COURTSKETCH_PRIVATE_SOURCE_RELEASE_SAVED
