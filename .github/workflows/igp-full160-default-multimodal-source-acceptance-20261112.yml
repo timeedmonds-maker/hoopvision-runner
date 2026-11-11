@@ -102,7 +102,10 @@ jobs:
           assert q['counts']['published_xfg']>23000
           assert q['counts']['source_30feature_biomechanics']>23000
           assert q['counts']['defensiveInfo']>23000
-          assert q['counts']['published_Gravity_spotlight_games']>=159
+          assert q['counts']['published_Gravity_spotlight_games']>=158
+          assert len(q['missing_source_game_ids']['Gravity_spotlight'])==2
+          assert q['counts']['published_any_xfg']>=q['counts']['published_xfg']
+          assert q['counts']['published_blueprint_xfg_only']>0
           assert q['counts']['published_gravity_qualified_player_game_rows']>=1464
           assert q['full_source_coverage_certified'] is False
           assert q['physical_possession_boundaries_certified'] is False
@@ -124,7 +127,11 @@ jobs:
                   ['source_companion_exact','source_blueprint_exact','published_xfg',
                    'source_30feature_biomechanics','defensiveInfo','release_info',
                    'published_Gravity_spotlight_games',
-                   'published_gravity_qualified_player_game_rows']},sort_keys=True))
+                   'published_gravity_qualified_player_game_rows',
+                   'published_any_xfg','published_blueprint_xfg_only',
+                   'frozen_companion_vs_original_response_variants']},sort_keys=True))
+          print('FULL160_ORIGINAL_GRAVITY_SPOTLIGHT_UNAVAILABLE_GAME_IDS',
+                ','.join(q['missing_source_game_ids']['Gravity_spotlight']))
           PY
       - name: Publish source-preserved Full160 indexes and detailed shot observations in private GitHub release
         shell: bash
