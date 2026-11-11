@@ -245,7 +245,7 @@ jobs:
                   shapes["time_"+kind(t)]+=1
                   shapes["players_"+kind(p)]+=1
                   shapes["ball_"+kind(b)]+=1
-                  if not isinstance(t,list) or not isinstance(p,list) or not isinstance(b,list):
+                  if not isinstance(t,list) or not isinstance(p,(list,dict)) or not isinstance(b,list):
                       counts["unsupported_outer_schema"]+=1
                       continue
                   n=len(t)
@@ -254,16 +254,22 @@ jobs:
                   shapes["ball_column_count_"+str(len(b))]+=1
                   ok_time=all(isinstance(x,(int,float,str)) for x in t)
                   unpacked=[]
-                  for entry in p:
-                      if not isinstance(entry,list) or len(entry)!=3:
+                  if isinstance(p,dict):
+                      source_players=list(p.items())
+                  else:
+                      source_players=[(entry[0],entry[1:]) for entry in p
+                                      if isinstance(entry,list) and len(entry)>=3]
+                  for player,axes in source_players:
+                      if not isinstance(axes,list) or len(axes)<2:
                           counts["unsupported_player_record"]+=1
                           continue
-                      player,xs,ys=entry
+                      xs,ys=axes[:2]
                       if not (isinstance(xs,list) and isinstance(ys,list) and
                               len(xs)==n and len(ys)==n):
                           counts["player_axis_length_mismatch"]+=1
                           continue
-                      unpacked.append((player,xs,ys))
+                      zcol=axes[2] if len(axes)>2 and isinstance(axes[2],list) and len(axes[2])==n else None
+                      unpacked.append((player,xs,ys,zcol))
                       if isinstance(player,(int,str)):observed_actor_ids.add(str(player))
                   good_ball=len(b)>=3 and all(isinstance(col,list) and len(col)==n for col in b[:3])
                   if not good_ball:counts["ball_axis_length_mismatch"]+=1
@@ -276,10 +282,10 @@ jobs:
                       if isinstance(timecode,(int,float,str)):
                           unique_times.add(str(timecode))
                       actors=[]
-                      for player,xs,ys in unpacked:
+                      for player,xs,ys,zs in unpacked:
                           x,y=xs[i],ys[i]
                           if scal(x) and scal(y) and x is not None and y is not None:
-                              actors.append([player,x,y])
+                              actors.append([player,x,y,zs[i] if zs is not None else None])
                       ball=[col[i] for col in b] if good_ball else None
                       row={"source_sha256":src["sha256"],"time_native":timecode,
                            "players_native_xy":actors,
