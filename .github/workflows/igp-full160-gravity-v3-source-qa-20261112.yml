@@ -43,6 +43,10 @@ jobs:
           git -C "$DIR" sparse-checkout init --no-cone
           git -C "$DIR" sparse-checkout set --no-cone \
             '/gamepulse/fusion/igp_full160_source_default_v1.py' \
+            '/gamepulse/fusion/igp_full160_gravity_single_game_snapshot_delta_v1.py' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
+            '/data/extensions/nba_blueprint_2026_27/season_to_date/gravity_spotlight_player_game.csv' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/002260021*/boxscore.json' \
             '/gamepulse/fusion/tests/test_igp_full160_gravity_v3_20261112.py' \
             '/data/extensions/nba_gravity_2026_27/nba_gravity_2026_27_player_game_unified_source_verified_20261111_v2.csv' \
             '/data/extensions/nba_gravity_2026_27/nba_gravity_2026_27_player_game_unified_source_verified_20261112_v3.csv' \
@@ -70,6 +74,53 @@ jobs:
           print('FULL160_GRAVITY_V3_SOURCE_SHA_QUERY_KD_AND_160_GAME_TESTS_PASS',
                 'qualified_rows',n,'qualified_games',len(qualified),
                 'kd_player_games',len(kd),'new_rows',107)
+          PY
+      - name: Independently replay 107 game Gravity increments from immutable NBA snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="$RUNNER_TEMP/full160-gravity-v3-private"
+          git -C "$DIR" rev-parse HEAD
+          python3 -m py_compile "$DIR/gamepulse/fusion/igp_full160_gravity_single_game_snapshot_delta_v1.py"
+          pre_commit="79c4fa969525d64bf0ef21bbb1446aba1ed918e7"
+          post_commit="c0c16895c753ec8aedc8433f7f0eee26b8164150"
+          file="public_nba_gravity_leaders_2026_27_current.json"
+          gh api "repos/timeedmonds-maker/hoopvision-runner/contents/$file?ref=$pre_commit" --jq .content | base64 -d > "$RUNNER_TEMP/gravity-pre.json"
+          gh api "repos/timeedmonds-maker/hoopvision-runner/contents/$file?ref=$post_commit" --jq .content | base64 -d > "$RUNNER_TEMP/gravity-post.json"
+          test -s "$RUNNER_TEMP/gravity-pre.json"
+          test -s "$RUNNER_TEMP/gravity-post.json"
+          python3 "$DIR/gamepulse/fusion/igp_full160_gravity_single_game_snapshot_delta_v1.py" \
+            --pre "$RUNNER_TEMP/gravity-pre.json" --post "$RUNNER_TEMP/gravity-post.json" \
+            --boxscore "$DIR/gamepulse/fusion/official_pbp_timing/original_nba_20261029/"002260021{1,2,3,4,5,6}"/boxscore.json" \
+            --spotlight-csv "$DIR/data/extensions/nba_blueprint_2026_27/season_to_date/gravity_spotlight_player_game.csv" \
+            --full160-index "$DIR/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json" \
+            --pre-commit "$pre_commit" --post-commit "$post_commit" --strict \
+            --out-csv "$RUNNER_TEMP/gravity-replay.csv" --qa-out "$RUNNER_TEMP/gravity-replay-qa.json" \
+            --expect-rows 107 --expect-direct 12
+          python3 - <<'PY'
+          import csv,json,os,pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])
+          private=root/"full160-gravity-v3-private"
+          old=private/"data/extensions/nba_gravity_2026_27/nba_gravity_2026_27_player_game_unified_source_verified_20261112_v3.csv"
+          def csvrows(path):
+              with open(path,encoding="utf-8-sig",newline="") as f:return list(csv.DictReader(f))
+          expected={(r["game_id"],r["player_id"]):r for r in csvrows(old) if r["source_post_sha"]=="c0c16895c753"}
+          observed={(r["game_id"],r["player_id"]):r for r in csvrows(root/"gravity-replay.csv")}
+          assert len(expected)==len(observed)==107
+          assert expected.keys()==observed.keys()
+          for key,expected_row in expected.items():
+              got=observed[key]
+              for field in expected_row:
+                  if field in ("overall_gravity","on_ball_perimeter_gravity","off_ball_perimeter_gravity","on_ball_interior_gravity","off_ball_interior_gravity"):
+                      a=expected_row[field];b=got[field]
+                      assert a==b or (a!="" and b!="" and abs(float(a)-float(b))<=0.0010001), (key,field,a,b)
+                  else:
+                      assert expected_row[field]==got[field],(key,field,expected_row[field],got[field])
+          replay=json.loads((root/"gravity-replay-qa.json").read_text())
+          assert replay["verified_unique_player_game_rows"]==107
+          assert replay["source_blueprint_direct_player_games_5field_crosschecked"]==12
+          print("FULL160_GRAVITY_V3_INDEPENDENT_SOURCE_REPLAY_PASS", "rows",len(observed),
+                "games",len(set(k[0] for k in observed)),"direct",12)
           PY
       - name: Publish additive Gravity v3 source-grade layer privately after validation
         shell: bash
