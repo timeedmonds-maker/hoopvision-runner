@@ -1,4 +1,4 @@
-# Only GitHub-hosted CPU. All NBA source-derived player Gravity remains private in 104.
+# Allowlisted and source-confined. Only GitHub-hosted CPU. All NBA source-derived player Gravity remains private in 104.
 name: Integrated Pulse FULL160 Gravity v3 source-graded acceptance
 on:
   push:
