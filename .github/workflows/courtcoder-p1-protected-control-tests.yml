@@ -14,6 +14,7 @@ on:
       - research/courtcoder-v31-gap-confidence-controls-20261102
       - research/courtcoder-v31-source-custody-controls-20261102
       - research/courtcoder-v31-pin-merged-private-source-20261102
+      - research/courtcoder-v32-owner-review-sourcefree-20261102
       - main
     paths:
       - .github/workflows/courtcoder-p1-protected-control-tests.yml
@@ -26,8 +27,8 @@ jobs:
     timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_HEAD_SHA: 42800497c63dc542099d7b6126f7cb209d3ef3a4
-      PRIVATE_SOURCE_BRANCH: hoopvision-production
+      PRIVATE_HEAD_SHA: 3b8c65dbb33deca3661c1bcb9208a1ec645efd34
+      PRIVATE_SOURCE_BRANCH: research/courtcoder-recovered-owner40-12-frozen-evaluator-20261102
     steps:
       - uses: actions/checkout@v4
         with:
@@ -58,6 +59,14 @@ jobs:
             tools/diagnostics/cc_full81_p1_native_gap_masked_holdout.py \
             tools/diagnostics/cc_full81_p1_native_gap_original_replay.py \
             tools/diagnostics/cc_full81_p1_native_gap_h1_private_score.py \
+            tools/diagnostics/cc_full81_recovered_owner_reviews_score.py \
+            tools/diagnostics/cc_full81_owner40_original_frame_freeze.py \
+            tools/diagnostics/cc_full81_owner40_protected_gcs_packet.py \
+            tools/diagnostics/cc_full81_owner40_protected_end_to_end.py \
+            tools/diagnostics/cc_full81_h1_foot_support_sensitivity.py \
+            tools/diagnostics/cc_full81_h1_foot_support_protected.py \
+            tools/diagnostics/cc_full81_p1_subset_monotonicity.py \
+            tools/diagnostics/cc_v32_original_h1_archive_replay.py \
             > "$RUNNER_TEMP/courtcoder-private-compile.log" 2>&1 || { echo "COURTCODER_PRIVATE_COMPILE_FAILED"; exit 3; }
           failed=0
           for module in \
@@ -72,11 +81,47 @@ jobs:
             hoopvision.tests.test_p1_blocked_model_label_holdout \
             hoopvision.tests.test_p1_native_gap_shadow \
             hoopvision.tests.test_p1_native_gap_masked_holdout \
-            hoopvision.tests.test_p1_native_gap_confidence; do
+            hoopvision.tests.test_p1_native_gap_confidence \
+            hoopvision.tests.test_recovered_owner_reviews_score \
+            hoopvision.tests.test_owner40_original_frame_freeze \
+            hoopvision.tests.test_owner40_protected_gcs_packet \
+            hoopvision.tests.test_owner40_protected_end_to_end \
+            hoopvision.tests.test_h1_foot_support_sensitivity \
+            hoopvision.tests.test_h1_foot_support_protected \
+            hoopvision.tests.test_cc_full81_p1_subset_monotonicity \
+            hoopvision.tests.test_cc_v32_original_h1_archive_replay; do
             if python3 -m unittest "$module" > "$RUNNER_TEMP/courtcoder-private-tests.log" 2>&1; then
               echo "COURTCODER_SUITE_OK ${module##*.}"
             else
               echo "COURTCODER_SUITE_FAILED ${module##*.}"
+              if [ "$module" = hoopvision.tests.test_owner40_original_frame_freeze ]; then
+                for case in \
+                  test_true_packet_structure \
+                  test_packet_integrity \
+                  test_human_answer_absent_from_source_queue \
+                  test_original_bbox_ambiguity_abstains \
+                  test_multiframe_different_entity_abstains \
+                  test_wrong_video_source_rejected \
+                  test_p1_reads_real_shapinned_original_arm_not_h1_score_projection; do
+                  if python3 -m unittest "$module.OriginalCasePacketTest.$case" > "$RUNNER_TEMP/courtcoder-private-case.log" 2>&1; then
+                    echo "COURTCODER_OWNER40_CASE_OK $case"
+                  else
+                    echo "COURTCODER_OWNER40_CASE_FAILED $case"
+                    if [ "$case" = test_p1_reads_real_shapinned_original_arm_not_h1_score_projection ]; then
+                      # This is entirely synthetic source-free fixture data.
+                      # Print only a short Python exception class / symbolic code.
+                      python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          raw=(Path(os.environ["RUNNER_TEMP"])/"courtcoder-private-case.log").read_text(errors="replace")
+          matches=re.findall(r"(?m)^([A-Za-z]+Error): ([A-Z0-9_]+)$",raw)
+          print("COURTCODER_OWNER40_SYNTHETIC_FIXTURE_ERROR",
+                *(matches[-1] if matches else ("UNCLASSIFIED","NO_SYMBOLIC_CODE")))
+          PY
+                    fi
+                  fi
+                done
+              fi
               if [ "$module" = hoopvision.tests.test_p1_native_gap_confidence ]; then
                 for case in \
                   test_four_roots_smooth_are_analysis_only \
