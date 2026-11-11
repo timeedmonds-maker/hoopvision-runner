@@ -64,7 +64,9 @@ jobs:
             '/gamepulse/fusion/qa/igp_fullx/LATEST.json' \
             '/gamepulse/fusion/qa/igp_fullx/full160_default_source_graded_gap_register_20261112.json' \
             '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
-            '/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/index.json'
+            '/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/LATEST.json' \
+            '/gamepulse/fusion/materialized/igp_full160_unified_default_v4/**'
           git -C "$P" checkout -q "$PRIVATE_REF"
           python3 -m py_compile "$P/gamepulse/fusion/igp_full160_unified_v4_builder_v1.py"
           python3 -m py_compile "$P/gamepulse/fusion/igp_full160_source_default_v1.py"
@@ -98,7 +100,7 @@ jobs:
           assert sum(x['matchup_original_source_pair_rows'] or 0 for x in i['games'].values())==32448
           assert sum(x['zone_team_game_record_count'] or 0 for x in i['games'].values())==106
           assert i['games']['0022600189']['matchup_original_source_pair_rows'] is None
-          assert i['games']['0022600189']['zone_team_game_record_count'] is None
+          assert i['games']['0022600189']['zone_team_game_record_count']==2
           assert i['games']['0022600214']['zone_defense_home_original_delta'] is not None
           assert i['games']['0022600214']['zone_defense_away_original_delta'] is not None
           assert p['canonical_manifest_sha256']==hashlib.sha256((d/'index.json').read_bytes()).hexdigest()
