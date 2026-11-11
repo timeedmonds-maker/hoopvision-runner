@@ -1,0 +1,90 @@
+# Only GitHub-hosted CPU. All NBA source-derived player Gravity remains private in 104.
+name: Integrated Pulse FULL160 Gravity v3 source-graded acceptance
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full160-gravity-v3-source-qa-20261112.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full160-gravity-v3-source-20261112
+  cancel-in-progress: false
+jobs:
+  verify-gravity-v3:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+      RELEASE: igp-full160-gravity-v3-source-graded-20261112
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Source-confinement and no-GPU gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          echo FULL160_GRAVITY_PRIVATE_CPU_ONLY_GATE_PASS
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Sparse read of SHA-pinned Full160 Gravity private source and QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="$RUNNER_TEMP/full160-gravity-v3-private"
+          git clone -q --no-checkout --filter=blob:none --depth=1 \
+              -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$DIR"
+          git -C "$DIR" sparse-checkout init --no-cone
+          git -C "$DIR" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_full160_source_default_v1.py' \
+            '/gamepulse/fusion/tests/test_igp_full160_gravity_v3_20261112.py' \
+            '/data/extensions/nba_gravity_2026_27/nba_gravity_2026_27_player_game_unified_source_verified_20261111_v2.csv' \
+            '/data/extensions/nba_gravity_2026_27/nba_gravity_2026_27_player_game_unified_source_verified_20261112_v3.csv' \
+            '/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/full160_gravity_player_game_source_graded_20261112_v3.jsonl' \
+            '/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/full160_gravity_game_coverage_20261112_v3.json' \
+            '/gamepulse/fusion/qa/igp_fullx/full160_gravity_v3_backfill_acceptance_20261112.json' \
+            '/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/index.json'
+          git -C "$DIR" checkout -q "$PRIVATE_REF"
+          python3 -m py_compile "$DIR/gamepulse/fusion/igp_full160_source_default_v1.py"
+          test -s "$DIR/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/full160_gravity_player_game_source_graded_20261112_v3.jsonl"
+          cd "$DIR"
+          python3 -m unittest discover -v -s gamepulse/fusion/tests \
+             -p 'test_igp_full160_gravity_v3_20261112.py'
+          python3 - <<'PY'
+          from pathlib import Path
+          import sys
+          root=Path.cwd()
+          sys.path.insert(0,str(root/'gamepulse/fusion'))
+          import igp_full160_source_default_v1 as m
+          qualified,sha,n=m.gravity_rows(root)
+          assert n==1571 and len(qualified)==91
+          kd=m.gravity_graded_player_game(root,'0022600208')
+          assert len(kd)==24 and kd['201142']['gravity']['overall_gravity']==25.765
+          assert sum(v['value_grade']=='OFFICIAL_PLAYER_UNPUBLISHED' for v in kd.values())==6
+          print('FULL160_GRAVITY_V3_SOURCE_SHA_QUERY_KD_AND_160_GAME_TESTS_PASS',
+                'qualified_rows',n,'qualified_games',len(qualified),
+                'kd_player_games',len(kd),'new_rows',107)
+          PY
+      - name: Publish additive Gravity v3 source-grade layer privately after validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          DIR="$RUNNER_TEMP/full160-gravity-v3-private"
+          if gh release view "$RELEASE" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
+            echo FULL160_GRAVITY_V3_PRIVATE_RELEASE_ALREADY_EXISTS_NO_CLOBBER
+          else
+            gh release create "$RELEASE" -R "$PRIVATE_REPO" --target "$PRIVATE_REF" \
+              --title "FULL160 player-game Gravity v3: 1,571 qualified, 2,558 source-graded" \
+              --notes "Independent CPU source/QA acceptance for 107 newly derived one-game Gravity records; 1,571 qualified player-games across 91/160 games, 316 featured spotlights, 2,558 source-graded player-game records including explicit nulls. Original Full160 accepted multimodal release unchanged. No physical tracking certification." \
+              "$DIR/data/extensions/nba_gravity_2026_27/nba_gravity_2026_27_player_game_unified_source_verified_20261112_v3.csv" \
+              "$DIR/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/full160_gravity_player_game_source_graded_20261112_v3.jsonl" \
+              "$DIR/gamepulse/fusion/materialized/igp_full160_multilayer_default_v1/full160_gravity_game_coverage_20261112_v3.json" \
+              "$DIR/gamepulse/fusion/qa/igp_fullx/full160_gravity_v3_backfill_acceptance_20261112.json" >/dev/null
+            echo FULL160_GRAVITY_V3_PRIVATE_RELEASE_CREATED
+          fi
