@@ -1,3 +1,4 @@
+# Reviewed and explicitly allowlisted in tools/public_content_guard.py; aggregate public logs only.
 name: IGP Nov10 six-game unified native/official-ten census (CPU)
 on:
   push:
