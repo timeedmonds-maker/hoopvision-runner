@@ -55,11 +55,34 @@ jobs:
             'index/unassigned_native_labels/index-2026-27.json',
             'index/index.json']
           gids=['0022600'+str(i) for i in range(104,112)]
+          pinned={}
           for rel in indexes:
             path=Path(source+rel)
             raw=show(str(path)); j=json.loads(raw)
-            assert len(j['games'])==36 and set(gids)<=set(j['games'])
-            path.write_bytes(raw)
+            if not isinstance(j.get('games'),dict):
+              raise ValueError('INVALID_PINNED_SOURCE_MANIFEST:'+rel)
+            if 'game_count' in j and j['game_count']!=len(j['games']):
+              raise ValueError('PINNED_SOURCE_COUNT_MISMATCH:'+rel)
+            pinned[rel]=(raw,set(j['games']))
+          official=pinned[indexes[0]][1]
+          interactions=pinned[indexes[1]][1]
+          unassigned=pinned[indexes[2]][1]
+          tracking=pinned[indexes[3]][1]
+          required=set(gids)
+          if len(official)!=36 or not required<=official:
+            raise ValueError('OFFICIAL_PBP_36_SOURCE_COHORT_MISSING')
+          if unassigned!=official:
+            raise ValueError('UNASSIGNED_NATIVE_36_SOURCE_COHORT_MISMATCH')
+          if not official<=interactions:
+            raise ValueError('INTERACTION_SOURCE_MISSING_FOR_OFFICIAL_PBP')
+          if not official<=tracking:
+            raise ValueError('TRACKING_SOURCE_MISSING_FOR_OFFICIAL_PBP')
+          for rel,(raw,_) in pinned.items():
+            Path(source+rel).write_bytes(raw)
+          print('SOURCE_COHORTS_VALIDATED',json.dumps({
+            'official_pbp':len(official),'interactions':len(interactions),
+            'unassigned_native':len(unassigned),'tracking':len(tracking),
+            'requested_new_games':len(required)},sort_keys=True))
           for gid in gids:
             for rel in (
               'official_pbp_timing/games/'+gid+'.json',
