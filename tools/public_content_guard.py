@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full160-gravity-v3-source-qa-20261112.yml",  # audited CPU-only source SHA and original-vs-derived Gravity QA; all detailed player source records private 104, aggregate-only public logs
     ".github/workflows/igp-full160-gravity-0166-official-source-recheck-20261112.yml",  # NBA official Blueprint source-only 0166 missing Gravity spotlight recheck, original immutable, private 104 only
     ".github/workflows/igp-full160-four-companion-0189-blueprint-source-backfill-20261112.yml",  # authorized source-only 4 missing Full160 companion SDK event probes and NBA Blueprint 0189, free CPU, private 104 receipts, no fabricated biomechanics
     ".github/workflows/igp-full160-default-multimodal-source-acceptance-20261112.yml",  # CPU-only private 104 Full160 multimodal shot/biomechanics/Gravity/PBP/CourtSketch source SHA acceptance and versioned default; no public licensed rows
