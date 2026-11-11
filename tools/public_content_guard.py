@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full160-default-multimodal-source-acceptance-20261112.yml",  # CPU-only private 104 Full160 multimodal shot/biomechanics/Gravity/PBP/CourtSketch source SHA acceptance and versioned default; no public licensed rows
     ".github/workflows/courtsketch-capture-full160-0189-source-repair-20261112.yml",  # free CPU single Full160 0189 CourtSketch immutable capture, source-B800/P2B research model, confidential results only private 104
     ".github/workflows/courtsketch-capture-nov09-six-postarchive-full160-20261112.yml",  # SHA-preserved six Nov09 CourtSketch L0 archives reprocess native L1 and Full160 on free CPU; no second browser acquisition, private 104 only
     ".github/workflows/courtsketch-capture-nov09-six-batch-full160-20261112.yml",  # verified single Nov09 six-game CourtSketch Capture matrix; public workflow code only, all native XYZ and derived Full160 private 104, CPU-only
