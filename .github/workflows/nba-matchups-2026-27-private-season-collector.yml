@@ -1,3 +1,4 @@
+# Full160 source-first 160-game matchup refresh, public free-CPU, all raw bytes private 104.
 name: NBA 2026-27 complete defensive matchup season to private 104
 on:
   push:
