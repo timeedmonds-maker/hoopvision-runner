@@ -1,0 +1,171 @@
+# Only authentic NBA original SDK programs and official NBA Blueprint site; no imputation or paid GPU.
+name: Full160 original missing companion biomechanics xFG and 0189 NBA Blueprint source recovery
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full160-four-companion-0189-blueprint-source-backfill-20261112.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full160-four-companion-blueprint-0189-onepass-20261112
+  cancel-in-progress: false
+jobs:
+  original-companion:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      max-parallel: 4
+      matrix:
+        include:
+          - {gid: '0022600006', tipoff: '2026-10-22T23:00:00Z'}
+          - {gid: '0022600086', tipoff: '2026-10-21T23:00:00Z'}
+          - {gid: '0022600142', tipoff: '2026-10-29T01:30:00Z'}
+          - {gid: '0022600189', tipoff: '2026-11-07T22:00:00Z'}
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GID: ${{ matrix.gid }}
+      NBA_GAME_ID: ${{ matrix.gid }}
+      NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-full160-missing-companion
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce authentic source controls and private licensed source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api "repos/$PRIVATE_REPO" --jq .private)" = true
+          case "$GID" in 0022600006|0022600086|0022600142|0022600189) ;; *) exit 16 ;; esac
+          echo "FULL160_ORIGINAL_COMPANION_GAP_SOURCE_PROBE_BEGIN $GID"
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install existing approved original NBA SDK client
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$IGP_PRIVATE_CAPTURE_DIR"
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          (cd tools/licensed_feed && npm install --ignore-scripts --no-audit --no-fund --silent)
+      - name: Single authorized source retrieval, no authentication bypass or synthetic biomechanics
+        shell: bash
+        run: |
+          set -euo pipefail
+          node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/private_probe_stdout.log" 2>&1 || true
+          test -s "$IGP_PRIVATE_CAPTURE_DIR/companion_probe_receipt.json"
+          python3 - <<'PY'
+          import json,os,pathlib,hashlib
+          gid=os.environ["GID"]
+          root=pathlib.Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"])
+          q=json.loads((root/"companion_probe_receipt.json").read_bytes())
+          assert q["game_id"]==gid
+          assert q["authentication_bypass_attempted"] is False
+          assert q["raw_29joint_pose_60hz_observed"] is False
+          if q["status"]=="FULL_EVENT_RESPONSE_OBSERVED":
+              raw=(root/"companion_original_sdk_response.json").read_bytes()
+              assert hashlib.sha256(raw).hexdigest()==q["original_body_sha256"]
+              assert len(json.loads(raw))==q["original_body_event_count"]
+          print("FULL160_COMPANION_AUTHENTIC_SOURCE_PROBE",gid,
+                "status",q["status"],
+                "original_shotdetails",q.get("original_body_shot_details_count",0))
+          PY
+      - name: Store observed original, or explicit unavailable receipt, only in private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="igp-full160-authentic-companion-gap-$GID-20261112"
+          if ! gh release view "$tag" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release create "$tag" -R "$PRIVATE_REPO" --target "$PRIVATE_REF" \
+              --title "Full160 $GID NBA original companion availability audit" \
+              --notes "Verified original NBA source only, source not ready stays explicit; no fabricated xFG/biomechanics or 60Hz joint pose." >/dev/null
+          fi
+          gh release upload "$tag" "$IGP_PRIVATE_CAPTURE_DIR/companion_probe_receipt.json" \
+            -R "$PRIVATE_REPO" --clobber >/dev/null
+          if test -s "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json"; then
+            python3 - <<'PY'
+            import json,os,pathlib,hashlib
+            r=pathlib.Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"])
+            q=json.loads((r/"companion_probe_receipt.json").read_bytes())
+            assert q["status"]=="FULL_EVENT_RESPONSE_OBSERVED"
+            assert hashlib.sha256((r/"companion_original_sdk_response.json").read_bytes()).hexdigest()==q["original_body_sha256"]
+            PY
+            gh release upload "$tag" "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json" \
+              -R "$PRIVATE_REPO" --clobber >/dev/null
+          fi
+          echo "FULL160_COMPANION_ORIGINAL_PRIVATE_SOURCE_RECEIPT_ACCEPTED $GID"
+  original-blueprint-0189:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+      GID: '0022600189'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Check public guard and original NBA private source destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          gh auth setup-git
+      - name: Source-only NBA Blueprint 0189 original snapshot retrieval and exact ID validation
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/blueprint-original"
+          git clone -q --no-checkout --filter=blob:none --depth=1 \
+            -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$root"
+          git -C "$root" sparse-checkout init --no-cone
+          git -C "$root" sparse-checkout set --no-cone '/scripts/*.py'
+          git -C "$root" checkout -q "$PRIVATE_REF"
+          cd "$root"
+          python3 - <<'PY'
+          import os,json,sys,pathlib,hashlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"blueprint-0189-result";root.mkdir()
+          sys.path.insert(0,str(pathlib.Path("scripts").resolve()))
+          from update_nba_blueprint_daily_2026_27 import read_report,canonical
+          gid="0022600189"
+          receipt={"game_id":gid,"provider":"NBA official inside-the-game Blueprint",
+                   "source_endpoint":"https://www.nba.com/inside-the-game/blueprint/"+gid,
+                   "fake_source_fields_created":False,"original_sha_verified":False}
+          try:
+              obj,meta=read_report(gid)
+              payload=canonical(obj).encode()
+              (root/"blueprint_report_raw.json").write_bytes(payload)
+              receipt.update({"status":"ORIGINAL_BLUEPRINT_OBSERVED",
+                   "original_sha256":hashlib.sha256(payload).hexdigest(),
+                   "original_modules":sorted(obj),"original_bytes":len(payload),
+                   "original_shots":len((obj.get("shot_difficulty") or {}).get("shotDifficulty") or []),
+                   "original_gravity_spotlight_present":isinstance(obj.get("gravity_spotlight"),dict),
+                   "original_sha_verified":True,"source_page_sha256":meta.get("html_sha256")})
+          except Exception as e:
+              receipt.update({"status":"ORIGINAL_BLUEPRINT_SOURCE_UNAVAILABLE",
+                              "failure_type":type(e).__name__,
+                              "reason":str(e)[:200]})
+          (root/"source_receipt.json").write_text(json.dumps(receipt,indent=2,sort_keys=True)+"\n")
+          print("FULL160_BLUEPRINT_0189_ORIGINAL_SOURCE",receipt["status"],
+                "shot_rows",receipt.get("original_shots",0))
+          PY
+      - name: Archive only original observed Blueprint and receipt privately, without overwriting frozen Full160
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="igp-full160-blueprint-gap-0022600189-20261112"
+          if ! gh release view "$tag" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release create "$tag" -R "$PRIVATE_REPO" --target "$PRIVATE_REF" \
+              --title "Full160 0189 NBA Blueprint original-source gap audit" \
+              --notes "Only original observed official report when available, no false xFG/Gravity/biomechanics fallback." >/dev/null
+          fi
+          root="$RUNNER_TEMP/blueprint-0189-result"
+          gh release upload "$tag" "$root/source_receipt.json" -R "$PRIVATE_REPO" --clobber >/dev/null
+          if test -s "$root/blueprint_report_raw.json"; then
+            gh release upload "$tag" "$root/blueprint_report_raw.json" -R "$PRIVATE_REPO" --clobber >/dev/null
+          fi
+          echo FULL160_BLUEPRINT_0189_ORIGINAL_SOURCE_RECEIPT_PRIVATE
