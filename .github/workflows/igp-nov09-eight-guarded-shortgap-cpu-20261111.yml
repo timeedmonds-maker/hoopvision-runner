@@ -1,0 +1,83 @@
+# Free GitHub-hosted CPU; no provider/API replays, no GPU, all NBA XYZ remain private.
+name: IGP Nov09 eight source original gap shadow CPU
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/igp-nov09-eight-guarded-shortgap-cpu-20261111.yml]
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-nov09-8source-shortgap-s1-p2b-private
+  cancel-in-progress: false
+jobs:
+  validate-restore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 110
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public/private boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Recover short original-anchored gaps using bounded B and guarded P2B shadow
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$PRIVATE_BRANCH" \
+             "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          cd "$RUNNER_TEMP/private"
+          git sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/official_pbp_timing/games/*.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/**/boxscore.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/materialized/igp_original_xyz_partial_20261109_recovered_v1/**' \
+            '/gamepulse/fusion/materialized/igp_original_xyz_partial_0022600210_archived_v1/**' \
+            '/gamepulse/fusion/materialized/igp_20261109_nov9_guarded_partial_gap_recovery_v1/**' \
+            '/gamepulse/fusion/qa/igp_20261111/nov09_eight_source_guarded_gap_recovery_v1.json'
+          python3 -m py_compile gamepulse/fusion/igp_nov09_eight_source_guarded_gap_recovery_v1.py
+          cd gamepulse/fusion
+          python3 igp_nov09_eight_source_guarded_gap_recovery_v1.py --root ../../
+          cd ../../
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/igp_20261111/nov09_eight_source_guarded_gap_recovery_v1.json')
+          d=json.loads(p.read_bytes())
+          assert d['game_ids']==['0022600'+str(i) for i in range(203,211)]
+          assert d['original_source_observations_modified'] is False
+          assert d['full160_shot_release_modified'] is False
+          assert d['production_default_changed'] is False
+          assert d['counts']['S1_official_running_10hz_samples']>0
+          assert d['counts']['P2B_1200ms_guarded_shadow_complete_ten_ball']>=d['counts']['B_800ms_complete_ten_ball']
+          assert sum(z['original_timestamps'] for z in d['games'].values())==31635
+          print('IGP_NOV09_ORIGINAL_SOURCE_GUARDED_TRACKING_CONSERVATION_OK',
+                d['counts']['S1_official_running_10hz_samples'],
+                d['counts']['B_800ms_complete_ten_ball'],
+                d['counts']['P2B_1200ms_guarded_shadow_complete_ten_ball'],flush=True)
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_20261109_nov9_guarded_partial_gap_recovery_v1 \
+            gamepulse/fusion/qa/igp_20261111/nov09_eight_source_guarded_gap_recovery_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_NOV09_SHORTGAP_SOURCE_SHADOW_ALREADY_CURRENT; exit 0; fi
+          git commit -q -m 'data(igp): Nov09 eight-game bounded tracking gap model shadow and masked source QA'
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_BRANCH"; then
+              echo IGP_NOV09_GUARDED_SHORTGAP_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 27
