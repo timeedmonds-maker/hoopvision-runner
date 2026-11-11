@@ -1,0 +1,64 @@
+name: IGP Nov10 six-game unified native/official-ten census (CPU)
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-nov10-six-unified-native-census-20261111.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-nov10-six-native-source-census-once
+  cancel-in-progress: false
+jobs:
+  census:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Public/private boundary and CPU-only preflight
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          echo IGP_SIX_PRIVATE_GIT_CPU_PREFLIGHT_OK
+      - name: SHA-checked private original XYZ census and official running-clock join
+        run: |
+          set -euo pipefail
+          dest="$RUNNER_TEMP/igp-private"
+          git clone -q --no-checkout --filter=blob:none --depth=1 \
+            -b research/igp-six-native-census-20261111 \
+            https://github.com/timeedmonds-maker/104.git "$dest"
+          git -C "$dest" sparse-checkout init --no-cone
+          git -C "$dest" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/live_original_20261111/' \
+            '/gamepulse/fusion/materialized/igp_0211_original_gameplay_source_v1/' \
+            '/gamepulse/fusion/materialized/igp_0212_live_original_xyz_v1/' \
+            '/gamepulse/fusion/official_pbp_timing/games/002260021*.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/002260021*/boxscore.json' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_002260021*/sdk_observed_original.json'
+          git -C "$dest" checkout -q research/igp-six-native-census-20261111
+          test -f "$dest/gamepulse/fusion/igp_20261111_six_game_unified_native_census_v1.py"
+          test -f "$dest/gamepulse/fusion/official_pbp_timing/games/0022600216.json"
+          test -f "$dest/gamepulse/fusion/live_original_20261111/0022600216/completion-trigger-control.json"
+          cd "$dest"
+          python3 -m py_compile gamepulse/fusion/igp_20261111_six_game_unified_native_census_v1.py
+          python3 gamepulse/fusion/igp_20261111_six_game_unified_native_census_v1.py \
+            --root . \
+            --out gamepulse/fusion/qa/igp_20261111/nov10_six_unified_native_census_v1.json
+          echo IGP_NOV10_SIX_SOURCE_CENSUS_COMPLETED_AGGREGATES_ONLY
+          git config user.name "Integrated Pulse QA"
+          git config user.email "igp-qa@users.noreply.github.com"
+          git add gamepulse/fusion/qa/igp_20261111/nov10_six_unified_native_census_v1.json
+          git commit -qm 'Archive SHA-checked six-game 10-player-plus-ball live-source census'
+          git push -q origin HEAD:refs/heads/research/igp-six-native-census-20261111
+          echo IGP_NOV10_SIX_PRIVATE_QA_COMMITTED
+      - name: Evidence safety reminder
+        if: always()
+        run: |
+          echo 'CPU only; no GPU. Private XYZ never exported. Existing 800ms model is source-proxy candidate only, not independent physical verification or full 13-part archival certificate.' >> "$GITHUB_STEP_SUMMARY"
