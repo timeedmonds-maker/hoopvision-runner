@@ -1,0 +1,94 @@
+# Reviewed free CPU only: read existing SHA-original private Full160 sources
+# and update the canonical season registry without reprocessing licensed XYZ.
+name: IGP Full160 canonical six-source registry plus OKC companion crosswalk CPU
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full160-six-native-season-registry-20261111.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full160-six-original-season-registry-once
+  cancel-in-progress: false
+jobs:
+  accept:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Protect public output and verify private repo
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+      - name: Independently reconcile season source flags and preserve FULL154/FULL160
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/igp-registry"
+          git clone -q --no-checkout --filter=blob:none --depth=1 \
+            -b research/igp-six-native-census-20261111 \
+            https://github.com/timeedmonds-maker/104.git "$dir"
+          git -C "$dir" sparse-checkout init --no-cone
+          git -C "$dir" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/materialized/igp_full160_nov10_original_graded_v1/*/index.json' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_002260021*/sdk_observed_original.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600216.json' \
+            '/data/extensions/nba_blueprint_2026_27/games/002260021*/blueprint_report_raw.json' \
+            '/gamepulse/fusion/qa/igp_20261111/' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_03e7ba4cbb5d_v2.json'
+          git -C "$dir" checkout -q research/igp-six-native-census-20261111
+          cd "$dir"
+          python3 -m py_compile gamepulse/fusion/igp_full160_nov10_season_registry_promotion_v1.py
+          python3 gamepulse/fusion/igp_full160_nov10_season_registry_promotion_v1.py --root .
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          base=pathlib.Path('gamepulse/fusion')
+          qa=json.loads((base/'qa/igp_20261111/nov10_full160_season_source_registry_v1.json').read_text())
+          addpath=base/'materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json'
+          addraw=addpath.read_bytes()
+          add=json.loads(addraw)
+          ptr=json.loads((base/'qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json').read_text())
+          ix=pathlib.Path(ptr['index_path']).read_bytes()
+          full=json.loads(ix)
+          six=qa['source_games']
+          assert len(six)==6 and qa['source_original_unique_native_timestamps']==183561
+          assert ptr['game_count']==full['game_count']==160
+          assert ptr['source_additive_index_sha256']==hashlib.sha256(addraw).hexdigest()
+          assert ptr['index_sha256']==hashlib.sha256(ix).hexdigest()
+          assert all(add['games'][gid]['original_xyz_manifest'] and
+                     add['games'][gid]['original_native_timestamps']>0 and
+                     add['games'][gid]['original_source_13_part_complete'] is False
+                     for gid in six)
+          assert add['games']['0022600216']['original_companion_shot_crosswalk']
+          assert qa['full160_official_fga']==28147
+          print('IGP_FULL160_CANONICAL_SIX_SOURCE_REGISTRY_QA_PASS',json.dumps({
+            'season':160,'source_games':6,'timestamps':183561,
+            'full160_official_fga':full['counts']['official_fga'],
+            'companion_exact':full['counts']['companion_exact'],
+            'blueprint_exact':full['counts']['blueprint_exact']
+          },sort_keys=True))
+          PY
+          git config user.name "Integrated Pulse QA"
+          git config user.email "igp-qa@users.noreply.github.com"
+          git add --sparse -f \
+            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json \
+            gamepulse/fusion/evidence/companion_sdk_original_0022600216/shotdetails_official_action_crosswalk_v1.json \
+            gamepulse/fusion/qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json \
+            gamepulse/fusion/qa/igp_20261111/nov10_full160_season_source_registry_v1.json
+          git add --sparse -f gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_*.json
+          git commit -qm 'data(IGP): promote six SHA-original native source indexes into Full160 season; add original OKC shot companion crosswalk'
+          git push -q origin HEAD:refs/heads/research/igp-six-native-census-20261111
+          echo IGP_FULL160_CANONICAL_SOURCE_REGISTRY_PRIVATE_COMMITTED
+      - name: Report source-grade boundaries
+        if: always()
+        run: |
+          echo 'All source evidence private only. Full154 immutable. Full160 source-graded NBA PBP, Blueprint, companion, ten-ball running-clock S1. No false 13-part completion or physical accuracy certification.' >> "$GITHUB_STEP_SUMMARY"
