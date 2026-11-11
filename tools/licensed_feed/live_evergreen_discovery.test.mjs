@@ -8,9 +8,10 @@ test('discovers concurrent NBA games from current official schedule without hard
  const a=activeGames(wrap([row('0022600211',-90),row('0022600212',-60),row('0022600213',0),row('0022600214',0),row('0022600215',60,1)]),now);
  assert.deepEqual(a.map(x=>x.id),['0022600211','0022600212','0022600213','0022600214']);
 });
-test('arms future games eight minutes before tipoff',()=>{
+test('prearms future games twenty-five minutes before tipoff',()=>{
+ assert.deepEqual(activeGames(wrap([row('0022700001',25,1)]),now).map(x=>x.id),['0022700001']);
+ assert.deepEqual(activeGames(wrap([row('0022700001',26,1)]),now),[]);
  assert.deepEqual(activeGames(wrap([row('0022700001',8,1)]),now).map(x=>x.id),['0022700001']);
- assert.deepEqual(activeGames(wrap([row('0022700001',9,1)]),now),[]);
 });
 test('supports a new season and NBA playoff game identifiers',()=>{
  const ids=['0022700001','0042700012','0012700002','0052700003','0032700004'];
