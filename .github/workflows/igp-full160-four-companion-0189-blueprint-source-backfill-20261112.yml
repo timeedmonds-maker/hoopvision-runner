@@ -86,13 +86,7 @@ jobs:
           gh release upload "$tag" "$IGP_PRIVATE_CAPTURE_DIR/companion_probe_receipt.json" \
             -R "$PRIVATE_REPO" --clobber >/dev/null
           if test -s "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json"; then
-            python3 - <<'PY'
-            import json,os,pathlib,hashlib
-            r=pathlib.Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"])
-            q=json.loads((r/"companion_probe_receipt.json").read_bytes())
-            assert q["status"]=="FULL_EVENT_RESPONSE_OBSERVED"
-            assert hashlib.sha256((r/"companion_original_sdk_response.json").read_bytes()).hexdigest()==q["original_body_sha256"]
-            PY
+            python3 -c 'import json,os,pathlib,hashlib; p=pathlib.Path(os.environ["IGP_PRIVATE_CAPTURE_DIR"]); q=json.loads((p/"companion_probe_receipt.json").read_bytes()); assert q["status"]=="FULL_EVENT_RESPONSE_OBSERVED"; assert hashlib.sha256((p/"companion_original_sdk_response.json").read_bytes()).hexdigest()==q["original_body_sha256"]'
             gh release upload "$tag" "$IGP_PRIVATE_CAPTURE_DIR/companion_original_sdk_response.json" \
               -R "$PRIVATE_REPO" --clobber >/dev/null
           fi
