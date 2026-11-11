@@ -1,4 +1,5 @@
 # Free GitHub-hosted CPU; no provider/API replays, no GPU, all NBA XYZ remain private.
+# Vetted by public_content_guard.py: SHA original private archive + shadow only.
 name: IGP Nov09 eight source original gap shadow CPU
 on:
   push:
