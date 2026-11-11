@@ -1,0 +1,118 @@
+# Original NBA Blueprint 0166 only: preserves frozen report, records source revisions,
+# accepts no guessed Gravity values and publishes nothing licensed to public repository.
+name: Full160 0166 original NBA Gravity spotlight source revision recheck
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-full160-gravity-0166-official-source-recheck-20261112.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full160-source-gravity-0166-recheck-20261112
+  cancel-in-progress: false
+jobs:
+  original-nba-blueprint-gravity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+      GAME_ID: '0022600166'
+      RELEASE_TAG: igp-full160-gravity-0166-official-source-recheck-20261112
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce private NBA source boundary and no GPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          gh auth setup-git
+          echo IGP_FULL160_GRAVITY_0166_PRIVATE_CPU_SOURCE_PROBE
+      - name: Check NBA original Blueprint revision and source-backed Gravity module
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/private-gravity"
+          git clone -q --no-checkout --filter=blob:none --depth=1 \
+             -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$root"
+          git -C "$root" sparse-checkout init --no-cone
+          git -C "$root" sparse-checkout set --no-cone \
+             '/scripts/*.py' \
+             '/data/extensions/nba_blueprint_2026_27/games/0022600166/blueprint_report_raw.json'
+          git -C "$root" checkout -q "$PRIVATE_REF"
+          cd "$root"
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib,sys
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'gravity-0166-source'
+          root.mkdir(parents=True,exist_ok=True)
+          sys.path.insert(0,str(pathlib.Path('scripts').resolve()))
+          from update_nba_blueprint_daily_2026_27 import read_report,canonical
+          gid='0022600166'
+          previous=pathlib.Path('data/extensions/nba_blueprint_2026_27/games')/gid/'blueprint_report_raw.json'
+          oldraw=previous.read_bytes()
+          old=json.loads(oldraw)
+          assert old['game_header']['gameId']==gid
+          assert old.get('gravity_spotlight') is None
+          assert 'gravity_spotlight' in old.get('missingModules',[])
+          receipt={'game_id':gid,'source':'NBA original inside-the-game Blueprint',
+                   'source_url':'https://www.nba.com/inside-the-game/blueprint/'+gid,
+                   'prior_original_sha256':hashlib.sha256(oldraw).hexdigest(),
+                   'previous_gravity_module_unpublished':True,
+                   'source_original_not_overwritten':True,
+                   'synthetic_gravity_values_added':False,
+                   'independent_physical_tracking_certified':False}
+          try:
+              data,metadata=read_report(gid)
+              updated=canonical(data).encode('utf-8')
+              freshhash=hashlib.sha256(updated).hexdigest()
+              (root/'blueprint_reobserved_original.json').write_bytes(updated)
+              gravity=data.get('gravity_spotlight')
+              valid=(isinstance(gravity,dict) and gravity.get('gameId')==gid and
+                     type(gravity.get('homePlayerId')) is int and
+                     type(gravity.get('awayPlayerId')) is int and
+                     type(gravity.get('homeOverallGravity')) in (int,float) and
+                     type(gravity.get('awayOverallGravity')) in (int,float))
+              receipt.update({'status':'OFFICIAL_GRAVITY_SPOTLIGHT_OBSERVED' if valid else
+                                  'ORIGINAL_BLUEPRINT_GRAVITY_STILL_UNPUBLISHED',
+                      'reobserved_full_original_sha256':freshhash,
+                      'current_source_differs_from_frozen':freshhash!=receipt['prior_original_sha256'],
+                      'original_page_sha256':metadata.get('html_sha256'),
+                      'available_modules':sorted(data.keys()),
+                      'original_shot_rows':len((data.get('shot_difficulty') or {}).get('shotDifficulty') or []),
+                      'gravity_two_featured_players_present':bool(valid)})
+              if valid:
+                  blob=(json.dumps(gravity,ensure_ascii=False,indent=2,sort_keys=True)+'\n').encode()
+                  (root/'gravity_spotlight_original.json').write_bytes(blob)
+                  receipt['gravity_original_sha256']=hashlib.sha256(blob).hexdigest()
+                  receipt['gravity_featured_player_count']=2
+          except Exception as exc:
+              receipt.update({'status':'NBA_SOURCE_REOBSERVATION_UNAVAILABLE',
+                               'exception_type':type(exc).__name__,
+                               'reason':str(exc)[:210]})
+          (root/'source_receipt.json').write_text(
+               json.dumps(receipt,ensure_ascii=False,sort_keys=True,indent=2)+'\n',encoding='utf-8')
+          print('FULL160_0166_AUTHENTIC_NBA_GRAVITY_SOURCE_RECHECK',
+                receipt['status'],
+                'source_changed',receipt.get('current_source_differs_from_frozen'),
+                'gravity_featured_player_count',receipt.get('gravity_featured_player_count',0))
+          PY
+      - name: Retain immutable source revision and receipt in private release, without changing frozen Full160
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/gravity-0166-source"
+          if ! gh release view "$RELEASE_TAG" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" -R "$PRIVATE_REPO" --target "$PRIVATE_REF" \
+              --title 'NBA original Blueprint 0166 Gravity source recheck' \
+              --notes 'Source-backed original report reobservation only; frozen report remains immutable. Unpublished Gravity is not filled with a model.' >/dev/null
+          fi
+          for name in source_receipt.json blueprint_reobserved_original.json gravity_spotlight_original.json; do
+            if test -s "$root/$name"; then
+              gh release upload "$RELEASE_TAG" "$root/$name" -R "$PRIVATE_REPO" --clobber >/dev/null
+            fi
+          done
+          echo FULL160_0166_OFFICIAL_NBA_SOURCE_RECEIPT_PRESERVED_PRIVATE
