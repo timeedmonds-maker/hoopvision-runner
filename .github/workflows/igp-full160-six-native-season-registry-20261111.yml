@@ -1,4 +1,4 @@
-# Reviewed free CPU only: read existing SHA-original private Full160 sources
+# Allowlisted reviewed free CPU only: read existing SHA-original private Full160 sources
 # and update the canonical season registry without reprocessing licensed XYZ.
 name: IGP Full160 canonical six-source registry plus OKC companion crosswalk CPU
 on:
