@@ -20,7 +20,7 @@ jobs:
       PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
       SOURCE_TAG: courtsketch-original-0022600208-20261112
       MODEL_TAG: courtsketch-full160-0022600208-10hz-v1
-      PROCESSOR_BLOB_SHA: 32631748457d8aa008675eb79b5fbebd67ce9dab
+      PROCESSOR_BLOB_SHA: a84fe1d5c7111fcfc97fa1fbacfdbbf16b7ddebb
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
