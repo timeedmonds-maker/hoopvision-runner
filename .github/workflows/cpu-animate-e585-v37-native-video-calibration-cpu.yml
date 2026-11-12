@@ -1,4 +1,4 @@
-name: CPU Animate V37 original NBA XYZ to video time-camera fit diagnostic CPU
+name: CPU Animate V37B robust original NBA XYZ-to-video affine homography comparative CPU
 on:
   push:
     branches: ['cpu-animate/warriors-amen-sengun-e585-cpu-rebuild-20261113']
@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: cpu-animate-v37-0225-e585-native-calibration
+  group: cpu-animate-v37b-0225-e585-native-calibration
   cancel-in-progress: false
 jobs:
   private-five-id-source-calibration:
@@ -42,20 +42,20 @@ jobs:
           command -v ffmpeg
           gh auth setup-git
           code="$RUNNER_TEMP/v37-camera-code"
-          root="$RUNNER_TEMP/v37-original-native"
-          media="$RUNNER_TEMP/v37-original-media"
-          scout="$RUNNER_TEMP/v37-original-scout"
-          out="$RUNNER_TEMP/v37-original-native-video-candidate.json"
+          root="$RUNNER_TEMP/v37b-original-native"
+          media="$RUNNER_TEMP/v37b-original-media"
+          scout="$RUNNER_TEMP/v37b-original-scout"
+          out="$RUNNER_TEMP/v37b-original-native-video-candidate.json"
           mkdir -p "$media" "$scout"
           trap 'rm -rf "$code" "$root" "$media" "$scout" "$out" "$RUNNER_TEMP/v37-video-pts.json" "$RUNNER_TEMP/v37-upload-request.json"' EXIT
           git clone -q --filter=blob:none --depth=1 --no-checkout \
-            --branch cpu-animate/e585-v37-native-camera-calibration-20261113 \
+            --branch cpu-animate/e585-v37b-robust-native-camera-calibration-20261113 \
             https://github.com/timeedmonds-maker/104.git "$code"
           git -C "$code" sparse-checkout init --no-cone
           git -C "$code" sparse-checkout set --no-cone \
             '/cpu_animate/*' '/tools/locked_broadcast_screen_v5_rings.py'
-          git -C "$code" checkout -q cpu-animate/e585-v37-native-camera-calibration-20261113
-          test "$(git -C "$code" rev-parse HEAD)" = 2f140c559635953571e925279e96a26f7a7ca782
+          git -C "$code" checkout -q cpu-animate/e585-v37b-robust-native-camera-calibration-20261113
+          test "$(git -C "$code" rev-parse HEAD)" = 1be4dddb725ad6ee331a2e79392680869305d798
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -75,37 +75,37 @@ jobs:
             --repo timeedmonds-maker/104 --dir "$scout" \
             --pattern scout_0225_585_videoonly_592.json.gz
           test -s "$scout/scout_0225_585_videoonly_592.json.gz"
-          export V37_MEDIA="$media/event585-playbyplay.mp4"
-          export V37_PTS="$RUNNER_TEMP/v37-video-pts.json"
+          export V37B_MEDIA="$media/event585-playbyplay.mp4"
+          export V37B_PTS="$RUNNER_TEMP/v37-video-pts.json"
           python3 - <<'PY'
           import json,os,pathlib,subprocess
           p=subprocess.run(["ffprobe","-v","error","-select_streams","v:0",
                             "-show_frames","-show_entries","frame=best_effort_timestamp_time",
-                            "-of","json",os.environ["V37_MEDIA"]],
+                            "-of","json",os.environ["V37B_MEDIA"]],
                            capture_output=True,text=True,check=True)
           a=json.loads(p.stdout)["frames"]
           pts=[float(x["best_effort_timestamp_time"]) for x in a]
           assert len(pts)==592
           pts=[round(x-pts[0],7) for x in pts]
           assert all(b>a for a,b in zip(pts,pts[1:]))
-          pathlib.Path(os.environ["V37_PTS"]).write_text(json.dumps({
+          pathlib.Path(os.environ["V37B_PTS"]).write_text(json.dumps({
             "game_id":"0022600225","event_num":585,"camera":"Play by Play",
             "original_video_sha256":"06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234",
             "frame_pts_seconds":pts
           },separators=(",",":"))+"\n")
           PY
           cd "$code"
-          python3 -m py_compile cpu_animate/e585_v37_native_video_calibration.py
-          python3 -m cpu_animate.e585_v37_native_video_calibration \
+          python3 -m py_compile cpu_animate/e585_v37b_robust_native_video_calibration.py
+          python3 -m cpu_animate.e585_v37b_robust_native_video_calibration \
             --source-root "$root" \
-            --media "$V37_MEDIA" \
-            --pts "$V37_PTS" \
+            --media "$V37B_MEDIA" \
+            --pts "$V37B_PTS" \
             --scout "$scout/scout_0225_585_videoonly_592.json.gz" \
             --out "$out"
-          export V37_REPORT="$out"
+          export V37B_REPORT="$out"
           python3 - <<'PY'
           import base64,hashlib,json,os,pathlib,subprocess
-          p=pathlib.Path(os.environ["V37_REPORT"])
+          p=pathlib.Path(os.environ["V37B_REPORT"])
           d=json.loads(p.read_text())
           assert d["game_id"]=="0022600225" and d["event_num"]==585
           assert d["video_sha256"]=="06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234"
@@ -114,9 +114,12 @@ jobs:
           assert d["independent_timing_anchors_accepted"]==0
           assert d["original_xyz_video_utc_alignment_physically_certified"] is False
           assert d["accepted_as_M1"] is False
-          dest="gamepulse/clip_lab/qa/0022600225_e585_v37_original_five_id_native_video_candidate_calibration.json"
+          assert d["schema"]=="cpu-animate.e585.v37b.affine-vs-homography-robust-fit.unaccepted.v1"
+          assert d["selected_research_model_type"] in ("affine","homography")
+          assert d["v37_high_inlier_degenerate_homography_auto_rejected"] is True
+          dest="gamepulse/clip_lab/qa/0022600225_e585_v37b_robust_affine_vs_homography_calibration.json"
           body={"message":"qa(cpu-animate): [skip ci] privately archive original 0225 native-to-video camera/timing held-out QA NOT M1",
-                "branch":"cpu-animate/e585-v37-native-camera-audit-receipts-20261113",
+                "branch":"cpu-animate/e585-v37b-native-camera-audit-receipts-20261113",
                 "content":base64.b64encode(p.read_bytes()).decode()}
           req=pathlib.Path(os.environ["RUNNER_TEMP"])/"v37-upload-request.json"
           req.write_text(json.dumps(body))
@@ -124,8 +127,8 @@ jobs:
                   "repos/timeedmonds-maker/104/contents/"+dest,
                   "--input",str(req)],capture_output=True,text=True)
           if u.returncode:raise RuntimeError("PRIVATE_CALIBRATION_REPORT_COMMIT_FAILED")
-          print("V37_CALIBRATION_PRIVATE_SOURCE_REPORT_SHA",hashlib.sha256(p.read_bytes()).hexdigest())
-          print("V37_NOT_APPROVED_FOR_M1_OR_RENDER",d["heldout_observation_count"],
+          print("V37B_CALIBRATION_PRIVATE_SOURCE_REPORT_SHA",hashlib.sha256(p.read_bytes()).hexdigest())
+          print("V37B_NOT_APPROVED_FOR_M1_OR_RENDER",d["heldout_observation_count"],
                 d["heldout_reprojection_p95_vs_approx_shoe_px"])
           PY
-          echo V37_CPU_PRIVATE_CANDIDATE_CALIBRATION_REPRODUCED_NO_RENDER
+          echo V37B_CPU_PRIVATE_CANDIDATE_CALIBRATION_REPRODUCED_NO_RENDER
