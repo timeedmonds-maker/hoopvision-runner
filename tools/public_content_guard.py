@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/cpu-animate-e585-freeze-spin-transfer-preflight.yml",  # CPU source-free tests + private Freeze Spin v6/PBP source authority; no private media/tracking in public runner
     ".github/workflows/cpu-animate-e585-v37b-m1-release-gate-tests.yml",  # CPU-only, source-free synthetic regression plus private V37B QA negative gate; no licensed pixels/positions public
     ".github/workflows/cpu-animate-e585-v37-native-video-calibration-cpu.yml",  # CPU-only, private 104 SHA-original 0225 native five-ID + video-source shoe calibration diagnostic; public aggregates only, no media or XYZ
     ".github/workflows/cpu-animate-v35-native-roster-side-audit.yml",  # private SHA-original game0225 NBA source 5-player native court-width ID QA; no player XYZ public logs/artifacts; CPU only
