@@ -415,12 +415,12 @@ jobs:
           src=base/'igp_rockets_0022600225_full160_additive_v1.py'
           script=src.read_text()
           assert 'GID="0022600225"' in script
-          assert 'igp_rockets_0022600225_full160_additive_v1' in script
+          assert 'igp_0022600225_full160_additive_v1' in script
           assert 'rockets_0022600225_sourcegraded_tracking_qa_v1' in script
           # Use identical audited source-first method; replace ONLY game-local
           # identity and naming, never relax its SHA, lineup or clock gates.
           script=script.replace('0022600225',gid)
-          script=script.replace('igp_rockets_'+gid,'igp_nov12_'+gid)
+          script=script.replace('igp_'+gid+'_full160_additive_v1','igp_nov12_'+gid+'_full160_additive_v1')
           script=script.replace('rockets_'+gid+'_sourcegraded','nov12_'+gid+'_sourcegraded')
           script=script.replace('igp.rockets-0225','igp.nov12-'+gid[-4:])
           script=script.replace('single-rockets','single-nov12')
