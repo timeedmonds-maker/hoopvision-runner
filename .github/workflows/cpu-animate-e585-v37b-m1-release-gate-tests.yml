@@ -1,0 +1,42 @@
+name: CPU Animate M1 release acceptance fail-closed regression V37B
+on:
+  push:
+    branches: ['cpu-animate/warriors-amen-sengun-e585-cpu-rebuild-20261113']
+    paths: ['.github/workflows/cpu-animate-e585-v37b-m1-release-gate-tests.yml']
+permissions:
+  contents: read
+jobs:
+  m1-negative-gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Prove M1 gate rejects uncalibrated original V37B before any publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test ! -e /dev/nvidia0
+          test ! -e /dev/kfd
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          code="$RUNNER_TEMP/private-104-m1-gate"
+          report="$RUNNER_TEMP/v37b-calibration-evidence-private.json"
+          trap 'rm -rf "$code" "$report"' EXIT
+          git clone -q --filter=blob:none --depth=1 --no-checkout             --branch cpu-animate/e585-m1-release-gate-20261113             https://github.com/timeedmonds-maker/104.git "$code"
+          git -C "$code" sparse-checkout init --no-cone
+          git -C "$code" sparse-checkout set --no-cone             '/cpu_animate/__init__.py'             '/cpu_animate/e585_m1_release_gate.py'             '/cpu_animate/test_e585_m1_release_gate.py'
+          git -C "$code" checkout -q cpu-animate/e585-m1-release-gate-20261113
+          test "$(git -C "$code" rev-parse HEAD)" = 6f8e66552812385080ab4475c7c197fd37223441
+          cd "$code"
+          python3 -m unittest cpu_animate.test_e585_m1_release_gate -v
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/qa/0022600225_e585_v37b_robust_affine_vs_homography_calibration.json?ref=cpu-animate%2Fe585-v37b-native-camera-audit-receipts-20261113'              --jq .content | base64 -d > "$report"
+          python3 -m cpu_animate.e585_m1_release_gate --calibration "$report" --expect-reject
+          echo V37B_ABSTENTION_AND_RELEASE_PROHIBITION_REGRESSION_PASS_NO_GPU_NO_VIDEO
