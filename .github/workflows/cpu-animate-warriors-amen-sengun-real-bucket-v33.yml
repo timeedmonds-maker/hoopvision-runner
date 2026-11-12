@@ -70,7 +70,7 @@ jobs:
             '/tools/locked_broadcast_screen_v5_rings.py' \
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
-          git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
+          git -C "$code" checkout -q cpu-animate/warriors-amen-sengun-event585-v33-sealed-20261113
           test "$(git -C "$code" rev-parse HEAD)" = fed6cc943065f1b167b48aa3f4034bbb202990f4
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
