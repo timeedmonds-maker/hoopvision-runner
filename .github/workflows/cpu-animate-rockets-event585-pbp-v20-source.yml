@@ -113,10 +113,22 @@ jobs:
           set -euo pipefail
           tag=cpu-animate-rockets-0225-e585-full161-v21-source-gate-20261112
           qa="$RUNNER_TEMP/event585-private-qa/full161-rockets-event585-v21-native-gate.json"
-          gh release create "$tag" "$qa" --repo timeedmonds-maker/104 \
-            --title "CPU Animate Rockets event585 V21 trio Full161 authentic XYZ source gate" \
-            --notes "SHA-verified 17 original Rockets chunks and original event585 Play By Play MP4; CPU-only V21 three-player tests; NOT a certified camera alignment or finished rings MP4." \
-            --latest=false
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.tag_name' >/dev/null 2>&1; then
+            # Idempotent rerun: never clobber an immutable receipt or create extra releases.
+            mkdir -p "$RUNNER_TEMP/existing-private-qa"
+            gh release download "$tag" --repo timeedmonds-maker/104 \
+              --dir "$RUNNER_TEMP/existing-private-qa" \
+              --pattern 'full161-rockets-event585-v21-native-gate.json'
+            test "$(sha256sum "$qa" | cut -d' ' -f1)" = \
+                 "$(sha256sum "$RUNNER_TEMP/existing-private-qa/full161-rockets-event585-v21-native-gate.json" | cut -d' ' -f1)" \
+              || { echo PRIVATE_RELEASE_SOURCE_QA_SHA_DRIFT_REJECT; exit 15; }
+            echo EXISTING_PRIVATE_SOURCE_QA_SHA_IDENTICAL_NO_NEW_RELEASE
+          else
+            gh release create "$tag" "$qa" --repo timeedmonds-maker/104 \
+              --title "CPU Animate Rockets event585 V21 trio Full161 authentic XYZ source gate" \
+              --notes "SHA-verified 17 original Rockets chunks and original event585 Play By Play MP4; CPU-only V21 three-player tests; NOT a certified camera alignment or finished rings MP4." \
+              --latest=false
+          fi
           gh api "repos/timeedmonds-maker/104/releases/tags/$tag" \
             --jq '.assets[].name' | grep -qx 'full161-rockets-event585-v21-native-gate.json'
           echo PRIVATE_104_RELEASE_PROVENANCE_PUBLISHED_AND_READ_BACK
