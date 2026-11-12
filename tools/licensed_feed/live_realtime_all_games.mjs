@@ -188,7 +188,7 @@ async function uploadedAndReadback(tag,name,data,dir){
 async function main(){
  if(process.env.GITHUB_REPOSITORY!=='timeedmonds-maker/hoopvision-runner'
   ||process.env.GITHUB_REF!=='refs/heads/main'
-  ||!['schedule','workflow_dispatch','push'].includes(process.env.GITHUB_EVENT_NAME)
+  ||!['schedule','workflow_dispatch','push','workflow_run'].includes(process.env.GITHUB_EVENT_NAME)
   ||!/^00[1-5]\d{7}$/.test(GAME||'')||!Number.isSafeInteger(START)
   ||!TOKEN||TOKEN.length<30)throw Error('unauthorized_live_collection');
  if(!Number.isSafeInteger(CAPTURE_MS)||CAPTURE_MS<30000||CAPTURE_MS>19200000
