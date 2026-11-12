@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/cpu-animate-warriors-e585-v35-hou-31-roster-cpu.yml",  # reviewed single exact 0022600225 event585 original SHA; CPU-only ephemeral private source; only aggregate QA in public; licensed footage and XYZ private 104
     ".github/workflows/igp-nov12-ten-final-companion-biomechanics-20261112.yml",  # bounded exact 10-game official-FINAL source-only companion event/shot biomechanics SDK capture; free CPU; SHA-preserved private 104; zero confidential bytes public
     ".github/workflows/igp-full160-v4-latest-default-promotion-20261112.yml",  # vetted free CPU private-only v4 source SHA promotion
     ".github/workflows/igp-full160-matchup-zone-source-acceptance-20261112.yml",  # free CPU private-104 matchup/zone SHA and source-grade 160-game validation; no source rows or licensed player data public
