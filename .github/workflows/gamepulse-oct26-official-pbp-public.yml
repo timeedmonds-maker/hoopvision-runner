@@ -151,3 +151,29 @@ jobs:
           done
           test "$published" -eq 1
           echo NBA_OCT26_OFFICIAL_SOURCE_COMMITTED_PRIVATELY
+
+  q1-draymond-public-pbp-lookup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Resolve official NBA action numbers for two Q1 makes
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json,urllib.request
+          gid='0022600225'
+          uri='https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_'+gid+'.json'
+          request=urllib.request.Request(uri,headers={'User-Agent':'Mozilla/5.0','Referer':'https://www.nba.com/'})
+          with urllib.request.urlopen(request,timeout=25) as response:
+              actions=json.load(response)['game']['actions']
+          found=[]
+          for action in actions:
+              if action.get('period')==1 and action.get('personId')==203110 and action.get('isFieldGoal')==1 and action.get('shotResult')=='Made':
+                  clock=str(action.get('clock',''))
+                  if ('10M18' in clock or '08M38' in clock):
+                      record={k:action.get(k) for k in ('actionNumber','clock','description','scoreHome','scoreAway','actionType','subType','shotResult')}
+                      print('VERIFIED_DRAYMOND_Q1_MAKE',json.dumps(record,sort_keys=True))
+                      print('DIRECT_CLIPS_NBA',f'https://clips.nba.com/?gameNo={gid}&eventNum={action["actionNumber"]}&source=grs')
+                      found.append(clock)
+          assert len(found)==2,(len(found),found)
+          PY
