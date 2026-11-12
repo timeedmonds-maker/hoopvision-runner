@@ -71,7 +71,7 @@ jobs:
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = 3c2f6292f720b831a9f2e3d7131c8dcd87748857
+          test "$(git -C "$code" rev-parse HEAD)" = cbb86dd2f3cca59edfe8e01512f64d480a3753ed
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -501,11 +501,48 @@ jobs:
           assert q["visible_render_counts"]["Bogdanovic"]>=100
           assert q["all_three_visible_candidate_frames"]>=5
           assert sum(q["green_rendered_frames"].values())>0
+          assert q["reviewed_video_5s_sengun_green_rendered_frames"]>=1
           assert q["original_full170_coordinates_modified"] is False
           assert q["gpu_used"] is False
           print("REAL_FROZEN_V32_BOGDAN_COURT_POSSESSION_GREEN_PASS",json.dumps({
              "ring_counts":q["ring_counts"],"bogdan_visible":q["visible_render_counts"]["Bogdanovic"],
              "green":q["green_rendered_frames"],"triple":q["all_three_visible_candidate_frames"]}))
+          PY
+      - name: Privately persist source-video aligned rendered review stills for independent visual assessment
+        shell: bash
+        run: |
+          set -euo pipefail
+          export V32_REVIEW_SOURCE="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
+          export V32_PRIVATE_REVIEW_BRANCH=cpu-animate/e585-frozen-v32-visual-qa-20261113
+          python3 - <<'PY'
+          import os,json,base64,subprocess,hashlib,pathlib
+          d=pathlib.Path(os.environ["V32_REVIEW_SOURCE"])
+          branch=os.environ["V32_PRIVATE_REVIEW_BRANCH"]
+          stem="0022600225_E585_FULL170_V32_FROZEN_COURT_STABLE_POSSESSION_THREE_RINGS"
+          frames=[132,150,162,252,282]
+          for j in frames:
+              jpg=d/(stem+f"_f{j:03d}.jpg")
+              raw=jpg.read_bytes()
+              if len(raw)<12000 or not raw.startswith(bytes.fromhex("ffd8ff")):
+                  raise ValueError("CORRECTED_RING_RENDER_REVIEW_JPEG_INVALID")
+              plaintext=base64.b64encode(raw).decode("ascii")+"\n"
+              payload={"message":f"qa(cpu-animate): corrected frozen v32 e585 privately reviewed frame {j}",
+                       "branch":branch,
+                       "content":base64.b64encode(plaintext.encode()).decode()}
+              path=f"gamepulse/clip_lab/qa/e585_v32_frozen_20261113_f{j:03d}_jpg_b64.txt"
+              api="repos/timeedmonds-maker/104/contents/"+path
+              prior=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
+              if prior.returncode==0:
+                  payload["sha"]=json.loads(prior.stdout)["sha"]
+              tmp=d/(f"private_review_post_{j:03d}.json")
+              tmp.write_text(json.dumps(payload))
+              result=subprocess.run(["gh","api","-X","PUT",api,"--input",str(tmp)],
+                                    capture_output=True,text=True)
+              if result.returncode:
+                  raise RuntimeError("PRIVATE_VISUAL_REVIEW_FRAME_COMMIT_FAILED")
+              tmp.unlink()
+              print("PRIVATE_ORIGINAL_SOURCE_RENDER_REVIEW_FRAME_HASH",j,hashlib.sha256(raw).hexdigest())
+          print("E585_V32_FROZEN_VISUAL_REVIEW_SOURCE_STILLS_PRIVATE_AVAILABLE")
           PY
       - name: Publish NEW corrected frozen V32 ring-only private MP4 and receipts when all real-source gates pass
         shell: bash
