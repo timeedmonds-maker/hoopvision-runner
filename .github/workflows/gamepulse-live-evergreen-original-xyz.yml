@@ -5,7 +5,7 @@ name: Integrated Pulse Whistle Capture - NBA original XYZ
 # Reposition cron away from minute 00/05 and update schedule actor to recover automatic dispatch.
 # Authenticated original SDK only; raw slots and XYZ only in private timeedmonds-maker/104.
 # CPU-only GitHub ubuntu-24.04: no GPU or inference. Zero-XYZ produces retry failure.
-# Each 5m discovery pre-arms up to 75m early and sustains an authenticated SDK observer per game
+# Each 5m discovery pre-arms up to 135m early and sustains an authenticated SDK observer per game
 # from just before tipoff until official final + 3m or scheduled tipoff + 5h.
 # Per-game concurrency queues a replacement if a capture runner fails; no postgame replay required.
 on:
@@ -97,7 +97,7 @@ jobs:
           GAMEPULSE_LIVE_TIPOFF: ${{ matrix.game.tipoff }}
           IGP_REALTIME_CAPTURE_MS: '18300000'
           IGP_REALTIME_LIVE_STOP_MS: '18000000'
-          IGP_REALTIME_PRETIPOFF_WAIT_MS: '4800000'
+          IGP_REALTIME_PRETIPOFF_WAIT_MS: '8400000'
           IGP_REALTIME_FLUSH_MS: '30000'
         run: |
           set -euo pipefail
