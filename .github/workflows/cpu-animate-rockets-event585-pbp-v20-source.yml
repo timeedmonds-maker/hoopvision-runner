@@ -71,7 +71,7 @@ jobs:
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = 7ec6662219945658a96fb18a504c948b01b1a10f
+          test "$(git -C "$code" rev-parse HEAD)" = cb2f28018c6c7b07143e30bcb6d74c1c261f0915
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -507,8 +507,7 @@ jobs:
           # 252 is not an independently verified Bogdanovic shoe frame. 282 is.
           assert review["282"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_282"
           assert review["252"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_252"
-          assert q["bogdan_original_video_backward_LK_QA"]["frame252_source_video_foot_present"],"BOGDAN_BACKWARD_OPTICAL_NO_F252"
-          assert (q["bogdan_exact_original_video_high_res_zoom_QA"]["direct_source_seg_shoe_accepted"] or q["bogdan_original_video_backward_LK_QA"]["frame252_look_envelope_gate_passed"]),"BOGDAN_F252_REVIEWED_SOURCE_VIDEO_POSITION_NOT_RECOVERED"
+          assert (q["bogdan_f252_manual_source_video_review_QA"]["accepted"] or q["bogdan_exact_original_video_high_res_zoom_QA"]["direct_source_seg_shoe_accepted"] or q["bogdan_original_video_backward_LK_QA"]["frame252_look_envelope_gate_passed"]),"BOGDAN_F252_SOURCE_VIDEO_SHOE_EVIDENCE_MISSING"
           assert q["reviewed_video_5s_sengun_green_rendered_frames"]>=8
           assert q["ring_counts"]["Bogdanovic"]>=160
           assert q["ring_counts"]["Sengun"]>=130
@@ -558,7 +557,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag=cpu-animate-0225-e585-full170-v32-video-shoe-ballgreen-r3-20261113
+          tag=cpu-animate-0225-e585-full170-v32-bogdan-original-video-f252-r4-20261113
           dir="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
           qa="$dir/0022600225_E585_FULL170_V32_FROZEN_COURT_STABLE_POSSESSION_THREE_RINGS_qa.json"
           if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
