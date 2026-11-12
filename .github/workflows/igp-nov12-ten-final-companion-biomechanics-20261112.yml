@@ -354,3 +354,132 @@ jobs:
         if: always()
         run: |
           echo 'Source-only private NBA Blueprint retrieval. No Full160v4 promotion, no newly certified full game tracking or physical possession. Missing original source explicitly remains missing.' >> "$GITHUB_STEP_SUMMARY"
+
+  # Source-first original SDK reconstruction of 9 Nov12 games, identical
+  # canonical engine to accepted Rockets 0225; explicit non-promotion.
+  nov12-native-additive:
+    needs: [final-companion, nov12-blueprint-original]
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        gid: ['0022600217','0022600218','0022600219','0022600220','0022600221','0022600222','0022600223','0022600224','0022600226']
+    concurrency:
+      group: igp-nov12-native-additive-${{ matrix.gid }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 115
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+      GID: ${{ matrix.gid }}
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify no GPU and original source remains private
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          case "$GID" in 0022600217|0022600218|0022600219|0022600220|0022600221|0022600222|0022600223|0022600224|0022600226) ;; *) exit 20 ;; esac
+          echo IGP_NOV12_NATIVE_ADDITIVE_CPU_PRIVATE_SOURCE_GATE
+      - name: Source-SHA original XYZ, official PBP, companion, Blueprint and guarded 10Hz
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          P="$RUNNER_TEMP/nov12-native-private"
+          git clone -q --no-checkout --filter=blob:none --depth=1 -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$P"
+          git -C "$P" sparse-checkout init --no-cone
+          git -C "$P" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_rockets_0022600225_full160_additive_v1.py' \
+            '/gamepulse/fusion/igp_20261111_six_game_unified_native_census_v1.py' \
+            '/gamepulse/fusion/igp_full160_nov10_original_guarded_v1.py' \
+            "/gamepulse/fusion/live_original_20261112/$GID/**" \
+            "/gamepulse/fusion/official_pbp_timing/games/$GID.json" \
+            "/gamepulse/fusion/official_pbp_timing/original_nba_20261029/$GID/boxscore.json" \
+            '/gamepulse/fusion/official_pbp_timing/index-2026-27-post36-additive.json' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
+            "/gamepulse/fusion/evidence/companion_sdk_original_$GID/**" \
+            "/data/extensions/nba_blueprint_2026_27/games/$GID/**"
+          git -C "$P" checkout -q "$PRIVATE_REF"
+          cd "$P"
+          python3 - <<'PY'
+          import os,pathlib
+          gid=os.environ['GID']
+          base=pathlib.Path('gamepulse/fusion')
+          src=base/'igp_rockets_0022600225_full160_additive_v1.py'
+          script=src.read_text()
+          assert 'GID="0022600225"' in script
+          assert 'igp_rockets_0022600225_full160_additive_v1' in script
+          assert 'rockets_0022600225_sourcegraded_tracking_qa_v1' in script
+          # Use identical audited source-first method; replace ONLY game-local
+          # identity and naming, never relax its SHA, lineup or clock gates.
+          script=script.replace('0022600225',gid)
+          script=script.replace('igp_rockets_'+gid,'igp_nov12_'+gid)
+          script=script.replace('rockets_'+gid+'_sourcegraded','nov12_'+gid+'_sourcegraded')
+          script=script.replace('igp.rockets-0225','igp.nov12-'+gid[-4:])
+          script=script.replace('single-rockets','single-nov12')
+          out=base/('igp_nov12_'+gid+'_sourcefirst_ephemeral.py')
+          out.write_text(script)
+          assert '0022600225' not in script
+          print('IGP_NOV12_SOURCEFIRST_IDENTICAL_ENGINE',gid)
+          PY
+          python3 -m py_compile "gamepulse/fusion/igp_nov12_$GID"_sourcefirst_ephemeral.py
+          python3 "gamepulse/fusion/igp_nov12_$GID"_sourcefirst_ephemeral.py --root .
+          python3 - <<'PY'
+          import hashlib,json,os,pathlib
+          gid=os.environ['GID']
+          base=pathlib.Path('gamepulse/fusion')
+          qa=base/'qa/igp_20261112'/('nov12_'+gid+'_sourcegraded_tracking_qa_v1.json')
+          out=base/'materialized'/('igp_nov12_'+gid+'_full160_additive_v1')
+          r=json.loads(qa.read_bytes())
+          p=json.loads((out/'index.json').read_bytes())
+          assert r['game_id']==p['game_id']==gid
+          assert r['parent_game_count']==160 and r['original_full160_immutable'] is True
+          assert r['original_sdk']['native_positions_imputed'] is False
+          assert r['original_sdk']['source_counts']['unique_source_timestamps']>0
+          assert r['official']['official_fga']>=120
+          assert r['companion']['exact_action_and_shooter_matched']>0
+          assert r['blueprint']['available'] is True
+          assert r['physical_possessions_certified']==0
+          assert r['tracking']['production_default_not_changed'] is True
+          assert r['original_sdk']['original_13part_complete'] is False
+          print('IGP_NOV12_SOURCE_GRADE_ACCEPTED_STAGE',gid,
+            'native',r['original_sdk']['source_counts']['unique_source_timestamps'],
+            'shot',r['companion']['exact_action_and_shooter_matched'],
+            'FGA',r['official']['official_fga'],
+            'fullgame13',False,'qa_sha256',hashlib.sha256(qa.read_bytes()).hexdigest())
+          PY
+      - name: Commit original native source-grade overlays to canonical private research branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/nov12-native-private"
+          cd "$P"
+          git add --sparse -f "gamepulse/fusion/materialized/igp_nov12_$GID"_full160_additive_v1 \
+            "gamepulse/fusion/qa/igp_20261112/nov12_$GID"_sourcegraded_tracking_qa_v1.json \
+            "gamepulse/fusion/evidence/companion_sdk_original_$GID/shotdetails_official_action_crosswalk_v1.json"
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --cached --quiet; then echo NOV12_SOURCE_GRADE_ALREADY_COMMITTED; exit 0; fi
+          git commit -q -m "data(igp): Nov12 exact original XYZ and source-graded additive $GID"
+          for n in 1 2 3 4 5 6 7 8 9 10; do
+            git fetch -q origin "$PRIVATE_REF"
+            git rebase -q "origin/$PRIVATE_REF"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_REF"; then
+              echo NOV12_PRIVATE_NATIVE_SOURCE_GRADE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 42
+      - name: Record release safety limits
+        if: always()
+        run: |
+          echo 'These are original source-graded game-local overlays only. The accepted 160-game v4 pointer, original SDK coordinates and production tracking model remain unchanged. Do not claim complete 13-part full-game native source or independent physical possession.' >> "$GITHUB_STEP_SUMMARY"
