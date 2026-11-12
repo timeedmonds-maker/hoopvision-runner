@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/cpu-animate-v35-native-roster-side-audit.yml",  # private SHA-original game0225 NBA source 5-player native court-width ID QA; no player XYZ public logs/artifacts; CPU only
     ".github/workflows/cpu-animate-v35-private-source-jersey-crop-review.yml",  # bounded private original NBA stills, no public video/positions; CPU-only visual roster ID review; private QA branch exclusively
     ".github/workflows/cpu-animate-warriors-e585-v35-hou-31-roster-cpu.yml",  # reviewed single exact 0022600225 event585 original SHA; CPU-only ephemeral private source; only aggregate QA in public; licensed footage and XYZ private 104
     ".github/workflows/igp-nov12-ten-final-companion-biomechanics-20261112.yml",  # bounded exact 10-game official-FINAL source-only companion event/shot biomechanics SDK capture; free CPU; SHA-preserved private 104; zero confidential bytes public
