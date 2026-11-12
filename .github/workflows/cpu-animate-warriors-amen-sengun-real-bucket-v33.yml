@@ -1,0 +1,677 @@
+name: CPU Animate REAL Warriors Amen Thompson basket Sengun assist game0225 e585 frozen rings V33 CPU
+on:
+  push:
+    branches: ['cpu-animate/warriors-amen-sengun-e585-cpu-rebuild-20261113']
+    paths: ['.github/workflows/cpu-animate-warriors-amen-sengun-real-bucket-v33.yml']
+permissions:
+  contents: read
+concurrency:
+  group: cpu-animate-real-warriors-amen-bucket-sengun-assist-v33
+  cancel-in-progress: false
+jobs:
+  private-source-cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OPENCV_OPENCL_RUNTIME: disabled
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Explicit private-only source and CPU guards
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" || { echo PRIVATE_104_RELEASE_AUTH_UNAVAILABLE; exit 3; }
+          test ! -e /dev/nvidia0
+          test ! -e /dev/kfd
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          python3 -m pip install -q --disable-pip-version-check numpy==1.26.4
+          gh auth setup-git
+          echo PRIVATE_AUTHENTICATED_CPU_ONLY_PASS
+
+      - name: Read SHA-pinned PRIVATE 104 V21 source gate and exact original Rockets native XYZ
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$RUNNER_TEMP/v21-rockets-private-code"
+          root="$RUNNER_TEMP/v21-rockets-private-xyz"
+          media="$RUNNER_TEMP/v21-rockets-private-video"
+          mkdir -p "$media"
+          chmod 700 "$media"
+          echo "CODE_ROOT=$code" >> "$GITHUB_ENV"
+          echo "SOURCE_ROOT=$root" >> "$GITHUB_ENV"
+          echo "MEDIA_ROOT=$media" >> "$GITHUB_ENV"
+          git clone -q --filter=blob:none --depth=1 --no-checkout \
+            --branch cpu-animate/warriors-amen-sengun-event585-v33-sealed-20261113 \
+            https://github.com/timeedmonds-maker/104.git "$code"
+          git -C "$code" sparse-checkout init --no-cone
+          git -C "$code" sparse-checkout set --no-cone \
+            '/cpu_animate/__init__.py' \
+            '/cpu_animate/rockets_e585_full161_v21_source_gate.py' \
+            '/cpu_animate/rockets_e585_full161_video_alignment_forensic.py' \
+            '/cpu_animate/rockets_e585_original_video_foot_scout_v21.py' \
+            '/cpu_animate/rockets_e585_full161_video_pts_shadow.py' \
+            '/cpu_animate/rockets_e585_full161_native_foot_candidate_audit.py' \
+            '/cpu_animate/rockets_e585_full161_v21_original_shoelock_render.py' \
+            '/cpu_animate/rockets_e585_full170_kd_v21_floorlock_port.py' \
+            '/cpu_animate/rockets_e585_full170_pre_v21_v6_xyz_motion.py' \
+            '/cpu_animate/rockets_e585_full170_v32_frozen_court_repair.py' \
+            '/cpu_animate/floor_lock_v12.py' \
+            '/cpu_animate/floor_ground_lock_v22.py' \
+            '/cpu_animate/video_only_floor_engine_v23_2.py' \
+            '/cpu_animate/v22_multiplayer_floor_adapter.py' \
+            '/cpu_animate/video_only_render_0208_v23.py' \
+            '/tools/locked_broadcast_screen_v5_rings.py' \
+            '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
+            '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
+          git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
+          test "$(git -C "$code" rev-parse HEAD)" = fed6cc943065f1b167b48aa3f4034bbb202990f4
+          git clone -q --filter=blob:none --depth=1 --no-checkout \
+            --branch research/gamepulse-clock-boundary-integrity-20261025 \
+            https://github.com/timeedmonds-maker/104.git "$root"
+          git -C "$root" sparse-checkout init --no-cone
+          git -C "$root" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/original-native-*.jsonl.gz' \
+            '/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json'
+          git -C "$root" checkout -q research/gamepulse-clock-boundary-integrity-20261025
+          native="$root/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1"
+          test "$(git -C "$root" hash-object "gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json")" = \
+            da4d7bc7e9900ec4b186180057835ec11f4c0463
+          test "$(find "$native" -name 'original-native-*.jsonl.gz' | wc -l)" = 17
+          gh release download cpu-animate-0022600225-event585-playbyplay-v20-source-20261112 \
+            --repo timeedmonds-maker/104 --dir "$media" \
+            --pattern event585-playbyplay.mp4 --pattern manifest.json
+          test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = \
+            06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234
+          echo ORIGINAL_PRIVATE_0225_XYZ_CHUNKS_AND_EXACT_PBP_MP4_SHA_READY
+
+      - name: Test V21 strict three player source-foot native identity and heldout gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CODE_ROOT"
+          python3 -m unittest cpu_animate.test_rockets_e585_full161_v21_source_gate cpu_animate.test_rockets_e585_full161_video_pts_shadow -v
+          echo V21_THREE_PLAYER_NATIVE_SOURCE_SHOE_GATES_TESTED
+
+      - name: Verify 17 native Rockets source chunk SHA and 33,639 timestamps in PRIVATE RAM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/event585-private-qa"
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full161_v21_source_gate \
+            --root "$SOURCE_ROOT" \
+            --output "$RUNNER_TEMP/event585-private-qa/full161-rockets-event585-v21-native-gate.json"
+          python3 - "$RUNNER_TEMP/event585-private-qa/full161-rockets-event585-v21-native-gate.json" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q["game_id"]=="0022600225" and q["event"]==585
+          assert q["native_chunks"]==17 and q["original_native_timestamps"]==33639
+          assert q["native_chunk_sha256_verified"]
+          assert set(q["nba_player_ids"].values())=={"203992","1630578","1641708"}
+          assert all(q["direct_event_window_samples"][k]>0 for k in ("Bogdanovic","Sengun","Thompson"))
+          assert q["alignment_check"]=="NOT_RUN"
+          assert not q["accepted_for_publication"]
+          print("FULL161_ROCKETS_EVENT585_PRIVATE_NATIVE_IDENTITY_SOURCE_PASS")
+          print("PHYSICAL_XYZ_TO_VIDEO_ALIGNMENT_NOT_CERTIFIED_NO_FALSE_RING_MP4")
+          PY
+
+      - name: Investigate native XYZ-to-video motion on broader camera timing window; private QA only
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full161_video_alignment_forensic \
+            --root "$SOURCE_ROOT" \
+            --video "$MEDIA_ROOT/event585-playbyplay.mp4" \
+            --output "$RUNNER_TEMP/event585-private-qa/0022600225_e585_full161_expanded_alignment_forensic.json"
+          export CPU_E585_FORENSIC="$RUNNER_TEMP/event585-private-qa/0022600225_e585_full161_expanded_alignment_forensic.json"
+          python3 - <<'PY'
+          import base64, json, os, pathlib, subprocess, tempfile
+          d=pathlib.Path(os.environ["CPU_E585_FORENSIC"])
+          q=json.loads(d.read_text())
+          assert q["game_id"]=="0022600225" and q["event_num"]==585
+          assert q["original_native_chunks_verified"]==17 and q["source_native_xyz_actually_joined"]
+          assert q["coarse_source_video_proxies_are_independent_GT"] is False
+          assert q["source_xyz_camera_alignment_accepted"] is False
+          path="gamepulse/clip_lab/qa/0022600225_e585_full161_expanded_video_alignment_forensic.json"
+          api=f"repos/timeedmonds-maker/104/contents/{path}"
+          branch="research/gamepulse-clock-boundary-integrity-20261025"
+          req={"message":"research(cpu-animate): e585 original Full161 player XYZ actual source versus wider 6-16s video-offset ablation",
+               "branch":branch,
+               "content":base64.b64encode(d.read_bytes()).decode()}
+          old=subprocess.run(["gh","api",f"{api}?ref={branch}"],
+              text=True,capture_output=True)
+          if old.returncode==0:
+              prior=json.loads(old.stdout)
+              prior_content=base64.b64decode(prior["content"].replace("\n",""))
+              if prior_content==d.read_bytes():
+                  print("EVENT585_PRIVATE_EXTENDED_CALIBRATION_QA_UNCHANGED")
+                  raise SystemExit(0)
+              req["sha"]=prior["sha"]
+          elif "404" not in old.stderr and "Not Found" not in old.stderr:
+              raise ValueError("PRIVATE_RESEARCH_TARGET_LOOKUP_FAILED")
+          tmp=pathlib.Path(tempfile.mkdtemp())/"put.json"
+          tmp.write_text(json.dumps(req))
+          out=subprocess.run(["gh","api","-X","PUT",api,"--input",str(tmp)],
+              text=True,capture_output=True)
+          if out.returncode:
+              raise ValueError("PRIVATE_RESEARCH_CALIBRATION_REPORT_COMMIT_FAILED")
+          print("EVENT585_PRIVATE_EXPANDED_XYZ_VIDEO_CALIBRATION_QA_COMMITTED")
+          PY
+
+      - name: Generate immutable original 592-frame video-PTS sidecar and actual Full161 XYZ shadow
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          export OUT_PTS="$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json"
+          export IN_MP4="$MEDIA_ROOT/event585-playbyplay.mp4"
+          python3 - <<'PY'
+          import json,os,pathlib,subprocess
+          p=subprocess.run(["ffprobe","-v","error","-select_streams","v:0",
+             "-show_frames","-show_entries","frame=best_effort_timestamp_time",
+             "-of","json",os.environ["IN_MP4"]],capture_output=True,text=True,check=True)
+          d=json.loads(p.stdout)
+          times=[float(x["best_effort_timestamp_time"]) for x in d["frames"]]
+          assert len(times)==592,(len(times),"not the original video 592 frames")
+          times=[round(x-times[0],7) for x in times]
+          assert all(y>x for x,y in zip(times,times[1:]))
+          assert abs(times[-1]-19.72)<.15
+          obj={"game_id":"0022600225","event_num":585,"camera":"Play by Play",
+               "original_video_sha256":"06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234",
+               "frame_pts_seconds":times}
+          pathlib.Path(os.environ["OUT_PTS"]).write_text(json.dumps(obj,separators=(",",":"))+"\n")
+          print("ORIGINAL_0225_E585_FFMPEG_VIDEO_PTS_PRESERVED",len(times))
+          PY
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full161_video_pts_shadow \
+            --source-root "$SOURCE_ROOT" --video-pts "$OUT_PTS" \
+            --out "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+            --scorer-video-pts 10.0
+          echo ROCKETS_0225_NATIVE_FULL161_XYZ_VS_ORIGINAL_PTS_PRIVATE_SHADOW_COMPLETE
+
+      - name: CPU-only original player segmentation and shoe candidate scout, roster names abstained
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-rockets-0225-e585-v21-source-shoe-scout-20261112
+          out="$RUNNER_TEMP/e585-private-cpu-video-shoe-scout"
+          mkdir -p "$out"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
+            # Reuse immutable private source scout; never rerun expensive inference.
+            gh release download "$tag" --repo timeedmonds-maker/104 \
+              --dir "$out" --pattern 'scout_0225_*'
+            echo REAL_VIDEO_SHOE_SCOUT_EXISTING_PRIVATE_SOURCE_REUSED
+          else
+            python3 -m pip install -q --disable-pip-version-check \
+              'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'ultralytics==8.3.176'
+            export YOLO_DISABLE_MODEL_DOWNLOAD_WARNINGS=1
+            cd "$CODE_ROOT"
+            python3 -m cpu_animate.rockets_e585_original_video_foot_scout_v21 \
+              --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
+              --manifest "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
+              --model yolo11n-seg.pt --stride 2 --out "$out"
+          fi
+          test "$(find "$out" -name 'scout_0225_f*.jpg' | wc -l)" = 20
+          test -s "$out/scout_0225_585_review_index.json"
+          test -s "$out/scout_0225_585_videoonly_592.json.gz"
+          test -s "$out/scout_0225_585_videoonly_qa.json"
+          echo ROCKETS_0225_REAL_VIDEO_SHOE_SCOUT_FRAME_STILLS_PRIVATE
+
+      - name: Publish original video foot candidates and Full161 source timing shadow PRIVATE only
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-rockets-0225-e585-v21-source-shoe-scout-20261112
+          dir="$RUNNER_TEMP/e585-private-cpu-video-shoe-scout"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
+            echo RESEARCH_SCOUT_PRIVATE_TAG_ALREADY_PRESENT_NO_REPLACEMENT
+          else
+            gh release create "$tag" \
+              "$dir"/*.jpg "$dir"/*.json "$dir"/*.gz \
+              "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
+              "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+              --repo timeedmonds-maker/104 \
+              --title "CPU Animate Rockets e585 exact original source shoe candidates and Full161 XYZ clock shadow" \
+              --notes "CPU-only, original licensed PBP private; 592 frame PTS, direct original Full161 native player XYZ time-candidate sidecar, video-only unassigned person track IDs and segmentation shoes. Physical camera registration, jersey identification and UTC timing NOT CERTIFIED. No MP4 rings."
+          fi
+          gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.assets[].name' | \
+            grep -qx 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
+          echo EVENT585_PRIVATE_ORIGINAL_VIDEO_SHOE_CANDIDATES_AND_ACTUAL_FULL161_XYZ_SAVED
+
+      - name: Quantify actual native Full161 XYZ vs anonymous original video segmented-shoe candidates
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export E585_CALIB_QA="$RUNNER_TEMP/event585-private-qa/0022600225_e585_full161_expanded_alignment_forensic.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/qa/0022600225_e585_full161_expanded_video_alignment_forensic.json?ref=research%2Fgamepulse-clock-boundary-integrity-20261025' \
+            --jq '.content' | base64 -d > "$E585_CALIB_QA"
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full161_native_foot_candidate_audit \
+            --scout "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout/scout_0225_585_videoonly_592.json.gz" \
+            --native-shadow "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+            --calibration "$E585_CALIB_QA" \
+            --out "$RUNNER_TEMP/event585-private-qa/0022600225_e585_full161_native_vs_video_shoe_candidate_audit.json"
+          export E585_CAND_QA="$RUNNER_TEMP/event585-private-qa/0022600225_e585_full161_native_vs_video_shoe_candidate_audit.json"
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,tempfile
+          p=pathlib.Path(os.environ["E585_CAND_QA"])
+          q=json.loads(p.read_text())
+          assert q["game_id"]=="0022600225" and q["event_num"]==585
+          assert q["original_full161_xyz_consumed"] is True
+          assert q["actual_roster_identity_certified"] is False
+          assert q["three_player_ring_render_approved"] is False
+          dest="gamepulse/clip_lab/qa/0022600225_e585_full161_native_vs_video_shoe_candidate_audit.json"
+          api="repos/timeedmonds-maker/104/contents/"+dest
+          branch="research/gamepulse-clock-boundary-integrity-20261025"
+          req={"message":"research(cpu-animate): actual exact rockets native XYZ versus video segmentation foot candidate QA (uncertified)",
+             "branch":branch,"content":base64.b64encode(p.read_bytes()).decode()}
+          old=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
+          if old.returncode==0:
+              prev=json.loads(old.stdout)
+              if base64.b64decode(prev["content"].replace("\n",""))==p.read_bytes():
+                  print("PRIVATE_NATIVE_VS_SHOE_CANDIDATE_QA_IDENTICAL")
+                  raise SystemExit(0)
+              req["sha"]=prev["sha"]
+          elif "404" not in old.stderr and "Not Found" not in old.stderr:
+              raise ValueError("PRIVATE_CANDIDATE_QA_LOOKUP_FAILED")
+          request=pathlib.Path(tempfile.mkdtemp())/"request.json"
+          request.write_text(json.dumps(req))
+          r=subprocess.run(["gh","api","-X","PUT",api,"--input",str(request)],
+                           capture_output=True,text=True)
+          if r.returncode:raise ValueError("PRIVATE_CANDIDATE_QA_PERSIST_FAILED")
+          print("PRIVATE_NATIVE_VS_VIDEO_SHOE_CANDIDATE_QA_COMMITTED")
+          PY
+
+      - name: Render original 592-frame Play By Play video with V21 three-player shoe-locked rings and actual Full161 source XYZ
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check \
+            'opencv-python-headless==4.10.0.84' 'pillow>=10,<12'
+          out="$RUNNER_TEMP/e585-private-xyz-v21-rings"
+          mkdir -p "$out"
+          native_sha=$(sha256sum "$SOURCE_ROOT/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json" | cut -d' ' -f1)
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full161_v21_original_shoelock_render \
+            --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
+            --pts "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
+            --scout "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout/scout_0225_585_videoonly_592.json.gz" \
+            --native-shadow "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+            --native-index-sha "$native_sha" \
+            --out "$out"
+          test -s "$out/0022600225_E585_FULL161_V21_THREE_RINGS_SOURCE_SHOE_RESEARCH.mp4"
+          test -s "$out/0022600225_event585_v21_full161_three_ring_research_QA.json"
+          test "$(find "$out" -name '*_ring_f*.jpg' | wc -l)" = 6
+          echo ORIGINAL_ROCKETS_XYZ_ASSISTED_V21_THREE_PLAYER_CPU_MP4_RENDER_COMPLETED
+
+      - name: Publish source-verified CPU MP4 and review frames to PRIVATE GitHub Release
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-0225-e585-original-full161-v21-trio-research-20261113
+          out="$RUNNER_TEMP/e585-private-xyz-v21-rings"
+          qa="$out/0022600225_event585_v21_full161_three_ring_research_QA.json"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.tag_name' >/dev/null 2>&1; then
+            # Immutable research release: rerun must match the source and rendered
+            # MP4 hashes. Do not clobber another result.
+            gh release download "$tag" --repo timeedmonds-maker/104 \
+              --dir "$RUNNER_TEMP/event585-existing-ring-qa" \
+              --pattern '0022600225_event585_v21_full161_three_ring_research_QA.json'
+            python3 - "$qa" "$RUNNER_TEMP/event585-existing-ring-qa/0022600225_event585_v21_full161_three_ring_research_QA.json" <<'PY'
+          import json,sys
+          now=json.load(open(sys.argv[1]))
+          old=json.load(open(sys.argv[2]))
+          assert now["source_mp4_sha256"]==old["source_mp4_sha256"],"IMMUTABLE_PRIVATE_MP4_SHA_DRIFT"
+          assert now["original_video_sha256"]==old["original_video_sha256"]
+          print("IMMUTABLE_ROCKETS_EVENT585_PRIVATE_MP4_READBACK_MATCH")
+          PY
+          else
+            gh release create "$tag" "$out"/*.mp4 "$out"/*.json "$out"/*.jpg \
+              --repo timeedmonds-maker/104 \
+              --title "CPU Animate Rockets 0022600225 e585 Full161 native XYZ assisted V21 three-player rings research clip" \
+              --notes "Original Play By Play 592f NBA footage, SHA-verified 17 direct native Rockets tracking chunks; V21 frozen artwork, original-video foot-locked manual reviewed source tracker seeds, only short bounded native XYZ curvature assisted fills; scoreboard clock running time matched. Research preview: native UTC offset 10s estimated, world-to-image projection NOT certified; many unsupported player frames intentionally show no ring. PRIVATE licensed media, zero GPU."
+          fi
+          gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.assets[].name' | \
+            grep -qx '0022600225_E585_FULL161_V21_THREE_RINGS_SOURCE_SHOE_RESEARCH.mp4'
+          echo PRIVATE_ACTUAL_ROCKETS_FULL161_V21_THREE_RING_MP4_RELEASE_AVAILABLE
+
+      - name: Render actual KD V21 FloorLockV12 port from FULL170 original game 0225 tracking
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q --disable-pip-version-check \
+            'ultralytics==8.3.176'
+          out="$RUNNER_TEMP/rockets-full170-real-kd-v21"
+          mkdir -p "$out"
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full170_kd_v21_floorlock_port \
+            --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
+            --pts "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
+            --scout "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout/scout_0225_585_videoonly_592.json.gz" \
+            --native-shadow "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+            --full170-manifest "$SOURCE_ROOT/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json" \
+            --native-index-sha 5bfc0eadb67535e2912ef47a972db8b1e1fefcba9af31413528880799579aa5f \
+            --out "$out"
+          test -s "$out/0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS.mp4"
+          test -s "$out/0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS_qa.json"
+          echo EXACT_FROZEN_KD_V21_FLOOR_LOCK_FULL170_ROCKETS_RENDER_SUCCESS
+
+      - name: Publish exact KD V21 FloorLock three-ring FULL170 adaptation to PRIVATE release
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-0225-e585-full170-real-kd-v21-floorlock-20261113
+          d="$RUNNER_TEMP/rockets-full170-real-kd-v21"
+          qa="$d/0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS_qa.json"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/private-full170-v21-check"
+            gh release download "$tag" --repo timeedmonds-maker/104 \
+              --dir "$RUNNER_TEMP/private-full170-v21-check" \
+              --pattern '0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS_qa.json'
+            python3 - "$qa" "$RUNNER_TEMP/private-full170-v21-check/0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS_qa.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]));b=json.load(open(sys.argv[2]))
+          assert a["mp4_output_sha256"]==b["mp4_output_sha256"],"FULL170_V21_RELEASE_SHA_DRIFT"
+          print("FULL170_V21_EXISTING_PRIVATE_CLIP_IDENTICAL")
+          PY
+          else
+            gh release create "$tag" "$d"/*.mp4 "$d"/*.json "$d"/*.jpg \
+              --repo timeedmonds-maker/104 \
+              --title "CPU Animate exact KD V21 FloorLockV12 approach: Rockets FULL170 XYZ event585 three rings" \
+              --notes "Same reusable KD V21 floor_lock_v12.estimate_floor_tracks and 6px original-video source-shoe clamp; KD/V23 reusable shot-specific camera motion, SHA-verified Rockets original XYZ referenced by FULL170 production source-graded index. Original Play By Play NBA video. Full 592 frames, abstain where unsupported. Research-only temporal offset not subframe independently verified, no physical-world-to-image calibration claim, source-private. CPU-only."
+          fi
+          gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.assets[].name' | \
+            grep -qx '0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS.mp4'
+          echo FULL170_ORIGINAL_XYZ_REAL_KD_V21_FLOORLOCK_PRIVATE_MP4_RELEASE_SUCCESS
+
+      - name: Run actual pre-V21 V6 NBA XYZ-to-40Hz local screen-motion engine, original Rockets FULL170
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q --disable-pip-version-check \
+            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'ultralytics==8.3.176' 'pillow>=10,<12'
+          root="$RUNNER_TEMP/rockets-full170-pre-v21-v6"
+          mkdir -p "$root"
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full170_pre_v21_v6_xyz_motion \
+            --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
+            --pts "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
+            --scout "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout/scout_0225_585_videoonly_592.json.gz" \
+            --native-shadow "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+            --full170-manifest "$SOURCE_ROOT/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json" \
+            --source-root "$SOURCE_ROOT" \
+            --native-index-sha 5bfc0eadb67535e2912ef47a972db8b1e1fefcba9af31413528880799579aa5f \
+            --out "$root"
+          test -s "$root/0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS.mp4"
+          test -s "$root/0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS_qa.json"
+          python3 - "$root/0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS_qa.json" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q["canonical_Full170"]["default_database"]=="FULL170"
+          assert q["native_source_motion_applied_to_frames"]>=20
+          assert q["original_game_native_timestamp_count"]==33639
+          assert q["original_source_coordinates_changed"] is False
+          print("FULL170_ORIGINAL_XYZ_V6_EFFECTIVELY_DRIVEN_FRAMES",
+                q["native_source_motion_applied_to_frames"],"TRIO",q["all_three_ring_frames"])
+          PY
+
+      - name: Publish pre-V21 V6 source-motion MP4 and QA privately; no GPU
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-0225-e585-full170-v6-real-xyz-motion-20261113
+          d="$RUNNER_TEMP/rockets-full170-pre-v21-v6"
+          qa="$d/0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS_qa.json"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/private-v6-qa-readback"
+            gh release download "$tag" --repo timeedmonds-maker/104 \
+              --dir "$RUNNER_TEMP/private-v6-qa-readback" \
+              --pattern '0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS_qa.json'
+            python3 - "$qa" "$RUNNER_TEMP/private-v6-qa-readback/0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS_qa.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]));b=json.load(open(sys.argv[2]))
+          assert a["mp4_sha256"]==b["mp4_sha256"],"V6_IMMUTABLE_RELEASE_HASH_DRIFT"
+          PY
+          else
+            gh release create "$tag" "$d"/*.mp4 "$d"/*.json "$d"/*.jpg \
+              --repo timeedmonds-maker/104 \
+              --title "Rockets 0225 event585 pre-V21 V6 original NBA XYZ-driven rings — FULL170 native source" \
+              --notes "True pre-V21 V6 source-motion algorithm: SHA-verified FULL170 game-specific original native XYZ resampled to derived 40Hz (not original 40Hz), local world-to-camera differential Jacobian from reviewed video shoes, XYZ curvature in video-foot brackets and finite source-driven screen motion; frozen HoopVision rings and original NBA video. CPU only, private. Absolute source UTC/video time 10sec candidate not independent physical truth; provisional research preview. Per-player source-XYZ motion coverage proven in QA."
+          fi
+          gh api "repos/timeedmonds-maker/104/releases/tags/$tag" \
+            --jq '.assets[].name' | \
+            grep -qx '0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS.mp4'
+          echo ROCKETS_FULL170_PREV21_V6_TRUE_XYZ_DRIVEN_MOVIE_PRIVATE_RELEASE_COMPLETE
+
+      - name: Render authentic Warriors Amen #1 basket assisted by Sengun #28 original 592 frames and frozen source-video rings V33
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q --disable-pip-version-check \
+            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' \
+            'ultralytics==8.3.176' 'pillow>=10,<12'
+          cd "$CODE_ROOT"
+          export PYTHONPATH="$CODE_ROOT"
+          python3 -m cpu_animate.warriors_amen_basket_sengun_assist_0225_e585_frozen_v33 --selftest
+          out="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
+          mkdir -p "$out"
+          python3 -m cpu_animate.warriors_amen_basket_sengun_assist_0225_e585_frozen_v33 \
+            --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
+            --pts "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
+            --scout "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout/scout_0225_585_videoonly_592.json.gz" \
+            --native-shadow "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+            --full170-manifest "$SOURCE_ROOT/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json" \
+            --source-root "$SOURCE_ROOT" \
+            --native-index-sha 5bfc0eadb67535e2912ef47a972db8b1e1fefcba9af31413528880799579aa5f \
+            --out "$out"
+          qa="$out/0022600225_E585_AMEN_THOMPSON_LAYUP_SENGUN_ASSIST_V33_REAL_WARRIORS_FROZEN_RINGS_qa.json"
+          test -s "$qa"
+          test -s "$out/0022600225_E585_AMEN_THOMPSON_LAYUP_SENGUN_ASSIST_V33_REAL_WARRIORS_FROZEN_RINGS.mp4"
+          python3 - "$qa" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q["frozen_HoopVision_source_blob_sha1"]=="9fac8a8915b90bbd9bd1235532c297c35da77ca2"
+          assert q["frozen_renderer_wrapper_used"] is True
+          assert q["frozen_diameter_scale"]==1.5
+          assert q["visible_render_counts"]["Bogdanovic"]>=100
+          assert q["all_three_visible_candidate_frames"]>=5
+          assert sum(q["green_rendered_frames"].values())>0
+          assert q["reviewed_video_5s_sengun_green_rendered_frames"]>=1
+          review=q["original_video_reviewed_shoe_fallback_qa"]["review_frames"]
+          assert review["162"]["Sengun"]["ring_input_present"],"MISSING_SENGUN_DRIBBLE_RING_FRAME_162"
+          # 252 is not an independently verified Bogdanovic shoe frame. 282 is.
+          assert review["282"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_282"
+          assert review["252"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_252"
+          assert (q["bogdan_f252_manual_source_video_review_QA"]["accepted"] or q["bogdan_exact_original_video_high_res_zoom_QA"]["direct_source_seg_shoe_accepted"] or q["bogdan_original_video_backward_LK_QA"]["frame252_look_envelope_gate_passed"]),"BOGDAN_F252_SOURCE_VIDEO_SHOE_EVIDENCE_MISSING"
+          assert q["reviewed_video_5s_sengun_green_rendered_frames"]>=8
+          assert q["ring_counts"]["Bogdanovic"]>=160
+          assert q["ring_counts"]["Sengun"]>=120
+          assert q["game_id"]=="0022600225" and q["event_num"]==585
+          assert q["scoring_video_source_identity_correction_qa"]["correct_game"]=="0022600225"
+          assert q["scoring_video_source_identity_correction_qa"]["prior_wrong_Sengun_video_track142_far_right_removed"]
+          assert q["official_verified_scoring_play"].startswith("Q4 9:47 Amen Thompson")
+          for who,needed in (("Thompson",[240,252,260,265,270,282,300]),
+                             ("Sengun",[240,252,260,270,282,300])):
+              actual=set(q["scoring_ring_frame_indices"][who])
+              assert all(j in actual for j in needed),(who,"SCORING_PLAY_RING_MISSING")
+          assert len(q["amen_scorer_green_video_frames"])>=12
+          assert len(q["sengun_assist_green_video_frames"])>=3
+          assert q["green_rendered_frames"].get("Thompson",0)>=12
+          assert q["team_colors_Bgr"]["Bogdanovic"]==[138.,66.,29.]
+          assert q["team_colors_Bgr"]["Sengun"]==[65.,17.,206.]
+          assert q["team_colors_Bgr"]["Thompson"]==[65.,17.,206.]
+          assert q["original_full170_coordinates_modified"] is False
+          assert q["gpu_used"] is False
+          print("REAL_WARRIORS_AMEN_SENGUN_EVENT585_SCORING_RING_QA_PASS",json.dumps({
+             "ring_counts":q["ring_counts"],"bogdan_visible":q["visible_render_counts"]["Bogdanovic"],
+             "green":q["green_rendered_frames"],"triple":q["all_three_visible_candidate_frames"]}))
+          PY
+      - name: Privately deposit ACTUAL Amen scoring and Sengun assist rendered video source review frames
+        shell: bash
+        run: |
+          set -euo pipefail
+          export V32_REVIEW_SOURCE="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
+          export V32_PRIVATE_REVIEW_BRANCH=cpu-animate/warriors-amen-sengun-e585-v33-review-stills-20261113
+          python3 - <<'PY'
+          import os,json,base64,subprocess,hashlib,pathlib
+          d=pathlib.Path(os.environ["V32_REVIEW_SOURCE"])
+          branch=os.environ["V32_PRIVATE_REVIEW_BRANCH"]
+          stem="0022600225_E585_AMEN_THOMPSON_LAYUP_SENGUN_ASSIST_V33_REAL_WARRIORS_FROZEN_RINGS"
+          frames=[132,150,162,240,252,260,265,270,282,300,312,325]
+          for j in frames:
+              jpg=d/(stem+f"_f{j:03d}.jpg")
+              raw=jpg.read_bytes()
+              if len(raw)<12000 or not raw.startswith(bytes.fromhex("ffd8ff")):
+                  raise ValueError("CORRECTED_RING_RENDER_REVIEW_JPEG_INVALID")
+              plaintext=base64.b64encode(raw).decode("ascii")+"\n"
+              payload={"message":f"qa(cpu-animate): corrected frozen v32 e585 privately reviewed frame {j}",
+                       "branch":branch,
+                       "content":base64.b64encode(plaintext.encode()).decode()}
+              path=f"gamepulse/clip_lab/qa/e585_v33_REAL_AMEN_SENGUN_WARRIORS_f{j:03d}_jpg_b64.txt"
+              api="repos/timeedmonds-maker/104/contents/"+path
+              prior=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
+              if prior.returncode==0:
+                  payload["sha"]=json.loads(prior.stdout)["sha"]
+              tmp=d/(f"private_review_post_{j:03d}.json")
+              tmp.write_text(json.dumps(payload))
+              result=subprocess.run(["gh","api","-X","PUT",api,"--input",str(tmp)],
+                                    capture_output=True,text=True)
+              if result.returncode:
+                  raise RuntimeError("PRIVATE_VISUAL_REVIEW_FRAME_COMMIT_FAILED")
+              tmp.unlink()
+              print("PRIVATE_ORIGINAL_SOURCE_RENDER_REVIEW_FRAME_HASH",j,hashlib.sha256(raw).hexdigest())
+          print("E585_V32_FROZEN_VISUAL_REVIEW_SOURCE_STILLS_PRIVATE_AVAILABLE")
+          PY
+      - name: Publish privately only the source-reviewed REAL Warriors Amen bucket Sengun assist frozen V33 MP4
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-0225-e585-amen-bucket-sengun-assist-v33-20261113
+          dir="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
+          qa="$dir/0022600225_E585_AMEN_THOMPSON_LAYUP_SENGUN_ASSIST_V33_REAL_WARRIORS_FROZEN_RINGS_qa.json"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
+            echo V33_REAL_AMEN_BUCKET_RELEASE_EXISTS_REJECT_OVERWRITE
+            exit 16
+          fi
+          gh release create "$tag" "$dir"/*.mp4 "$dir"/*.json "$dir"/*.jpg \
+            --repo timeedmonds-maker/104 \
+            --title "REAL Houston–Golden State Warriors Q4 9:47 — Amen Thompson basket assisted by Sengun — frozen HoopVision" \
+            --notes "CORRECT clip NBA 0022600225 event 585: Q4 9:47 Amen Thompson alley-oop layup assisted by Alperen Sengun (HOU 90 GSW 85). Original 592-frame authentic Warriors game and SHA-256 video source preserved. The old renderer wrongly attributed Sengun to right-corner source tracker142 and lost Amen during his bucket. V33 source-video human-reviewed jersey identity restores Amen #1 and Sengun #28 around their actual scoring action, correct blue Bogdanovic #8 and red Rockets rings, and conservative player-specific green on reviewed ball-control intervals. Uses original unchanged HoopVision 1.3 frozen renderer blob 9fac8a89, CPU only, preserves audio and original Full170 native XYZ untouched. Human-reviewed source-foot estimates are approximate; independent M1 physical p95 foot and exact custody handoff not certified; never claim original XYZ projected pixels are validated."
+          gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.assets[].name' | \
+            grep -qx '0022600225_E585_AMEN_THOMPSON_LAYUP_SENGUN_ASSIST_V33_REAL_WARRIORS_FROZEN_RINGS.mp4'
+          echo NEW_WARRIORS_AMEN_BUCKET_SENGUN_ASSIST_V33_MP4_PRIVATE_RELEASE_VERIFIED
+
+      - name: Preserve PRIVATE annotated roster-review frames and exact tracker index for manual NBA ID evaluation
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CPU_E585_REVIEW_DIR="$RUNNER_TEMP/e585-private-cpu-video-shoe-scout"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess,tempfile
+          folder=pathlib.Path(os.environ["CPU_E585_REVIEW_DIR"])
+          branch="research/gamepulse-clock-boundary-integrity-20261025"
+          source=["scout_0225_585_review_index.json"]+[f"scout_0225_f{i:03d}.jpg"
+                  for i in (72,132,162,222,252,282,312)]
+          for name in source:
+              raw=(folder/name).read_bytes()
+              if name.endswith(".jpg"):
+                  if raw[:3]!=bytes.fromhex("ffd8ff") or len(raw)<50000:
+                      raise ValueError("INVALID_OR_MISSING_PRIVATE_REAL_VIDEO_FRAME")
+                  data=base64.b64encode(raw)+b"\n"
+                  destination=f"gamepulse/clip_lab/qa/e585_source_roster_review/{name}.base64.txt"
+              else:
+                  q=json.loads(raw)
+                  if len(q)!=20:
+                      raise ValueError("PRIVATE_ROSTER_REVIEW_INDEX_DRIFT")
+                  data=raw
+                  destination=f"gamepulse/clip_lab/qa/e585_source_roster_review/{name}"
+              api=f"repos/timeedmonds-maker/104/contents/{destination}"
+              prior=subprocess.run(["gh","api",f"{api}?ref={branch}"],
+                  capture_output=True,text=True)
+              payload={"message":f"qa(cpu-animate): original private Rockets e585 video tracker review {name}",
+                       "branch":branch,
+                       "content":base64.b64encode(data).decode()}
+              if prior.returncode==0:
+                  found=json.loads(prior.stdout)
+                  if base64.b64decode(found["content"].replace("\n",""))==data:
+                      continue
+                  payload["sha"]=found["sha"]
+              elif "404" not in prior.stderr and "Not Found" not in prior.stderr:
+                  raise ValueError("PRIVATE_FRAME_DESTINATION_LOOKUP_FAILED")
+              req=pathlib.Path(tempfile.mkdtemp())/"request.json"
+              req.write_text(json.dumps(payload))
+              res=subprocess.run(["gh","api","-X","PUT",api,"--input",str(req)],
+                  capture_output=True,text=True)
+              if res.returncode:raise ValueError("PRIVATE_ORIGINAL_FRAME_COMMIT_FAILED")
+          print("ROCKETS_EVENT585_EIGHT_PRIVATE_TRACKER_ID_REVIEW_SOURCES_PRESERVED")
+          PY
+
+      - name: Publish QA only to authorised private 104 release
+        if: ${{ false }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-rockets-0225-e585-full161-v21-source-gate-20261112
+          qa="$RUNNER_TEMP/event585-private-qa/full161-rockets-event585-v21-native-gate.json"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.tag_name' >/dev/null 2>&1; then
+            # Idempotent rerun: never clobber an immutable receipt or create extra releases.
+            mkdir -p "$RUNNER_TEMP/existing-private-qa"
+            gh release download "$tag" --repo timeedmonds-maker/104 \
+              --dir "$RUNNER_TEMP/existing-private-qa" \
+              --pattern 'full161-rockets-event585-v21-native-gate.json'
+            test "$(sha256sum "$qa" | cut -d' ' -f1)" = \
+                 "$(sha256sum "$RUNNER_TEMP/existing-private-qa/full161-rockets-event585-v21-native-gate.json" | cut -d' ' -f1)" \
+              || { echo PRIVATE_RELEASE_SOURCE_QA_SHA_DRIFT_REJECT; exit 15; }
+            echo EXISTING_PRIVATE_SOURCE_QA_SHA_IDENTICAL_NO_NEW_RELEASE
+          else
+            gh release create "$tag" "$qa" --repo timeedmonds-maker/104 \
+              --title "CPU Animate Rockets event585 V21 trio Full161 authentic XYZ source gate" \
+              --notes "SHA-verified 17 original Rockets chunks and original event585 Play By Play MP4; CPU-only V21 three-player tests; NOT a certified camera alignment or finished rings MP4." \
+              --latest=false
+          fi
+          gh api "repos/timeedmonds-maker/104/releases/tags/$tag" \
+            --jq '.assets[].name' | grep -qx 'full161-rockets-event585-v21-native-gate.json'
+          echo PRIVATE_104_RELEASE_PROVENANCE_PUBLISHED_AND_READ_BACK
+
+      - name: Remove private game source, original video and credentials from workspace
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/rockets-full170-v32-frozen-repair" \
+                 "$RUNNER_TEMP/rockets-full170-pre-v21-v6" \
+                 "$RUNNER_TEMP/private-v6-qa-readback" \
+                 "$RUNNER_TEMP/rockets-full170-real-kd-v21" \
+                 "$RUNNER_TEMP/private-full170-v21-check" \
+                 "$RUNNER_TEMP/e585-private-xyz-v21-rings" \
+                 "$RUNNER_TEMP/event585-existing-ring-qa" \
+                 "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout" \
+                 "$RUNNER_TEMP/v21-rockets-private-code" \
+                 "$RUNNER_TEMP/v21-rockets-private-xyz" \
+                 "$RUNNER_TEMP/v21-rockets-private-video" \
+                 "$RUNNER_TEMP/event585-private-qa"
+          echo PRIVATE_LICENSED_SOURCE_NOT_PUBLISHED_ON_PUBLIC_RUNNER
