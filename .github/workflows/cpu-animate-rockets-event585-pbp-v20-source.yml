@@ -61,6 +61,7 @@ jobs:
             '/cpu_animate/rockets_e585_full161_v21_original_shoelock_render.py' \
             '/cpu_animate/rockets_e585_full170_kd_v21_floorlock_port.py' \
             '/cpu_animate/rockets_e585_full170_pre_v21_v6_xyz_motion.py' \
+            '/cpu_animate/rockets_e585_full170_v32_frozen_court_repair.py' \
             '/cpu_animate/floor_lock_v12.py' \
             '/cpu_animate/floor_ground_lock_v22.py' \
             '/cpu_animate/video_only_floor_engine_v23_2.py' \
@@ -70,7 +71,7 @@ jobs:
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = f51bd83f6545c122121b4ca3b85337750eb3efc0
+          test "$(git -C "$code" rev-parse HEAD)" = a93a66a2faee6767c420987a46af3fba61446834
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -407,6 +408,7 @@ jobs:
           echo FULL170_ORIGINAL_XYZ_REAL_KD_V21_FLOORLOCK_PRIVATE_MP4_RELEASE_SUCCESS
 
       - name: Run actual pre-V21 V6 NBA XYZ-to-40Hz local screen-motion engine, original Rockets FULL170
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -438,6 +440,7 @@ jobs:
           PY
 
       - name: Publish pre-V21 V6 source-motion MP4 and QA privately; no GPU
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -464,6 +467,64 @@ jobs:
             --jq '.assets[].name' | \
             grep -qx '0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS.mp4'
           echo ROCKETS_FULL170_PREV21_V6_TRUE_XYZ_DRIVEN_MOVIE_PRIVATE_RELEASE_COMPLETE
+
+      - name: Render and validate frozen HoopVision V32-style court-stable player rings and possession green CPU only
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q --disable-pip-version-check \
+            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' \
+            'ultralytics==8.3.176' 'pillow>=10,<12'
+          cd "$CODE_ROOT"
+          export PYTHONPATH="$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full170_v32_frozen_court_repair --selftest
+          out="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
+          mkdir -p "$out"
+          python3 -m cpu_animate.rockets_e585_full170_v32_frozen_court_repair \
+            --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
+            --pts "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
+            --scout "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout/scout_0225_585_videoonly_592.json.gz" \
+            --native-shadow "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+            --full170-manifest "$SOURCE_ROOT/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json" \
+            --source-root "$SOURCE_ROOT" \
+            --native-index-sha 5bfc0eadb67535e2912ef47a972db8b1e1fefcba9af31413528880799579aa5f \
+            --out "$out"
+          qa="$out/0022600225_E585_FULL170_V32_FROZEN_COURT_STABLE_POSSESSION_THREE_RINGS_qa.json"
+          test -s "$qa"
+          test -s "$out/0022600225_E585_FULL170_V32_FROZEN_COURT_STABLE_POSSESSION_THREE_RINGS.mp4"
+          python3 - "$qa" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q["frozen_HoopVision_source_blob_sha1"]=="9fac8a8915b90bbd9bd1235532c297c35da77ca2"
+          assert q["frozen_renderer_wrapper_used"] is True
+          assert q["frozen_diameter_scale"]==1.5
+          assert q["visible_render_counts"]["Bogdanovic"]>=100
+          assert q["all_three_visible_candidate_frames"]>=5
+          assert sum(q["green_rendered_frames"].values())>0
+          assert q["original_full170_coordinates_modified"] is False
+          assert q["gpu_used"] is False
+          print("REAL_FROZEN_V32_BOGDAN_COURT_POSSESSION_GREEN_PASS",json.dumps({
+             "ring_counts":q["ring_counts"],"bogdan_visible":q["visible_render_counts"]["Bogdanovic"],
+             "green":q["green_rendered_frames"],"triple":q["all_three_visible_candidate_frames"]}))
+          PY
+      - name: Publish NEW corrected frozen V32 ring-only private MP4 and receipts when all real-source gates pass
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-0225-e585-full170-v32-frozen-court-green-repair-20261113
+          dir="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
+          qa="$dir/0022600225_E585_FULL170_V32_FROZEN_COURT_STABLE_POSSESSION_THREE_RINGS_qa.json"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
+            echo V32_RELEASE_ALREADY_EXISTS_REJECT_OVERWRITE
+            exit 16
+          fi
+          gh release create "$tag" "$dir"/*.mp4 "$dir"/*.json "$dir"/*.jpg \
+            --repo timeedmonds-maker/104 \
+            --title "CPU Animate Rockets 0225 e585 frozen HoopVision 3.2-style ground-locked possession rings" \
+            --notes "Original NBA Play By Play media and Full170 immutable native source. Frozen HoopVision 1.3.2 three-sector artwork SHA pinned, exact wrapper scale 1.5 and possession green; original-source shoe/video identity gated per frame, short bounded source-XYZ movement, V22 camera-reference robust floor smoothing and precise foot contact occlusion. CPU only. WARNING: native UTC to video-PTS offset remains research estimate; ball possession inferred from source tracking, not independently frame certified. Private research preview."
+          gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.assets[].name' | \
+            grep -qx '0022600225_E585_FULL170_V32_FROZEN_COURT_STABLE_POSSESSION_THREE_RINGS.mp4'
+          echo NEW_HOOPVISION_FROZEN_COURT_STABLE_GREEN_MP4_PRIVATE_RELEASE_VERIFIED
 
       - name: Preserve PRIVATE annotated roster-review frames and exact tracker index for manual NBA ID evaluation
         if: ${{ false }}
@@ -541,7 +602,8 @@ jobs:
       - name: Remove private game source, original video and credentials from workspace
         if: always()
         run: |
-          rm -rf "$RUNNER_TEMP/rockets-full170-pre-v21-v6" \
+          rm -rf "$RUNNER_TEMP/rockets-full170-v32-frozen-repair" \
+                 "$RUNNER_TEMP/rockets-full170-pre-v21-v6" \
                  "$RUNNER_TEMP/private-v6-qa-readback" \
                  "$RUNNER_TEMP/rockets-full170-real-kd-v21" \
                  "$RUNNER_TEMP/private-full170-v21-check" \
