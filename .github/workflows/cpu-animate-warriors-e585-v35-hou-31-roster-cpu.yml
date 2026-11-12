@@ -1,4 +1,4 @@
-name: CPU Animate REAL Warriors Amen Thompson basket Sengun assist game0225 e585 frozen rings V38 CPU
+name: CPU Animate REAL Warriors Amen Thompson basket Sengun assist game0225 e585 frozen rings V39 CPU
 on:
   push:
     branches: ['cpu-animate/warriors-amen-sengun-e585-cpu-rebuild-20261113']
@@ -48,7 +48,7 @@ jobs:
           echo "SOURCE_ROOT=$root" >> "$GITHUB_ENV"
           echo "MEDIA_ROOT=$media" >> "$GITHUB_ENV"
           git clone -q --filter=blob:none --depth=1 --no-checkout \
-            --branch cpu-animate/e585-v38-xyz-assisted-video-tracking-20261113 \
+            --branch cpu-animate/e585-v39-xyz-video-reviewed-postplay-fix-20261113 \
             https://github.com/timeedmonds-maker/104.git "$code"
           git -C "$code" sparse-checkout init --no-cone
           git -C "$code" sparse-checkout set --no-cone \
@@ -62,7 +62,7 @@ jobs:
             '/cpu_animate/rockets_e585_full170_kd_v21_floorlock_port.py' \
             '/cpu_animate/rockets_e585_full170_pre_v21_v6_xyz_motion.py' \
             '/cpu_animate/rockets_e585_full170_v32_frozen_court_repair.py' \
-            '/cpu_animate/warriors_0225_e585_v38_xyz_assisted_cpu.py' \
+            '/cpu_animate/warriors_0225_e585_v39_reviewed_video_xyz_cpu.py' \
             '/cpu_animate/floor_lock_v12.py' \
             '/cpu_animate/floor_ground_lock_v22.py' \
             '/cpu_animate/video_only_floor_engine_v23_2.py' \
@@ -71,8 +71,8 @@ jobs:
             '/tools/locked_broadcast_screen_v5_rings.py' \
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
-          git -C "$code" checkout -q cpu-animate/e585-v38-xyz-assisted-video-tracking-20261113
-          test "$(git -C "$code" rev-parse HEAD)" = 5b9ae65b13a51c759eea22166517262cddd5027f
+          git -C "$code" checkout -q cpu-animate/e585-v39-xyz-video-reviewed-postplay-fix-20261113
+          test "$(git -C "$code" rev-parse HEAD)" = f483e959479eac82aa42269f8f541c61b4b06756
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -469,7 +469,7 @@ jobs:
             grep -qx '0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS.mp4'
           echo ROCKETS_FULL170_PREV21_V6_TRUE_XYZ_DRIVEN_MOVIE_PRIVATE_RELEASE_COMPLETE
 
-      - name: Render authentic Warriors Amen #1 basket assisted by Sengun #28 original 592 frames and frozen source-video rings V38
+      - name: Render authentic Warriors Amen #1 basket assisted by Sengun #28 original 592 frames and frozen source-video rings V39
         shell: bash
         run: |
           set -euo pipefail
@@ -478,10 +478,10 @@ jobs:
             'ultralytics==8.3.176' 'pillow>=10,<12'
           cd "$CODE_ROOT"
           export PYTHONPATH="$CODE_ROOT"
-          python3 -m cpu_animate.warriors_0225_e585_v38_xyz_assisted_cpu --selftest
+          python3 -m cpu_animate.warriors_0225_e585_v39_reviewed_video_xyz_cpu --selftest
           out="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
           mkdir -p "$out"
-          python3 -m cpu_animate.warriors_0225_e585_v38_xyz_assisted_cpu \
+          python3 -m cpu_animate.warriors_0225_e585_v39_reviewed_video_xyz_cpu \
             --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
             --pts "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
             --scout "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout/scout_0225_585_videoonly_592.json.gz" \
@@ -490,13 +490,13 @@ jobs:
             --source-root "$SOURCE_ROOT" \
             --native-index-sha 5bfc0eadb67535e2912ef47a972db8b1e1fefcba9af31413528880799579aa5f \
             --out "$out"
-          qa="$out/0022600225_E585_HOU31_SENGUN28_AMEN1_V38_XYZ_ASSISTED_CPU_REVIEW_qa.json"
+          qa="$out/0022600225_E585_HOU31_SENGUN28_AMEN1_V39_SOURCE_REVIEWED_NO_WRONG_POSTPLAY_qa.json"
           test -s "$qa"
-          test -s "$out/0022600225_E585_HOU31_SENGUN28_AMEN1_V38_XYZ_ASSISTED_CPU_REVIEW.mp4"
+          test -s "$out/0022600225_E585_HOU31_SENGUN28_AMEN1_V39_SOURCE_REVIEWED_NO_WRONG_POSTPLAY.mp4"
           python3 - "$qa" <<'PY'
           import json,sys
           q=json.load(open(sys.argv[1]))
-          assert q["schema"]=="cpu-animate.0225.e585.v38.source-video-xyz-motion-assist-preview.v1"
+          assert q["schema"]=="cpu-animate.0225.e585.v39.postplay-source-visual-negative-QA.v1"
           assert q["game_id"]=="0022600225" and q["event_num"]==585
           assert q["original_video_sha256"]=="06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234"
           assert q["frozen_HoopVision_source_blob_sha1"]=="9fac8a8915b90bbd9bd1235532c297c35da77ca2"
@@ -513,30 +513,31 @@ jobs:
           assert b["positive_video_seed_tracker"]==142 and b["reject_video_tracker_165_as_Warriors"] is True
           assert b["direct_original_source_video_shoes"]>=8
           assert 252 in q["scoring_ring_frame_indices"]["Bogdanovic"]
-          assert q["ring_counts"]["Bogdanovic"]>=8 and q["visible_render_counts"]["Bogdanovic"]>=8
-          assert q["ring_counts"]["Sengun"]>=50 and q["ring_counts"]["Thompson"]>=100
-          assert all(j not in q["scoring_ring_frame_indices"]["Thompson"] for j in range(252,283))
+          assert q["ring_counts"]["Bogdanovic"]>=8 and q["ring_counts"]["Thompson"]>128
+          assert 300 in q["scoring_ring_frame_indices"]["Thompson"]
+          assert all(j not in q["scoring_ring_frame_indices"]["Thompson"] for j in list(range(252,283))+list(range(307,326)))
           assert all(j not in q["scoring_ring_frame_indices"]["Sengun"] for j in range(307,326))
+          assert q["v38_rejected_wrong_ring_frames"]==[312,325]
+          assert q["postplay_scorer_defender_overlap_quarantined"] is True
           assert all(j<252 for j in q["amen_scorer_green_video_frames"])
           assert q["green_rendered_frames"].get("Bogdanovic",0)==0
-          assert q["accepted_for_final_publication"] is False
-          print("V38_NEW_ORIGINAL_XYZ_ASSISTED_CPU_RESEARCH_RENDER_PASS",json.dumps({
+          assert not q["accepted_for_final_publication"]
+          print("V39_CPU_SOURCE_VIDEO_NEGATIVE_GSW_OVERLAY_REVIEW_PASS",json.dumps({
             "rings":q["ring_counts"],"green":q["green_rendered_frames"],
-            "scoring_ring_frames":{k:len(v) for k,v in q["scoring_ring_frame_indices"].items()},
-            "video_guard_counters":q["video_player_red_and_opponent_shoe_qa"],
-            "mp4_sha":q["mp4_sha256"]},sort_keys=True))
+            "scoring_frames":{k:len(v) for k,v in q["scoring_ring_frame_indices"].items()},
+            "sha":q["mp4_sha256"]},sort_keys=True))
           PY
       - name: Privately deposit ACTUAL Amen scoring and Sengun assist rendered video source review frames
         shell: bash
         run: |
           set -euo pipefail
           export V32_REVIEW_SOURCE="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
-          export V32_PRIVATE_REVIEW_BRANCH=cpu-animate/e585-v38-xyz-video-review-stills-20261113
+          export V32_PRIVATE_REVIEW_BRANCH=cpu-animate/e585-v39-source-reviewed-stills-20261113
           python3 - <<'PY'
           import os,json,base64,subprocess,hashlib,pathlib
           d=pathlib.Path(os.environ["V32_REVIEW_SOURCE"])
           branch=os.environ["V32_PRIVATE_REVIEW_BRANCH"]
-          stem="0022600225_E585_HOU31_SENGUN28_AMEN1_V38_XYZ_ASSISTED_CPU_REVIEW"
+          stem="0022600225_E585_HOU31_SENGUN28_AMEN1_V39_SOURCE_REVIEWED_NO_WRONG_POSTPLAY"
           frames=[132,150,162,240,252,260,265,270,282,300,312,325]
           for j in frames:
               jpg=d/(stem+f"_f{j:03d}.jpg")
@@ -544,10 +545,10 @@ jobs:
               if len(raw)<12000 or not raw.startswith(bytes.fromhex("ffd8ff")):
                   raise ValueError("CORRECTED_RING_RENDER_REVIEW_JPEG_INVALID")
               plaintext=base64.b64encode(raw).decode("ascii")+"\n"
-              payload={"message":f"qa(cpu-animate): [skip ci] V38 abstention frame evidence {j}",
+              payload={"message":f"qa(cpu-animate): [skip ci] V39 abstention frame evidence {j}",
                        "branch":branch,
                        "content":base64.b64encode(plaintext.encode()).decode()}
-              path=f"gamepulse/clip_lab/qa/e585_v38_XYZ_VIDEO_HOU31_HOU28_AMEN1_f{j:03d}_jpg_b64.txt"
+              path=f"gamepulse/clip_lab/qa/e585_v39_VISUAL_REVIEW_HOU31_HOU28_AMEN1_f{j:03d}_jpg_b64.txt"
               api="repos/timeedmonds-maker/104/contents/"+path
               prior=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
               if prior.returncode==0:
@@ -562,24 +563,24 @@ jobs:
               print("PRIVATE_ORIGINAL_SOURCE_RENDER_REVIEW_FRAME_HASH",j,hashlib.sha256(raw).hexdigest())
           print("E585_V32_FROZEN_VISUAL_REVIEW_SOURCE_STILLS_PRIVATE_AVAILABLE")
           PY
-      - name: Publish privately only the source-reviewed REAL Warriors Amen bucket Sengun assist frozen V38 MP4
+      - name: Publish privately only the source-reviewed REAL Warriors Amen bucket Sengun assist frozen V39 MP4
         shell: bash
         run: |
           set -euo pipefail
-          tag=cpu-animate-0225-e585-v38-xyz-video-guarded-cpu-preview-20261113
+          tag=cpu-animate-0225-e585-v39-no-wrong-postplay-xyz-cpu-preview-20261113
           dir="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
-          qa="$dir/0022600225_E585_HOU31_SENGUN28_AMEN1_V38_XYZ_ASSISTED_CPU_REVIEW_qa.json"
+          qa="$dir/0022600225_E585_HOU31_SENGUN28_AMEN1_V39_SOURCE_REVIEWED_NO_WRONG_POSTPLAY_qa.json"
           if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
-            echo V38_REAL_AMEN_BUCKET_RELEASE_EXISTS_REJECT_OVERWRITE
+            echo V39_REAL_AMEN_BUCKET_RELEASE_EXISTS_REJECT_OVERWRITE
             exit 16
           fi
           gh release create "$tag" "$dir"/*.mp4 "$dir"/*.json "$dir"/*.jpg \
             --repo timeedmonds-maker/104 \
-            --title "V38 new XYZ-assisted live-video source guard — Houston 31/28/1 CPU" \
-            --notes "V38 CPU RESEARCH PREVIEW only. Original 0022600225 event585 592 source video frames/audio with immutable native XYZ. Frozen HoopVision 1.3 ring design and original game/media SHA enforced. Bogdanovic HOU31 from source tracker142, Shengun HOU28, Amen HOU1. Original source RGB confirms Houston torso; source segmented opponents shoe collision rejects ambiguous ring. Original native XYZ assists continuity only, never arbitrary pixel projection. Camera-specific physical solve deliberately skipped on user instruction; approximate source video ring pixel accuracy and exact scoring possession transfer unverified. Not an M1 acceptance or zero-wrong-player certified final."
+            --title "V39 Houston #31 #28 #1 — source-visual postplay guard XYZ-assist CPU" \
+            --notes "V39 CPU research preview; new original 592-frame NBA 0022600225 event585 MP4/audio source SHA-preserved. Original native XYZ video-assisted for motion, no new court camera fit. Frozen HoopVision 1.3 unchanged. Houston Bogdan #31, Sengun #28, Amen #1. Source video RGB and GSW opponent-foot exclusion active. IMPORTANT: Prior V38 f312/f325 wrong/empty-floor Amen ring caught by visual reviewer and suppressed through entire unsupported f307-end interval; historical wrong GSW #8 Bogdan never restored. Amen partial airborne scorer green and source-foot uncertainty remain NOT final-certified. No GPU."
           gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.assets[].name' | \
-            grep -qx '0022600225_E585_HOU31_SENGUN28_AMEN1_V38_XYZ_ASSISTED_CPU_REVIEW.mp4'
-          echo WARRIORS_HOU31_HOU28_HOU1_V38_NEW_PRIVATE_RELEASE_VERIFIED
+            grep -qx '0022600225_E585_HOU31_SENGUN28_AMEN1_V39_SOURCE_REVIEWED_NO_WRONG_POSTPLAY.mp4'
+          echo WARRIORS_HOU31_HOU28_HOU1_V39_NEW_PRIVATE_RELEASE_VERIFIED
 
       - name: Preserve PRIVATE annotated roster-review frames and exact tracker index for manual NBA ID evaluation
         if: ${{ false }}
