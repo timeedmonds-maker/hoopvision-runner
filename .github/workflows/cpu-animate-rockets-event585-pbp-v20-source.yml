@@ -161,3 +161,66 @@ jobs:
               if result.returncode:raise RuntimeError('PRIVATE_NATIVE_VIDEO_FRAME_COMMIT_FAIL')
               print('EVENT585_PRIVATE_FRAME_SHA_ACCEPTED',label,hashlib.sha256(jpeg).hexdigest(),len(jpeg))
           PY
+
+  source-xyz-three-player-v20-alignment:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'XYZ probe')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify licensed source boundary and fetch only Rockets original 17 native chunks
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          root="$RUNNER_TEMP/e585-xyz-locked"
+          git clone -q --filter=blob:none --depth=1 --no-checkout -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$root"
+          git -C "$root" sparse-checkout init --no-cone
+          git -C "$root" sparse-checkout set --no-cone \
+            '/gamepulse/clip_lab_event585_xyz_alignment_probe_v20.py' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/original-native-*.jsonl.gz' \
+            '/gamepulse/clip_lab/qa/0022600225_event585_v20_xyz_video_alignment_probe.json'
+          git -C "$root" checkout -q "$BRANCH"
+          test -f "$root/gamepulse/clip_lab_event585_xyz_alignment_probe_v20.py"
+          python3 -m pip install --quiet --disable-pip-version-check 'numpy>=1.26,<3'
+      - name: Evaluate source-native trajectories against independent video-frame anchor hypothesis
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/e585-xyz-locked"
+          python3 gamepulse/clip_lab_event585_xyz_alignment_probe_v20.py --root .
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('gamepulse/clip_lab/qa/0022600225_event585_v20_xyz_video_alignment_probe.json')
+          q=json.loads(p.read_text())
+          assert q['game_id']=='0022600225' and q['event']==585
+          assert q['source_video_sha256']=='06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
+          assert q['original_source_unchanged'] and not q['player_rings_release_accepted']
+          print('EVENT585_THREE_NATIVE_SOURCE_IDS_SHA_READBACK',len(q['scans']))
+          PY
+      - name: Preserve private calibration research audit without any public source coordinates
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/e585-xyz-locked"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/clip_lab/qa/0022600225_event585_v20_xyz_video_alignment_probe.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo EVENT585_NATIVE_ALIGNMENT_PRIVATE_IDENTICAL;exit 0;fi
+          git commit -qm 'data(cpu-animate): exact 0225 e585 3-player native XYZ to PBP video anchor source feasibility'
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo EVENT585_THREE_PLAYER_NATIVE_ALIGNMENT_QA_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
