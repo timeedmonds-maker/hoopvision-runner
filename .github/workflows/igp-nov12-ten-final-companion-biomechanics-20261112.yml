@@ -37,7 +37,7 @@ jobs:
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
       NBA_GAME_ID: ${{ matrix.id }}
       NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
-      IGP_PRIVATE_CAPTURE_DIR: ${{ runner.temp }}/nba-private-companion
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-nov12-original-companion
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
