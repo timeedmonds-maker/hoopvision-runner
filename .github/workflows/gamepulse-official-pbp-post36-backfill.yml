@@ -75,3 +75,122 @@ jobs:
               raise SystemExit(3)
           print("IGP_OFFICIAL_ALL_SCHEDULE_FINAL_GAMES_SOURCE_RECONCILED",d["official_game_data_accepted"],d["played_game_denominator"])
           PY
+
+  rockets-0225-native-engine:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      GID: '0022600225'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce public-private source boundary and clone exact original game
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          root="$RUNNER_TEMP/igp-0225-private"
+          git clone -q --filter=blob:none --no-checkout --depth=1 -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$root"
+          git -C "$root" sparse-checkout init --no-cone
+          git -C "$root" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/live_original_20261112/0022600225/**' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600225.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600225/boxscore.json' \
+            '/gamepulse/fusion/official_pbp_timing/index-2026-27-post36-additive.json' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600225/**' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/**' \
+            '/gamepulse/fusion/qa/igp_20261112/**' \
+            '/data/extensions/nba_blueprint_2026_27/games/0022600225/**' \
+            '/scripts/update_nba_blueprint_daily_2026_27.py' \
+            '/scripts/build_nba_blueprint_2026_27.py'
+          git -C "$root" checkout -q "$BRANCH"
+          test -f "$root/gamepulse/fusion/igp_rockets_0022600225_full160_additive_v1.py"
+          test -f "$root/gamepulse/fusion/official_pbp_timing/games/$GID.json"
+          echo IGP_0225_PRIVATE_SOURCE_CHECKOUT_ACCEPTED
+      - name: Recover original NBA Blueprint game report when available
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/igp-0225-private"
+          python3 - <<'PY'
+          import pathlib,sys,hashlib
+          sys.path.insert(0,'scripts')
+          from update_nba_blueprint_daily_2026_27 import read_report,canonical
+          gid='0022600225'
+          dst=pathlib.Path('data/extensions/nba_blueprint_2026_27/games')/gid/'blueprint_report_raw.json'
+          if dst.is_file():
+              print('IGP_0225_BLUEPRINT_ALREADY_SOURCE_PRESERVED')
+          else:
+              try:
+                  report,meta=read_report(gid)
+                  blob=canonical(report).encode('utf-8')
+                  dst.parent.mkdir(parents=True,exist_ok=True)
+                  dst.write_bytes(blob)
+                  print('IGP_0225_BLUEPRINT_ORIGINAL_SHA_ACCEPTED',hashlib.sha256(blob).hexdigest())
+              except Exception as exc:
+                  print('IGP_0225_BLUEPRINT_PUBLIC_ORIGINAL_DEFERRED',type(exc).__name__)
+          PY
+      - name: Process SHA-original XYZ and official shot identity through guarded Full160 engine
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/igp-0225-private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_rockets_0022600225_full160_additive_v1.py
+          python3 gamepulse/fusion/igp_rockets_0022600225_full160_additive_v1.py --root .
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/igp_20261112/rockets_0022600225_sourcegraded_tracking_qa_v1.json')
+          q=json.loads(p.read_bytes())
+          assert q['game_id']=='0022600225'
+          assert q['original_full160_immutable'] is True
+          assert q['official']['official_actions']==607
+          assert q['official']['official_fga']==175
+          assert q['companion']['original_events']==1282
+          assert q['companion']['ShotDetails']==172
+          assert q['original_sdk']['original_13part_complete'] is False
+          assert q['physical_possessions_certified']==0
+          assert q['tracking']['counts']['s1_running_10hz_samples']>0
+          print('IGP_0225_TRACKING_ENGINE_QA_PASS',q['official']['official_fga'],
+                q['companion']['exact_action_and_shooter_matched'],
+                q['tracking']['counts']['s1_running_10hz_samples'],
+                hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Persist original and guarded model output to private canonical branch only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/igp-0225-private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f \
+            gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1 \
+            gamepulse/fusion/qa/igp_20261112/rockets_0022600225_sourcegraded_tracking_qa_v1.json \
+            gamepulse/fusion/evidence/companion_sdk_original_0022600225/shotdetails_official_action_crosswalk_v1.json
+          if test -f data/extensions/nba_blueprint_2026_27/games/0022600225/blueprint_report_raw.json; then
+            git add --sparse -f data/extensions/nba_blueprint_2026_27/games/0022600225/blueprint_report_raw.json
+          fi
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_0225_PRIVATE_ENGINE_OUTPUTS_ALREADY_SHA_IDENTICAL
+            exit 0
+          fi
+          git commit -qm 'data(igp): SHA graded Rockets 0225 native XYZ, shot joins and guarded tracking'
+          for n in 1 2 3 4 5 6 7 8 9 10; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_0225_PRIVATE_NATIVE_AND_SHOT_ENGINE_OUTPUTS_SHA_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
