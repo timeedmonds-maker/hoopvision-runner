@@ -151,29 +151,3 @@ jobs:
           done
           test "$published" -eq 1
           echo NBA_OCT26_OFFICIAL_SOURCE_COMMITTED_PRIVATELY
-
-  q1-shot-number-from-public-source-archive:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 6
-    steps:
-      - name: Query public NBA action-number data for Warriors at Houston
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -m pip install --quiet duckdb
-          python3 - <<'PY'
-          import duckdb
-          db=duckdb.connect()
-          db.execute("INSTALL httpfs; LOAD httpfs;")
-          db.execute("ATTACH 'https://basketball-data.billmill.org/nba/nba.duckdb' AS nba (READ_ONLY)")
-          print('ACTION_LOOKUP_QUERY_BEGIN',flush=True)
-          rows=db.execute("""SELECT game_id,action_number,period,time,description,action_type,shot_result
-            FROM nba.game_events
-            WHERE game_id='0022600225' AND period=1 AND person_id='203110'
-              AND action_type='Made Shot'
-            ORDER BY time,action_number""").fetchall()
-          for row in rows:
-              print('OFFICIAL_PBP_DRAYMOND',repr(row),flush=True)
-              print('NBA_DIRECT_CLIP',f'https://clips.nba.com/?gameNo={row[0]}&eventNum={row[1]}&source=grs',flush=True)
-          assert len(rows)>=2,rows
-          PY
