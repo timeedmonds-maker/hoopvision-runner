@@ -121,6 +121,10 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
           stage="$RUNNER_TEMP/event585-original-private"
           mkdir -p "$stage"
           gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$stage" \
