@@ -77,7 +77,8 @@ jobs:
           PY
 
   rockets-0225-native-engine:
-    if: github.event_name == 'push'
+    # This prior native job has already passed and was SHA-committed.
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'source-first Full160 additive native CPU engine')
     runs-on: ubuntu-24.04
     timeout-minutes: 70
     env:
@@ -191,6 +192,80 @@ jobs:
               echo IGP_0225_PRIVATE_NATIVE_AND_SHOT_ENGINE_OUTPUTS_SHA_COMMITTED
               exit 0
             fi
+            sleep "$n"
+          done
+          exit 23
+
+  rockets-0225-four-source-join-v2:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify public guard and fetch only SHA-proven original game ledgers
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          root="$RUNNER_TEMP/igp-0225-four-source"
+          git clone -q --filter=blob:none --no-checkout --depth=1 -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$root"
+          git -C "$root" sparse-checkout init --no-cone
+          git -C "$root" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
+            '/gamepulse/fusion/qa/igp_20261112/rockets_0022600225_sourcegraded_tracking_qa_v1.json' \
+            '/gamepulse/fusion/qa/igp_20261112/rockets_0022600225_four_source_shot_join_v2.json' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/**' \
+            '/data/extensions/nba_blueprint_2026_27/games/0022600225/blueprint_report_raw.json'
+          git -C "$root" checkout -q "$BRANCH"
+          echo IGP_0225_V2_PRIVATE_SHA_INPUTS_READY
+      - name: Validate 175 official FGAs and materialize all observed shot xFG and biomechanics
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/igp-0225-four-source"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_rockets_0022600225_four_source_join_v2.py
+          python3 gamepulse/fusion/igp_rockets_0022600225_four_source_join_v2.py --root .
+          python3 - <<'PY'
+          import json,hashlib,pathlib
+          p=pathlib.Path('gamepulse/fusion/qa/igp_20261112/rockets_0022600225_four_source_shot_join_v2.json')
+          q=json.loads(p.read_bytes())
+          assert q['official_fga']==175
+          assert q['blueprint_exact_action_shooter']==170
+          assert q['companion_exact_action_shooter']==170
+          assert q['native_250ms_original_timestamp_nearby']==175
+          assert q['full160_parent_unchanged'] and q['physical_possessions_certified']==0
+          print('IGP_0225_FOUR_SOURCE_INDEPENDENT_QA_PASS',q['official_fga'],
+                q['both_blueprint_and_companion_exact'],
+                q['native_250ms_original_shooter_present'],
+                hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Commit additive four-source shot ledger and verification solely to private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/igp-0225-four-source"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f \
+            gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/official-fga-all-source-blueprint-companion-native-v2.jsonl.gz \
+            gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/overlay-v2.json \
+            gamepulse/fusion/qa/igp_20261112/rockets_0022600225_four_source_shot_join_v2.json
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_0225_V2_SOURCE_ALREADY_SHA_IDENTICAL;exit 0;fi
+          git commit -qm 'data(igp): official Rockets 175 FGA original 4-source xFG joins'
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo IGP_0225_V2_SOURCE_GRADED_SHA_COMMITTED;exit 0;fi
             sleep "$n"
           done
           exit 23
