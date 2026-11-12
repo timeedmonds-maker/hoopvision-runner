@@ -1,4 +1,4 @@
-name: CPU Animate 0208 Event73 V24 exact frozen HoopVision original NBA 595 frames
+name: CPU Animate 0208 Event73 V25 exact frozen HoopVision original NBA 595 frames
 on:
   push:
     branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
@@ -38,7 +38,7 @@ jobs:
             https://github.com/timeedmonds-maker/104.git "$ROOT/private"
           git -C "$ROOT/private" sparse-checkout set --no-cone \
             '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' >/dev/null
-          test "$(git -C "$ROOT/private" rev-parse HEAD)" = a605d2cc17b1e95352a80cd9e9808663d2671b57
+          test "$(git -C "$ROOT/private" rev-parse HEAD)" = 60a5e73f822103019fdcd7bafce6d850eb1452c0
           test "$(git -C "$ROOT/private" hash-object tools/locked_broadcast_screen_v5_rings.py)" = 9fac8a8915b90bbd9bd1235532c297c35da77ca2
           cd "$ROOT/private"
           python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow ultralytics
@@ -81,7 +81,7 @@ jobs:
           import json,hashlib,sys
           from pathlib import Path
           d=Path(sys.argv[1])
-          q=json.loads((d/"0208_0073_V24_FROZEN_HOOPVISION_SOURCE_VIDEO_QA.json").read_text())
+          q=json.loads((d/"0208_0073_V25_FROZEN_HOOPVISION_SOURCE_VIDEO_QA.json").read_text())
           assert (q["original_game_id"],q["event_num"],q["camera"])==("0022600208",73,"Play by Play")
           assert q["original_NBA_source_sha256"]=="506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4"
           assert q["original_NBA_source_video_frames"]==595
@@ -92,17 +92,19 @@ jobs:
           assert set(q["ring_frames"])=={"Durant","Sengun","Smart"}
           assert q["ring_frames"]["Smart"]>=190 and q["ring_frames"]["Sengun"]>=170 and q["ring_frames"]["Durant"]>=95,q["ring_frames"]
           assert q["green_frames"].get("Smart",0)>=12,q["green_frames"]
-          assert q["green_frames"].get("Durant",0)==0 and q["green_frames"].get("Sengun",0)==0
+          assert q["green_frames"].get("Durant",0)>=12 and q["green_frames"].get("Sengun",0)==0
           assert 72 in q["green_frame_indices"]["Smart"],"SOURCE_REVIEWED_SMART_DRIBBLE_72_NOT_GREEN"
+          assert 192 in q["green_frame_indices"]["Durant"],"SOURCE_REVIEWED_DURANT_HANDLE_192_NOT_GREEN"
+          assert 192 not in q["green_frame_indices"]["Smart"],"WRONG_PLAYER_SMART_GREEN_WHILE_DURANT_HOLDS"
           assert q["original_NBA_tracking_xyz_immutable"]
           p=d/q["output_file"]
-          assert p.name=="0208_0073_PBP_DURANT_SENGUN_SMART_V24_FROZEN_HOOPVISION_ORIGINAL_595F.mp4"
+          assert p.name=="0208_0073_PBP_DURANT_SENGUN_SMART_V25_FROZEN_HOOPVISION_OWNER_CORRECTED_595F.mp4"
           assert p.stat().st_size>5000000
           assert hashlib.sha256(p.read_bytes()).hexdigest()==q["output_sha256"]
           assert q["output_sha256"] not in (
             "b099352b7529ff0402db1c0702d5a7b52fc75dfaed2b3191889b03928fda85e1",
             "c2132d47d5b1470973742b7ab06d17d0636fd60660e7ed3e191e5f5474f8c888")
-          print("REAL_0208_FROZEN_V24_ACCEPTANCE_RESEARCH_PASS",
+          print("REAL_0208_FROZEN_V25_ACCEPTANCE_RESEARCH_PASS",
             json.dumps({"ring_frames":q["ring_frames"],"green_frames":q["green_frames"],
               "sha":q["output_sha256"],"physical_truth_certified":False}))
           PY
@@ -113,14 +115,14 @@ jobs:
           from pathlib import Path
           d=Path(sys.argv[1]); branch="cpu-animate/0208-event73-frozen-v24-20261113"
           for j in [42,72,192,222,282,552]:
-              jpg=d/f"0208_v24_frozen_review_f{j:03}.jpg"
+              jpg=d/f"0208_v25_frozen_review_f{j:03}.jpg"
               raw=jpg.read_bytes()
               assert len(raw)>15000 and raw[:3]==bytes.fromhex("ffd8ff")
               txt=base64.b64encode(raw).decode("ascii")+"\n"
-              payload={"message":f"qa(cpu-animate): exact game0208 event73 V24 frozen rendered frame {j}",
+              payload={"message":f"qa(cpu-animate): exact game0208 event73 V25 frozen rendered frame {j}",
                  "branch":branch,
                  "content":base64.b64encode(txt.encode("ascii")).decode("ascii")}
-              api=f"repos/timeedmonds-maker/104/contents/docs/cpu_animate/v24_0208_frozen_review_f{j:03}.jpg.b64.txt"
+              api=f"repos/timeedmonds-maker/104/contents/docs/cpu_animate/v25_0208_frozen_review_f{j:03}.jpg.b64.txt"
               q=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
               if q.returncode==0:payload["sha"]=json.loads(q.stdout)["sha"]
               tmp=d/f"_private_f{j}.json";tmp.write_text(json.dumps(payload))
@@ -128,22 +130,22 @@ jobs:
                                capture_output=True,text=True)
               tmp.unlink()
               if p.returncode:
-                  raise RuntimeError(f"PRIVATE_V24_REVIEW_PUBLISH_FAILED_FRAME_{j}")
+                  raise RuntimeError(f"PRIVATE_V25_REVIEW_PUBLISH_FAILED_FRAME_{j}")
               print("ORIGINAL_0208_RENDERED_FROZEN_FRAME_SHA256",
                 j,hashlib.sha256(raw).hexdigest())
           PY
-          TAG=cpu-animate-0208-event73-v24-canonical-frozen-20261113
+          TAG=cpu-animate-0208-event73-v25-canonical-frozen-correct-ball-20261113
           if gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
-            echo "V24_PREVIOUS_RELEASE_CANNOT_OVERWRITE"; exit 16
+            echo "V25_PREVIOUS_RELEASE_CANNOT_OVERWRITE"; exit 16
           fi
           gh release create "$TAG" \
             "$ROOT/out"/*.mp4 \
-            "$ROOT/out"/0208_0073_V24_FROZEN_HOOPVISION_SOURCE_VIDEO_QA.json \
-            "$ROOT/out"/0208_v24_frozen_review_f*.jpg \
+            "$ROOT/out"/0208_0073_V25_FROZEN_HOOPVISION_SOURCE_VIDEO_QA.json \
+            "$ROOT/out"/0208_v25_frozen_review_f*.jpg \
             --repo timeedmonds-maker/104 \
             --title 'Correct NBA 0022600208 event73 source clip | authentic frozen HoopVision Durant Sengun Smart' \
-            --notes 'Private, CPU-only original 595-frame Houston-Denver Play By Play video verified SHA 50660651; original frozen HoopVision HOOPVISION_1_3_RINGS git blob 9fac8a89, exact draw_ring wrapper + 1.5x diameter, floor-referenced video shoe tracking, same-person short-gap continuity and segmented player occlusion, Houston red, individually reviewed Smart green only, source audio. Matching-game Full160 original tracking index checksum verified as custody shadow only; NO native-XYZ-to-video calibrated world projection or independently established physical pixel p95, no claim of certified M1 acceptance. Never reuse game 0022600225/event585 video.' \
+            --notes 'Private, CPU-only original 595-frame Houston-Denver Play By Play video verified SHA 50660651; original frozen HoopVision HOOPVISION_1_3_RINGS git blob 9fac8a89, exact draw_ring wrapper + 1.5x diameter, floor-referenced video shoe tracking, same-person short-gap continuity and segmented player occlusion, Houston red, individually video-reviewed Smart and Durant player-specific custody green, source audio. Matching-game Full160 original tracking index checksum verified as custody shadow only; NO native-XYZ-to-video calibrated world projection or independently established physical pixel p95, no claim of certified M1 acceptance. Never reuse game 0022600225/event585 video.' \
             --latest=false >/dev/null
           gh release view "$TAG" --repo timeedmonds-maker/104 --json assets --jq '.assets[].name' \
-            | grep -qx '0208_0073_PBP_DURANT_SENGUN_SMART_V24_FROZEN_HOOPVISION_ORIGINAL_595F.mp4'
+            | grep -qx '0208_0073_PBP_DURANT_SENGUN_SMART_V25_FROZEN_HOOPVISION_OWNER_CORRECTED_595F.mp4'
           echo ORIGINAL_NBA_0208_EVENT73_FROZEN_HOOPVISION_VIDEO_NEW_PRIVATE_RELEASE_PASS
