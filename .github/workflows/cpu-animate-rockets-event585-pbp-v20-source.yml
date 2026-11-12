@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   acquire-original:
-    if: github.event_name != 'push' || !contains(github.event.head_commit.message, 'preview readback')
+    if: github.event_name != 'push' || contains(github.event.head_commit.message, 'source intake')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -102,4 +102,58 @@ jobs:
           post=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],capture_output=True,text=True)
           if post.returncode:raise RuntimeError("PRIVATE_PREVIEW_COMMIT_FAILED")
           print("NBA_EVENT585_CAMERA_PREVIEW_PRIVATE_SHA_COMMITTED",expected,len(b))
+          PY
+
+  source-frame-player-calibration-review:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'frame-probe')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      TAG: cpu-animate-0022600225-event585-playbyplay-v20-source-20261112
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Read native camera frames and preserve private-only identity review snapshots
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          stage="$RUNNER_TEMP/event585-original-private"
+          mkdir -p "$stage"
+          gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$stage" \
+            --pattern event585-playbyplay.mp4
+          export STAGE="$stage"
+          python3 - <<'PY'
+          import os,pathlib,hashlib,subprocess,json,base64
+          stage=pathlib.Path(os.environ['STAGE'])
+          video=stage/'event585-playbyplay.mp4'
+          assert hashlib.sha256(video.read_bytes()).hexdigest()=="06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234"
+          cases=[('02',2.0),('05',5.0),('08',8.0),('10',10.0)]
+          for label,pts in cases:
+              out=stage/('e585-playbyplay-'+label+'s.jpg')
+              p=subprocess.run(['ffmpeg','-nostdin','-v','error','-ss',str(pts),
+                   '-i',str(video),'-frames:v','1','-q:v','3','-y',str(out)],
+                   capture_output=True)
+              if p.returncode or out.stat().st_size < 12000:raise RuntimeError('SOURCE_FRAME_EXTRACT_FAIL')
+              jpeg=out.read_bytes()
+              if not jpeg.startswith(bytes.fromhex('ffd8ff')):raise RuntimeError('NOT_JPEG')
+              data=base64.b64encode(jpeg).decode('ascii')+'\n'
+              path='gamepulse/clip_lab/qa/0022600225_event585_playbyplay_'+label+'s_original_jpeg.b64.txt'
+              payload={
+                'message':'data(clip-lab): private NBA event585 actual camera frame identity check '+label,
+                'branch':os.environ['BRANCH'],
+                'content':base64.b64encode(data.encode()).decode('ascii')
+              }
+              api='repos/timeedmonds-maker/104/contents/'+path
+              prior=subprocess.run(['gh','api',api+'?ref='+os.environ['BRANCH']],
+                                   capture_output=True,text=True)
+              if prior.returncode==0:payload['sha']=json.loads(prior.stdout)['sha']
+              put=stage/('post-'+label+'.json');put.write_text(json.dumps(payload))
+              result=subprocess.run(['gh','api','-X','PUT',api,'--input',str(put)],
+                                    capture_output=True,text=True)
+              if result.returncode:raise RuntimeError('PRIVATE_NATIVE_VIDEO_FRAME_COMMIT_FAIL')
+              print('EVENT585_PRIVATE_FRAME_SHA_ACCEPTED',label,hashlib.sha256(jpeg).hexdigest(),len(jpeg))
           PY
