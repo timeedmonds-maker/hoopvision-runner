@@ -71,7 +71,7 @@ jobs:
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = 6be5901909a5e7599886ec0ecbc19e61d42bcd99
+          test "$(git -C "$code" rev-parse HEAD)" = 7ec6662219945658a96fb18a504c948b01b1a10f
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -508,6 +508,7 @@ jobs:
           assert review["282"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_282"
           assert review["252"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_252"
           assert q["bogdan_original_video_backward_LK_QA"]["frame252_source_video_foot_present"],"BOGDAN_BACKWARD_OPTICAL_NO_F252"
+          assert (q["bogdan_exact_original_video_high_res_zoom_QA"]["direct_source_seg_shoe_accepted"] or q["bogdan_original_video_backward_LK_QA"]["frame252_look_envelope_gate_passed"]),"BOGDAN_F252_REVIEWED_SOURCE_VIDEO_POSITION_NOT_RECOVERED"
           assert q["reviewed_video_5s_sengun_green_rendered_frames"]>=8
           assert q["ring_counts"]["Bogdanovic"]>=160
           assert q["ring_counts"]["Sengun"]>=130
