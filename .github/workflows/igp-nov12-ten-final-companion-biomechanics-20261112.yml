@@ -428,17 +428,17 @@ jobs:
           # Source reports include failed access attempts as well as successful
           # ones. Preserve failed receipts but select ONLY verified post-final
           # access with both original player and ball frames for acceptance.
-          old_gate='''        must(item["game_id"]==GID and item["postfinal_source_access_proven"] is True
-             and item["original_player_xyz_timestamp_rows_saved"]>0
-             and item["original_ball_xyz_timestamp_rows_saved"]>0,
-             "POSTFINAL_PLAYER_BALL_RECEIPT_INCOMPLETE")
-        receipts.append((item,item_sha))'''
-          new_gate='''        must(item["game_id"]==GID,"POSTFINAL_RECEIPT_GAME_SCOPE_CONFLICT")
-        if (item.get("postfinal_source_access_proven") is True
-            and item.get("original_player_xyz_timestamp_rows_saved",0)>0
-            and item.get("original_ball_xyz_timestamp_rows_saved",0)>0):
-            receipts.append((item,item_sha))
-    must(receipts,"NO_VERIFIED_POSTFINAL_PLAYER_AND_BALL_RECEIPT")'''
+          old_gate=('        must(item["game_id"]==GID and item["postfinal_source_access_proven"] is True\n'
+                    '             and item["original_player_xyz_timestamp_rows_saved"]>0\n'
+                    '             and item["original_ball_xyz_timestamp_rows_saved"]>0,\n'
+                    '             "POSTFINAL_PLAYER_BALL_RECEIPT_INCOMPLETE")\n'
+                    '        receipts.append((item,item_sha))')
+          new_gate=('        must(item["game_id"]==GID,"POSTFINAL_RECEIPT_GAME_SCOPE_CONFLICT")\n'
+                    '        if (item.get("postfinal_source_access_proven") is True\n'
+                    '            and item.get("original_player_xyz_timestamp_rows_saved",0)>0\n'
+                    '            and item.get("original_ball_xyz_timestamp_rows_saved",0)>0):\n'
+                    '            receipts.append((item,item_sha))\n'
+                    '    must(receipts,"NO_VERIFIED_POSTFINAL_PLAYER_AND_BALL_RECEIPT")')
           assert old_gate in script,'EXACT_SOURCE_RECEIPT_GATE_CHANGED'
           script=script.replace(old_gate,new_gate)
           out=base/('igp_nov12_'+gid+'_sourcefirst_ephemeral.py')
