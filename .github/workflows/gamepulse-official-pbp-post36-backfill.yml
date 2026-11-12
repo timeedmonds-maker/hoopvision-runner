@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   official-source:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, '607-event')
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -197,7 +198,7 @@ jobs:
           exit 23
 
   rockets-0225-four-source-join-v2:
-    if: github.event_name == 'push'
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'v2 four-source')
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
@@ -266,6 +267,102 @@ jobs:
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH"
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo IGP_0225_V2_SOURCE_GRADED_SHA_COMMITTED;exit 0;fi
+            sleep "$n"
+          done
+          exit 23
+
+  rockets-0225-all607-event-index-v3:
+    # One-time private CPU source-first all-PBP event/native link and shadow QA.
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, '607-event')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Assert public boundary; fetch original source indexes into private-only checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          work="$RUNNER_TEMP/igp-0225-pbp607"
+          git clone -q --filter=blob:none --depth=1 --no-checkout -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$work"
+          git -C "$work" sparse-checkout init --no-cone
+          git -C "$work" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/**' \
+            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
+            '/gamepulse/fusion/qa/igp_20261112/rockets_0022600225_sourcegraded_tracking_qa_v1.json' \
+            '/gamepulse/fusion/qa/igp_20261112/rockets_0022600225_four_source_shot_join_v2.json' \
+            '/gamepulse/fusion/qa/igp_20261112/rockets_0022600225_pbp607_event_coverage_v3.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600225.json' \
+            '/gamepulse/fusion/official_pbp_timing/original_nba_20261029/0022600225/boxscore.json'
+          git -C "$work" checkout -q "$BRANCH"
+          test -f "$work/gamepulse/fusion/igp_rockets_0022600225_all607_event_tracking_v3.py"
+          test -f "$work/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/overlay-v2.json"
+          echo IGP_0225_ALL607_PRIVATE_READBACK_INPUTS_SHA_READY
+      - name: Index all 607 official actions to immutable original XYZ and rerun same-grid event-aware shadow
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/igp-0225-pbp607"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_rockets_0022600225_all607_event_tracking_v3.py
+          python3 gamepulse/fusion/igp_rockets_0022600225_all607_event_tracking_v3.py --root .
+          python3 - <<'PY'
+          import json,hashlib
+          from pathlib import Path
+          root=Path('gamepulse/fusion')
+          p=root/'qa/igp_20261112/rockets_0022600225_pbp607_event_coverage_v3.json'
+          q=json.loads(p.read_bytes()); c=q['event_aware_candidate_on_same_18131_sample_grid']
+          assert q['official_pbp_events']['official_events']==607
+          assert sum(q['official_pbp_action_types'].values())==607
+          assert q['native_source_timestamps']==33639
+          assert c['s1_samples']==18131
+          assert c['prior_800ms_complete']==14292
+          assert c['prior_guarded_complete']==15667
+          assert c['event_context_shadow_complete']>=15667
+          assert q['production_promoted'] is False
+          assert q['physical_possessions_certified']==0
+          assert q['new_original_XYZ_fabricated'] is False
+          assert q['frozen_full160_game_count']==160
+          print('IGP_ROCKETS_607_EVENT_TRACKING_SHA_QA_ACCEPTED',
+                q['official_pbp_events']['official_events'],
+                q['official_pbp_events']['official_events_with_native_250ms'],
+                c['prior_guarded_complete'],c['event_context_shadow_complete'],
+                q['research_candidate_source_mask_eligible'],
+                hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Commit all-event native index and measured shadow QA into private 104 only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/igp-0225-pbp607"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f \
+            gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/official-pbp-all607-native-event-index-v3.jsonl.gz \
+            gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/guarded-p2b-event-actor-s1-10hz-shadow-v3.jsonl.gz \
+            gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/overlay-v3.json \
+            gamepulse/fusion/qa/igp_20261112/rockets_0022600225_pbp607_event_coverage_v3.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo IGP_ROCKETS_607_SOURCE_INDEX_ALREADY_SHA_IDENTICAL
+            exit 0
+          fi
+          git commit -qm 'data(igp): source-grade all 607 Rockets actions against native tracking; benchmark event-aware candidate'
+          for n in 1 2 3 4 5 6 7 8 9 10; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH"
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_ROCKETS_607_EVENT_NATIVE_TRACKING_INDEX_PRIVATE_COMMITTED
+              exit 0
+            fi
             sleep "$n"
           done
           exit 23
