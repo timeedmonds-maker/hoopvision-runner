@@ -235,3 +235,122 @@ jobs:
         if: always()
         run: |
           echo "Original companion event stream, ShotDetails advanced fields and published xFG are accepted only after full-event SDK response plus SHA readback in the private repository. This workflow does not invent 60Hz joint poses or claim that source shots equal every official field-goal attempt." >> "$GITHUB_STEP_SUMMARY"
+
+  # CPU-only original NBA Blueprint gap recovery; excludes pre-indexed Rockets 0225.
+  # Never promote Full160v4 or invent missing source.
+  nov12-blueprint-original:
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        gid: ['0022600217','0022600218','0022600219','0022600220','0022600221','0022600222','0022600223','0022600224','0022600226']
+    concurrency:
+      group: nov12-blueprint-original-${{ matrix.gid }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GID: ${{ matrix.gid }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Private source and public-guard preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          case "$GID" in 0022600217|0022600218|0022600219|0022600220|0022600221|0022600222|0022600223|0022600224|0022600226) ;; *) exit 20 ;; esac
+      - name: Verify official PBP and retrieve original NBA Blueprint or record missingness
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          P="$RUNNER_TEMP/nov12-private-blueprint"
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$P"
+          cd "$P"
+          git sparse-checkout set scripts data/extensions/nba_blueprint_2026_27/games gamepulse/fusion/official_pbp_timing/games gamepulse/fusion/qa/igp_20261112
+          python3 - <<'PY'
+          import hashlib,json,os,sys
+          from pathlib import Path
+          gid=os.environ['GID']
+          pbraw=(Path('gamepulse/fusion/official_pbp_timing/games')/(gid+'.json')).read_bytes()
+          pb=json.loads(pbraw)
+          assert pb['game_id']==gid
+          acts=pb['actions']
+          fga=[a for a in acts if a.get('action_type') in ('2pt','3pt')]
+          assert len(acts)>400 and 120<=len(fga)<=240
+          byid={a['nba_action_number']:a for a in acts}
+          assert len(byid)==len(acts),'DUPLICATE_OFFICIAL_ACTION'
+          dest=Path('data/extensions/nba_blueprint_2026_27/games')/gid/'blueprint_report_raw.json'
+          qa=Path('gamepulse/fusion/qa/igp_20261112')/('blueprint_gap_'+gid+'_v1.json')
+          receipt=dict(schema='igp.nov12-original-blueprint-source-gap.v1',
+            game_id=gid,official_pbp_sha256=hashlib.sha256(pbraw).hexdigest(),
+            official_actions=len(acts),official_fga=len(fga),full160v4_immutable=True,
+            full_game_xyz_certified=False,missing_source_values_remain_null=True)
+          try:
+              sys.path.insert(0,str(Path('scripts').resolve()))
+              from update_nba_blueprint_daily_2026_27 import read_report,canonical
+              report,meta=read_report(gid)
+              shots=(report.get('shot_difficulty') or {}).get('shotDifficulty') or []
+              assert len(shots)>50 and str(report['game_header']['gameId'])==gid
+              raw=canonical(report).encode()
+              sha=hashlib.sha256(raw).hexdigest()
+              seen=set();matched=conflicts=unmatched=0
+              for s in shots:
+                  aid=s.get('ngssEventId')
+                  a=byid.get(aid)
+                  if aid in seen:conflicts+=1;continue
+                  seen.add(aid)
+                  if not a or a.get('action_type') not in ('2pt','3pt'):unmatched+=1
+                  elif (str((s.get('shooter') or {}).get('playerId'))!=str(a.get('person_id'))
+                        or s.get('period')!=a.get('period')
+                        or s.get('shotType')!=a.get('action_type')):conflicts+=1
+                  else:matched+=1
+              status='ORIGINAL_BLUEPRINT_SHA_OBSERVED'
+              if dest.exists() and dest.read_bytes()!=raw:
+                  status='ORIGINAL_SOURCE_REVISION_QUARANTINED'
+              else:
+                  dest.parent.mkdir(parents=True,exist_ok=True)
+                  if not dest.exists():dest.write_bytes(raw)
+              receipt.update(source_status=status,original_sha256=sha,
+                source_shots=len(shots),official_exact_shot_matches=matched,
+                source_identity_conflicts=conflicts,source_unmatched=unmatched,
+                missing_official_fga=len(fga)-matched,complete_fga_covered=matched==len(fga) and conflicts==0,
+                page_build=meta.get('page_build'))
+          except Exception as e:
+              receipt.update(source_status='ORIGINAL_BLUEPRINT_UNAVAILABLE',
+                error_type=type(e).__name__,error_message=str(e)[:180],complete_fga_covered=False)
+          qa.parent.mkdir(parents=True,exist_ok=True)
+          qa.write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
+          print('NOV12_PRIVATE_BLUEPRINT_QA',gid,receipt['source_status'],
+            'official_fga',receipt['official_fga'],'matched',receipt.get('official_exact_shot_matches',0))
+          PY
+          QA_PATH="$(printf 'gamepulse/fusion/qa/igp_20261112/blueprint_gap_%s_v1.json' "$GID")"
+          git add -f "$QA_PATH"
+          SRC_PATH="data/extensions/nba_blueprint_2026_27/games/$GID/blueprint_report_raw.json"
+          if test -s "$SRC_PATH"; then git add -f "$SRC_PATH"; fi
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git diff --cached --quiet; then echo ORIGINAL_SOURCE_QA_ALREADY_PRESENT; exit 0; fi
+          git commit -q -m "data(igp): source-backed Nov12 NBA Blueprint gap receipt $GID"
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$PRIVATE_REF"
+            git rebase -q "origin/$PRIVATE_REF"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_REF"; then
+              echo ORIGINAL_SOURCE_SHA_AND_QA_PRIVATE_PUBLISHED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 42
+      - name: Confirm Full160v4 freeze
+        if: always()
+        run: |
+          echo 'Source-only private NBA Blueprint retrieval. No Full160v4 promotion, no newly certified full game tracking or physical possession. Missing original source explicitly remains missing.' >> "$GITHUB_STEP_SUMMARY"
