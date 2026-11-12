@@ -396,6 +396,7 @@ jobs:
           git clone -q --no-checkout --filter=blob:none --depth=1 -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$P"
           git -C "$P" sparse-checkout init --no-cone
           git -C "$P" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
             '/gamepulse/fusion/igp_rockets_0022600225_full160_additive_v1.py' \
             '/gamepulse/fusion/igp_20261111_six_game_unified_native_census_v1.py' \
             '/gamepulse/fusion/igp_full160_nov10_original_guarded_v1.py' \
