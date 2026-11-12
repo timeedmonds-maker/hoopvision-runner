@@ -1,0 +1,44 @@
+name: CPU Animate source-native HOU Bogdan-vs-Reed original XYZ only
+on:
+  push:
+    branches: ['cpu-animate/warriors-amen-sengun-e585-cpu-rebuild-20261113']
+    paths: ['.github/workflows/cpu-animate-v35-native-roster-side-audit.yml']
+permissions:
+  contents: read
+jobs:
+  private-source-native-width:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: SHA-original private Houston tracking five-roster coordinate QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test ! -e /dev/nvidia0
+          test ! -e /dev/kfd
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+          code="$RUNNER_TEMP/private-v35-roster-code"
+          root="$RUNNER_TEMP/private-v35-native-game0225"
+          git clone -q --filter=blob:none --depth=1 --no-checkout --branch cpu-animate/warriors-e585-v35-review-stills-20261113 https://github.com/timeedmonds-maker/104.git "$code"
+          git -C "$code" sparse-checkout init --no-cone
+          git -C "$code" sparse-checkout set --no-cone '/cpu_animate/v35_bogdan_reed_native_side_audit.py'
+          git -C "$code" checkout -q cpu-animate/warriors-e585-v35-review-stills-20261113
+          git clone -q --filter=blob:none --depth=1 --no-checkout --branch research/gamepulse-clock-boundary-integrity-20261025 https://github.com/timeedmonds-maker/104.git "$root"
+          git -C "$root" sparse-checkout init --no-cone
+          git -C "$root" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/original-native-*.jsonl.gz'
+          git -C "$root" checkout -q research/gamepulse-clock-boundary-integrity-20261025
+          test "$(find "$root/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1" -name 'original-native-*.jsonl.gz' | wc -l)" = 17
+          python3 "$code/cpu_animate/v35_bogdan_reed_native_side_audit.py" "$root"
+          rm -rf "$root" "$code"
+          echo PRIVATE_HOU_5PLAYER_NATIVE_SPATIAL_ROSTER_QA_PERSISTED
