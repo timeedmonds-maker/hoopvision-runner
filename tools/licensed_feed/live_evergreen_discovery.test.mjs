@@ -5,12 +5,12 @@ const now=Date.parse('2026-11-11T02:00:00.000Z');
 const row=(id,min,status=2)=>({gameId:id,gameDateTimeUTC:new Date(now+min*60000).toISOString(),gameStatus:status});
 const wrap=(games)=>({leagueSchedule:{gameDates:[{games}]}});
 test('discovers concurrent NBA games from current official schedule without hardcoded game IDs',()=>{
- const a=activeGames(wrap([row('0022600211',-90),row('0022600212',-60),row('0022600213',0),row('0022600214',0),row('0022600215',76,1)]),now);
+ const a=activeGames(wrap([row('0022600211',-90),row('0022600212',-60),row('0022600213',0),row('0022600214',0),row('0022600215',136,1)]),now);
  assert.deepEqual(a.map(x=>x.id),['0022600211','0022600212','0022600213','0022600214']);
 });
-test('prearms future games seventy-five minutes before tipoff',()=>{
- assert.deepEqual(activeGames(wrap([row('0022700001',75,1)]),now).map(x=>x.id),['0022700001']);
- assert.deepEqual(activeGames(wrap([row('0022700001',76,1)]),now),[]);
+test('prearms future games 135 minutes before tipoff',()=>{
+ assert.deepEqual(activeGames(wrap([row('0022700001',135,1)]),now).map(x=>x.id),['0022700001']);
+ assert.deepEqual(activeGames(wrap([row('0022700001',136,1)]),now),[]);
  assert.deepEqual(activeGames(wrap([row('0022700001',8,1)]),now).map(x=>x.id),['0022700001']);
 });
 test('all ten staggered US Nov 11 NBA fixtures are independently discoverable',()=>{
@@ -24,8 +24,8 @@ test('all ten staggered US Nov 11 NBA fixtures are independently discoverable',(
  const schedule=wrap(games);
  const ids=arr=>arr.map(g=>g.id);
  assert.equal(new Set(games.map(g=>g.gameId)).size,10);
- assert.deepEqual(ids(activeGames(schedule,first-20*60000)),games.slice(0,3).map(g=>g.gameId));
- assert.deepEqual(ids(activeGames(schedule,first+5*60000)),games.slice(0,7).map(g=>g.gameId));
+ assert.deepEqual(ids(activeGames(schedule,first-20*60000)),games.slice(0,7).map(g=>g.gameId));
+ assert.deepEqual(ids(activeGames(schedule,first+5*60000)),games.slice(0,8).map(g=>g.gameId));
  assert.deepEqual(ids(activeGames(schedule,first+122*60000)),games.map(g=>g.gameId));
 });
 test('supports a new season and NBA playoff game identifiers',()=>{
