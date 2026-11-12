@@ -71,7 +71,7 @@ jobs:
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = e5f3cc79ed41eeaa857d9f2f2497efaee846347a
+          test "$(git -C "$code" rev-parse HEAD)" = c7398d59fced1595668ae272899e7a10ee8e77c5
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -506,6 +506,8 @@ jobs:
           assert review["162"]["Sengun"]["ring_input_present"],"MISSING_SENGUN_DRIBBLE_RING_FRAME_162"
           # 252 is not an independently verified Bogdanovic shoe frame. 282 is.
           assert review["282"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_282"
+          assert review["252"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_252"
+          assert q["bogdan_original_video_backward_LK_QA"]["frame252_source_video_foot_present"],"BOGDAN_BACKWARD_OPTICAL_NO_F252"
           assert q["reviewed_video_5s_sengun_green_rendered_frames"]>=8
           assert q["ring_counts"]["Bogdanovic"]>=160
           assert q["ring_counts"]["Sengun"]>=130
