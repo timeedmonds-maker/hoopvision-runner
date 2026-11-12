@@ -57,9 +57,10 @@ jobs:
             '/cpu_animate/rockets_e585_full161_video_alignment_forensic.py' \
             '/cpu_animate/rockets_e585_original_video_foot_scout_v21.py' \
             '/cpu_animate/rockets_e585_full161_video_pts_shadow.py' \
+            '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = 598a067f7db8b5fbd667fa3ee6333f7ab0549a1f
+          test "$(git -C "$code" rev-parse HEAD)" = 7af40670d67db08f420601ed3304c76a05437c7f
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -84,7 +85,7 @@ jobs:
         run: |
           set -euo pipefail
           cd "$CODE_ROOT"
-          python3 -m unittest cpu_animate.test_rockets_e585_full161_v21_source_gate -v
+          python3 -m unittest cpu_animate.test_rockets_e585_full161_v21_source_gate cpu_animate.test_rockets_e585_full161_video_pts_shadow -v
           echo V21_THREE_PLAYER_NATIVE_SOURCE_SHOE_GATES_TESTED
 
       - name: Verify 17 native Rockets source chunk SHA and 33,639 timestamps in PRIVATE RAM
@@ -192,17 +193,26 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install -q --disable-pip-version-check \
-            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'ultralytics==8.3.176'
-          export YOLO_DISABLE_MODEL_DOWNLOAD_WARNINGS=1
+          tag=cpu-animate-rockets-0225-e585-v21-source-shoe-scout-20261112
           out="$RUNNER_TEMP/e585-private-cpu-video-shoe-scout"
           mkdir -p "$out"
-          cd "$CODE_ROOT"
-          python3 -m cpu_animate.rockets_e585_original_video_foot_scout_v21 \
-            --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
-            --manifest "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
-            --model yolo11n-seg.pt --stride 2 --out "$out"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
+            # Reuse immutable private source scout; never rerun expensive inference.
+            gh release download "$tag" --repo timeedmonds-maker/104 \
+              --dir "$out" --pattern 'scout_0225_*'
+            echo REAL_VIDEO_SHOE_SCOUT_EXISTING_PRIVATE_SOURCE_REUSED
+          else
+            python3 -m pip install -q --disable-pip-version-check \
+              'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'ultralytics==8.3.176'
+            export YOLO_DISABLE_MODEL_DOWNLOAD_WARNINGS=1
+            cd "$CODE_ROOT"
+            python3 -m cpu_animate.rockets_e585_original_video_foot_scout_v21 \
+              --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
+              --manifest "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
+              --model yolo11n-seg.pt --stride 2 --out "$out"
+          fi
           test "$(find "$out" -name 'scout_0225_f*.jpg' | wc -l)" = 20
+          test -s "$out/scout_0225_585_review_index.json"
           test -s "$out/scout_0225_585_videoonly_592.json.gz"
           test -s "$out/scout_0225_585_videoonly_qa.json"
           echo ROCKETS_0225_REAL_VIDEO_SHOE_SCOUT_FRAME_STILLS_PRIVATE
@@ -227,6 +237,51 @@ jobs:
           gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.assets[].name' | \
             grep -qx 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           echo EVENT585_PRIVATE_ORIGINAL_VIDEO_SHOE_CANDIDATES_AND_ACTUAL_FULL161_XYZ_SAVED
+
+      - name: Preserve PRIVATE annotated roster-review frames and exact tracker index for manual NBA ID evaluation
+        shell: bash
+        run: |
+          set -euo pipefail
+          export CPU_E585_REVIEW_DIR="$RUNNER_TEMP/e585-private-cpu-video-shoe-scout"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess,tempfile
+          folder=pathlib.Path(os.environ["CPU_E585_REVIEW_DIR"])
+          branch="research/gamepulse-clock-boundary-integrity-20261025"
+          source=["scout_0225_585_review_index.json"]+[f"scout_0225_f{i:03d}.jpg"
+                  for i in (72,132,162,222,252,282,312)]
+          for name in source:
+              raw=(folder/name).read_bytes()
+              if name.endswith(".jpg"):
+                  if raw[:3]!=bytes.fromhex("ffd8ff") or len(raw)<50000:
+                      raise ValueError("INVALID_OR_MISSING_PRIVATE_REAL_VIDEO_FRAME")
+                  data=base64.b64encode(raw)+b"\n"
+                  destination=f"gamepulse/clip_lab/qa/e585_source_roster_review/{name}.base64.txt"
+              else:
+                  q=json.loads(raw)
+                  if len(q)!=20:
+                      raise ValueError("PRIVATE_ROSTER_REVIEW_INDEX_DRIFT")
+                  data=raw
+                  destination=f"gamepulse/clip_lab/qa/e585_source_roster_review/{name}"
+              api=f"repos/timeedmonds-maker/104/contents/{destination}"
+              prior=subprocess.run(["gh","api",f"{api}?ref={branch}"],
+                  capture_output=True,text=True)
+              payload={"message":f"qa(cpu-animate): original private Rockets e585 video tracker review {name}",
+                       "branch":branch,
+                       "content":base64.b64encode(data).decode()}
+              if prior.returncode==0:
+                  found=json.loads(prior.stdout)
+                  if base64.b64decode(found["content"].replace("\n",""))==data:
+                      continue
+                  payload["sha"]=found["sha"]
+              elif "404" not in prior.stderr and "Not Found" not in prior.stderr:
+                  raise ValueError("PRIVATE_FRAME_DESTINATION_LOOKUP_FAILED")
+              req=pathlib.Path(tempfile.mkdtemp())/"request.json"
+              req.write_text(json.dumps(payload))
+              res=subprocess.run(["gh","api","-X","PUT",api,"--input",str(req)],
+                  capture_output=True,text=True)
+              if res.returncode:raise ValueError("PRIVATE_ORIGINAL_FRAME_COMMIT_FAILED")
+          print("ROCKETS_EVENT585_EIGHT_PRIVATE_TRACKER_ID_REVIEW_SOURCES_PRESERVED")
+          PY
 
       - name: Publish QA only to authorised private 104 release
         shell: bash
