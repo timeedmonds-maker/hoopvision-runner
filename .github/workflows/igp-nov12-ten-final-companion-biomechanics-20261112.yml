@@ -1,6 +1,7 @@
 # NBA 2026-11-11 US slate: source-only finished-game companion/biomechanics recovery.
 # No GPU, no paid compute, no private source in this public repository.
 # This workflow is a targeted one-shot; existing evergreen XYZ jobs are not restarted.
+# Public bridge guard exact-path allowlist updated; all game sources remain private.
 name: "IGP Nov12 final-game native companion biomechanics recovery"
 on:
   push:
