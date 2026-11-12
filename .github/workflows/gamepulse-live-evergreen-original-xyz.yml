@@ -12,6 +12,13 @@ on:
   schedule:
     - cron: '2-59/5 * * * *'
   workflow_dispatch:
+  # Independent autonomous fallback: any completed live-first discovery sweep
+  # also dispatches the pre-armed long-running official-FINAL watcher. The
+  # scheduled evergreen cron remains independent; this is one-way to avoid loops.
+  workflow_run:
+    workflows: ['Game Pulse NBA all-game live-first private capture']
+    types: [completed]
+    branches: [main]
   push:
     branches: [main]
     paths:
