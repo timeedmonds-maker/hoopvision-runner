@@ -34,6 +34,12 @@ jobs:
           python3 -m pip install -q --disable-pip-version-check \
             'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' \
             'ultralytics==8.3.176' 'pillow>=10,<12'
+          if ! command -v ffprobe >/dev/null || ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          command -v ffprobe
+          command -v ffmpeg
           gh auth setup-git
           code="$RUNNER_TEMP/v37-camera-code"
           root="$RUNNER_TEMP/v37-original-native"
