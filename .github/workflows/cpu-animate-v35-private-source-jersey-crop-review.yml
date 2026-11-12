@@ -1,0 +1,38 @@
+name: CPU Animate V35 private original jersey identity crop CPU
+on:
+  push:
+    branches: ['cpu-animate/warriors-amen-sengun-e585-cpu-rebuild-20261113']
+    paths: ['.github/workflows/cpu-animate-v35-private-source-jersey-crop-review.yml']
+permissions:
+  contents: read
+jobs:
+  jersey-original-crop:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Read verified original video review frames PRIVATE only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          test ! -e /dev/nvidia0
+          test ! -e /dev/kfd
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          python3 -m pip install -q 'pillow==11.3.0'
+          gh auth setup-git
+          root="$RUNNER_TEMP/v35-jersey-crop-code"
+          git clone -q --filter=blob:none --depth=1 --no-checkout --branch cpu-animate/warriors-e585-v35-review-stills-20261113 https://github.com/timeedmonds-maker/104.git "$root"
+          git -C "$root" sparse-checkout init --no-cone
+          git -C "$root" sparse-checkout set --no-cone '/cpu_animate/review_original_jerseys_v35.py'
+          git -C "$root" checkout -q cpu-animate/warriors-e585-v35-review-stills-20261113
+          python3 "$root/cpu_animate/review_original_jerseys_v35.py"
+          rm -rf "$root"
+          echo PRIVATE_CPU_JERSEY_ORIGINAL_IMAGE_QA_READY
