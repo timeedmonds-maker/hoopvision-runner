@@ -1,0 +1,56 @@
+name: CPU Animate 0208 original-video identity review private-only
+on:
+  push:
+    branches: ['cpu-animate-0208-event73-pbp-v22-20261110']
+    paths: ['.github/workflows/cpu-animate-0208-event73-private-identity-review-20261113.yml']
+permissions:
+  contents: read
+jobs:
+  private-review:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+    steps:
+      - name: Inspect original clip tracker IDs at reviewed frames privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0
+          root="$(mktemp -d)"
+          trap 'rm -rf "$root"' EXIT
+          gh release download cpu-animate-0208-73-video-only-scout-v23 \
+            --repo timeedmonds-maker/104 --dir "$root" \
+            --pattern 'scout_0208_73_review_index.json' >/dev/null
+          export CPU_REVIEW_ROOT="$root"
+          python3 - <<'PY'
+          import os,json,base64,pathlib,subprocess
+          root=pathlib.Path(os.environ["CPU_REVIEW_ROOT"])
+          data=json.loads((root/"scout_0208_73_review_index.json").read_text())
+          frames={int(row["frame"]):row for row in data}
+          picked={}
+          for j in [42,72,102,132,162,192,222,252,282,552]:
+              row=frames[j]
+              picked[str(j)]={"pts":row["pts"],"people":[{
+                  "id":p["source_tracker_id"],"bbox":p["bbox"],
+                  "shoe":p["shoe_xy"],"confidence":p["confidence"],
+                  "seg":p["source_shoe_segmentation"]}
+                  for p in row["persons"]]}
+          obj={"schema":"cpu-animate.0208.real-source-original-video-roster-review",
+              "game_id":"0022600208","event_num":73,
+              "original_sha256":"506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4",
+              "source_video_person_tracker_ID_not_NBA_person_ID":True,
+              "frames":picked}
+          txt=json.dumps(obj,indent=2)
+          payload={"message":"qa(cpu-animate): original video frame 192/222 roster identity reassociation receipts",
+              "branch":"cpu-animate/0208-event73-frozen-v24-20261113",
+              "content":base64.b64encode(txt.encode()).decode()}
+          api="repos/timeedmonds-maker/104/contents/docs/cpu_animate/0208_source_jersey_identity_recheck_20261113.json"
+          p=root/"payload.json";p.write_text(json.dumps(payload))
+          result=subprocess.run(["gh","api","-X","PUT",api,"--input",str(p)],
+                                capture_output=True,text=True)
+          if result.returncode:raise RuntimeError("PRIVATE_IDENTITY_AUDIT_NOT_PERSISTED")
+          print("SOURCE_VIDEO_0208_F192_F222_PRIVATE_ROSTER_IDENTITY_AUDIT_COMMITTED")
+          PY
