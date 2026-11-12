@@ -175,6 +175,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
           export OUT_PTS="$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json"
           export IN_MP4="$MEDIA_ROOT/event585-playbyplay.mp4"
           python3 - <<'PY'
