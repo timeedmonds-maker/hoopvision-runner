@@ -1,0 +1,153 @@
+name: CPU Animate 0208 event73 V25 corrected original video Smart ID frozen ring export CPU
+on:
+  push:
+    branches: ['cpu-animate/0208-event73-v25-remap-20261113']
+    paths: ['.github/workflows/cpu-animate-0208-event73-v25-corrected-review.yml']
+permissions:
+  contents: read
+concurrency:
+  group: cpu-animate-0208-event73-v25-original-video-smart-ID-20261113
+  cancel-in-progress: false
+jobs:
+  original-playbyplay-three-rings:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OPENCV_OPENCL_RUNTIME: disabled
+      OMP_NUM_THREADS: '3'
+      MKL_NUM_THREADS: '3'
+      OPENBLAS_NUM_THREADS: '2'
+      TOKENIZERS_PARALLELISM: 'false'
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - name: Reprocess correct NBA 0208 event73 original video with frozen HoopVision rings CPU only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" && test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          ROOT="$(mktemp -d)"
+          export ROOT
+          trap 'rm -rf "$ROOT"' EXIT
+          mkdir -p "$ROOT/media" "$ROOT/scout" "$ROOT/out"
+          gh auth setup-git >/dev/null 2>&1
+          git clone -q --depth=1 --filter=blob:none --sparse \
+            --branch cpu-animate/0208-event73-v25-sealed-review-20261113 \
+            https://github.com/timeedmonds-maker/104.git "$ROOT/private"
+          git -C "$ROOT/private" sparse-checkout set --no-cone \
+            '/cpu_animate/' '/tools/locked_broadcast_screen_v5_rings.py' >/dev/null
+          test "$(git -C "$ROOT/private" rev-parse HEAD)" = 932809875f88ca56cfac00360bfa0725cba24984
+          test "$(git -C "$ROOT/private" hash-object tools/locked_broadcast_screen_v5_rings.py)" = 9fac8a8915b90bbd9bd1235532c297c35da77ca2
+          cd "$ROOT/private"
+          python3 -m pip install -q --disable-pip-version-check numpy opencv-python-headless pillow ultralytics
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq >/dev/null
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
+          python3 -m py_compile \
+            cpu_animate/video_only_render_0208_frozen_v25.py \
+            cpu_animate/v22_multiplayer_floor_adapter.py
+          python3 -m cpu_animate.test_v22_multiplayer_floor_adapter
+          gh release download cpu-animate-0208-73-pbp-original-source-v1 \
+            --repo timeedmonds-maker/104 --dir "$ROOT/media" \
+            --pattern '0208_0073_play-by-play.mp4' \
+            --pattern '0208_0073_play-by-play_pts_and_source.json' >/dev/null
+          gh release download cpu-animate-0208-73-video-only-scout-v23 \
+            --repo timeedmonds-maker/104 --dir "$ROOT/scout" \
+            --pattern 'scout_0208_73_videoonly_595.json.gz' \
+            --pattern 'scout_0208_73_videoonly_qa.json' >/dev/null
+          echo '506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4  '$ROOT'/media/0208_0073_play-by-play.mp4' | sha256sum -c -
+          # Original matching-game Full160 snapshot, not fabricated rendered XYZ.
+          # This proves the tracking asset inspected is 0208, never old 0225.
+          gh release download courtsketch-full160-0022600208-10hz-v1 \
+            --repo timeedmonds-maker/104 --dir "$ROOT/media" \
+            --pattern 'courtsketch_capture_0208_full160_index.json' >/dev/null
+          echo '687ddbec5e641075b0a43ea9453edb7108d61dabe67957e839a3f0d1bfb86b15  '$ROOT'/media/courtsketch_capture_0208_full160_index.json' | sha256sum -c -
+          curl --fail --location --silent --show-error --retry 2 --max-time 120 \
+            https://huggingface.co/Ultralytics/YOLO11/resolve/1fad642026e935ebf53c4d878b6fd844ad08de3f/yolo11n-seg.pt \
+            -o "$ROOT/private/yolo11n-seg.pt"
+          echo '55ed65c56c91713d23e8402371c6c49a6fd84f257f7dce452e8d70e41dcbe152  '$ROOT'/private/yolo11n-seg.pt' | sha256sum -c -
+          env -u GH_TOKEN -u GITHUB_TOKEN -u GIT_ASKPASS \
+            python3 -m cpu_animate.video_only_render_0208_frozen_v25 \
+              --media "$ROOT/media/0208_0073_play-by-play.mp4" \
+              --manifest "$ROOT/media/0208_0073_play-by-play_pts_and_source.json" \
+              --scout "$ROOT/scout/scout_0208_73_videoonly_595.json.gz" \
+              --anchors "$ROOT/private/cpu_animate/video_only_0208_v23_source_identity_anchors.json" \
+              --model "$ROOT/private/yolo11n-seg.pt" \
+              --out "$ROOT/out"
+          python3 - "$ROOT/out" <<'PY'
+          import json,hashlib,sys
+          from pathlib import Path
+          d=Path(sys.argv[1])
+          q=json.loads((d/"0208_0073_V25_IDENTITY_CORRECTED_FROZEN_SOURCE_QA.json").read_text())
+          assert (q["original_game_id"],q["event_num"],q["camera"])==("0022600208",73,"Play by Play")
+          assert q["original_NBA_source_sha256"]=="506606517d547d0be048c2d6306f324b6c77271ae4d5a3de436a596fe32f6ff4"
+          assert q["original_NBA_source_video_frames"]==595
+          assert q["frozen_renderer_verified_actual_blob_sha1"]=="9fac8a8915b90bbd9bd1235532c297c35da77ca2"
+          assert q["exact_original_frozen_entrypoint"]=="draw_ring" and q["immutable_ring_diameter_scale"]==1.5
+          assert q["source_xyz_used"] is False and not q["native_video_alignment_physical_truth_certified"]
+          assert q["source_audio_preserved"] and q["accepted_ring_opacity"]==1.
+          assert set(q["ring_frames"])=={"Durant","Sengun","Smart"}
+          assert q["ring_frames"]["Smart"]>=190 and q["ring_frames"]["Sengun"]>=170 and q["ring_frames"]["Durant"]>=95,q["ring_frames"]
+          assert q["green_frames"].get("Smart",0)>=12,q["green_frames"]
+          assert q["green_frames"].get("Durant",0)==0 and q["green_frames"].get("Sengun",0)==0
+          assert 72 in q["green_frame_indices"]["Smart"],"SOURCE_REVIEWED_SMART_DRIBBLE_72_NOT_GREEN"
+          assert 192 in q["green_frame_indices"]["Smart"] and 222 in q["green_frame_indices"]["Smart"],"VIDEO_REVIEWED_SMART_DRIBBLE_F192_F222_NOT_GREEN"
+          assert q["reviewed_source_video_identity_repair"]["review_frame192_corrected_source"]==173
+          assert q["reviewed_source_video_identity_repair"]["review_frame222_corrected_source"]==173
+          assert q["original_NBA_tracking_xyz_immutable"]
+          p=d/q["output_file"]
+          assert p.name=="0208_0073_PBP_DURANT_SENGUN_SMART_V25_IDENTITY_CORRECTED_FROZEN_595F.mp4"
+          assert p.stat().st_size>5000000
+          assert hashlib.sha256(p.read_bytes()).hexdigest()==q["output_sha256"]
+          assert q["output_sha256"] not in (
+            "b099352b7529ff0402db1c0702d5a7b52fc75dfaed2b3191889b03928fda85e1",
+            "c2132d47d5b1470973742b7ab06d17d0636fd60660e7ed3e191e5f5474f8c888",
+            "2237519ddfdf6aa77b7e9e32a6178cd8b76fe8a89f464bace8ecf557be35b58b")
+          print("REAL_0208_FROZEN_V25_CORRECTED_SMART_ACCEPTANCE_RESEARCH_PASS",
+            json.dumps({"ring_frames":q["ring_frames"],"green_frames":q["green_frames"],
+              "sha":q["output_sha256"],"physical_truth_certified":False}))
+          PY
+          # Preserve preview images as base64 text in PRIVATE 104 review branch
+          # so exact real-rendered pixels can be visually assessed in this chat.
+          python3 - "$ROOT/out" <<'PY'
+          import subprocess,json,base64,sys,hashlib
+          from pathlib import Path
+          d=Path(sys.argv[1]); branch="cpu-animate/0208-event73-v25-verified-smart-20261113"
+          for j in [42,72,192,222,282,552]:
+              jpg=d/f"0208_v25_frozen_review_f{j:03}.jpg"
+              raw=jpg.read_bytes()
+              assert len(raw)>15000 and raw[:3]==bytes.fromhex("ffd8ff")
+              txt=base64.b64encode(raw).decode("ascii")+"\n"
+              payload={"message":f"qa(cpu-animate): exact game0208 event73 V24 frozen rendered frame {j}",
+                 "branch":branch,
+                 "content":base64.b64encode(txt.encode("ascii")).decode("ascii")}
+              api=f"repos/timeedmonds-maker/104/contents/docs/cpu_animate/v25_0208_corrected_review_f{j:03}.jpg.b64.txt"
+              q=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
+              if q.returncode==0:payload["sha"]=json.loads(q.stdout)["sha"]
+              tmp=d/f"_private_f{j}.json";tmp.write_text(json.dumps(payload))
+              p=subprocess.run(["gh","api","-X","PUT",api,"--input",str(tmp)],
+                               capture_output=True,text=True)
+              tmp.unlink()
+              if p.returncode:
+                  raise RuntimeError(f"PRIVATE_V24_REVIEW_PUBLISH_FAILED_FRAME_{j}")
+              print("ORIGINAL_0208_RENDERED_FROZEN_FRAME_SHA256",
+                j,hashlib.sha256(raw).hexdigest())
+          PY
+          TAG=cpu-animate-0208-event73-v25-corrected-smart-frozen-595f-20261113
+          if gh release view "$TAG" --repo timeedmonds-maker/104 >/dev/null 2>&1; then
+            echo "V24_PREVIOUS_RELEASE_CANNOT_OVERWRITE"; exit 16
+          fi
+          gh release create "$TAG" \
+            "$ROOT/out"/*.mp4 \
+            "$ROOT/out"/0208_0073_V24_FROZEN_HOOPVISION_SOURCE_VIDEO_QA.json \
+            "$ROOT/out"/0208_v25_frozen_review_f*.jpg \
+            --repo timeedmonds-maker/104 \
+            --title 'Correct NBA 0022600208 event73 V25 | reviewed Smart #36 dribble, frozen HoopVision' \
+            --notes 'Private, CPU-only original 595-frame Houston-Denver Play By Play video verified SHA 50660651; original frozen HoopVision HOOPVISION_1_3_RINGS git blob 9fac8a89, exact draw_ring wrapper + 1.5x diameter, floor-referenced video shoe tracking, same-person short-gap continuity and segmented player occlusion, Houston red, individually source-video reviewed Smart #36 green only, specifically correcting wrong previous green track at frames 192 and 222, source audio. Matching-game Full160 original tracking index checksum verified as custody shadow only; NO native-XYZ-to-video calibrated world projection or independently established physical pixel p95, no claim of certified M1 acceptance. Never reuse game 0022600225/event585 video.' \
+            --latest=false >/dev/null
+          gh release view "$TAG" --repo timeedmonds-maker/104 --json assets --jq '.assets[].name' \
+            | grep -qx '0208_0073_PBP_DURANT_SENGUN_SMART_V24_FROZEN_HOOPVISION_ORIGINAL_595F.mp4'
+          echo ORIGINAL_NBA_0208_EVENT73_V25_CORRECTED_SMART_FROZEN_VIDEO_PRIVATE_RELEASE_PASS
