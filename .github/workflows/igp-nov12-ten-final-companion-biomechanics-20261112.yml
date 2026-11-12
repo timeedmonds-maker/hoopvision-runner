@@ -425,6 +425,22 @@ jobs:
           script=script.replace('rockets_'+gid+'_sourcegraded','nov12_'+gid+'_sourcegraded')
           script=script.replace('igp.rockets-0225','igp.nov12-'+gid[-4:])
           script=script.replace('single-rockets','single-nov12')
+          # Source reports include failed access attempts as well as successful
+          # ones. Preserve failed receipts but select ONLY verified post-final
+          # access with both original player and ball frames for acceptance.
+          old_gate='''        must(item["game_id"]==GID and item["postfinal_source_access_proven"] is True
+             and item["original_player_xyz_timestamp_rows_saved"]>0
+             and item["original_ball_xyz_timestamp_rows_saved"]>0,
+             "POSTFINAL_PLAYER_BALL_RECEIPT_INCOMPLETE")
+        receipts.append((item,item_sha))'''
+          new_gate='''        must(item["game_id"]==GID,"POSTFINAL_RECEIPT_GAME_SCOPE_CONFLICT")
+        if (item.get("postfinal_source_access_proven") is True
+            and item.get("original_player_xyz_timestamp_rows_saved",0)>0
+            and item.get("original_ball_xyz_timestamp_rows_saved",0)>0):
+            receipts.append((item,item_sha))
+    must(receipts,"NO_VERIFIED_POSTFINAL_PLAYER_AND_BALL_RECEIPT")'''
+          assert old_gate in script,'EXACT_SOURCE_RECEIPT_GATE_CHANGED'
+          script=script.replace(old_gate,new_gate)
           out=base/('igp_nov12_'+gid+'_sourcefirst_ephemeral.py')
           out.write_text(script)
           assert '0022600225' not in script
