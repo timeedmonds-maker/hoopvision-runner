@@ -504,7 +504,8 @@ jobs:
           assert q["reviewed_video_5s_sengun_green_rendered_frames"]>=1
           review=q["original_video_reviewed_shoe_fallback_qa"]["review_frames"]
           assert review["162"]["Sengun"]["ring_input_present"],"MISSING_SENGUN_DRIBBLE_RING_FRAME_162"
-          assert review["252"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_252"
+          # 252 is not an independently verified Bogdanovic shoe frame. 282 is.
+          assert review["282"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_282"
           assert q["reviewed_video_5s_sengun_green_rendered_frames"]>=8
           assert q["ring_counts"]["Bogdanovic"]>=160
           assert q["ring_counts"]["Sengun"]>=130
@@ -535,7 +536,7 @@ jobs:
               payload={"message":f"qa(cpu-animate): corrected frozen v32 e585 privately reviewed frame {j}",
                        "branch":branch,
                        "content":base64.b64encode(plaintext.encode()).decode()}
-              path=f"gamepulse/clip_lab/qa/e585_v32_r2_video_shoe_20261113_f{j:03d}_jpg_b64.txt"
+              path=f"gamepulse/clip_lab/qa/e585_v32_r3_video_shoe_20261113_f{j:03d}_jpg_b64.txt"
               api="repos/timeedmonds-maker/104/contents/"+path
               prior=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
               if prior.returncode==0:
@@ -554,7 +555,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag=cpu-animate-0225-e585-full170-v32-video-shoe-ballgreen-r2-20261113
+          tag=cpu-animate-0225-e585-full170-v32-video-shoe-ballgreen-r3-20261113
           dir="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
           qa="$dir/0022600225_E585_FULL170_V32_FROZEN_COURT_STABLE_POSSESSION_THREE_RINGS_qa.json"
           if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
