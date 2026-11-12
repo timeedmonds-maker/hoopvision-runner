@@ -59,18 +59,25 @@ jobs:
             '/cpu_animate/rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/rockets_e585_full161_native_foot_candidate_audit.py' \
             '/cpu_animate/rockets_e585_full161_v21_original_shoelock_render.py' \
+            '/cpu_animate/rockets_e585_full170_kd_v21_floorlock_port.py' \
+            '/cpu_animate/floor_lock_v12.py' \
+            '/cpu_animate/floor_ground_lock_v22.py' \
+            '/cpu_animate/video_only_floor_engine_v23_2.py' \
+            '/cpu_animate/v22_multiplayer_floor_adapter.py' \
+            '/cpu_animate/video_only_render_0208_v23.py' \
             '/tools/locked_broadcast_screen_v5_rings.py' \
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = 6425ec35535e9b6f9fba6eb26c56eb445f040b88
+          test "$(git -C "$code" rev-parse HEAD)" = b5901de7a98d0d593bbb4a8874fcc403e07e96b8
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
           git -C "$root" sparse-checkout init --no-cone
           git -C "$root" sparse-checkout set --no-cone \
             '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json' \
-            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/original-native-*.jsonl.gz'
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/original-native-*.jsonl.gz' \
+            '/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json'
           git -C "$root" checkout -q research/gamepulse-clock-boundary-integrity-20261025
           native="$root/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1"
           test "$(git -C "$root" hash-object "gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json")" = \
@@ -338,6 +345,55 @@ jobs:
             grep -qx '0022600225_E585_FULL161_V21_THREE_RINGS_SOURCE_SHOE_RESEARCH.mp4'
           echo PRIVATE_ACTUAL_ROCKETS_FULL161_V21_THREE_RING_MP4_RELEASE_AVAILABLE
 
+      - name: Render actual KD V21 FloorLockV12 port from FULL170 original game 0225 tracking
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q --disable-pip-version-check \
+            'ultralytics==8.3.176'
+          out="$RUNNER_TEMP/rockets-full170-real-kd-v21"
+          mkdir -p "$out"
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full170_kd_v21_floorlock_port \
+            --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
+            --pts "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
+            --scout "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout/scout_0225_585_videoonly_592.json.gz" \
+            --native-shadow "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+            --full170-manifest "$SOURCE_ROOT/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json" \
+            --native-index-sha 5bfc0eadb67535e2912ef47a972db8b1e1fefcba9af31413528880799579aa5f \
+            --out "$out"
+          test -s "$out/0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS.mp4"
+          test -s "$out/0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS_qa.json"
+          echo EXACT_FROZEN_KD_V21_FLOOR_LOCK_FULL170_ROCKETS_RENDER_SUCCESS
+
+      - name: Publish exact KD V21 FloorLock three-ring FULL170 adaptation to PRIVATE release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-0225-e585-full170-real-kd-v21-floorlock-20261113
+          d="$RUNNER_TEMP/rockets-full170-real-kd-v21"
+          qa="$d/0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS_qa.json"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/private-full170-v21-check"
+            gh release download "$tag" --repo timeedmonds-maker/104 \
+              --dir "$RUNNER_TEMP/private-full170-v21-check" \
+              --pattern '0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS_qa.json'
+            python3 - "$qa" "$RUNNER_TEMP/private-full170-v21-check/0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS_qa.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]));b=json.load(open(sys.argv[2]))
+          assert a["mp4_output_sha256"]==b["mp4_output_sha256"],"FULL170_V21_RELEASE_SHA_DRIFT"
+          print("FULL170_V21_EXISTING_PRIVATE_CLIP_IDENTICAL")
+          PY
+          else
+            gh release create "$tag" "$d"/*.mp4 "$d"/*.json "$d"/*.jpg \
+              --repo timeedmonds-maker/104 \
+              --title "CPU Animate exact KD V21 FloorLockV12 approach: Rockets FULL170 XYZ event585 three rings" \
+              --notes "Same reusable KD V21 floor_lock_v12.estimate_floor_tracks and 6px original-video source-shoe clamp; KD/V23 reusable shot-specific camera motion, SHA-verified Rockets original XYZ referenced by FULL170 production source-graded index. Original Play By Play NBA video. Full 592 frames, abstain where unsupported. Research-only temporal offset not subframe independently verified, no physical-world-to-image calibration claim, source-private. CPU-only."
+          fi
+          gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.assets[].name' | \
+            grep -qx '0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS.mp4'
+          echo FULL170_ORIGINAL_XYZ_REAL_KD_V21_FLOORLOCK_PRIVATE_MP4_RELEASE_SUCCESS
+
       - name: Preserve PRIVATE annotated roster-review frames and exact tracker index for manual NBA ID evaluation
         shell: bash
         run: |
@@ -412,7 +468,9 @@ jobs:
       - name: Remove private game source, original video and credentials from workspace
         if: always()
         run: |
-          rm -rf "$RUNNER_TEMP/e585-private-xyz-v21-rings" \
+          rm -rf "$RUNNER_TEMP/rockets-full170-real-kd-v21" \
+                 "$RUNNER_TEMP/private-full170-v21-check" \
+                 "$RUNNER_TEMP/e585-private-xyz-v21-rings" \
                  "$RUNNER_TEMP/event585-existing-ring-qa" \
                  "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout" \
                  "$RUNNER_TEMP/v21-rockets-private-code" \
