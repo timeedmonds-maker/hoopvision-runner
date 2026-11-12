@@ -60,6 +60,7 @@ jobs:
             '/cpu_animate/rockets_e585_full161_native_foot_candidate_audit.py' \
             '/cpu_animate/rockets_e585_full161_v21_original_shoelock_render.py' \
             '/cpu_animate/rockets_e585_full170_kd_v21_floorlock_port.py' \
+            '/cpu_animate/rockets_e585_full170_pre_v21_v6_xyz_motion.py' \
             '/cpu_animate/floor_lock_v12.py' \
             '/cpu_animate/floor_ground_lock_v22.py' \
             '/cpu_animate/video_only_floor_engine_v23_2.py' \
@@ -69,7 +70,7 @@ jobs:
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = b5901de7a98d0d593bbb4a8874fcc403e07e96b8
+          test "$(git -C "$code" rev-parse HEAD)" = f51bd83f6545c122121b4ca3b85337750eb3efc0
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -122,6 +123,7 @@ jobs:
           PY
 
       - name: Investigate native XYZ-to-video motion on broader camera timing window; private QA only
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -228,6 +230,7 @@ jobs:
           echo ROCKETS_0225_REAL_VIDEO_SHOE_SCOUT_FRAME_STILLS_PRIVATE
 
       - name: Publish original video foot candidates and Full161 source timing shadow PRIVATE only
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -249,6 +252,7 @@ jobs:
           echo EVENT585_PRIVATE_ORIGINAL_VIDEO_SHOE_CANDIDATES_AND_ACTUAL_FULL161_XYZ_SAVED
 
       - name: Quantify actual native Full161 XYZ vs anonymous original video segmented-shoe candidates
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -293,6 +297,7 @@ jobs:
           PY
 
       - name: Render original 592-frame Play By Play video with V21 three-player shoe-locked rings and actual Full161 source XYZ
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -315,6 +320,7 @@ jobs:
           echo ORIGINAL_ROCKETS_XYZ_ASSISTED_V21_THREE_PLAYER_CPU_MP4_RENDER_COMPLETED
 
       - name: Publish source-verified CPU MP4 and review frames to PRIVATE GitHub Release
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -346,6 +352,7 @@ jobs:
           echo PRIVATE_ACTUAL_ROCKETS_FULL161_V21_THREE_RING_MP4_RELEASE_AVAILABLE
 
       - name: Render actual KD V21 FloorLockV12 port from FULL170 original game 0225 tracking
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -367,6 +374,7 @@ jobs:
           echo EXACT_FROZEN_KD_V21_FLOOR_LOCK_FULL170_ROCKETS_RENDER_SUCCESS
 
       - name: Publish exact KD V21 FloorLock three-ring FULL170 adaptation to PRIVATE release
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -394,7 +402,67 @@ jobs:
             grep -qx '0022600225_E585_FULL170_KD_V21_COURT_FLOOR_THREE_RINGS.mp4'
           echo FULL170_ORIGINAL_XYZ_REAL_KD_V21_FLOORLOCK_PRIVATE_MP4_RELEASE_SUCCESS
 
+      - name: Run actual pre-V21 V6 NBA XYZ-to-40Hz local screen-motion engine, original Rockets FULL170
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install -q --disable-pip-version-check \
+            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'ultralytics==8.3.176' 'pillow>=10,<12'
+          root="$RUNNER_TEMP/rockets-full170-pre-v21-v6"
+          mkdir -p "$root"
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full170_pre_v21_v6_xyz_motion \
+            --media "$MEDIA_ROOT/event585-playbyplay.mp4" \
+            --pts "$RUNNER_TEMP/event585-private-qa/event585-native-video-pts.json" \
+            --scout "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout/scout_0225_585_videoonly_592.json.gz" \
+            --native-shadow "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+            --full170-manifest "$SOURCE_ROOT/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json" \
+            --source-root "$SOURCE_ROOT" \
+            --native-index-sha 5bfc0eadb67535e2912ef47a972db8b1e1fefcba9af31413528880799579aa5f \
+            --out "$root"
+          test -s "$root/0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS.mp4"
+          test -s "$root/0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS_qa.json"
+          python3 - "$root/0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS_qa.json" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q["canonical_Full170"]["default_database"]=="FULL170"
+          assert q["native_source_motion_applied_to_frames"]>=20
+          assert q["original_game_native_timestamp_count"]==33639
+          assert q["original_source_coordinates_changed"] is False
+          print("FULL170_ORIGINAL_XYZ_V6_EFFECTIVELY_DRIVEN_FRAMES",
+                q["native_source_motion_applied_to_frames"],"TRIO",q["all_three_ring_frames"])
+          PY
+
+      - name: Publish pre-V21 V6 source-motion MP4 and QA privately; no GPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-0225-e585-full170-v6-real-xyz-motion-20261113
+          d="$RUNNER_TEMP/rockets-full170-pre-v21-v6"
+          qa="$d/0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS_qa.json"
+          if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
+            mkdir -p "$RUNNER_TEMP/private-v6-qa-readback"
+            gh release download "$tag" --repo timeedmonds-maker/104 \
+              --dir "$RUNNER_TEMP/private-v6-qa-readback" \
+              --pattern '0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS_qa.json'
+            python3 - "$qa" "$RUNNER_TEMP/private-v6-qa-readback/0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS_qa.json" <<'PY'
+          import json,sys
+          a=json.load(open(sys.argv[1]));b=json.load(open(sys.argv[2]))
+          assert a["mp4_sha256"]==b["mp4_sha256"],"V6_IMMUTABLE_RELEASE_HASH_DRIFT"
+          PY
+          else
+            gh release create "$tag" "$d"/*.mp4 "$d"/*.json "$d"/*.jpg \
+              --repo timeedmonds-maker/104 \
+              --title "Rockets 0225 event585 pre-V21 V6 original NBA XYZ-driven rings — FULL170 native source" \
+              --notes "True pre-V21 V6 source-motion algorithm: SHA-verified FULL170 game-specific original native XYZ resampled to derived 40Hz (not original 40Hz), local world-to-camera differential Jacobian from reviewed video shoes, XYZ curvature in video-foot brackets and finite source-driven screen motion; frozen HoopVision rings and original NBA video. CPU only, private. Absolute source UTC/video time 10sec candidate not independent physical truth; provisional research preview. Per-player source-XYZ motion coverage proven in QA."
+          fi
+          gh api "repos/timeedmonds-maker/104/releases/tags/$tag" \
+            --jq '.assets[].name' | \
+            grep -qx '0022600225_E585_FULL170_PREV21_V6_XYZ_MOTION_THREE_RINGS.mp4'
+          echo ROCKETS_FULL170_PREV21_V6_TRUE_XYZ_DRIVEN_MOVIE_PRIVATE_RELEASE_COMPLETE
+
       - name: Preserve PRIVATE annotated roster-review frames and exact tracker index for manual NBA ID evaluation
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -440,6 +508,7 @@ jobs:
           PY
 
       - name: Publish QA only to authorised private 104 release
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -468,7 +537,9 @@ jobs:
       - name: Remove private game source, original video and credentials from workspace
         if: always()
         run: |
-          rm -rf "$RUNNER_TEMP/rockets-full170-real-kd-v21" \
+          rm -rf "$RUNNER_TEMP/rockets-full170-pre-v21-v6" \
+                 "$RUNNER_TEMP/private-v6-qa-readback" \
+                 "$RUNNER_TEMP/rockets-full170-real-kd-v21" \
                  "$RUNNER_TEMP/private-full170-v21-check" \
                  "$RUNNER_TEMP/e585-private-xyz-v21-rings" \
                  "$RUNNER_TEMP/event585-existing-ring-qa" \
