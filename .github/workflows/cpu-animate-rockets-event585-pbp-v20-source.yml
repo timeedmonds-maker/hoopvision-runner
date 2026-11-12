@@ -54,9 +54,10 @@ jobs:
           git -C "$code" sparse-checkout set --no-cone \
             '/cpu_animate/__init__.py' \
             '/cpu_animate/rockets_e585_full161_v21_source_gate.py' \
+            '/cpu_animate/rockets_e585_full161_video_alignment_forensic.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = 507b7c2ccb7f65073589ae9486ccb61bfc2f1c32
+          test "$(git -C "$code" rev-parse HEAD)" = b5ec1fa4595eb1a8485dd40281f3862a3203e7a8
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -105,6 +106,50 @@ jobs:
           assert not q["accepted_for_publication"]
           print("FULL161_ROCKETS_EVENT585_PRIVATE_NATIVE_IDENTITY_SOURCE_PASS")
           print("PHYSICAL_XYZ_TO_VIDEO_ALIGNMENT_NOT_CERTIFIED_NO_FALSE_RING_MP4")
+          PY
+
+      - name: Investigate native XYZ-to-video motion on broader camera timing window; private QA only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full161_video_alignment_forensic \
+            --root "$SOURCE_ROOT" \
+            --video "$MEDIA_ROOT/event585-playbyplay.mp4" \
+            --output "$RUNNER_TEMP/event585-private-qa/0022600225_e585_full161_expanded_alignment_forensic.json"
+          export CPU_E585_FORENSIC="$RUNNER_TEMP/event585-private-qa/0022600225_e585_full161_expanded_alignment_forensic.json"
+          python3 - <<'PY'
+          import base64, json, os, pathlib, subprocess, tempfile
+          d=pathlib.Path(os.environ["CPU_E585_FORENSIC"])
+          q=json.loads(d.read_text())
+          assert q["game_id"]=="0022600225" and q["event_num"]==585
+          assert q["original_native_chunks_verified"]==17 and q["source_native_xyz_actually_joined"]
+          assert q["coarse_source_video_proxies_are_independent_GT"] is False
+          assert q["source_xyz_camera_alignment_accepted"] is False
+          path="gamepulse/clip_lab/qa/0022600225_e585_full161_expanded_video_alignment_forensic.json"
+          api=f"repos/timeedmonds-maker/104/contents/{path}"
+          branch="research/gamepulse-clock-boundary-integrity-20261025"
+          req={"message":"research(cpu-animate): e585 original Full161 player XYZ actual source versus wider 6-16s video-offset ablation",
+               "branch":branch,
+               "content":base64.b64encode(d.read_bytes()).decode()}
+          old=subprocess.run(["gh","api",f"{api}?ref={branch}"],
+              text=True,capture_output=True)
+          if old.returncode==0:
+              prior=json.loads(old.stdout)
+              prior_content=base64.b64decode(prior["content"].replace("\n",""))
+              if prior_content==d.read_bytes():
+                  print("EVENT585_PRIVATE_EXTENDED_CALIBRATION_QA_UNCHANGED")
+                  raise SystemExit(0)
+              req["sha"]=prior["sha"]
+          elif "404" not in old.stderr and "Not Found" not in old.stderr:
+              raise ValueError("PRIVATE_RESEARCH_TARGET_LOOKUP_FAILED")
+          tmp=pathlib.Path(tempfile.mkdtemp())/"put.json"
+          tmp.write_text(json.dumps(req))
+          out=subprocess.run(["gh","api","-X","PUT",api,"--input",str(tmp)],
+              text=True,capture_output=True)
+          if out.returncode:
+              raise ValueError("PRIVATE_RESEARCH_CALIBRATION_REPORT_COMMIT_FAILED")
+          print("EVENT585_PRIVATE_EXPANDED_XYZ_VIDEO_CALIBRATION_QA_COMMITTED")
           PY
 
       - name: Publish QA only to authorised private 104 release
