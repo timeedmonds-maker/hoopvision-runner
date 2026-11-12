@@ -57,10 +57,11 @@ jobs:
             '/cpu_animate/rockets_e585_full161_video_alignment_forensic.py' \
             '/cpu_animate/rockets_e585_original_video_foot_scout_v21.py' \
             '/cpu_animate/rockets_e585_full161_video_pts_shadow.py' \
+            '/cpu_animate/rockets_e585_full161_native_foot_candidate_audit.py' \
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = 8c493c0db08be6f32778ffe3c85b0f145b91efeb
+          test "$(git -C "$code" rev-parse HEAD)" = 01a24c773e5aaa8b203cd737a867e84317974ba9
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -237,6 +238,50 @@ jobs:
           gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.assets[].name' | \
             grep -qx 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           echo EVENT585_PRIVATE_ORIGINAL_VIDEO_SHOE_CANDIDATES_AND_ACTUAL_FULL161_XYZ_SAVED
+
+      - name: Quantify actual native Full161 XYZ vs anonymous original video segmented-shoe candidates
+        shell: bash
+        run: |
+          set -euo pipefail
+          export E585_CALIB_QA="$RUNNER_TEMP/event585-private-qa/0022600225_e585_full161_expanded_alignment_forensic.json"
+          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab/qa/0022600225_e585_full161_expanded_video_alignment_forensic.json?ref=research%2Fgamepulse-clock-boundary-integrity-20261025' \
+            --jq '.content' | base64 -d > "$E585_CALIB_QA"
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full161_native_foot_candidate_audit \
+            --scout "$RUNNER_TEMP/e585-private-cpu-video-shoe-scout/scout_0225_585_videoonly_592.json.gz" \
+            --native-shadow "$RUNNER_TEMP/event585-private-qa/rockets_e585_full161_original_xyz_pts_shadow.json.gz" \
+            --calibration "$E585_CALIB_QA" \
+            --out "$RUNNER_TEMP/event585-private-qa/0022600225_e585_full161_native_vs_video_shoe_candidate_audit.json"
+          export E585_CAND_QA="$RUNNER_TEMP/event585-private-qa/0022600225_e585_full161_native_vs_video_shoe_candidate_audit.json"
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,tempfile
+          p=pathlib.Path(os.environ["E585_CAND_QA"])
+          q=json.loads(p.read_text())
+          assert q["game_id"]=="0022600225" and q["event_num"]==585
+          assert q["original_full161_xyz_consumed"] is True
+          assert q["actual_roster_identity_certified"] is False
+          assert q["three_player_ring_render_approved"] is False
+          dest="gamepulse/clip_lab/qa/0022600225_e585_full161_native_vs_video_shoe_candidate_audit.json"
+          api="repos/timeedmonds-maker/104/contents/"+dest
+          branch="research/gamepulse-clock-boundary-integrity-20261025"
+          req={"message":"research(cpu-animate): actual exact rockets native XYZ versus video segmentation foot candidate QA (uncertified)",
+             "branch":branch,"content":base64.b64encode(p.read_bytes()).decode()}
+          old=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
+          if old.returncode==0:
+              prev=json.loads(old.stdout)
+              if base64.b64decode(prev["content"].replace("\n",""))==p.read_bytes():
+                  print("PRIVATE_NATIVE_VS_SHOE_CANDIDATE_QA_IDENTICAL")
+                  raise SystemExit(0)
+              req["sha"]=prev["sha"]
+          elif "404" not in old.stderr and "Not Found" not in old.stderr:
+              raise ValueError("PRIVATE_CANDIDATE_QA_LOOKUP_FAILED")
+          request=pathlib.Path(tempfile.mkdtemp())/"request.json"
+          request.write_text(json.dumps(req))
+          r=subprocess.run(["gh","api","-X","PUT",api,"--input",str(request)],
+                           capture_output=True,text=True)
+          if r.returncode:raise ValueError("PRIVATE_CANDIDATE_QA_PERSIST_FAILED")
+          print("PRIVATE_NATIVE_VS_VIDEO_SHOE_CANDIDATE_QA_COMMITTED")
+          PY
 
       - name: Preserve PRIVATE annotated roster-review frames and exact tracker index for manual NBA ID evaluation
         shell: bash
