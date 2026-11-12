@@ -79,11 +79,14 @@ export function officialFinalFromSchedule(gameId,doc){
  return null;
 }
 
-export function postfinalWindowDecision({finalSeenAt,now,disabledAt=null,lastSourceAt=null}){
+export function postfinalWindowDecision({finalSeenAt,now,disabledAt=null,lastSourceAt=null,signedDrainActive=false}){
  if(!Number.isSafeInteger(now)||!Number.isSafeInteger(finalSeenAt)||
     now<finalSeenAt)throw Error('invalid_postfinal_timing');
  if(disabledAt!==null)return 'STOP_SOURCE_DISABLED';
  if(now-finalSeenAt>=20*60000)return 'STOP_WINDOW_HARD_CAP';
+ // Do not terminate a verified in-flight authorised full-game source drain
+ // solely because no new live position event arrived during post-FINAL play.
+ if(signedDrainActive)return 'CONTINUE_AUTHENTIC_SOURCE';
  if(now-finalSeenAt>=3*60000&&
     (!Number.isSafeInteger(lastSourceAt)||now-lastSourceAt>=4*60000))
   return 'STOP_SOURCE_QUIET';

@@ -588,7 +588,7 @@ async function main(){
    }
    const finalDecision=sourceDeniedAt?'STOP_SIGNED_ORIGINAL_SOURCE_ACCESS_DENIED':
      finalObservedAt?postfinalWindowDecision({
-       finalSeenAt:finalObservedAt,now:Date.now(),disabledAt,lastSourceAt:lastOriginalAt
+       finalSeenAt:finalObservedAt,now:Date.now(),disabledAt,lastSourceAt:lastOriginalAt,signedDrainActive
      }):'CONTINUE_AUTHENTIC_SOURCE';
    if(finalObservedAt&&finalDecision!=='CONTINUE_AUTHENTIC_SOURCE'){
     console.log('IGP_FINAL_WINDOW_TIMING_RECEIPT',JSON.stringify({

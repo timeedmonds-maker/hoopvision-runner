@@ -89,6 +89,18 @@ test('bounded postfinal observation remains inside the same authorised SDK sessi
  assert.throws(()=>grade(-1,final),/invalid_postfinal_timing/);
 });
 
+test('full authentic signed postfinal drain survives quiet source intervals but respects hard stops',()=>{
+ const final=Date.parse('2026-11-11T03:45:00Z');
+ const grade=(elapsed,last,disabled=null,signed=true)=>postfinalWindowDecision({
+  finalSeenAt:final,now:final+elapsed,lastSourceAt:last,
+  disabledAt:disabled,signedDrainActive:signed
+ });
+ assert.equal(grade(12*60000,final+2*60000),'CONTINUE_AUTHENTIC_SOURCE');
+ assert.equal(grade(12*60000,final+2*60000,null,false),'STOP_SOURCE_QUIET');
+ assert.equal(grade(12*60000,final+2*60000,final+5*60000),'STOP_SOURCE_DISABLED');
+ assert.equal(grade(20*60000,final+2*60000),'STOP_WINDOW_HARD_CAP');
+});
+
 test('official schedule fallback only accepts exact game and final status',()=>{
  const date=Date.parse('2026-11-11T04:00:00Z');
  const schedule=wrap([row('0022600212',0,3),row('0022600211',0,2)]);
