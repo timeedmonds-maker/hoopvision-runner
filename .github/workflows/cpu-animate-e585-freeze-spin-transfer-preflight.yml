@@ -1,4 +1,4 @@
-name: CPU Animate E585 historical Freeze Spin v6/PBP private source transfer preflight
+name: CPU Animate E585 private byte-pinned Freeze Spin v6/PBP calibration preflight
 on:
   push:
     branches: ['cpu-animate/warriors-amen-sengun-e585-cpu-rebuild-20261113']
@@ -29,12 +29,9 @@ jobs:
           test ! -e /dev/nvidia0
           test ! -e /dev/kfd
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
-          test "$(gh api repos/timeedmonds-maker/44 --jq .private)" = true || { echo FREEZE_SPIN_PRIVATE_REPO44_NOT_AUTHORIZED; exit 11; }
           gh auth setup-git
           code="$RUNNER_TEMP/private-104-freeze-spin-bridge"
-          hist="$RUNNER_TEMP/private-freeze-spin-history"
-          mkdir -p "$hist"
-          trap 'rm -rf "$code" "$hist" "$RUNNER_TEMP/bridge-preflight.json" "$RUNNER_TEMP/bridge-upload.json"' EXIT
+          trap 'rm -rf "$code" "$RUNNER_TEMP/bridge-preflight.json" "$RUNNER_TEMP/bridge-upload.json"' EXIT
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch cpu-animate/e585-freeze-spin-broadcast-adapter-20261113 \
             https://github.com/timeedmonds-maker/104.git "$code"
@@ -42,24 +39,16 @@ jobs:
           git -C "$code" sparse-checkout set --no-cone \
             '/cpu_animate/__init__.py' \
             '/cpu_animate/freeze_spin_broadcast_adapter.py' \
-            '/cpu_animate/test_freeze_spin_broadcast_adapter.py'
+            '/cpu_animate/test_freeze_spin_broadcast_adapter.py' \
+            '/cpu_animate/vendor_freeze_spin_v6/*'
           git -C "$code" checkout -q cpu-animate/e585-freeze-spin-broadcast-adapter-20261113
-          test "$(git -C "$code" rev-parse HEAD)" = 1c95fa2d5709b27a7b650e78f7cbf41dae6da542
+          test "$(git -C "$code" rev-parse HEAD)" = 71c08d1c49c6f88cf43bb4ef6c298e78d948ac17
+          test "$(git -C "$code" hash-object cpu_animate/vendor_freeze_spin_v6/adams_jazz_game_camera_registry_v6.json)" = ef759af894926e0d25c83f00172ba16a0dad00bf
+          test "$(git -C "$code" hash-object cpu_animate/vendor_freeze_spin_v6/adams_jazz_play_by_play_frame_c_wide_court_v65.json)" = 09f8ba1d978a352a6e3e98f18a4f2648f35667a1
+          test "$(git -C "$code" hash-object cpu_animate/vendor_freeze_spin_v6/adams_jazz_frame_c_broadcast_floor_v86.json)" = d5b498448584903b586ac0a95028ce39d4a89a52
           cd "$code"
           python3 -m unittest cpu_animate.test_freeze_spin_broadcast_adapter -v
-          for spec in adams_jazz_game_camera_registry_v6.json adams_jazz_play_by_play_frame_c_wide_court_v65.json adams_jazz_frame_c_broadcast_floor_v86.json; do
-            if ! gh api "repos/timeedmonds-maker/44/contents/freeze_spin/$spec?ref=codex%2Fmulti-angle-freeze-spin-poc" > "$hist/$spec.api.json"; then
-              echo FREEZE_SPIN_PRIVATE_AUTHORIZED_HISTORICAL_FILE_NOT_ACCESSIBLE
-              exit 12
-            fi
-            python3 - "$hist/$spec.api.json" "$hist/$spec" <<'PY'
-          import json,base64,sys,pathlib
-          src=json.load(open(sys.argv[1]))
-          assert src["encoding"]=="base64" and len(src["sha"])==40
-          pathlib.Path(sys.argv[2]).write_bytes(base64.b64decode(src["content"]))
-          PY
-          done
-          export FREEZE_HIST="$hist"
+          export FREEZE_HIST="$code/cpu_animate/vendor_freeze_spin_v6"
           export CPU_BRIDGE_QA="$RUNNER_TEMP/bridge-preflight.json"
           python3 - <<'PY'
           import hashlib,json,os,pathlib
@@ -70,12 +59,17 @@ jobs:
                  "adams_jazz_frame_c_broadcast_floor_v86.json"]
           values=[json.loads((root/n).read_text()) for n in names]
           report=historical_freeze_spin_preflight(*values)
+          pinned=json.loads((root/"PROVENANCE.json").read_text())
+          assert pinned["authority"]["repo"]=="timeedmonds-maker/44"
+          assert pinned["destination"]["repo"]=="timeedmonds-maker/104"
+          source_blobs={v["name"]:v["source_blob_sha1"] for v in pinned["frozen_source_files"]}
+          assert set(source_blobs)==set(names)
           report["source_provenance"]={n:{
-             "repository":"timeedmonds-maker/44",
-             "branch":"codex/multi-angle-freeze-spin-poc",
-             "git_blob_sha":json.loads((root/(n+".api.json")).read_text())["sha"],
-             "sha256":hashlib.sha256((root/n).read_bytes()).hexdigest()}
-             for n in names}
+              "authority_repository":"timeedmonds-maker/44",
+              "read_only_snapshot_repository":"timeedmonds-maker/104",
+              "git_blob_sha":source_blobs[n],
+              "sha256":hashlib.sha256((root/n).read_bytes()).hexdigest()}
+              for n in names}
           report["target_preflight"]=target_status(report)
           assert report["historical_broadcast_v90_accepted"]
           assert report["play_by_play_and_broadcast_same_view_family"]
