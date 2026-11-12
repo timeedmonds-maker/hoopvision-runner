@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   acquire-original:
+    if: github.event_name != 'push' || !contains(github.event.head_commit.message, 'preview readback')
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
@@ -56,3 +57,49 @@ jobs:
           python3 "$ROOT/ingest.py" --selftest
           echo PRIVATE_INGEST_START
           python3 "$ROOT/ingest.py"
+
+  source-contact-visual-readback:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'preview readback')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      TAG: cpu-animate-0022600225-event585-playbyplay-v20-source-20261112
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard reviewed source boundary, privately fetch exact SHA contact only
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          stage="$RUNNER_TEMP/event585-private-contact"
+          mkdir -p "$stage"
+          gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$stage" --pattern contact-sheet.jpg
+          export STAGE="$stage"
+          python3 - <<'PY'
+          import hashlib,json,os,subprocess,base64,pathlib,tempfile
+          stage=pathlib.Path(os.environ["STAGE"])
+          source=stage/"contact-sheet.jpg"
+          b=source.read_bytes()
+          expected="36dfa7c35bda86ea52db8dbdce6b44b5f0fd8f88a7ae3f1b65ed195410b7c2e4"
+          if hashlib.sha256(b).hexdigest()!=expected or not b.startswith(bytes.fromhex("ffd8ff")):
+              raise ValueError("SHA_PRIVATE_CAMERA_PREVIEW_SOURCE_DRIFT")
+          # 1200x900 official-source JPEG preview is private; never log image pixels.
+          dest="gamepulse/clip_lab/qa/0022600225_event585_pbp_contact_jpeg_base64_v1.txt"
+          text=base64.b64encode(b).decode("ascii")+"\n"
+          api=f"repos/timeedmonds-maker/104/contents/{dest}"
+          encoded=base64.b64encode(text.encode()).decode()
+          req={"message":"data(clip-lab): private event585 Play by Play camera preview SHA evidence",
+               "branch":os.environ["PRIVATE_BRANCH"],"content":encoded}
+          lookup=subprocess.run(["gh","api",f"{api}?ref={os.environ['PRIVATE_BRANCH']}"],
+                                capture_output=True,text=True)
+          if lookup.returncode==0:
+              req["sha"]=json.loads(lookup.stdout)["sha"]
+          payload=stage/"put.json"
+          payload.write_text(json.dumps(req))
+          post=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],capture_output=True,text=True)
+          if post.returncode:raise RuntimeError("PRIVATE_PREVIEW_COMMIT_FAILED")
+          print("NBA_EVENT585_CAMERA_PREVIEW_PRIVATE_SHA_COMMITTED",expected,len(b))
+          PY
