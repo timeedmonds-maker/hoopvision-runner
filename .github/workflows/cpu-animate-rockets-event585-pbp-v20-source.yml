@@ -71,7 +71,7 @@ jobs:
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = cbb86dd2f3cca59edfe8e01512f64d480a3753ed
+          test "$(git -C "$code" rev-parse HEAD)" = e5f3cc79ed41eeaa857d9f2f2497efaee846347a
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
@@ -502,6 +502,12 @@ jobs:
           assert q["all_three_visible_candidate_frames"]>=5
           assert sum(q["green_rendered_frames"].values())>0
           assert q["reviewed_video_5s_sengun_green_rendered_frames"]>=1
+          review=q["original_video_reviewed_shoe_fallback_qa"]["review_frames"]
+          assert review["162"]["Sengun"]["ring_input_present"],"MISSING_SENGUN_DRIBBLE_RING_FRAME_162"
+          assert review["252"]["Bogdanovic"]["ring_input_present"],"MISSING_BOGDAN_RING_FRAME_252"
+          assert q["reviewed_video_5s_sengun_green_rendered_frames"]>=8
+          assert q["ring_counts"]["Bogdanovic"]>=160
+          assert q["ring_counts"]["Sengun"]>=130
           assert q["original_full170_coordinates_modified"] is False
           assert q["gpu_used"] is False
           print("REAL_FROZEN_V32_BOGDAN_COURT_POSSESSION_GREEN_PASS",json.dumps({
@@ -529,7 +535,7 @@ jobs:
               payload={"message":f"qa(cpu-animate): corrected frozen v32 e585 privately reviewed frame {j}",
                        "branch":branch,
                        "content":base64.b64encode(plaintext.encode()).decode()}
-              path=f"gamepulse/clip_lab/qa/e585_v32_frozen_20261113_f{j:03d}_jpg_b64.txt"
+              path=f"gamepulse/clip_lab/qa/e585_v32_r2_video_shoe_20261113_f{j:03d}_jpg_b64.txt"
               api="repos/timeedmonds-maker/104/contents/"+path
               prior=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
               if prior.returncode==0:
@@ -548,7 +554,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tag=cpu-animate-0225-e585-full170-v32-frozen-court-green-repair-20261113
+          tag=cpu-animate-0225-e585-full170-v32-video-shoe-ballgreen-r2-20261113
           dir="$RUNNER_TEMP/rockets-full170-v32-frozen-repair"
           qa="$dir/0022600225_E585_FULL170_V32_FROZEN_COURT_STABLE_POSSESSION_THREE_RINGS_qa.json"
           if gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq .tag_name >/dev/null 2>&1; then
@@ -557,8 +563,8 @@ jobs:
           fi
           gh release create "$tag" "$dir"/*.mp4 "$dir"/*.json "$dir"/*.jpg \
             --repo timeedmonds-maker/104 \
-            --title "CPU Animate Rockets 0225 e585 frozen HoopVision 3.2-style ground-locked possession rings" \
-            --notes "Original NBA Play By Play media and Full170 immutable native source. Frozen HoopVision 1.3.2 three-sector artwork SHA pinned, exact wrapper scale 1.5 and possession green; original-source shoe/video identity gated per frame, short bounded source-XYZ movement, V22 camera-reference robust floor smoothing and precise foot contact occlusion. CPU only. WARNING: native UTC to video-PTS offset remains research estimate; ball possession inferred from source tracking, not independently frame certified. Private research preview."
+            --title "CPU Animate Rockets 0225 e585 frozen HoopVision 3.2 frozen floor rings R2 source-video shoe continuity and verified player possession" \
+            --notes "Original NBA Play By Play media and Full170 immutable native source. Frozen HoopVision 1.3.2 three-sector artwork SHA pinned, exact wrapper scale 1.5 and possession green; original-video shoe/source-track identity first (including bounded native outages), short <=120ms same-ID source-video shoe gaps, bounded source-XYZ movement, V22 camera-reference robust floor smoothing and precise shoe-contact occlusion. Green from directly reviewed original-source video control only; uncertain NBA native UTC crosswalk cannot create false defender-green. CPU only. WARNING: native UTC to video-PTS offset remains research estimate; ball possession inferred from source tracking, not independently frame certified. Private research preview."
           gh api "repos/timeedmonds-maker/104/releases/tags/$tag" --jq '.assets[].name' | \
             grep -qx '0022600225_E585_FULL170_V32_FROZEN_COURT_STABLE_POSSESSION_THREE_RINGS.mp4'
           echo NEW_HOOPVISION_FROZEN_COURT_STABLE_GREEN_MP4_PRIVATE_RELEASE_VERIFIED
