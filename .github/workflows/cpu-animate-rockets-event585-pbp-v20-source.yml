@@ -1,226 +1,131 @@
-name: CPU Animate Rockets 0225 Event585 original Play by Play HLS V20 source
-# Reviewed: original 2026–27 NBA shot event; only private 104 receives licensed source media.
+name: CPU Animate Rockets 0225 event585 Full161 V21 private XYZ source gate (free CPU)
 on:
   push:
-    branches: [main]
+    branches: ['cpu-animate/rockets-0225-e585-full161-v21-source-gate-20261112']
     paths: ['.github/workflows/cpu-animate-rockets-event585-pbp-v20-source.yml']
-  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: cpu-animate-0225-event585-playbyplay-only
+  group: cpu-animate-0225-e585-full161-v21-only
   cancel-in-progress: false
 jobs:
-  acquire-original:
-    if: github.event_name != 'push' || contains(github.event.head_commit.message, 'source intake')
+  private-source-cpu:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 22
     env:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      NBA_GAME_ID: '0022600225'
-      NBA_EVENT_NUM: '585'
-      NBA_PLAYER_ID: '1641708'
-      PIP_DISABLE_PIP_VERSION_CHECK: '1'
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: none
+      OPENCV_OPENCL_RUNTIME: disabled
+      PYTHONUNBUFFERED: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Verify public safety and private source destination
+      - name: Explicit private-only source and CPU guards
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from tools.public_content_guard import scan
-          assert not scan(['.github/workflows/cpu-animate-rockets-event585-pbp-v20-source.yml'])
-          print('PUBLIC_CONTENT_BOUNDARY_PASS')
-          PY
-          test -n "$GH_TOKEN" || { echo PRIVATE_AUTH_UNAVAILABLE; exit 3; }
+          test -n "$GH_TOKEN" || { echo PRIVATE_104_RELEASE_AUTH_UNAVAILABLE; exit 3; }
+          test ! -e /dev/nvidia0
+          test ! -e /dev/kfd
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
-      - name: Fetch and execute reviewed private exact-event HLS intake
-        shell: bash
-        run: |
-          set -euo pipefail
-          ROOT="$(mktemp -d)"
-          trap 'rm -rf "$ROOT"' EXIT
-          echo PRIVATE_SCRIPT_DOWNLOAD_START
-          gh api 'repos/timeedmonds-maker/104/contents/gamepulse/clip_lab_event585_playbyplay_v20_original_source.py?ref=research%2Fgamepulse-clock-boundary-integrity-20261025' --jq .content | base64 -d > "$ROOT/ingest.py" || { echo PRIVATE_SCRIPT_DOWNLOAD_FAILED; exit 10; }
-          echo PRIVATE_SCRIPT_DOWNLOAD_BYTES_$(wc -c < "$ROOT/ingest.py")
-          echo PYTHON_RUNTIME_$(python3 --version)
-          python3 -m pip install --quiet 'numpy<2' 'opencv-python-headless==4.10.0.84'
-          echo PYTHON_DEPENDENCIES_READY
-          if ! command -v ffmpeg >/dev/null; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq ffmpeg >/dev/null
-          fi
-          command -v ffmpeg
-          echo PRIVATE_SCRIPT_SELFTEST_START
-          python3 "$ROOT/ingest.py" --selftest
-          echo PRIVATE_INGEST_START
-          python3 "$ROOT/ingest.py"
-
-  source-contact-visual-readback:
-    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'preview readback')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 12
-    env:
-      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      TAG: cpu-animate-0022600225-event585-playbyplay-v20-source-20261112
-    steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - name: Guard reviewed source boundary, privately fetch exact SHA contact only
-        run: |
-          set -euo pipefail
-          python3 tools/public_content_guard.py
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
-          stage="$RUNNER_TEMP/event585-private-contact"
-          mkdir -p "$stage"
-          gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$stage" --pattern contact-sheet.jpg
-          export STAGE="$stage"
-          python3 - <<'PY'
-          import hashlib,json,os,subprocess,base64,pathlib,tempfile
-          stage=pathlib.Path(os.environ["STAGE"])
-          source=stage/"contact-sheet.jpg"
-          b=source.read_bytes()
-          expected="36dfa7c35bda86ea52db8dbdce6b44b5f0fd8f88a7ae3f1b65ed195410b7c2e4"
-          if hashlib.sha256(b).hexdigest()!=expected or not b.startswith(bytes.fromhex("ffd8ff")):
-              raise ValueError("SHA_PRIVATE_CAMERA_PREVIEW_SOURCE_DRIFT")
-          # 1200x900 official-source JPEG preview is private; never log image pixels.
-          dest="gamepulse/clip_lab/qa/0022600225_event585_pbp_contact_jpeg_base64_v1.txt"
-          text=base64.b64encode(b).decode("ascii")+"\n"
-          api=f"repos/timeedmonds-maker/104/contents/{dest}"
-          encoded=base64.b64encode(text.encode()).decode()
-          req={"message":"data(clip-lab): private event585 Play by Play camera preview SHA evidence",
-               "branch":os.environ["PRIVATE_BRANCH"],"content":encoded}
-          lookup=subprocess.run(["gh","api",f"{api}?ref={os.environ['PRIVATE_BRANCH']}"],
-                                capture_output=True,text=True)
-          if lookup.returncode==0:
-              req["sha"]=json.loads(lookup.stdout)["sha"]
-          payload=stage/"put.json"
-          payload.write_text(json.dumps(req))
-          post=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],capture_output=True,text=True)
-          if post.returncode:raise RuntimeError("PRIVATE_PREVIEW_COMMIT_FAILED")
-          print("NBA_EVENT585_CAMERA_PREVIEW_PRIVATE_SHA_COMMITTED",expected,len(b))
-          PY
-
-  source-frame-player-calibration-review:
-    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'frame-probe')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    env:
-      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-      TAG: cpu-animate-0022600225-event585-playbyplay-v20-source-20261112
-    steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - name: Read native camera frames and preserve private-only identity review snapshots
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 tools/public_content_guard.py
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
-          if ! command -v ffmpeg >/dev/null; then
-            sudo apt-get update -qq
-            sudo apt-get install -y -qq ffmpeg >/dev/null
-          fi
-          stage="$RUNNER_TEMP/event585-original-private"
-          mkdir -p "$stage"
-          gh release download "$TAG" --repo timeedmonds-maker/104 --dir "$stage" \
-            --pattern event585-playbyplay.mp4
-          export STAGE="$stage"
-          python3 - <<'PY'
-          import os,pathlib,hashlib,subprocess,json,base64
-          stage=pathlib.Path(os.environ['STAGE'])
-          video=stage/'event585-playbyplay.mp4'
-          assert hashlib.sha256(video.read_bytes()).hexdigest()=="06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234"
-          cases=[('02',2.0),('05',5.0),('08',8.0),('10',10.0)]
-          for label,pts in cases:
-              out=stage/('e585-playbyplay-'+label+'s.jpg')
-              p=subprocess.run(['ffmpeg','-nostdin','-v','error','-ss',str(pts),
-                   '-i',str(video),'-frames:v','1','-q:v','3','-y',str(out)],
-                   capture_output=True)
-              if p.returncode or out.stat().st_size < 12000:raise RuntimeError('SOURCE_FRAME_EXTRACT_FAIL')
-              jpeg=out.read_bytes()
-              if not jpeg.startswith(bytes.fromhex('ffd8ff')):raise RuntimeError('NOT_JPEG')
-              data=base64.b64encode(jpeg).decode('ascii')+'\n'
-              path='gamepulse/clip_lab/qa/0022600225_event585_playbyplay_'+label+'s_original_jpeg.b64.txt'
-              payload={
-                'message':'data(clip-lab): private NBA event585 actual camera frame identity check '+label,
-                'branch':os.environ['BRANCH'],
-                'content':base64.b64encode(data.encode()).decode('ascii')
-              }
-              api='repos/timeedmonds-maker/104/contents/'+path
-              prior=subprocess.run(['gh','api',api+'?ref='+os.environ['BRANCH']],
-                                   capture_output=True,text=True)
-              if prior.returncode==0:payload['sha']=json.loads(prior.stdout)['sha']
-              put=stage/('post-'+label+'.json');put.write_text(json.dumps(payload))
-              result=subprocess.run(['gh','api','-X','PUT',api,'--input',str(put)],
-                                    capture_output=True,text=True)
-              if result.returncode:raise RuntimeError('PRIVATE_NATIVE_VIDEO_FRAME_COMMIT_FAIL')
-              print('EVENT585_PRIVATE_FRAME_SHA_ACCEPTED',label,hashlib.sha256(jpeg).hexdigest(),len(jpeg))
-          PY
-
-  source-xyz-three-player-v20-alignment:
-    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'XYZ probe')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
-    steps:
-      - uses: actions/checkout@v4
-        with: {persist-credentials: false}
-      - name: Verify licensed source boundary and fetch only Rockets original 17 native chunks
-        run: |
-          set -euo pipefail
-          python3 tools/public_content_guard.py
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          python3 -m pip install -q --disable-pip-version-check numpy==1.26.4
           gh auth setup-git
-          root="$RUNNER_TEMP/e585-xyz-locked"
-          git clone -q --filter=blob:none --depth=1 --no-checkout -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$root"
+          echo PRIVATE_AUTHENTICATED_CPU_ONLY_PASS
+
+      - name: Read SHA-pinned PRIVATE 104 V21 source gate and exact original Rockets native XYZ
+        shell: bash
+        run: |
+          set -euo pipefail
+          code="$RUNNER_TEMP/v21-rockets-private-code"
+          root="$RUNNER_TEMP/v21-rockets-private-xyz"
+          media="$RUNNER_TEMP/v21-rockets-private-video"
+          mkdir -p "$media"
+          chmod 700 "$media"
+          echo "CODE_ROOT=$code" >> "$GITHUB_ENV"
+          echo "SOURCE_ROOT=$root" >> "$GITHUB_ENV"
+          echo "MEDIA_ROOT=$media" >> "$GITHUB_ENV"
+          git clone -q --filter=blob:none --depth=1 --no-checkout \
+            --branch cpu-animate/rockets-0225-e585-full161-v21-trio-20261112 \
+            https://github.com/timeedmonds-maker/104.git "$code"
+          git -C "$code" sparse-checkout init --no-cone
+          git -C "$code" sparse-checkout set --no-cone \
+            '/cpu_animate/__init__.py' \
+            '/cpu_animate/rockets_e585_full161_v21_source_gate.py' \
+            '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
+          git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
+          test "$(git -C "$code" rev-parse HEAD)" = 507b7c2ccb7f65073589ae9486ccb61bfc2f1c32
+          git clone -q --filter=blob:none --depth=1 --no-checkout \
+            --branch research/gamepulse-clock-boundary-integrity-20261025 \
+            https://github.com/timeedmonds-maker/104.git "$root"
           git -C "$root" sparse-checkout init --no-cone
           git -C "$root" sparse-checkout set --no-cone \
-            '/gamepulse/clip_lab_event585_xyz_alignment_probe_v20.py' \
             '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json' \
-            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/original-native-*.jsonl.gz' \
-            '/gamepulse/clip_lab/qa/0022600225_event585_v20_xyz_video_alignment_probe.json'
-          git -C "$root" checkout -q "$BRANCH"
-          test -f "$root/gamepulse/clip_lab_event585_xyz_alignment_probe_v20.py"
-          python3 -m pip install --quiet --disable-pip-version-check 'numpy>=1.26,<3'
-      - name: Evaluate source-native trajectories against independent video-frame anchor hypothesis
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/original-native-*.jsonl.gz'
+          git -C "$root" checkout -q research/gamepulse-clock-boundary-integrity-20261025
+          native="$root/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1"
+          test "$(git -C "$root" hash-object "gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json")" = \
+            da4d7bc7e9900ec4b186180057835ec11f4c0463
+          test "$(find "$native" -name 'original-native-*.jsonl.gz' | wc -l)" = 17
+          gh release download cpu-animate-0022600225-event585-playbyplay-v20-source-20261112 \
+            --repo timeedmonds-maker/104 --dir "$media" \
+            --pattern event585-playbyplay.mp4 --pattern manifest.json
+          test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = \
+            06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234
+          echo ORIGINAL_PRIVATE_0225_XYZ_CHUNKS_AND_EXACT_PBP_MP4_SHA_READY
+
+      - name: Test V21 strict three player source-foot native identity and heldout gates
+        shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/e585-xyz-locked"
-          python3 gamepulse/clip_lab_event585_xyz_alignment_probe_v20.py --root .
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          p=Path('gamepulse/clip_lab/qa/0022600225_event585_v20_xyz_video_alignment_probe.json')
-          q=json.loads(p.read_text())
-          assert q['game_id']=='0022600225' and q['event']==585
-          assert q['source_video_sha256']=='06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
-          assert q['original_source_unchanged'] and not q['player_rings_release_accepted']
-          print('EVENT585_THREE_NATIVE_SOURCE_IDS_SHA_READBACK',len(q['scans']))
+          cd "$CODE_ROOT"
+          python3 -m unittest cpu_animate.test_rockets_e585_full161_v21_source_gate -v
+          echo V21_THREE_PLAYER_NATIVE_SOURCE_SHOE_GATES_TESTED
+
+      - name: Verify 17 native Rockets source chunk SHA and 33,639 timestamps in PRIVATE RAM
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/event585-private-qa"
+          cd "$CODE_ROOT"
+          python3 -m cpu_animate.rockets_e585_full161_v21_source_gate \
+            --root "$SOURCE_ROOT" \
+            --output "$RUNNER_TEMP/event585-private-qa/full161-rockets-event585-v21-native-gate.json"
+          python3 - "$RUNNER_TEMP/event585-private-qa/full161-rockets-event585-v21-native-gate.json" <<'PY'
+          import json,sys
+          q=json.load(open(sys.argv[1]))
+          assert q["game_id"]=="0022600225" and q["event"]==585
+          assert q["native_chunks"]==17 and q["original_native_timestamps"]==33639
+          assert q["native_chunk_sha256_verified"]
+          assert set(q["nba_player_ids"].values())=={"203992","1630578","1641708"}
+          assert all(q["direct_event_window_samples"][k]>0 for k in ("Bogdanovic","Sengun","Thompson"))
+          assert q["alignment_check"]=="NOT_RUN"
+          assert not q["accepted_for_publication"]
+          print("FULL161_ROCKETS_EVENT585_PRIVATE_NATIVE_IDENTITY_SOURCE_PASS")
+          print("PHYSICAL_XYZ_TO_VIDEO_ALIGNMENT_NOT_CERTIFIED_NO_FALSE_RING_MP4")
           PY
-      - name: Preserve private calibration research audit without any public source coordinates
+
+      - name: Publish QA only to authorised private 104 release
+        shell: bash
         run: |
           set -euo pipefail
-          cd "$RUNNER_TEMP/e585-xyz-locked"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add --sparse -f gamepulse/clip_lab/qa/0022600225_event585_v20_xyz_video_alignment_probe.json
-          git diff --cached --check
-          if git diff --cached --quiet; then echo EVENT585_NATIVE_ALIGNMENT_PRIVATE_IDENTICAL;exit 0;fi
-          git commit -qm 'data(cpu-animate): exact 0225 e585 3-player native XYZ to PBP video anchor source feasibility'
-          for n in 1 2 3 4 5 6 7 8; do
-            git fetch -q origin "$BRANCH"
-            git rebase -q "origin/$BRANCH"
-            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
-              echo EVENT585_THREE_PLAYER_NATIVE_ALIGNMENT_QA_PRIVATE_COMMITTED
-              exit 0
-            fi
-            sleep "$n"
-          done
-          exit 23
+          tag=cpu-animate-rockets-0225-e585-full161-v21-source-gate-20261112
+          qa="$RUNNER_TEMP/event585-private-qa/full161-rockets-event585-v21-native-gate.json"
+          gh release create "$tag" "$qa" --repo timeedmonds-maker/104 \
+            --title "CPU Animate Rockets event585 V21 trio Full161 authentic XYZ source gate" \
+            --notes "SHA-verified 17 original Rockets chunks and original event585 Play By Play MP4; CPU-only V21 three-player tests; NOT a certified camera alignment or finished rings MP4." \
+            --latest=false
+          gh api "repos/timeedmonds-maker/104/releases/tags/$tag" \
+            --jq '.assets[].name' | grep -qx 'full161-rockets-event585-v21-native-gate.json'
+          echo PRIVATE_104_RELEASE_PROVENANCE_PUBLISHED_AND_READ_BACK
+
+      - name: Remove private game source, original video and credentials from workspace
+        if: always()
+        run: |
+          rm -rf "$RUNNER_TEMP/v21-rockets-private-code" \
+                 "$RUNNER_TEMP/v21-rockets-private-xyz" \
+                 "$RUNNER_TEMP/v21-rockets-private-video" \
+                 "$RUNNER_TEMP/event585-private-qa"
+          echo PRIVATE_LICENSED_SOURCE_NOT_PUBLISHED_ON_PUBLIC_RUNNER
