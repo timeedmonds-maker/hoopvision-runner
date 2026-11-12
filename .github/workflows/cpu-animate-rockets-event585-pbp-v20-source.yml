@@ -71,7 +71,7 @@ jobs:
             '/cpu_animate/test_rockets_e585_full161_video_pts_shadow.py' \
             '/cpu_animate/test_rockets_e585_full161_v21_source_gate.py'
           git -C "$code" checkout -q cpu-animate/rockets-0225-e585-full161-v21-trio-20261112
-          test "$(git -C "$code" rev-parse HEAD)" = a93a66a2faee6767c420987a46af3fba61446834
+          test "$(git -C "$code" rev-parse HEAD)" = f032385dd8c737ef1defa81e1a50ecf17066b9d9
           git clone -q --filter=blob:none --depth=1 --no-checkout \
             --branch research/gamepulse-clock-boundary-integrity-20261025 \
             https://github.com/timeedmonds-maker/104.git "$root"
