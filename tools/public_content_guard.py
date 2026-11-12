@@ -660,6 +660,7 @@ ALLOWED_STATIC = {
     ".github/workflows/clip-lab-event80-direct-native-frozen.yml",  # audited CPU-only original NBA source, private SDK, final ringed MP4
     ".github/workflows/clip-lab-rockets-event80-frozen-render.yml",  # reviewed: exact frozen source SHA and private-only v3.1 MP4
     ".github/workflows/clip-lab-event80-delivery-smoke.yml",  # test fixture artifact only
+    ".github/workflows/cpu-animate-rockets-event585-pbp-v20-source.yml",  # exact one-event private Play by Play HLS, SHA verified, no licensed media on public runner artifacts, CPU only
     ".github/workflows/clip-lab-rockets-event80-hls.yml",  # reviewed: exact one-event private HLS CPU staging only
     ".github/workflows/clip-lab-rockets-event80-native.yml",  # reviewed: exact event native SDK SHA extraction, private only
     ".github/workflows/clip-lab-rockets-event80-frozen-cpu.yml",  # reviewed: original CPU frozen v3.1 detector, private QA only
