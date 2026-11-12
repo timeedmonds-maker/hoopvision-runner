@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-nov12-ten-final-companion-biomechanics-20261112.yml",  # bounded exact 10-game official-FINAL source-only companion event/shot biomechanics SDK capture; free CPU; SHA-preserved private 104; zero confidential bytes public
     ".github/workflows/igp-full160-v4-latest-default-promotion-20261112.yml",  # vetted free CPU private-only v4 source SHA promotion
     ".github/workflows/igp-full160-matchup-zone-source-acceptance-20261112.yml",  # free CPU private-104 matchup/zone SHA and source-grade 160-game validation; no source rows or licensed player data public
     ".github/workflows/igp-full160-gravity-v3-source-qa-20261112.yml",  # audited CPU-only source SHA and original-vs-derived Gravity QA; all detailed player source records private 104, aggregate-only public logs
