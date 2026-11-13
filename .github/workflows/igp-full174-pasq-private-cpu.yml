@@ -21,7 +21,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/full174-player-adjusted-shot-quality-20261114
-      SOURCE_COMMIT: 2b0162dbb46cc394a996811078cf3c11a445149b
+      SOURCE_COMMIT: 9327414e7272d46b821c40c217509a1f5fbef996
     steps:
       - name: Check authenticated private-only execution boundary
         shell: bash
