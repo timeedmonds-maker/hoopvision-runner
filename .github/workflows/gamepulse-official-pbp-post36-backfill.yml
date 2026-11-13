@@ -1,3 +1,4 @@
+# 2026-11-13: authenticated final-game PBP reconciliation catch-up after public-content guard restored; no security bypass.
 name: Integrated Pulse official NBA PBP and box backfill after frozen 36
 on:
   push:
