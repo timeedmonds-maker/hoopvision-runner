@@ -1,4 +1,4 @@
-name: CPU Animate e585 V42 source-video identity continuity rerun
+name: CPU Animate e585 V43 original-video tracklet forensics
 on:
   push:
     branches: [main]
@@ -26,7 +26,7 @@ jobs:
       PYTHONUNBUFFERED: '1'
       V40_BRANCH: 'cpu-animate/e585-v40-attachment-continuity-possession-20261113'
       SOURCE_BRANCH: 'research/gamepulse-clock-boundary-integrity-20261025'
-      OUTPUT_TAG: 'cpu-animate-0225-e585-v42-source-video-identity-cpu-review-20261113'
+      OUTPUT_TAG: 'cpu-animate-0225-e585-v43-source-tracklet-forensics-20261113'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -83,76 +83,54 @@ jobs:
             --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
           echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
-      - name: Run CPU-only V42 scored-shoe tests and original 592-frame source render
+      - name: Analyze source original jersey tracklets and private-only camera frames
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet --disable-pip-version-check \
-            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'Pillow>=10,<12'
+          python3 -m pip install --quiet --disable-pip-version-check 'numpy==1.26.4' 'opencv-python-headless==4.10.0.84'
           cd "$V40_CODE"
-          python3 -m py_compile cpu_animate/warriors_0225_e585_v42_verified_backward_identity.py
-          python3 -m unittest cpu_animate.test_warriors_e585_v42_source_identity -v
-          # Original published V23/early V6 imports YOLO at module import time,
-          # but this 592-frame render consumes the SHA-verified precomputed
-          # segmentation/track scout; no neural model is invoked or installed.
-          python3 - <<'PY'
-          import sys, types
-          optional=types.ModuleType("ultralytics")
-          def forbidden_model(*a,**kw):
-              raise RuntimeError("GPU_OR_MODEL_NOT_PERMITTED_FOR_V40_RENDER")
-          optional.YOLO=forbidden_model
-          sys.modules["ultralytics"]=optional
-          from pathlib import Path
-          from cpu_animate.warriors_0225_e585_v42_verified_backward_identity import render, SOURCE_NATIVE_SHA
-          import os,json
-          media=Path(os.environ["V40_MEDIA"])
-          source=Path(os.environ["V40_SOURCE"])
-          output=Path(os.environ["V40_OUT"])
-          import contextlib
-          private_log=output/"v40_private_execution_log.txt"
-          try:
-              with private_log.open("w") as log, contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
-                  qa=render(
-                    media/"event585-playbyplay.mp4",
-                    media/"event585-native-video-pts.json",
-                    media/"scout_0225_585_videoonly_592.json.gz",
-                    media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
-                    source/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
-                    source,
-                    SOURCE_NATIVE_SHA,
-                    output)
-          except Exception as e:
-              # Never print private NBA XYZ, timestamp tables, or video frames
-              # to the public Actions log. The error code itself is safe.
-              print("V42_RENDER_ERROR_TYPE",type(e).__name__)
-              if isinstance(e,(ValueError,AssertionError,RuntimeError)):
-                  print("V42_RENDER_ERROR_CODE",str(e)[:160])
-              raise SystemExit(21)
-          print("V42_CPU_RENDER_COMPLETE",json.dumps({
-            "ring_counts":qa["ring_counts"],
-            "visible_render_counts":qa["visible_render_counts"],
-            "ring_continuity":qa["per_player_visible_ring_continuity"],
-            "scorer_backward_video_evidence":qa["scorer_source_video_backward_same_player_extension"],
-            "scorer_positive_video_shoe_reanchors":qa["positive_red_seg_shoe_scoring_reanchor_qa"],
-            "green_rendered_frames":qa["green_rendered_frames"],
-            "mp4_sha256":qa["mp4_sha256"],
-            "all_three_visible_frames":qa["all_three_independently_visible_frames"],
-            "accepted_for_publication":qa["accepted_for_final_publication"],
-          },sort_keys=True))
-          PY
-      - name: Publish research-only MP4 and exact QA to private release
+          python3 -m cpu_animate.e585_v43_original_video_tracklet_diagnostic \
+            --video "$V40_MEDIA/event585-playbyplay.mp4" \
+            --scout "$V40_MEDIA/scout_0225_585_videoonly_592.json.gz" \
+            --out "$V40_OUT"
+          test "$(find "$V40_OUT" -maxdepth 1 -name 'private_e585_v43_*.b64.txt' | wc -l)" = 2
+      - name: Preserve three diagnostics inside private 104 ONLY (no source pixels in logs)
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find "$V40_OUT" -maxdepth 1 -name '*_qa.json' | wc -l)" = 1
-          test "$(find "$V40_OUT" -maxdepth 1 -name '*.mp4' | wc -l)" = 1
-          gh release create "$OUTPUT_TAG" "$V40_OUT"/*.mp4 "$V40_OUT"/*_qa.json "$V40_OUT"/*.jpg \
-            --repo timeedmonds-maker/104 \
-            --title 'CPU Animate V42 e585 CPU positive-video-jersey extension research preview' \
-            --notes 'CPU-only, original SHA-pinned event585 video, frozen HoopVision. Bogdan positive HOU source-video foot; Amen/Sengun guarded smoothing and custody. NOT physically frame-certified or accepted for publication; inspect reviewed scoring scene and per-player gaps.' \
-            --latest=false
-          gh release view "$OUTPUT_TAG" --repo timeedmonds-maker/104 --json assets --jq '.assets[].name'
-          echo "V42_REVIEW_VIDEO_PUBLISHED_PRIVATE_ONLY"
+          cd "$V40_CODE"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess
+          root=pathlib.Path(os.environ["V40_OUT"])
+          branch=os.environ["V40_BRANCH"]
+          names=[
+             "private_e585_red_video_tracklets.json",
+             "private_e585_v43_early_original_red_detections.jpeg.b64.txt",
+             "private_e585_v43_action_original_red_detections.jpeg.b64.txt"]
+          for name in names:
+              local=root/name
+              b=local.read_bytes()
+              path="docs/cpu_animate/source_video_v43/"+name
+              dest="repos/timeedmonds-maker/104/contents/"+path
+              record={
+                "message":"Private CPU Animate event585 source-video frame/track audit "+name,
+                "branch":branch,
+                "content":base64.b64encode(b).decode("ascii")}
+              prior=subprocess.run(["gh","api",dest+"?ref="+branch],text=True,
+                                   capture_output=True)
+              if prior.returncode==0:
+                  record["sha"]=json.loads(prior.stdout)["sha"]
+              payload=root/(name+".payload.json")
+              payload.write_text(json.dumps(record))
+              p=subprocess.run(["gh","api","-X","PUT",dest,"--input",str(payload)],
+                               text=True,capture_output=True)
+              if p.returncode:
+                  print("PRIVATE_SOURCE_VIDEO_DIAGNOSTIC_UPLOAD_FAILED",name)
+                  raise SystemExit(12)
+              print("PRIVATE_SOURCE_VIDEO_DIAGNOSTIC_SAVED",
+                    name,hashlib.sha256(b).hexdigest(),len(b))
+          PY
+          echo "EVENT585_V43_PRIVATE_VISUAL_SOURCE_FORENSICS_COMPLETE"
       - name: Protected source cleanup
         if: always()
         shell: bash
