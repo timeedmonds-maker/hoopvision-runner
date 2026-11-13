@@ -1,4 +1,4 @@
-name: CPU Animate e585 V49 actual-footlock source-video visual QA
+name: CPU Animate e585 V50 native XYZ 3D ball elevated-catch rerun
 on:
   push:
     branches: [main]
@@ -85,61 +85,53 @@ jobs:
             --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
           echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
-      - name: Decode actual V49 SHA-pinned protected original NBA rendered MP4 with source comparison
+      - name: V50 original player XYZ and elevated 3D native ball ownership guarded CPU regression and render
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet --disable-pip-version-check 'numpy==1.26.4' 'opencv-python-headless==4.10.0.84'
-          gh release download cpu-animate-0225-e585-v49-native-video-footguard-cpu-review-20261113 \
-            --repo timeedmonds-maker/104 --dir "$V40_OUT" --pattern '*.mp4'
+          python3 -m pip install --quiet --disable-pip-version-check \
+            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'Pillow>=10,<12'
+          cd "$V40_CODE"
+          python3 -m py_compile cpu_animate/e585_v50_native_high_ball_catch.py
           python3 - <<'PY'
-          import base64,cv2,hashlib,os,pathlib
-          stage=pathlib.Path(os.environ["V40_OUT"])
-          videos=list(stage.glob("*.mp4"))
-          if len(videos)!=1:raise RuntimeError("V49_PRIVATE_RENDER_NOT_FOUND")
-          if hashlib.sha256(videos[0].read_bytes()).hexdigest()!="615ea9e6c9730626b1b579634ca4c2c7e3d9065dc8756f517722f4b881fd18b9":
-              raise RuntimeError("V49_RENDER_SHA_CHANGED")
-          left=cv2.VideoCapture(str(pathlib.Path(os.environ["V40_MEDIA"])/"event585-playbyplay.mp4"))
-          right=cv2.VideoCapture(str(videos[0]))
-          keys=(72,132,150,225,240,248,252,270,282,300,312,325,350,400,492,552)
-          for j in keys:
-              left.set(cv2.CAP_PROP_POS_FRAMES,j)
-              right.set(cv2.CAP_PROP_POS_FRAMES,j)
-              ok,l=left.read();yes,r=right.read()
-              if not ok or not yes:raise ValueError("V49_SOURCE_FRAME_MISSING")
-              both=cv2.hconcat([cv2.resize(l,(480,270)),cv2.resize(r,(480,270))])
-              for x,caption in ((10,f"ORIGINAL F{j}"),(495,f"V49 GUARDED F{j}")):
-                  cv2.putText(both,caption,(x,24),cv2.FONT_HERSHEY_SIMPLEX,.55,(0,0,0),3)
-                  cv2.putText(both,caption,(x,24),cv2.FONT_HERSHEY_SIMPLEX,.55,(255,255,255),1)
-              ok,p=cv2.imencode(".jpg",both,[cv2.IMWRITE_JPEG_QUALITY,75])
-              if not ok:raise ValueError("ENCODE_FAILURE")
-              (stage/f"private_v49_pair_f{j:03d}.b64.txt").write_text(
-                     base64.b64encode(p.tobytes()).decode()+"\n")
-          left.release();right.release()
-          print("V49_PRIVATE_ORIGINAL_RENDERED_FRAME_COMPARE_READY",len(keys))
+          import sys,types,os,json
+          from pathlib import Path
+          stub=types.ModuleType("ultralytics")
+          stub.YOLO=lambda *a,**kw:(_ for _ in ()).throw(RuntimeError("NO_GPU_NO_MODEL_V50"))
+          sys.modules["ultralytics"]=stub
+          from cpu_animate.e585_v50_native_high_ball_catch import render,selftest
+          selftest()
+          src=Path(os.environ["V40_SOURCE"])
+          media=Path(os.environ["V40_MEDIA"])
+          dst=Path(os.environ["V40_OUT"])
+          qa=render(media/"event585-playbyplay.mp4",
+              media/"event585-native-video-pts.json",
+              media/"scout_0225_585_videoonly_592.json.gz",
+              media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
+              src/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
+              src,dst)
+          print("V50_ORIGINAL_3D_BALL_SOURCE_RESULTS",json.dumps({
+            "ring_visible":qa["ring_visible_frames"],
+            "continuity":qa["continuity"],
+            "green":qa["source_native_3d_ball_green_visible"],
+            "high_amen_catch_source":qa["source_original_ball_control"].get(
+               "elevated_amen_basket_catch_source_samples",0),
+            "all_three":qa["all_three_visible_frames"],
+            "sha256":qa["mp4_sha256"],
+            "accepted_final":qa["accepted_final_publication"]},sort_keys=True))
           PY
-      - name: Store V49 comparison images privately for actual player-foot inspection
+      - name: Privately publish true XYZ player-and-ball V50 clip and full QA
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import os,pathlib,subprocess,json,base64,hashlib
-          stage=pathlib.Path(os.environ["V40_OUT"])
-          for file in sorted(stage.glob("private_v49_pair_f*.b64.txt")):
-              raw=file.read_bytes()
-              api="repos/timeedmonds-maker/104/contents/docs/cpu_animate/source_video_v49_review/"+file.name
-              body={"message":"Private V49 exact original vs native source ring foot alignment "+file.name,
-                    "branch":os.environ["V40_BRANCH"],
-                    "content":base64.b64encode(raw).decode("ascii")}
-              prior=subprocess.run(["gh","api",api+"?ref="+os.environ["V40_BRANCH"]],
-                                capture_output=True,text=True)
-              if prior.returncode==0:body["sha"]=json.loads(prior.stdout)["sha"]
-              payload=stage/(file.name+".json");payload.write_text(json.dumps(body))
-              sent=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],
-                                   capture_output=True,text=True)
-              if sent.returncode:raise RuntimeError("V49_REVIEW_VISUAL_PRIVATE_UPLOAD_FAILED")
-              print("V49_PRIVATE_FOOT_VISUAL_SAVED",file.name,hashlib.sha256(raw).hexdigest())
-          PY
+          tag=cpu-animate-0225-e585-v50-native-highball-catch-cpu-review-20261113
+          test "$(find "$V40_OUT" -maxdepth 1 -name '*.mp4' | wc -l)" = 1
+          gh release create "$tag" "$V40_OUT"/*.mp4 "$V40_OUT"/*_qa.json "$V40_OUT"/*.jpg \
+              --repo timeedmonds-maker/104 \
+              --title "V50 CPU Animate original NBA native XYZ three player with high-ball catch green and shoe guard" \
+              --notes "Source-first exact 0225 event585 original 3D NBA ball/player source with video-person native ID preserved, high-airborne catch at Amen dunk inferred only by original source proximity, and strict post-pan Houston shoe guard. Exact touches and postpan global camera calibration still not independently certified. No GPU." \
+              --latest=false
+          echo "V50_PRIVATE_REVIEW_MP4_PUBLISHED"
       - name: Protected source cleanup
         if: always()
         shell: bash
