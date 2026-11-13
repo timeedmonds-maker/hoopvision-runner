@@ -1,4 +1,4 @@
-name: CPU Animate e585 V40 CPU private source diagnosis and render
+name: CPU Animate e585 V41 CPU source-foot continuity rerun
 on:
   push:
     branches: [main]
@@ -26,7 +26,7 @@ jobs:
       PYTHONUNBUFFERED: '1'
       V40_BRANCH: 'cpu-animate/e585-v40-attachment-continuity-possession-20261113'
       SOURCE_BRANCH: 'research/gamepulse-clock-boundary-integrity-20261025'
-      OUTPUT_TAG: 'cpu-animate-0225-e585-v40-footlock-possession-cpu-review-20261113'
+      OUTPUT_TAG: 'cpu-animate-0225-e585-v41-source-shoe-continuity-cpu-review-20261113'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -90,8 +90,8 @@ jobs:
           python3 -m pip install --quiet --disable-pip-version-check \
             'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'Pillow>=10,<12'
           cd "$V40_CODE"
-          python3 -m py_compile cpu_animate/warriors_0225_e585_v40_source_video_rings.py
-          python3 -m unittest cpu_animate.test_warriors_e585_v40_ring_quality -v
+          python3 -m py_compile cpu_animate/warriors_0225_e585_v41_source_shoe_continuity.py
+          python3 -m unittest cpu_animate.test_warriors_e585_v41_source_shoe_continuity -v
           # Original published V23/early V6 imports YOLO at module import time,
           # but this 592-frame render consumes the SHA-verified precomputed
           # segmentation/track scout; no neural model is invoked or installed.
@@ -103,7 +103,7 @@ jobs:
           optional.YOLO=forbidden_model
           sys.modules["ultralytics"]=optional
           from pathlib import Path
-          from cpu_animate.warriors_0225_e585_v40_source_video_rings import render, SOURCE_NATIVE_SHA
+          from cpu_animate.warriors_0225_e585_v41_source_shoe_continuity import render, SOURCE_NATIVE_SHA
           import os,json
           media=Path(os.environ["V40_MEDIA"])
           source=Path(os.environ["V40_SOURCE"])
@@ -124,11 +124,11 @@ jobs:
           except Exception as e:
               # Never print private NBA XYZ, timestamp tables, or video frames
               # to the public Actions log. The error code itself is safe.
-              print("V40_RENDER_ERROR_TYPE",type(e).__name__)
+              print("V41_RENDER_ERROR_TYPE",type(e).__name__)
               if isinstance(e,(ValueError,AssertionError,RuntimeError)):
                   print("V40_RENDER_ERROR_CODE",str(e)[:160])
               raise SystemExit(21)
-          print("V40_CPU_RENDER_COMPLETE",json.dumps({
+          print("V41_CPU_RENDER_COMPLETE",json.dumps({
             "ring_counts":qa["ring_counts"],
             "visible_render_counts":qa["visible_render_counts"],
             "ring_continuity":qa["per_player_visible_ring_continuity"],
@@ -146,11 +146,11 @@ jobs:
           test "$(find "$V40_OUT" -maxdepth 1 -name '*.mp4' | wc -l)" = 1
           gh release create "$OUTPUT_TAG" "$V40_OUT"/*.mp4 "$V40_OUT"/*_qa.json "$V40_OUT"/*.jpg \
             --repo timeedmonds-maker/104 \
-            --title 'CPU Animate V40 e585 CPU source-foot continuity research preview' \
+            --title 'CPU Animate V41 e585 CPU source-foot continuity research preview' \
             --notes 'CPU-only, original SHA-pinned event585 video, frozen HoopVision. Bogdan positive HOU source-video foot; Amen/Sengun guarded smoothing and custody. NOT physically frame-certified or accepted for publication; inspect reviewed scoring scene and per-player gaps.' \
             --latest=false
           gh release view "$OUTPUT_TAG" --repo timeedmonds-maker/104 --json assets --jq '.assets[].name'
-          echo "V40_REVIEW_VIDEO_PUBLISHED_PRIVATE_ONLY"
+          echo "V41_REVIEW_VIDEO_PUBLISHED_PRIVATE_ONLY"
       - name: Protected source cleanup
         if: always()
         shell: bash
