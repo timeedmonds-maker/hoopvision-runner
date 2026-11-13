@@ -83,7 +83,7 @@ jobs:
             --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
           echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
-      - name: Run CPU-only V40 regressions then original 592-frame source render
+      - name: Run CPU-only V42 scored-shoe tests and original 592-frame source render
         shell: bash
         run: |
           set -euo pipefail
@@ -126,7 +126,7 @@ jobs:
               # to the public Actions log. The error code itself is safe.
               print("V42_RENDER_ERROR_TYPE",type(e).__name__)
               if isinstance(e,(ValueError,AssertionError,RuntimeError)):
-                  print("V40_RENDER_ERROR_CODE",str(e)[:160])
+                  print("V42_RENDER_ERROR_CODE",str(e)[:160])
               raise SystemExit(21)
           print("V42_CPU_RENDER_COMPLETE",json.dumps({
             "ring_counts":qa["ring_counts"],
