@@ -1,5 +1,5 @@
 # Source-only original NBA materialization; no GPU/no external paid APIs.
-name: Integrated Pulse FULL160 v4 latest default source promotion
+name: Integrated Pulse FULL160 v4 and Full174 source-graded default promotion
 on:
   push:
     branches: [main]
@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   promote:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, 'Full174')
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
@@ -244,3 +245,219 @@ jobs:
           assert original.DEFAULT_DATABASE=='FULL160'
           print('FULL160_V4_STABLE_DEFAULT_QUERY_GRAVITY_MATCHUP_ZONE_KNOWN_GAME_PASS')
           PY
+
+  promote-full174-sourcegraded:
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'Full174')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 85
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_REPO: timeedmonds-maker/104
+      PRIVATE_REF: research/gamepulse-clock-boundary-integrity-20261025
+      GIT_TERMINAL_PROMPT: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Fail closed on public-private content boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          gh auth setup-git
+          echo IGP_FULL174_PUBLIC_CONFIDENTIALITY_GUARD_PASS
+      - name: Clone exact private Full170 parent and original Nov13 four game source paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/igp-full174-private"
+          git clone -q --no-checkout --filter=blob:none --depth=1 -b "$PRIVATE_REF" \
+            "https://github.com/$PRIVATE_REPO.git" "$P"
+          git -C "$P" sparse-checkout init --no-cone
+          git -C "$P" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/*.py' \
+            '/gamepulse/fusion/materialized/igp_full160_unified_default_v4/*.json' \
+            '/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/*.json' \
+            '/gamepulse/fusion/materialized/igp_full170_sourcegraded_nov12_stage_v1/*.json' \
+            '/gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/*.json' \
+            '/gamepulse/fusion/qa/igp_20261113/*.json' \
+            '/gamepulse/fusion/materialized/igp_nov13_0022600227_full160_additive_v1/**' \
+            '/gamepulse/fusion/materialized/igp_nov13_0022600228_full160_additive_v1/**' \
+            '/gamepulse/fusion/materialized/igp_nov13_0022600229_full160_additive_v1/**' \
+            '/gamepulse/fusion/materialized/igp_nov13_0022600230_full160_additive_v1/**' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600227.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600228.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600229.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/0022600230.json' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600227/**' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600228/**' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600229/**' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_0022600230/**' \
+            '/data/extensions/nba_blueprint_2026_27/games/0022600227/blueprint_report_raw.json' \
+            '/data/extensions/nba_blueprint_2026_27/games/0022600228/blueprint_report_raw.json' \
+            '/data/extensions/nba_blueprint_2026_27/games/0022600229/blueprint_report_raw.json' \
+            '/data/extensions/nba_blueprint_2026_27/games/0022600230/blueprint_report_raw.json'
+          git -C "$P" checkout -q "$PRIVATE_REF"
+          test -s "$P/gamepulse/fusion/igp_full174_source_default_v1.py"
+          test -s "$P/gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/index.json"
+      - name: Strict SHA source, per FGA, biomechanics and immutable Full170 parent regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/igp-full174-private"
+          cd "$P"
+          python3 -m py_compile gamepulse/fusion/igp_full174_source_default_v1.py \
+            gamepulse/fusion/igp_full170_source_default_v1.py \
+            gamepulse/fusion/igp_default_database.py \
+            gamepulse/fusion/igp_default_engine.py
+          PYTHONPATH=gamepulse/fusion python3 gamepulse/fusion/igp_full174_source_default_v1.py --root . --self-test
+      - name: Promote SOURCE-GRADED Full174 pointer and central database source imports
+        shell: bash
+        run: |
+          set -euo pipefail
+          P="$RUNNER_TEMP/igp-full174-private"
+          cd "$P"
+          python3 - <<'PY'
+          import hashlib,json,pathlib
+          root=pathlib.Path.cwd()
+          d=pathlib.Path('gamepulse/fusion/materialized/igp_full174_unified_source_default_v1')
+          idx=d/'index.json'
+          qa=d/'qa.json'
+          index=json.loads(idx.read_bytes())
+          acceptance=json.loads(qa.read_bytes())
+          assert index['default_database']=='FULL174' and index['counts']['games']==174
+          assert acceptance['official_actions']==104466 and acceptance['official_FGA']==30585
+          assert acceptance['all_source_gaps_closed'] is False
+          acceptance['release_status']='PASS_SOURCE_GRADED_WITH_UNAVAILABLE_PROVIDER_NULLS'
+          acceptance['readback_gate']='FULL174_SOURCE_SHA_PER_GAME_FGA_COMPANION_BLUEPRINT_NATIVE_SELFTEST_PASS'
+          qa.write_text(json.dumps(acceptance,sort_keys=True,indent=2)+'\n')
+          def sha1(blob):
+              return hashlib.sha1(b'blob '+str(len(blob)).encode()+b'\0'+blob).hexdigest()
+          manifest_sha=sha1(idx.read_bytes())
+          acceptance_sha=sha1(qa.read_bytes())
+          pointer=dict(
+              schema='igp.latest-source-graded-production-default-pointer.v2',
+              default_database='FULL174',default_version='source-v1',
+              canonical_manifest_path=str(idx),
+              canonical_manifest_git_blob_sha1=manifest_sha,
+              canonical_acceptance_path=str(qa),
+              canonical_acceptance_git_blob_sha1=acceptance_sha,
+              canonical_query_module='gamepulse/fusion/igp_full174_source_default_v1.py',
+              accepted_status=acceptance['release_status'],
+              game_count=174,official_actions=104466,official_FGA=30585,
+              fullgame_tracking_certified=False,
+              raw_29_joint_60hz_pose_certified=False,
+              provider_missing_values_explicit_null=True,
+              all_source_gaps_closed=False,
+              tracking_engine_production_changed=False,
+              frozen_full170_manifest_path='gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json',
+              full170_frozen=True,
+              full160v4_frozen=True,
+              roll_back_query_module='gamepulse/fusion/igp_full170_source_default_v1.py')
+          (d/'LATEST.json').write_text(json.dumps(pointer,sort_keys=True,indent=2)+'\n')
+          current=pathlib.Path('gamepulse/fusion/materialized/igp_sourcegraded_current/LATEST.json')
+          current.parent.mkdir(parents=True,exist_ok=True)
+          current.write_text(json.dumps(pointer,sort_keys=True,indent=2)+'\n')
+          central=pathlib.Path('gamepulse/fusion/igp_default_database.py')
+          original=central.read_text()
+          old='from igp_full160_source_default_v1 import ('
+          assert original.count(old)==1,'CENTRAL_DEFAULT_IMPORT_DRIFT'
+          revised=original.replace(old,'from igp_full174_source_default_v1 import (',1)
+          revised=revised.replace('Canonical FULL160 original NBA source database','Canonical FULL174 original NBA source database',1)
+          revised=revised.replace('FULL160 is the default query cohort (160 NBA games), not a false certification of',
+                                  'FULL174 is the source-graded default query cohort (174 NBA games), not a false certification of',1)
+          revised+='\nfrom igp_full170_source_default_v1 import query as explicit_full170_source_rollback  # noqa: F401\n'
+          revised+='from igp_full160_source_default_v1 import query as explicit_full160_source_rollback  # noqa: F401\n'
+          central.write_text(revised)
+          engine=pathlib.Path('gamepulse/fusion/igp_default_engine.py')
+          original=engine.read_text()
+          marker='from igp_full160_source_default_v1 import ('
+          assert original.count(marker)==1,'TRACKING_DEFAULT_IMPORT_DRIFT'
+          out=original.replace(marker,'from igp_full174_source_default_v1 import (',1)
+          out=out.replace('Canonical FULL160 source database','Canonical FULL174 source database',1)
+          out=out.replace('source corpus is FULL160. The existing FULL92','source corpus is FULL174. The existing FULL92',1)
+          out+='\nfrom igp_full170_source_default_v1 import query as explicit_full170_source_rollback\n'
+          engine.write_text(out)
+          print('IGP_FULL174_SOURCE_PRODUCTION_DEFAULT_POINTER_PREPARED',
+                manifest_sha,acceptance_sha)
+          PY
+          PYTHONPATH=gamepulse/fusion python3 - <<'PY'
+          from igp_full174_source_default_v1 import load_release,query,DEFAULT_DATABASE
+          from igp_default_database import DEFAULT_DATABASE as CENTRAL,query as default_query
+          from pathlib import Path
+          root=Path.cwd()
+          rel,_=load_release(root)
+          assert DEFAULT_DATABASE==CENTRAL=='FULL174'
+          assert rel['counts']['official_FGA']==30585
+          assert default_query(root)['counts']['games']==174
+          matched=allshots=source_pub=0
+          for gid in ('0022600227','0022600228','0022600229','0022600230'):
+              q=query(root,gid,kind='shots',limit=1000)
+              allshots+=len(q['rows'])
+              matched+=sum(x['original_companion'] is not None for x in q['rows'])
+              source_pub+=sum(x['published_xfg'] is not None for x in q['rows'])
+              assert q['total_matching']==len(q['rows'])
+              assert q['rows'][0]['official_action_number'] is not None
+              native=query(root,gid,kind='original_native',limit=1)
+              assert len(native['rows'])==1 and not native['source_13_part_fullgame_certified']
+          assert (allshots,matched)==(729,693)
+          assert source_pub<=matched+36
+          print('IGP_FULL174_DEFAULT_SOURCE_READBACK_PASS',allshots,matched,source_pub)
+          PY
+      - name: Commit pointer, accepted QA and actual default imports to canonical private branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/igp-full174-private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f \
+            gamepulse/fusion/materialized/igp_full174_unified_source_default_v1 \
+            gamepulse/fusion/materialized/igp_sourcegraded_current/LATEST.json \
+            gamepulse/fusion/igp_default_database.py \
+            gamepulse/fusion/igp_default_engine.py
+          git diff --cached --check
+          git commit -qm 'data(igp): accept Full174 as source-graded default with original companion biomechanics and explicit nulls'
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$PRIVATE_REF"
+            git rebase -q "origin/$PRIVATE_REF"
+            if git push -q origin "HEAD:refs/heads/$PRIVATE_REF"; then
+              echo IGP_FULL174_SOURCE_DEFAULT_COMMITTED_PRIVATE
+              break
+            fi
+            if test "$n" -eq 8; then exit 45; fi
+            sleep "$n"
+          done
+          git fetch -q origin "$PRIVATE_REF"
+          git reset -q --hard "origin/$PRIVATE_REF"
+          PYTHONPATH=gamepulse/fusion python3 gamepulse/fusion/igp_full174_source_default_v1.py --root . --self-test
+          PYTHONPATH=gamepulse/fusion python3 - <<'PY'
+          import igp_default_database as d
+          from pathlib import Path
+          a=d.query(Path.cwd())
+          assert d.DEFAULT_DATABASE=='FULL174'
+          assert a['default_database']=='FULL174'
+          assert a['counts']['games']==174
+          print('IGP_FULL174_PERSISTENT_CANONICAL_DEFAULT_READBACK_VERIFIED',a['counts']['official_FGA'])
+          PY
+      - name: Publish private rollbackable Full174 provenance receipt only
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/igp-full174-private"
+          tag='igp-full174-source-graded-default-20261113'
+          if gh release view "$tag" --repo "$PRIVATE_REPO" >/dev/null 2>&1; then
+            echo IGP_FULL174_PRIVATE_SOURCE_RECEIPT_ALREADY_EXISTS
+          else
+            gh release create "$tag" --repo "$PRIVATE_REPO" \
+              --target "$PRIVATE_REF" \
+              --title "Integrated Pulse Full174 original source-graded default" \
+              --notes "FULL170 SHA-preserved parent plus four fully archived original companion event/biomechanics and NBA Blueprint reports. Official FGA 30,585, actions 104,466. Exactly 36 new official shots have no companion exact match and 43 lack Blueprint exact; original 13-part complete-game tracking, 29-joint pose and physical possession are not certified. This release contains only private manifests; original data remains in private Git." \
+              gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/index.json \
+              gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/qa.json \
+              gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/LATEST.json >/dev/null
+            echo IGP_FULL174_PRIVATE_ROLLBACKABLE_DEFAULT_RECEIPT_RELEASED
+          fi
