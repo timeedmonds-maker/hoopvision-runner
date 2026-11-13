@@ -1,4 +1,4 @@
-name: CPU Animate e585 V43 original-video tracklet forensics
+name: CPU Animate e585 V44 original XYZ+ball source diagnostic
 on:
   push:
     branches: [main]
@@ -83,54 +83,37 @@ jobs:
             --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
           echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
-      - name: Analyze source original jersey tracklets and private-only camera frames
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 -m pip install --quiet --disable-pip-version-check 'numpy==1.26.4' 'opencv-python-headless==4.10.0.84'
-          cd "$V40_CODE"
-          python3 -m cpu_animate.e585_v43_original_video_tracklet_diagnostic \
-            --video "$V40_MEDIA/event585-playbyplay.mp4" \
-            --scout "$V40_MEDIA/scout_0225_585_videoonly_592.json.gz" \
-            --out "$V40_OUT"
-          test "$(find "$V40_OUT" -maxdepth 1 -name 'private_e585_v43_*.b64.txt' | wc -l)" = 2
-      - name: Preserve three diagnostics inside private 104 ONLY (no source pixels in logs)
+      - name: Diagnose exact original 10Hz XYZ+ball source and UTC ball timeline
         shell: bash
         run: |
           set -euo pipefail
           cd "$V40_CODE"
+          python3 -m cpu_animate.e585_v44_native_xyz_ball_source_diagnostic \
+            --source-root "$V40_SOURCE" \
+            --out "$V40_OUT/private_e585_v44_original_native_xyz_ball.json"
+          test -s "$V40_OUT/private_e585_v44_original_native_xyz_ball.json"
+      - name: Preserve full original source diagnostics privately without public coordinate output
+        shell: bash
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
           import base64,hashlib,json,os,pathlib,subprocess
-          root=pathlib.Path(os.environ["V40_OUT"])
+          local=pathlib.Path(os.environ["V40_OUT"])/"private_e585_v44_original_native_xyz_ball.json"
+          b=local.read_bytes()
+          path="docs/cpu_animate/source_video_v44/"+local.name
+          api="repos/timeedmonds-maker/104/contents/"+path
           branch=os.environ["V40_BRANCH"]
-          names=[
-             "private_e585_red_video_tracklets.json",
-             "private_e585_v43_early_original_red_detections.jpeg.b64.txt",
-             "private_e585_v43_action_original_red_detections.jpeg.b64.txt"]
-          for name in names:
-              local=root/name
-              b=local.read_bytes()
-              path="docs/cpu_animate/source_video_v43/"+name
-              dest="repos/timeedmonds-maker/104/contents/"+path
-              record={
-                "message":"Private CPU Animate event585 source-video frame/track audit "+name,
-                "branch":branch,
-                "content":base64.b64encode(b).decode("ascii")}
-              prior=subprocess.run(["gh","api",dest+"?ref="+branch],text=True,
-                                   capture_output=True)
-              if prior.returncode==0:
-                  record["sha"]=json.loads(prior.stdout)["sha"]
-              payload=root/(name+".payload.json")
-              payload.write_text(json.dumps(record))
-              p=subprocess.run(["gh","api","-X","PUT",dest,"--input",str(payload)],
-                               text=True,capture_output=True)
-              if p.returncode:
-                  print("PRIVATE_SOURCE_VIDEO_DIAGNOSTIC_UPLOAD_FAILED",name)
-                  raise SystemExit(12)
-              print("PRIVATE_SOURCE_VIDEO_DIAGNOSTIC_SAVED",
-                    name,hashlib.sha256(b).hexdigest(),len(b))
+          record={"message":"CPU Animate private V44 immutable original 10Hz XYZ and ball source diagnostic",
+                  "branch":branch,"content":base64.b64encode(b).decode("ascii")}
+          prior=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
+          if prior.returncode==0:record["sha"]=json.loads(prior.stdout)["sha"]
+          payload=local.parent/"diag-v44-payload.json";payload.write_text(json.dumps(record))
+          put=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],
+                              capture_output=True,text=True)
+          if put.returncode:raise RuntimeError("PRIVATE_NATIVE_REPORT_UPLOAD_FAILED")
+          print("SOURCE_V44_ORIGINAL_10HZ_PRIVATE_SAVE_SHA",hashlib.sha256(b).hexdigest(),
+                "bytes",len(b))
           PY
-          echo "EVENT585_V43_PRIVATE_VISUAL_SOURCE_FORENSICS_COMPLETE"
       - name: Protected source cleanup
         if: always()
         shell: bash
