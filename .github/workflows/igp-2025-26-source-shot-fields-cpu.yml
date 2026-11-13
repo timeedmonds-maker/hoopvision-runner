@@ -45,7 +45,7 @@ jobs:
           cd "$RUNNER_TEMP/private"
           set +e
           PYTHONPATH=gamepulse/fusion python3 -m unittest -v \
-            gamepulse/fusion/tests/test_igp_full174_pasq_2025_26_source_fields_audit.py \
+            gamepulse/fusion/tests/test_igp_full174_pasq_historical_prior_ablation_v2b.py \
             gamepulse/fusion/tests/test_igp_full174_pasq_historical_similar_v1.py \
             > "$RUNNER_TEMP/output/tests.log" 2>&1
           tests=$?
