@@ -1,4 +1,4 @@
-name: CPU Animate e585 V46 original 10Hz XYZ ball native-first render
+name: CPU Animate e585 V46 original native XYZ video visual readback
 on:
   push:
     branches: [main]
@@ -83,55 +83,69 @@ jobs:
             --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
           echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
-      - name: Run original 10Hz player and ball XYZ-first CPU tests and 592-frame render
+      - name: Decode actual V46 10Hz native first output and build exact source-side-by-side samples
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet --disable-pip-version-check \
-            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'Pillow>=10,<12'
+          python3 -m pip install --quiet --disable-pip-version-check 'numpy==1.26.4' 'opencv-python-headless==4.10.0.84'
+          gh release download cpu-animate-0225-e585-v46-native-xyz-ball-sourcefirst-cpu-review-20261113 \
+            --repo timeedmonds-maker/104 --dir "$V40_OUT" --pattern '*.mp4'
           cd "$V40_CODE"
-          python3 -m py_compile cpu_animate/e585_v46_source_first_native_xyz_ball_render.py
           python3 - <<'PY'
-          import os,sys,types
-          from pathlib import Path
-          optional=types.ModuleType("ultralytics")
-          def forbidden(*a,**kw):raise RuntimeError("NO_GPU_OR_NEURAL_MODEL_V46")
-          optional.YOLO=forbidden
-          sys.modules["ultralytics"]=optional
-          from cpu_animate.e585_v46_source_first_native_xyz_ball_render import selftest,render
-          selftest()
-          source=Path(os.environ["V40_SOURCE"])
-          media=Path(os.environ["V40_MEDIA"])
-          output=Path(os.environ["V40_OUT"])
-          qa=render(media/"event585-playbyplay.mp4",
-             media/"event585-native-video-pts.json",
-             media/"scout_0225_585_videoonly_592.json.gz",
-             media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
-             source/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
-             source,output)
-          print("V46_REAL_10HZ_SOURCE_RENDER_RESULT",
-             __import__("json").dumps({
-                "visible":qa["ring_visible_frames"],
-                "continuity":qa["continuity"],
-                "native_ball_possession_green":qa["source_native_3d_ball_green_visible"],
-                "triple":qa["all_three_visible_frames"],
-                "native_player_source":qa["source_native_game_player_counts"],
-                "mp4_sha256":qa["mp4_sha256"],
-                "production_accepted":qa["accepted_final_publication"]},
-                 sort_keys=True))
+          import os,base64,cv2,hashlib,subprocess,pathlib,json
+          home=pathlib.Path(os.environ["V40_OUT"])
+          media=pathlib.Path(os.environ["V40_MEDIA"])/"event585-playbyplay.mp4"
+          video=list(home.glob("*.mp4"))
+          if len(video)!=1:raise ValueError("V46_MP4_MISSING")
+          video=video[0]
+          if hashlib.sha256(video.read_bytes()).hexdigest()!="8500456eeae61d4af0fc81fbd6f69a30ee3eacffcf2b315bd3e70efd9baf8489":
+              raise ValueError("ORIGINAL_XYZ_SOURCE_RENDER_SHA_MISMATCH")
+          a=cv2.VideoCapture(str(media));b=cv2.VideoCapture(str(video))
+          selected=(30,72,120,132,150,162,190,225,240,248,252,260,270,282,300,312,325,350,400,492,552)
+          if not a.isOpened() or not b.isOpened():raise ValueError("BAD_ORIGINAL_OR_REVIEW_MP4")
+          count=0
+          for j in selected:
+              a.set(cv2.CAP_PROP_POS_FRAMES,j);b.set(cv2.CAP_PROP_POS_FRAMES,j)
+              ok,x=a.read();yes,y=b.read()
+              if not ok or not yes:raise ValueError("MISSING_REVIEW_FRAME")
+              x=cv2.resize(x,(480,270),interpolation=cv2.INTER_AREA)
+              y=cv2.resize(y,(480,270),interpolation=cv2.INTER_AREA)
+              both=cv2.hconcat((x,y))
+              cv2.putText(both,f"F{j:03d} ORIGINAL", (10,25),cv2.FONT_HERSHEY_SIMPLEX,.55,(0,0,0),3)
+              cv2.putText(both,f"F{j:03d} ORIGINAL", (10,25),cv2.FONT_HERSHEY_SIMPLEX,.55,(255,255,255),1)
+              cv2.putText(both,f"F{j:03d} V46 NATIVE 10Hz", (485,25),cv2.FONT_HERSHEY_SIMPLEX,.52,(0,0,0),3)
+              cv2.putText(both,f"F{j:03d} V46 NATIVE 10Hz", (485,25),cv2.FONT_HERSHEY_SIMPLEX,.52,(255,255,255),1)
+              ok,payload=cv2.imencode(".jpg",both,[cv2.IMWRITE_JPEG_QUALITY,75])
+              if not ok:raise ValueError("JPEG_FAIL")
+              target=home/f"private_v46_frame_{j:03d}_side_by_side.jpeg.b64.txt"
+              target.write_text(base64.b64encode(payload.tobytes()).decode("ascii")+"\n")
+              count+=1
+          a.release();b.release()
+          print("V46_ACTUAL_MP4_SOURCE_VIDEO_SIDE_BY_SIDE_FRAMES_READY",count)
           PY
-      - name: Publish V46 original NBA 10Hz source first research MP4 ONLY to private repo
+      - name: Preserve V46 original and native comparison privately only, no public frames
         shell: bash
         run: |
           set -euo pipefail
-          test "$(find "$V40_OUT" -maxdepth 1 -name '*.mp4' | wc -l)" = 1
-          test "$(find "$V40_OUT" -maxdepth 1 -name '*_qa.json' | wc -l)" = 1
-          gh release create "$OUTPUT_TAG" "$V40_OUT"/*.mp4 "$V40_OUT"/*_qa.json "$V40_OUT"/*.jpg \
-            --repo timeedmonds-maker/104 \
-            --title 'V46 event585 CPU actual original 10Hz XYZ ball native-first three ring preview' \
-            --notes 'SHA-verified 33,639 original native timestamps Full170 and all direct 3D ball observations, image-space camera registration / review shoe correction. Frozen HoopVision 1.3, no GPU. Research preview, video-foot accuracy and exact custody transfer not physically final-certified.' \
-            --latest=false
-          echo "V46_PRIVATE_SOURCE_FIRST_NBA_MP4_RELEASE_COMPLETE"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess
+          folder=pathlib.Path(os.environ["V40_OUT"])
+          for local in sorted(folder.glob("private_v46_frame_*.b64.txt")):
+              content=local.read_bytes()
+              path="docs/cpu_animate/source_video_v46_review/"+local.name
+              api="repos/timeedmonds-maker/104/contents/"+path
+              request={"message":"CPU Animate V46 private exact-frame original/native playback visual QA "+local.name,
+                       "branch":os.environ["V40_BRANCH"],
+                       "content":base64.b64encode(content).decode("ascii")}
+              prior=subprocess.run(["gh","api",api+"?ref="+os.environ["V40_BRANCH"]],
+                                capture_output=True,text=True)
+              if prior.returncode==0:request["sha"]=json.loads(prior.stdout)["sha"]
+              payload=folder/(local.name+".json");payload.write_text(json.dumps(request))
+              posted=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],
+                                capture_output=True,text=True)
+              if posted.returncode:raise RuntimeError("PRIVATE_SOURCE_FRAME_WRITE_FAILURE")
+              print("PRIVATE_V46_VIDEO_FRAME_ARCHIVED",local.name,hashlib.sha256(content).hexdigest())
+          PY
       - name: Protected source cleanup
         if: always()
         shell: bash
