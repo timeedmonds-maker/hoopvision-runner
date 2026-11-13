@@ -18,7 +18,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/full174-pasq-historical-recency-20261114
-      SOURCE_COMMIT: d2d333eb17ed2acaa61285c8328f6716805d9d95
+      SOURCE_COMMIT: cecb484d5aed9764d08b15d239823f06e87e5a7c
     steps:
       - name: Verify authenticated private source boundary
         shell: bash
@@ -96,7 +96,10 @@ jobs:
               detail={'status':'FAIL','source_commit':os.environ['SOURCE_COMMIT'],'stage_returncodes':state,
                       'test_error_class':'FAILED' if state.get('tests',0) else None,
                       'model_error_class':'FAILED' if state.get('model',0) else None}
-              entries=[('failure.json',(json.dumps(detail,indent=2)+'\n').encode())]
+              entries=[('failure.json',(json.dumps(detail,indent=2)+'\\n').encode())]
+              # Test diagnostics are source-free but still retained in the PRIVATE repo.
+              test_log=root/'tests.log'
+              if test_log.exists():entries.append(('tests.log',test_log.read_bytes()[-32000:]))
           repo=os.environ['PRIVATE_REPO'];branch=os.environ['SOURCE_BRANCH']
           for name,data in entries:
               path='gamepulse/fusion/qa/pasq_full174_historical_recency_20261114/'+name
