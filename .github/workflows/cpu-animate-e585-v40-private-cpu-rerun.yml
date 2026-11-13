@@ -1,4 +1,4 @@
-name: CPU Animate V51 source-foot and scorer-touch visual QA
+name: CPU Animate V52 original-native floor identity safety rerun
 on:
   push:
     branches: [main]
@@ -44,54 +44,104 @@ jobs:
             sudo apt-get install -y -qq ffmpeg >/dev/null
           fi
           echo "PUBLIC_BOUNDARY_AND_NO_GPU_PASS"
-      - name: Retrieve actual V51 SHA-verified source render review stills
+      - name: Prepare SHA-verified original NBA game clip and full native player ball XYZ
         shell: bash
         run: |
           set -euo pipefail
-          stage="$RUNNER_TEMP/cpu-e585-v40/qa"
-          mkdir -p "$stage"
-          echo "V40_OUT=$stage" >> "$GITHUB_ENV"
-          gh release download cpu-animate-0225-e585-v51-disciplined-footlock-floor-occlusion-cpu-review-20261113 \
-            --repo timeedmonds-maker/104 --dir "$stage" \
-            --pattern '*_f150.jpg' --pattern '*_f240.jpg' \
-            --pattern '*_f241.jpg' --pattern '*_f242.jpg' \
-            --pattern '*_f252.jpg' --pattern '*_f265.jpg' \
-            --pattern '*_f270.jpg' --pattern '*_f300.jpg' \
-            --pattern '*_f312.jpg' --pattern '*_f350.jpg'
-          test "$(find "$stage" -name '*.jpg' | wc -l)" = 10
-          echo "V51_SHA_PINNED_PRIVATE_MP4_FRAMES_RETRIEVED"
-      - name: Preserve actual rendered V51 JPEG stills in private repo for review
+          root="$RUNNER_TEMP/cpu-e585-v40"
+          code="$root/code"; source="$root/source"; media="$root/media"; out="$root/qa"
+          mkdir -p "$code" "$source" "$media" "$out"
+          chmod 700 "$root" "$code" "$source" "$media" "$out"
+          echo "V40_CODE=$code" >> "$GITHUB_ENV"
+          echo "V40_SOURCE=$source" >> "$GITHUB_ENV"
+          echo "V40_MEDIA=$media" >> "$GITHUB_ENV"
+          echo "V40_OUT=$out" >> "$GITHUB_ENV"
+          gh auth setup-git
+          git clone --quiet --filter=blob:none --depth=1 --no-checkout -b "$V40_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$code"
+          git -C "$code" sparse-checkout init --cone
+          git -C "$code" sparse-checkout set cpu_animate tools
+          git -C "$code" checkout --quiet "$V40_BRANCH"
+          git clone --quiet --filter=blob:none --depth=1 --no-checkout -b "$SOURCE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$source"
+          git -C "$source" sparse-checkout init --no-cone
+          git -C "$source" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/original-native-*.jsonl.gz' \
+            '/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json'
+          git -C "$source" checkout --quiet "$SOURCE_BRANCH"
+          test "$(find "$source/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1" -name 'original-native-*.jsonl.gz' | wc -l)" = 17
+          gh release download cpu-animate-0022600225-event585-playbyplay-v20-source-20261112 \
+            --repo timeedmonds-maker/104 --dir "$media" --pattern event585-playbyplay.mp4
+          gh release download cpu-animate-rockets-0225-e585-v21-source-shoe-scout-20261112 \
+            --repo timeedmonds-maker/104 --dir "$media" \
+            --pattern 'event585-native-video-pts.json' \
+            --pattern 'scout_0225_585_videoonly_592.json.gz' \
+            --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
+          test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
+          echo "V52_ORIGINAL_SOURCE_SHA_AND_NATIVE17_VERIFIED"
+      - name: V52 run all synthetic regression tests then actual CPU full-clip render and QA
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet --disable-pip-version-check 'opencv-python-headless==4.10.0.84' 'numpy==1.26.4'
+          python3 -m pip install --quiet --disable-pip-version-check \
+            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'Pillow>=10,<12'
+          cd "$V40_CODE"
+          python3 -m py_compile cpu_animate/e585_v51_footlock_floor_occlusion.py \
+             cpu_animate/e585_v52_original_xyz_opponent_floor_safe_render.py
           python3 - <<'PY'
-          import pathlib,os,base64,hashlib,json,subprocess,cv2
-          folder=pathlib.Path(os.environ["V40_OUT"])
-          files=sorted(folder.glob("*.jpg"))
-          if len(files)!=10:raise RuntimeError("SOURCE_FRAME_COUNT_MISMATCH")
-          for source in files:
-              im=cv2.imread(str(source))
-              if im is None or im.shape[:2]!=(540,960):raise RuntimeError("INVALID_ORIGINAL_V51_JPEG_FRAME")
-              yes,buf=cv2.imencode(".jpg",cv2.resize(im,(720,405)),
-                                   [cv2.IMWRITE_JPEG_QUALITY,78])
-              if not yes:raise RuntimeError("JPEG_ENCODE_FAIL")
-              name=source.stem.split("_")[-1]
-              dest="docs/cpu_animate/source_video_v51_review/V51_actual_"+name+".jpeg.b64.txt"
-              api="repos/timeedmonds-maker/104/contents/"+dest
-              payload={
-                "message":"Private V51 actual frame foot/floor/custody visual review "+name,
-                "branch":os.environ["V40_BRANCH"],
-                "content":base64.b64encode((base64.b64encode(bytes(buf)).decode()+"\n").encode()).decode()}
-              previous=subprocess.run(["gh","api",api+"?ref="+os.environ["V40_BRANCH"]],
-                   capture_output=True,text=True)
-              if previous.returncode==0:payload["sha"]=json.loads(previous.stdout)["sha"]
-              request=folder/(name+".upload.json");request.write_text(json.dumps(payload))
-              sent=subprocess.run(["gh","api","-X","PUT",api,"--input",str(request)],
-                                  capture_output=True,text=True)
-              if sent.returncode:raise RuntimeError("PRIVATE_V51_ACTUAL_FRAME_SAVE_FAILED")
-              print("V51_PRIVATE_RENDERED_FRAME_REVIEW_READY",name,hashlib.sha256(bytes(buf)).hexdigest())
+          import sys,types,os,json
+          from pathlib import Path
+          fake=types.ModuleType("ultralytics")
+          fake.YOLO=lambda *a,**k:(_ for _ in ()).throw(RuntimeError("NO_GPU_OR_MODEL_V52"))
+          sys.modules["ultralytics"]=fake
+          from cpu_animate.e585_v52_original_xyz_opponent_floor_safe_render import render,selftest
+          selftest()
+          source=Path(os.environ["V40_SOURCE"])
+          media=Path(os.environ["V40_MEDIA"])
+          dst=Path(os.environ["V40_OUT"])
+          qa=render(media/"event585-playbyplay.mp4",
+               media/"event585-native-video-pts.json",
+               media/"scout_0225_585_videoonly_592.json.gz",
+               media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
+               source/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
+               source,dst)
+          checks={
+            "source_immutable":qa["rendered_source_xyz_immutable"],
+            "frozen_ring_art":qa["frozen_ring_tool"]=="HOOPVISION_1_3_RINGS",
+            "Bogdan_precise_source_shoes":qa["v51_source_foot_anchor_quality"]["Bogdanovic"]["direct_source_video_foot_error_px_p95"]<=6,
+            "Sengun_reviewed_short_flash":qa["v51_video_reviewed_sengun_touch"]["video_reviewed_assist_release_candidates"]==[240,241,242],
+            "courtplane_rendered":qa["v51_presentation_rendering_modes"].get("COURT_PLANE_FROZEN_HOOPVISION",0)>=50,
+            "lower_leg_occluded":qa["v51_source_lower_leg_mask_counts"].get("occluding_person_shoe_observations",0)>=50,
+            "Amen_defender_265_abstention":265 in qa["v52_unsafe_video_frame_indices"]["Thompson"],
+            "Amen_defender_270_abstention":270 in qa["v52_unsafe_video_frame_indices"]["Thompson"],
+            "not_final_production_accepted":qa["accepted_final_publication"] is False,
+            "no_gpu":qa["GPU_used"] is False}
+          print("V52_REAL_VIDEO_SAFETY_GATES",json.dumps(checks,sort_keys=True))
+          if not all(checks.values()):raise RuntimeError("V52_SOURCE_IMAGE_SAFETY_GATE_FAIL")
+          print("V52_REAL_CPU_RENDER",
+                json.dumps({
+                  "rings":qa["ring_visible_frames"],
+                  "continuity":qa["continuity"],
+                  "native_green":qa["source_native_3d_ball_green_visible"],
+                  "new_Sengun_flash":qa["v51_video_reviewed_sengun_touch"],
+                  "unsafe_Amen_removed":qa["v52_foot_overlap_safety_abstentions"],
+                  "all_three":qa["all_three_visible_frames"],
+                  "Bogdan_source_shoe_p95":qa["v51_source_foot_anchor_quality"]["Bogdanovic"]["direct_source_video_foot_error_px_p95"],
+                  "sha256":qa["mp4_sha256"]},sort_keys=True))
           PY
+      - name: Publish real V52 592-frame review MP4 and source QA privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag=cpu-animate-0225-e585-v52-native-source-opponent-floor-safe-cpu-review-20261113
+          test "$(find "$V40_OUT" -maxdepth 1 -name '*.mp4' | wc -l)" = 1
+          gh release create "$tag" "$V40_OUT"/*.mp4 "$V40_OUT"/*_qa.json "$V40_OUT"/*.jpg \
+              --repo timeedmonds-maker/104 \
+              --title "V52 actual NBA original native XYZ with Bogdan foot lock, floor ring, occlusion and safe Amen dunk" \
+              --notes "Actual source-video inspected V51 showed airborne Amen green over GSW32. New V52 conservative original-video shoe and competitor overlap gating suppresses misleading identity during 252–282 when player foot is unverified. Uses immutable original 3D native SDK positions and ball, Bogdan hard video-foot match, frozen HoopVision ring floor project and lower-leg occlusion; Sengun 240–242 short visual-reviewed candidate green. Draft visual QA only. No GPU." \
+              --latest=false
+          echo "V52_PRIVATE_REAL_SOURCE_CPU_RENDER_PUBLISHED"
       - name: Protected source cleanup
         if: always()
         shell: bash
