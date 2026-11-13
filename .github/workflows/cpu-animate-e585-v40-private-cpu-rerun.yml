@@ -1,4 +1,4 @@
-name: CPU Animate e585 V44 original XYZ+ball source diagnostic
+name: CPU Animate e585 V45 native XYZ-to-video calibration
 on:
   push:
     branches: [main]
@@ -83,35 +83,55 @@ jobs:
             --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
           echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
-      - name: Diagnose exact original 10Hz XYZ+ball source and UTC ball timeline
+      - name: Fit corrected video shoes to original 10Hz XYZ time and camera
         shell: bash
         run: |
           set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check \
+            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'Pillow>=10,<12'
           cd "$V40_CODE"
-          python3 -m cpu_animate.e585_v44_native_xyz_ball_source_diagnostic \
-            --source-root "$V40_SOURCE" \
-            --out "$V40_OUT/private_e585_v44_original_native_xyz_ball.json"
-          test -s "$V40_OUT/private_e585_v44_original_native_xyz_ball.json"
-      - name: Preserve full original source diagnostics privately without public coordinate output
+          # No model is called; V45 consumes original SHA-verified precomputed
+          # native XYZ and original-video segmented shoe detections only.
+          python3 - <<'PY'
+          import sys,types,os
+          from pathlib import Path
+          fake=types.ModuleType("ultralytics")
+          def no_gpu(*a,**kw):raise RuntimeError("MODEL_NOT_ALLOWED_SOURCE_CALIBRATION")
+          fake.YOLO=no_gpu
+          sys.modules["ultralytics"]=fake
+          from cpu_animate.e585_v45_original_xyz_video_registration import fit_diagnostic
+          source=Path(os.environ["V40_SOURCE"])
+          media=Path(os.environ["V40_MEDIA"])
+          output=Path(os.environ["V40_OUT"])
+          qa=fit_diagnostic(media/"event585-playbyplay.mp4",
+             media/"event585-native-video-pts.json",
+             media/"scout_0225_585_videoonly_592.json.gz",
+             media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
+             source/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
+             source,output/"private_e585_v45_original_xyz_video_registration.json")
+          if not qa["best"]:
+              raise RuntimeError("NO_SOURCE_SUPPORTED_CALIBRATION_MODEL")
+          PY
+      - name: Keep full native camera/time calibration research inside private 104
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import base64,hashlib,json,os,pathlib,subprocess
-          local=pathlib.Path(os.environ["V40_OUT"])/"private_e585_v44_original_native_xyz_ball.json"
+          local=pathlib.Path(os.environ["V40_OUT"])/"private_e585_v45_original_xyz_video_registration.json"
           b=local.read_bytes()
-          path="docs/cpu_animate/source_video_v44/"+local.name
+          path="docs/cpu_animate/source_video_v45/"+local.name
           api="repos/timeedmonds-maker/104/contents/"+path
-          branch=os.environ["V40_BRANCH"]
-          record={"message":"CPU Animate private V44 immutable original 10Hz XYZ and ball source diagnostic",
-                  "branch":branch,"content":base64.b64encode(b).decode("ascii")}
-          prior=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
+          record={"message":"CPU Animate private V45 direct original XYZ video temporal camera research",
+                  "branch":os.environ["V40_BRANCH"],"content":base64.b64encode(b).decode("ascii")}
+          prior=subprocess.run(["gh","api",api+"?ref="+os.environ["V40_BRANCH"]],
+                                capture_output=True,text=True)
           if prior.returncode==0:record["sha"]=json.loads(prior.stdout)["sha"]
-          payload=local.parent/"diag-v44-payload.json";payload.write_text(json.dumps(record))
-          put=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],
+          payload=local.parent/"v45-payload.json";payload.write_text(json.dumps(record))
+          post=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],
                               capture_output=True,text=True)
-          if put.returncode:raise RuntimeError("PRIVATE_NATIVE_REPORT_UPLOAD_FAILED")
-          print("SOURCE_V44_ORIGINAL_10HZ_PRIVATE_SAVE_SHA",hashlib.sha256(b).hexdigest(),
+          if post.returncode:raise RuntimeError("PRIVATE_NATIVE_PROJECTION_QA_WRITE_FAILED")
+          print("PRIVATE_NATIVE_VIDEO_CALIBRATION_SAVED",hashlib.sha256(b).hexdigest(),
                 "bytes",len(b))
           PY
       - name: Protected source cleanup
