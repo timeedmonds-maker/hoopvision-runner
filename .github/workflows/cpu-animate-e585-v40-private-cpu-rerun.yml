@@ -1,4 +1,4 @@
-name: CPU Animate e585 V45 native XYZ-to-video calibration
+name: CPU Animate e585 V46 original 10Hz XYZ ball native-first render
 on:
   push:
     branches: [main]
@@ -26,7 +26,7 @@ jobs:
       PYTHONUNBUFFERED: '1'
       V40_BRANCH: 'cpu-animate/e585-v40-attachment-continuity-possession-20261113'
       SOURCE_BRANCH: 'research/gamepulse-clock-boundary-integrity-20261025'
-      OUTPUT_TAG: 'cpu-animate-0225-e585-v43-source-tracklet-forensics-20261113'
+      OUTPUT_TAG: 'cpu-animate-0225-e585-v46-native-xyz-ball-sourcefirst-cpu-review-20261113'
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -83,57 +83,55 @@ jobs:
             --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
           echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
-      - name: Fit corrected video shoes to original 10Hz XYZ time and camera
+      - name: Run original 10Hz player and ball XYZ-first CPU tests and 592-frame render
         shell: bash
         run: |
           set -euo pipefail
           python3 -m pip install --quiet --disable-pip-version-check \
             'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'Pillow>=10,<12'
           cd "$V40_CODE"
-          # No model is called; V45 consumes original SHA-verified precomputed
-          # native XYZ and original-video segmented shoe detections only.
+          python3 -m py_compile cpu_animate/e585_v46_source_first_native_xyz_ball_render.py
           python3 - <<'PY'
-          import sys,types,os
+          import os,sys,types
           from pathlib import Path
-          fake=types.ModuleType("ultralytics")
-          def no_gpu(*a,**kw):raise RuntimeError("MODEL_NOT_ALLOWED_SOURCE_CALIBRATION")
-          fake.YOLO=no_gpu
-          sys.modules["ultralytics"]=fake
-          from cpu_animate.e585_v45_original_xyz_video_registration import fit_diagnostic
+          optional=types.ModuleType("ultralytics")
+          def forbidden(*a,**kw):raise RuntimeError("NO_GPU_OR_NEURAL_MODEL_V46")
+          optional.YOLO=forbidden
+          sys.modules["ultralytics"]=optional
+          from cpu_animate.e585_v46_source_first_native_xyz_ball_render import selftest,render
+          selftest()
           source=Path(os.environ["V40_SOURCE"])
           media=Path(os.environ["V40_MEDIA"])
           output=Path(os.environ["V40_OUT"])
-          qa=fit_diagnostic(media/"event585-playbyplay.mp4",
+          qa=render(media/"event585-playbyplay.mp4",
              media/"event585-native-video-pts.json",
              media/"scout_0225_585_videoonly_592.json.gz",
              media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
              source/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
-             source,output/"private_e585_v45_original_xyz_video_registration.json")
-          if not qa["best"]:
-              raise RuntimeError("NO_SOURCE_SUPPORTED_CALIBRATION_MODEL")
+             source,output)
+          print("V46_REAL_10HZ_SOURCE_RENDER_RESULT",
+             __import__("json").dumps({
+                "visible":qa["ring_visible_frames"],
+                "continuity":qa["continuity"],
+                "native_ball_possession_green":qa["source_native_3d_ball_green_visible"],
+                "triple":qa["all_three_visible_frames"],
+                "native_player_source":qa["source_native_game_player_counts"],
+                "mp4_sha256":qa["mp4_sha256"],
+                "production_accepted":qa["accepted_final_publication"]},
+                 sort_keys=True))
           PY
-      - name: Keep full native camera/time calibration research inside private 104
+      - name: Publish V46 original NBA 10Hz source first research MP4 ONLY to private repo
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import base64,hashlib,json,os,pathlib,subprocess
-          local=pathlib.Path(os.environ["V40_OUT"])/"private_e585_v45_original_xyz_video_registration.json"
-          b=local.read_bytes()
-          path="docs/cpu_animate/source_video_v45/"+local.name
-          api="repos/timeedmonds-maker/104/contents/"+path
-          record={"message":"CPU Animate private V45 direct original XYZ video temporal camera research",
-                  "branch":os.environ["V40_BRANCH"],"content":base64.b64encode(b).decode("ascii")}
-          prior=subprocess.run(["gh","api",api+"?ref="+os.environ["V40_BRANCH"]],
-                                capture_output=True,text=True)
-          if prior.returncode==0:record["sha"]=json.loads(prior.stdout)["sha"]
-          payload=local.parent/"v45-payload.json";payload.write_text(json.dumps(record))
-          post=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],
-                              capture_output=True,text=True)
-          if post.returncode:raise RuntimeError("PRIVATE_NATIVE_PROJECTION_QA_WRITE_FAILED")
-          print("PRIVATE_NATIVE_VIDEO_CALIBRATION_SAVED",hashlib.sha256(b).hexdigest(),
-                "bytes",len(b))
-          PY
+          test "$(find "$V40_OUT" -maxdepth 1 -name '*.mp4' | wc -l)" = 1
+          test "$(find "$V40_OUT" -maxdepth 1 -name '*_qa.json' | wc -l)" = 1
+          gh release create "$OUTPUT_TAG" "$V40_OUT"/*.mp4 "$V40_OUT"/*_qa.json "$V40_OUT"/*.jpg \
+            --repo timeedmonds-maker/104 \
+            --title 'V46 event585 CPU actual original 10Hz XYZ ball native-first three ring preview' \
+            --notes 'SHA-verified 33,639 original native timestamps Full170 and all direct 3D ball observations, image-space camera registration / review shoe correction. Frozen HoopVision 1.3, no GPU. Research preview, video-foot accuracy and exact custody transfer not physically final-certified.' \
+            --latest=false
+          echo "V46_PRIVATE_SOURCE_FIRST_NBA_MP4_RELEASE_COMPLETE"
       - name: Protected source cleanup
         if: always()
         shell: bash
