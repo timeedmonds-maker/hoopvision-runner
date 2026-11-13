@@ -37,6 +37,8 @@ jobs:
           gh auth setup-git
           git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/pasq-private"
           git -C "$RUNNER_TEMP/pasq-private" sparse-checkout set             gamepulse/fusion             gamepulse/third_party/courtsketch             data/extensions/nba_blueprint_2026_27             data/extensions/nba_gravity_2026_27
+          git -C "$RUNNER_TEMP/pasq-private" fetch -q --depth=1 origin "$SOURCE_COMMIT"
+          git -C "$RUNNER_TEMP/pasq-private" checkout -q --detach "$SOURCE_COMMIT"
           test "$(git -C "$RUNNER_TEMP/pasq-private" rev-parse HEAD)" = "$SOURCE_COMMIT"
           test -f "$RUNNER_TEMP/pasq-private/gamepulse/fusion/igp_full174_pasq_validate_v1.py"
           echo PRIVATE_PASQ_PINNED_SOURCE_CHECKOUT_OK
