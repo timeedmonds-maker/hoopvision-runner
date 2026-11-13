@@ -1,4 +1,4 @@
-name: CPU Animate e585 V46 original native XYZ video visual readback
+name: CPU Animate e585 V47 exact guarded 10Hz XYZ source audit
 on:
   push:
     branches: [main]
@@ -71,7 +71,9 @@ jobs:
           git -C "$source" sparse-checkout set --no-cone \
             '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json' \
             '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/original-native-*.jsonl.gz' \
-            '/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json'
+            '/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/guarded-p2b-s1-10hz-candidate.jsonl.gz' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/guarded-p2b-event-actor-s1-10hz-shadow-v3.jsonl.gz'
           git -C "$source" checkout --quiet "$SOURCE_BRANCH"
           test "$(find "$source/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1" -name 'original-native-*.jsonl.gz' | wc -l)" = 17
           gh release download cpu-animate-0022600225-event585-playbyplay-v20-source-20261112 \
@@ -83,68 +85,33 @@ jobs:
             --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
           echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
-      - name: Decode actual V46 10Hz native first output and build exact source-side-by-side samples
+      - name: Audit the actual 10Hz guarded layer's exact original-vs-reconstruction source grades
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet --disable-pip-version-check 'numpy==1.26.4' 'opencv-python-headless==4.10.0.84'
-          gh release download cpu-animate-0225-e585-v46-native-xyz-ball-sourcefirst-cpu-review-20261113 \
-            --repo timeedmonds-maker/104 --dir "$V40_OUT" --pattern '*.mp4'
           cd "$V40_CODE"
-          python3 - <<'PY'
-          import os,base64,cv2,hashlib,subprocess,pathlib,json
-          home=pathlib.Path(os.environ["V40_OUT"])
-          media=pathlib.Path(os.environ["V40_MEDIA"])/"event585-playbyplay.mp4"
-          video=list(home.glob("*.mp4"))
-          if len(video)!=1:raise ValueError("V46_MP4_MISSING")
-          video=video[0]
-          if hashlib.sha256(video.read_bytes()).hexdigest()!="8500456eeae61d4af0fc81fbd6f69a30ee3eacffcf2b315bd3e70efd9baf8489":
-              raise ValueError("ORIGINAL_XYZ_SOURCE_RENDER_SHA_MISMATCH")
-          a=cv2.VideoCapture(str(media));b=cv2.VideoCapture(str(video))
-          selected=(30,72,120,132,150,162,190,225,240,248,252,260,270,282,300,312,325,350,400,492,552)
-          if not a.isOpened() or not b.isOpened():raise ValueError("BAD_ORIGINAL_OR_REVIEW_MP4")
-          count=0
-          for j in selected:
-              a.set(cv2.CAP_PROP_POS_FRAMES,j);b.set(cv2.CAP_PROP_POS_FRAMES,j)
-              ok,x=a.read();yes,y=b.read()
-              if not ok or not yes:raise ValueError("MISSING_REVIEW_FRAME")
-              x=cv2.resize(x,(480,270),interpolation=cv2.INTER_AREA)
-              y=cv2.resize(y,(480,270),interpolation=cv2.INTER_AREA)
-              both=cv2.hconcat((x,y))
-              cv2.putText(both,f"F{j:03d} ORIGINAL", (10,25),cv2.FONT_HERSHEY_SIMPLEX,.55,(0,0,0),3)
-              cv2.putText(both,f"F{j:03d} ORIGINAL", (10,25),cv2.FONT_HERSHEY_SIMPLEX,.55,(255,255,255),1)
-              cv2.putText(both,f"F{j:03d} V46 NATIVE 10Hz", (485,25),cv2.FONT_HERSHEY_SIMPLEX,.52,(0,0,0),3)
-              cv2.putText(both,f"F{j:03d} V46 NATIVE 10Hz", (485,25),cv2.FONT_HERSHEY_SIMPLEX,.52,(255,255,255),1)
-              ok,payload=cv2.imencode(".jpg",both,[cv2.IMWRITE_JPEG_QUALITY,75])
-              if not ok:raise ValueError("JPEG_FAIL")
-              target=home/f"private_v46_frame_{j:03d}_side_by_side.jpeg.b64.txt"
-              target.write_text(base64.b64encode(payload.tobytes()).decode("ascii")+"\n")
-              count+=1
-          a.release();b.release()
-          print("V46_ACTUAL_MP4_SOURCE_VIDEO_SIDE_BY_SIDE_FRAMES_READY",count)
-          PY
-      - name: Preserve V46 original and native comparison privately only, no public frames
+          python3 -m cpu_animate.e585_v47_exact_guarded_10hz_schema_audit \
+            --root "$V40_SOURCE" \
+            --out "$V40_OUT/private_e585_v47_10hz_schema.json"
+          test -s "$V40_OUT/private_e585_v47_10hz_schema.json"
+      - name: Preserve exact source 10Hz grade/schema research inside private 104 only
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
           import base64,hashlib,json,os,pathlib,subprocess
-          folder=pathlib.Path(os.environ["V40_OUT"])
-          for local in sorted(folder.glob("private_v46_frame_*.b64.txt")):
-              content=local.read_bytes()
-              path="docs/cpu_animate/source_video_v46_review/"+local.name
-              api="repos/timeedmonds-maker/104/contents/"+path
-              request={"message":"CPU Animate V46 private exact-frame original/native playback visual QA "+local.name,
-                       "branch":os.environ["V40_BRANCH"],
-                       "content":base64.b64encode(content).decode("ascii")}
-              prior=subprocess.run(["gh","api",api+"?ref="+os.environ["V40_BRANCH"]],
-                                capture_output=True,text=True)
-              if prior.returncode==0:request["sha"]=json.loads(prior.stdout)["sha"]
-              payload=folder/(local.name+".json");payload.write_text(json.dumps(request))
-              posted=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],
-                                capture_output=True,text=True)
-              if posted.returncode:raise RuntimeError("PRIVATE_SOURCE_FRAME_WRITE_FAILURE")
-              print("PRIVATE_V46_VIDEO_FRAME_ARCHIVED",local.name,hashlib.sha256(content).hexdigest())
+          local=pathlib.Path(os.environ["V40_OUT"])/"private_e585_v47_10hz_schema.json"
+          b=local.read_bytes()
+          path="docs/cpu_animate/source_video_v47/"+local.name
+          api="repos/timeedmonds-maker/104/contents/"+path
+          record={"message":"CPU Animate exact play original and guarded 10Hz NBA tracking schema provenance",
+             "branch":os.environ["V40_BRANCH"],"content":base64.b64encode(b).decode("ascii")}
+          old=subprocess.run(["gh","api",api+"?ref="+os.environ["V40_BRANCH"]],capture_output=True,text=True)
+          if old.returncode==0:record["sha"]=json.loads(old.stdout)["sha"]
+          payload=local.parent/"v47-10hz-payload.json";payload.write_text(json.dumps(record))
+          sent=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],capture_output=True,text=True)
+          if sent.returncode:raise RuntimeError("10HZ_PRIVATE_SOURCE_AUDIT_UPLOAD_FAILED")
+          print("V47_PRIVATE_10HZ_SOURCE_SCHEMA_SAVED",hashlib.sha256(b).hexdigest(),len(b))
           PY
       - name: Protected source cleanup
         if: always()
