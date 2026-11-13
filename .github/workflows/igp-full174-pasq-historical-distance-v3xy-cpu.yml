@@ -18,7 +18,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/full174-pasq-historical-distance-widening-20261114
-      SOURCE_COMMIT: 530b8e1552da5b4285f81d3520bf1be89366d217
+      SOURCE_COMMIT: e5bb233c4ab8d849c48b0736006560b169e85ac8
     steps:
       - name: Authenticate and SHA-pin Full174 original source code
         shell: bash
