@@ -36,9 +36,13 @@ jobs:
           set -euo pipefail
           python3 tools/public_content_guard.py
           test -n "${GH_TOKEN:-}" || { echo "BLOCKED: Private source credentials unavailable"; exit 2; }
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = "true"
-          test ! -e /dev/nvidia0 && test ! -e /dev/kfd
-          command -v ffmpeg
+          private_flag="$(gh api repos/timeedmonds-maker/104 --jq .private)" || { echo "PRIVATE_REPO_ACCESS_FAILED"; exit 3; }
+          test "$private_flag" = "true" || { echo "PRIVATE_DESTINATION_NOT_PRIVATE"; exit 3; }
+          test ! -e /dev/nvidia0 && test ! -e /dev/kfd || { echo "GPU_DEVICE_PRESENT_REJECTED"; exit 3; }
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
           echo "PUBLIC_BOUNDARY_AND_NO_GPU_PASS"
       - name: Prepare pinned private V40 source and immutable NBA original assets
         shell: bash
