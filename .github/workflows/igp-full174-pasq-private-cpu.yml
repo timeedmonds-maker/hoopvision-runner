@@ -20,7 +20,7 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
-      SOURCE_BRANCH: analysis/full174-player-adjusted-shot-quality-20261114
+      SOURCE_BRANCH: analysis/full174-pasq-pinned-evaluation-20261114
       SOURCE_COMMIT: 54576f30e258dd97e102e9f7a4da8a7dafe4bd7
     steps:
       - name: Check authenticated private-only execution boundary
