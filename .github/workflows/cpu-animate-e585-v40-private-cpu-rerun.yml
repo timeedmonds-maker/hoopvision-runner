@@ -104,15 +104,26 @@ jobs:
           media=Path(os.environ["V40_MEDIA"])
           source=Path(os.environ["V40_SOURCE"])
           output=Path(os.environ["V40_OUT"])
-          qa=render(
-            media/"event585-playbyplay.mp4",
-            media/"event585-native-video-pts.json",
-            media/"scout_0225_585_videoonly_592.json.gz",
-            media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
-            source/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
-            source,
-            SOURCE_NATIVE_SHA,
-            output)
+          import contextlib
+          private_log=output/"v40_private_execution_log.txt"
+          try:
+              with private_log.open("w") as log, contextlib.redirect_stdout(log), contextlib.redirect_stderr(log):
+                  qa=render(
+                    media/"event585-playbyplay.mp4",
+                    media/"event585-native-video-pts.json",
+                    media/"scout_0225_585_videoonly_592.json.gz",
+                    media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
+                    source/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
+                    source,
+                    SOURCE_NATIVE_SHA,
+                    output)
+          except Exception as e:
+              # Never print private NBA XYZ, timestamp tables, or video frames
+              # to the public Actions log. The error code itself is safe.
+              print("V40_RENDER_ERROR_TYPE",type(e).__name__)
+              if isinstance(e,(ValueError,AssertionError,RuntimeError)):
+                  print("V40_RENDER_ERROR_CODE",str(e)[:160])
+              raise SystemExit(21)
           print("V40_CPU_RENDER_COMPLETE",json.dumps({
             "ring_counts":qa["ring_counts"],
             "visible_render_counts":qa["visible_render_counts"],
