@@ -21,7 +21,7 @@ jobs:
           PY
       - name: Create harmless synthetic sample
         run: |
-          printf 'CPU ANIMATE FILE BRIDGE SYNTHETIC ONLY\n' > synthetic_test.txt
+          printf 'CPU ANIMATE FILE BRIDGE SYNTHETIC ONLY - V50 20261113\n' > synthetic_test.txt
       - uses: actions/upload-artifact@v4
         with:
           name: cpu-animate-synthetic-test
