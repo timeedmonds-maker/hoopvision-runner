@@ -18,7 +18,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/full174-pasq-distance-window-sweep-20261114
-      SOURCE_COMMIT: ebda21a661f1a17aa5cac938d8db76142e972ded
+      SOURCE_COMMIT: a7769f557c402f1fbaae1f4d0874b89e6835f23b
     steps:
       - name: Authenticate and SHA-pin Full174 original source code
         shell: bash
