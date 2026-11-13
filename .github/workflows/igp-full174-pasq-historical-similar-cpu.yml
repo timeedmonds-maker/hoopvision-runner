@@ -18,7 +18,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/full174-pasq-historical-recency-20261114
-      SOURCE_COMMIT: 03f57674e6bf15f12c8263ba3a9124d848ffe874
+      SOURCE_COMMIT: d96ad8ce35e49e05eba81c4eb3297591619b6abb
     steps:
       - name: Verify authenticated private source boundary
         shell: bash
