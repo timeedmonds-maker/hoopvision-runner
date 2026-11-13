@@ -1,0 +1,113 @@
+# CPU-only, reviewed private-source research audit. This PUBLIC workflow contains no
+# NBA original player coordinates, licensed events, media bytes, private methods,
+# or team/player results. All generated receipts are stored in private 104.
+name: IGP Full174 shooter-adjusted xFG private CPU audit
+on:
+  push:
+    branches: [research/igp-full174-pasq-private-cpu-20261114]
+    paths: ['.github/workflows/igp-full174-pasq-private-cpu.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: igp-pasq-full174-research-once
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GIT_TERMINAL_PROMPT: '0'
+      PRIVATE_REPO: timeedmonds-maker/104
+      SOURCE_BRANCH: analysis/full174-player-adjusted-shot-quality-20261114
+      SOURCE_COMMIT: 6bd2a73cde197bd57a38da419a8e1f528148ddda
+    steps:
+      - name: Check authenticated private-only execution boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/"$PRIVATE_REPO" --jq .private)" = true
+          echo PRIVATE_PASQ_AUTHORIZED_CPU_BOUNDARY_OK
+      - name: Clone pinned private source and frozen original archives (sparse)
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/pasq-private"
+          git -C "$RUNNER_TEMP/pasq-private" sparse-checkout set             gamepulse/fusion             gamepulse/third_party/courtsketch             data/extensions/nba_blueprint_2026_27             data/extensions/nba_gravity_2026_27
+          test "$(git -C "$RUNNER_TEMP/pasq-private" rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test -f "$RUNNER_TEMP/pasq-private/gamepulse/fusion/igp_full174_pasq_validate_v1.py"
+          echo PRIVATE_PASQ_PINNED_SOURCE_CHECKOUT_OK
+      - name: Run source-free tests and full 174-game original-PBP/Blueprint/companion shot analysis
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/pasq-private"
+          mkdir -p "$RUNNER_TEMP/pasq-output"
+          set +e
+          python3 -m unittest discover -s gamepulse/fusion/tests -p test_igp_full174_pasq_v1.py -v > "$RUNNER_TEMP/pasq-output/unit.log" 2>&1
+          test_status=$?
+          if test "$test_status" -eq 0; then
+            python3 gamepulse/fusion/igp_full174_pasq_v1.py --root .               --output-prefix "$RUNNER_TEMP/pasq-output/full174_pasq_v1"               > "$RUNNER_TEMP/pasq-output/extract.log" 2>&1
+            extract_status=$?
+          else
+            extract_status=99
+          fi
+          if test "$extract_status" -eq 0; then
+            python3 gamepulse/fusion/igp_full174_pasq_validate_v1.py               --shots "$RUNNER_TEMP/pasq-output/full174_pasq_v1.prequential-shots.jsonl"               --output-prefix "$RUNNER_TEMP/pasq-output/full174_pasq_v1"               > "$RUNNER_TEMP/pasq-output/evaluation.log" 2>&1
+            evaluate_status=$?
+          else
+            evaluate_status=99
+          fi
+          set -e
+          printf '{"tests":%d,"extract":%d,"evaluation":%d}\n' "$test_status" "$extract_status" "$evaluate_status" > "$RUNNER_TEMP/pasq-output/status.json"
+          # Error details remain private. No original NBA source bytes in public logs.
+          if test "$test_status" -ne 0 || test "$extract_status" -ne 0 || test "$evaluate_status" -ne 0; then
+            echo PRIVATE_PASQ_SOURCE_EXECUTION_FAILED_SEE_PRIVATE_RECEIPT
+          else
+            echo PRIVATE_PASQ_FULL174_RESEARCH_EVALUATION_COMPLETED
+          fi
+      - name: Save detailed evaluation or failure receipt exclusively in authenticated private GitHub
+        shell: bash
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,sys,time
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'pasq-output'
+          repo=os.environ['PRIVATE_REPO'];branch=os.environ['SOURCE_BRANCH']
+          root.mkdir(exist_ok=True)
+          state=json.loads((root/'status.json').read_text()) if (root/'status.json').exists() else {'setup_failed':True}
+          src=os.environ['SOURCE_COMMIT']
+          if all(v==0 for v in state.values()) and len(state)==3:
+              names={
+                 'receipt.json':'full174_pasq_v1.qa.json',
+                 'evaluation.json':'full174_pasq_v1.evaluation.json',
+                 'team-ranking-research.json':'full174_pasq_v1.team-ranking-research.json'}
+              entries=[(n,(root/orig).read_bytes()) for n,orig in names.items()]
+          else:
+              # No coordinates, tokens, or licensed records in this private failure report.
+              detail={'status':'FAIL','stage_returncodes':state,'source_commit':src,
+                      'unit_log_tail':(root/'unit.log').read_text()[-7000:] if (root/'unit.log').exists() else '',
+                      'extract_log_tail':(root/'extract.log').read_text()[-7000:] if (root/'extract.log').exists() else '',
+                      'evaluation_log_tail':(root/'evaluation.log').read_text()[-7000:] if (root/'evaluation.log').exists() else ''}
+              entries=[('failure.json',json.dumps(detail,sort_keys=True,indent=2).encode())]
+          for name,data in entries:
+              path=f'gamepulse/fusion/qa/pasq_full174_execution_20261114/{name}'
+              url=f'repos/{repo}/contents/{path}'
+              payload={'branch':branch,'message':f'qa(private): Full174 PASQ CPU {name}',
+                       'content':base64.b64encode(data).decode()}
+              for attempt in range(8):
+                  get=subprocess.run(['gh','api',url+'?ref='+branch],capture_output=True,text=True)
+                  request=dict(payload)
+                  if get.returncode==0:request['sha']=json.loads(get.stdout)['sha']
+                  post=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                     input=json.dumps(request),capture_output=True,text=True)
+                  if post.returncode==0:break
+                  time.sleep(1+attempt)
+              else:raise RuntimeError('PRIVATE_RESULT_WRITE_FAILED')
+          print('PRIVATE_PASQ_SOURCE_EVIDENCE_RECEIPT_COMMITTED')
+          if not all(v==0 for v in state.values()):sys.exit(1)
+          PY
