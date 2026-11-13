@@ -37,6 +37,9 @@ jobs:
           git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion \
             gamepulse/third_party/courtsketch data/extensions/nba_blueprint_2026_27 \
             data/extensions/nba_gravity_2026_27
+          # Source branch QA receipts may advance HEAD; execute the immutable code SHA.
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$SOURCE_COMMIT"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$SOURCE_COMMIT"
           test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$SOURCE_COMMIT"
           test -f "$RUNNER_TEMP/private/gamepulse/fusion/igp_full174_pasq_historical_similar_v1.py"
           mkdir -p "$RUNNER_TEMP/history" "$RUNNER_TEMP/output"
