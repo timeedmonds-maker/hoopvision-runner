@@ -1,0 +1,110 @@
+name: IGP Full174 KD SGA Amen Castle player xPPS examples
+on:
+  push:
+    branches: [research/igp-full174-pasq-private-cpu-20261114]
+    paths: ['.github/workflows/igp-full174-pasq-four-player-cpu-20261114.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full174-pasq-four-players-20261114
+  cancel-in-progress: false
+jobs:
+  shot_examples:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 95
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GIT_TERMINAL_PROMPT: '0'
+      PRIVATE_REPO: timeedmonds-maker/104
+      SOURCE_BRANCH: analysis/full174-pasq-historical-recency-20261114
+      SOURCE_COMMIT: a5837a8da40e19e1a01e13eba810d42da9990e3b
+    steps:
+      - name: Verify private source, checkout SHA pinned code and download source shards
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/"$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$SOURCE_COMMIT"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$SOURCE_COMMIT"
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$SOURCE_COMMIT"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion \
+            gamepulse/third_party/courtsketch data/extensions/nba_blueprint_2026_27 \
+            data/extensions/nba_gravity_2026_27
+          test -f "$RUNNER_TEMP/private/gamepulse/fusion/igp_full174_pasq_four_player_shot_examples_v1.py"
+          mkdir -p "$RUNNER_TEMP/history" "$RUNNER_TEMP/output"
+          gh release download igp-2025-26-xfg-archive-20261105 \
+            --repo "$PRIVATE_REPO" --pattern 'nba-xfg-*.jsonl.gz' \
+            --pattern 'nba-xfg-*-qa.json' --dir "$RUNNER_TEMP/history"
+          gh release download igp-public-gamepulse-2025-26-20261105 \
+            --repo "$PRIVATE_REPO" --pattern 'nba-2025-26-source-index.json' \
+            --dir "$RUNNER_TEMP/history"
+          test "$(find "$RUNNER_TEMP/history" -name 'nba-xfg-*.jsonl.gz' | wc -l)" -eq 15
+          test "$(find "$RUNNER_TEMP/history" -name 'nba-xfg-*-qa.json' | wc -l)" -eq 15
+          test "$(sha256sum "$RUNNER_TEMP/history/nba-2025-26-source-index.json" | cut -d' ' -f1)" = b17861f106f3eed544f745fba26fe42e7a81a33a0e4c67d460d2da9d959fee47
+          echo PRIVATE_SHOTS_SOURCE_READY
+      - name: Execute regression and player-level examples
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          set +e
+          PYTHONPATH=gamepulse/fusion python3 -m unittest -q \
+            gamepulse/fusion/tests/test_igp_full174_pasq_historical_similar_v1.py \
+            > "$RUNNER_TEMP/output/tests.log" 2>&1
+          tests=$?
+          model=99
+          if test "$tests" -eq 0; then
+            PYTHONPATH=gamepulse/fusion python3 gamepulse/fusion/igp_full174_pasq_four_player_shot_examples_v1.py \
+              --root . --source-index "$RUNNER_TEMP/history/nba-2025-26-source-index.json" \
+              --historical-dir "$RUNNER_TEMP/history" \
+              --output "$RUNNER_TEMP/output/examples.json" \
+              > "$RUNNER_TEMP/output/model.log" 2>&1
+            model=$?
+          fi
+          set -e
+          printf '{"tests":%s,"model":%s}\n' "$tests" "$model" > "$RUNNER_TEMP/output/status.json"
+          if test "$tests" -eq 0 && test "$model" -eq 0; then
+            echo PLAYER_EXAMPLES_PRIVATE_QA_SUCCESS
+          else
+            echo PLAYER_EXAMPLES_PRIVATE_QA_FAILURE
+          fi
+      - name: Preserve example receipts in private 104 repository only
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,pathlib,subprocess,base64,time,sys
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'output';root.mkdir(exist_ok=True)
+          st=json.loads((root/'status.json').read_text()) if (root/'status.json').exists() else {'setup_failed':True}
+          good=st.get('tests')==0 and st.get('model')==0 and (root/'examples.json').is_file()
+          if good:
+              entries=[('examples.json',(root/'examples.json').read_bytes())]
+          else:
+              entries=[('failure.json',(json.dumps({'source_commit':os.environ['SOURCE_COMMIT'],
+                        'stage_returncodes':st},sort_keys=True)+'\n').encode())]
+              for name in ('tests.log','model.log'):
+                  p=root/name
+                  if p.exists():entries.append((name,p.read_bytes()[-24000:]))
+          for name,data in entries:
+              path='gamepulse/fusion/qa/pasq_full174_four_player_examples_20261114/'+name
+              endpoint='repos/'+os.environ['PRIVATE_REPO']+'/contents/'+path
+              base={'branch':os.environ['SOURCE_BRANCH'],'message':'qa(private): four-player PASQ '+name,
+                    'content':base64.b64encode(data).decode()}
+              for attempt in range(8):
+                  req=subprocess.run(['gh','api',endpoint+'?ref='+os.environ['SOURCE_BRANCH']],
+                                     capture_output=True,text=True)
+                  payload=dict(base)
+                  if req.returncode==0:payload['sha']=json.loads(req.stdout)['sha']
+                  put=subprocess.run(['gh','api','-X','PUT',endpoint,'--input','-'],
+                                     input=json.dumps(payload),capture_output=True,text=True)
+                  if put.returncode==0:break
+                  time.sleep(attempt+1)
+              else:raise RuntimeError('PRIVATE_EXAMPLES_RECEIPT_WRITE_FAILED')
+          print('PRIVATE_PLAYER_SHOT_EXAMPLES_RECEIPT_COMMITTED')
+          if not good:sys.exit(1)
+          PY
