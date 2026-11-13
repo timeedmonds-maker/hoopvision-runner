@@ -1,0 +1,144 @@
+name: CPU Animate e585 V40 CPU private source diagnosis and render
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/cpu-animate-e585-v40-private-cpu-rerun.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpu-animate-e585-v40-source-review
+  cancel-in-progress: false
+
+jobs:
+  source-verified-v40-cpu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: 'none'
+      OPENCV_OPENCL_RUNTIME: disabled
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+      PYTHONUNBUFFERED: '1'
+      V40_BRANCH: 'cpu-animate/e585-v40-attachment-continuity-possession-20261113'
+      SOURCE_BRANCH: 'research/gamepulse-clock-boundary-integrity-20261025'
+      OUTPUT_TAG: 'cpu-animate-0225-e585-v40-footlock-possession-cpu-review-20261113'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Check public safety and CPU-only execution
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "${GH_TOKEN:-}" || { echo "BLOCKED: Private source credentials unavailable"; exit 2; }
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = "true"
+          test ! -e /dev/nvidia0 && test ! -e /dev/kfd
+          command -v ffmpeg
+          echo "PUBLIC_BOUNDARY_AND_NO_GPU_PASS"
+      - name: Prepare pinned private V40 source and immutable NBA original assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/cpu-e585-v40"
+          code="$root/code"
+          source="$root/source"
+          media="$root/media"
+          out="$root/qa"
+          mkdir -p "$code" "$source" "$media" "$out"
+          chmod 700 "$root" "$code" "$source" "$media" "$out"
+          echo "V40_CODE=$code" >> "$GITHUB_ENV"
+          echo "V40_SOURCE=$source" >> "$GITHUB_ENV"
+          echo "V40_MEDIA=$media" >> "$GITHUB_ENV"
+          echo "V40_OUT=$out" >> "$GITHUB_ENV"
+          gh auth setup-git
+          git clone --quiet --filter=blob:none --depth=1 --no-checkout -b "$V40_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$code"
+          git -C "$code" sparse-checkout init --cone
+          git -C "$code" sparse-checkout set cpu_animate tools
+          git -C "$code" checkout --quiet "$V40_BRANCH"
+          git clone --quiet --filter=blob:none --depth=1 --no-checkout -b "$SOURCE_BRANCH" \
+            https://github.com/timeedmonds-maker/104.git "$source"
+          git -C "$source" sparse-checkout init --no-cone
+          git -C "$source" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1/original-native-*.jsonl.gz' \
+            '/gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json'
+          git -C "$source" checkout --quiet "$SOURCE_BRANCH"
+          test "$(find "$source/gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1" -name 'original-native-*.jsonl.gz' | wc -l)" = 17
+          gh release download cpu-animate-0022600225-event585-playbyplay-v20-source-20261112 \
+            --repo timeedmonds-maker/104 --dir "$media" --pattern 'event585-playbyplay.mp4'
+          gh release download cpu-animate-rockets-0225-e585-v21-source-shoe-scout-20261112 \
+            --repo timeedmonds-maker/104 --dir "$media" \
+            --pattern 'event585-native-video-pts.json' \
+            --pattern 'scout_0225_585_videoonly_592.json.gz' \
+            --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
+          test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
+          echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
+      - name: Run CPU-only V40 regressions then original 592-frame source render
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check \
+            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'Pillow>=10,<12'
+          cd "$V40_CODE"
+          python3 -m py_compile cpu_animate/warriors_0225_e585_v40_source_video_rings.py
+          python3 -m unittest cpu_animate.test_warriors_e585_v40_ring_quality -v
+          # Original published V23/early V6 imports YOLO at module import time,
+          # but this 592-frame render consumes the SHA-verified precomputed
+          # segmentation/track scout; no neural model is invoked or installed.
+          python3 - <<'PY'
+          import sys, types
+          optional=types.ModuleType("ultralytics")
+          def forbidden_model(*a,**kw):
+              raise RuntimeError("GPU_OR_MODEL_NOT_PERMITTED_FOR_V40_RENDER")
+          optional.YOLO=forbidden_model
+          sys.modules["ultralytics"]=optional
+          from pathlib import Path
+          from cpu_animate.warriors_0225_e585_v40_source_video_rings import render, SOURCE_NATIVE_SHA
+          import os,json
+          media=Path(os.environ["V40_MEDIA"])
+          source=Path(os.environ["V40_SOURCE"])
+          output=Path(os.environ["V40_OUT"])
+          qa=render(
+            media/"event585-playbyplay.mp4",
+            media/"event585-native-video-pts.json",
+            media/"scout_0225_585_videoonly_592.json.gz",
+            media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
+            source/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
+            source,
+            SOURCE_NATIVE_SHA,
+            output)
+          print("V40_CPU_RENDER_COMPLETE",json.dumps({
+            "ring_counts":qa["ring_counts"],
+            "visible_render_counts":qa["visible_render_counts"],
+            "ring_continuity":qa["per_player_visible_ring_continuity"],
+            "green_rendered_frames":qa["green_rendered_frames"],
+            "mp4_sha256":qa["mp4_sha256"],
+            "all_three_visible_frames":qa["all_three_independently_visible_frames"],
+            "accepted_for_publication":qa["accepted_for_final_publication"],
+          },sort_keys=True))
+          PY
+      - name: Publish research-only MP4 and exact QA to private release
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find "$V40_OUT" -maxdepth 1 -name '*_qa.json' | wc -l)" = 1
+          test "$(find "$V40_OUT" -maxdepth 1 -name '*.mp4' | wc -l)" = 1
+          gh release create "$OUTPUT_TAG" "$V40_OUT"/*.mp4 "$V40_OUT"/*_qa.json "$V40_OUT"/*.jpg \
+            --repo timeedmonds-maker/104 \
+            --title 'CPU Animate V40 e585 CPU source-foot continuity research preview' \
+            --notes 'CPU-only, original SHA-pinned event585 video, frozen HoopVision. Bogdan positive HOU source-video foot; Amen/Sengun guarded smoothing and custody. NOT physically frame-certified or accepted for publication; inspect reviewed scoring scene and per-player gaps.' \
+            --latest=false
+          gh release view "$OUTPUT_TAG" --repo timeedmonds-maker/104 --json assets --jq '.assets[].name'
+          echo "V40_REVIEW_VIDEO_PUBLISHED_PRIVATE_ONLY"
+      - name: Protected source cleanup
+        if: always()
+        shell: bash
+        run: |
+          rm -rf "$RUNNER_TEMP/cpu-e585-v40"
+          echo "PRIVATE_NBA_SOURCE_AND_XYZ_REMOVED_FROM_PUBLIC_RUNNER"
