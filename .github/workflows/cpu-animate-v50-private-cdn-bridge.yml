@@ -22,7 +22,7 @@ jobs:
           python3 tools/public_content_guard.py
           test -n "${GH_TOKEN:-}"
           test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
-          echo "PRIVATE_SOURCE_ONLY"
+          echo "PRIVATE_SOURCE_ONLY_VALIDATED"
       - name: Obtain short-lived GitHub release asset CDN redirect and persist privately
         shell: bash
         run: |
