@@ -1,5 +1,5 @@
 # Opaque public runner; private NBA records and detailed results stay in 104.
-name: IGP Full174 historical similar-shot private CPU audit
+name: IGP Full174 recency-weighted historical similar-shot private CPU audit
 on:
   push:
     branches: [research/igp-full174-pasq-private-cpu-20261114]
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
-  group: igp-full174-pasq-historical-similar-once
+  group: igp-full174-pasq-historical-recency-20261114-once
   cancel-in-progress: false
 jobs:
   run:
@@ -17,8 +17,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
-      SOURCE_BRANCH: analysis/full174-pasq-historical-similar-20261114
-      SOURCE_COMMIT: 15d001264e5c4970b570e60a66a2d4734edc055f
+      SOURCE_BRANCH: analysis/full174-pasq-historical-recency-20261114
+      SOURCE_COMMIT: d2d333eb17ed2acaa61285c8328f6716805d9d95
     steps:
       - name: Verify authenticated private source boundary
         shell: bash
@@ -99,7 +99,7 @@ jobs:
               entries=[('failure.json',(json.dumps(detail,indent=2)+'\n').encode())]
           repo=os.environ['PRIVATE_REPO'];branch=os.environ['SOURCE_BRANCH']
           for name,data in entries:
-              path='gamepulse/fusion/qa/pasq_full174_historical_20261114/'+name
+              path='gamepulse/fusion/qa/pasq_full174_historical_recency_20261114/'+name
               url='repos/'+repo+'/contents/'+path
               payload={'branch':branch,'message':'qa(private): Full174 historical similar shot '+name,
                        'content':base64.b64encode(data).decode()}
