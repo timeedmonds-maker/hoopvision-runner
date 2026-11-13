@@ -1,0 +1,117 @@
+# Opaque public runner; private NBA records and detailed results stay in 104.
+name: IGP Full174 historical similar-shot private CPU audit
+on:
+  push:
+    branches: [research/igp-full174-pasq-private-cpu-20261114]
+    paths: ['.github/workflows/igp-full174-pasq-historical-similar-cpu.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full174-pasq-historical-similar-once
+  cancel-in-progress: false
+jobs:
+  run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GIT_TERMINAL_PROMPT: '0'
+      PRIVATE_REPO: timeedmonds-maker/104
+      SOURCE_BRANCH: analysis/full174-pasq-historical-similar-20261114
+      SOURCE_COMMIT: 15d001264e5c4970b570e60a66a2d4734edc055f
+    steps:
+      - name: Verify authenticated private source boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/"$PRIVATE_REPO" --jq .private)" = true
+          echo HISTORICAL_PASQ_PRIVATE_BOUNDARY_OK
+      - name: Clone source-pinned research code and download SHA-checked private history
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion \
+            gamepulse/third_party/courtsketch data/extensions/nba_blueprint_2026_27 \
+            data/extensions/nba_gravity_2026_27
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test -f "$RUNNER_TEMP/private/gamepulse/fusion/igp_full174_pasq_historical_similar_v1.py"
+          mkdir -p "$RUNNER_TEMP/history" "$RUNNER_TEMP/output"
+          gh release download igp-2025-26-xfg-archive-20261105 \
+            --repo "$PRIVATE_REPO" --pattern 'nba-xfg-*.jsonl.gz' \
+            --pattern 'nba-xfg-*-qa.json' --dir "$RUNNER_TEMP/history"
+          gh release download igp-public-gamepulse-2025-26-20261105 \
+            --repo "$PRIVATE_REPO" --pattern 'nba-2025-26-source-index.json' \
+            --dir "$RUNNER_TEMP/history"
+          test "$(find "$RUNNER_TEMP/history" -name 'nba-xfg-*.jsonl.gz' | wc -l)" -eq 15
+          test "$(find "$RUNNER_TEMP/history" -name 'nba-xfg-*-qa.json' | wc -l)" -eq 15
+          test "$(sha256sum "$RUNNER_TEMP/history/nba-2025-26-source-index.json" | cut -d' ' -f1)" = \
+            b17861f106f3eed544f745fba26fe42e7a81a33a0e4c67d460d2da9d959fee47
+          echo HISTORICAL_PASQ_15_SHARD_SOURCE_READY
+      - name: Run regression and real Full174 historical comparison
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          set +e
+          PYTHONPATH=gamepulse/fusion python3 -m unittest -v \
+            gamepulse/fusion/tests/test_igp_full174_pasq_historical_similar_v1.py \
+            > "$RUNNER_TEMP/output/tests.log" 2>&1
+          tests=$?
+          if test "$tests" -eq 0; then
+            PYTHONPATH=gamepulse/fusion python3 gamepulse/fusion/igp_full174_pasq_historical_similar_v1.py \
+              --root . --source-index "$RUNNER_TEMP/history/nba-2025-26-source-index.json" \
+              --historical-dir "$RUNNER_TEMP/history" \
+              --output-prefix "$RUNNER_TEMP/output/full174_historical_similar_v1" \
+              > "$RUNNER_TEMP/output/run.log" 2>&1
+            model=$?
+          else
+            model=99
+          fi
+          set -e
+          printf '{"tests":%d,"model":%d}\n' "$tests" "$model" > "$RUNNER_TEMP/output/status.json"
+          if test "$tests" -eq 0 && test "$model" -eq 0; then
+            echo HISTORICAL_PASQ_FULL174_REAL_SOURCE_COMPLETED
+          else
+            echo HISTORICAL_PASQ_FAILED_SEE_PRIVATE_RECEIPT
+          fi
+      - name: Preserve research evaluation in private repository only
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,sys,time
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'output';root.mkdir(exist_ok=True)
+          state=json.loads((root/'status.json').read_text()) if (root/'status.json').exists() else {'setup_failed':True}
+          success=(len(state)==2 and all(v==0 for v in state.values()))
+          if success:
+              entries=[('qa.json',(root/'full174_historical_similar_v1.qa.json').read_bytes()),
+                       ('teams.json',(root/'full174_historical_similar_v1.teams.json').read_bytes())]
+          else:
+              # Never echo private shot rows, player records or command logs publicly.
+              detail={'status':'FAIL','source_commit':os.environ['SOURCE_COMMIT'],'stage_returncodes':state,
+                      'test_error_class':'FAILED' if state.get('tests',0) else None,
+                      'model_error_class':'FAILED' if state.get('model',0) else None}
+              entries=[('failure.json',(json.dumps(detail,indent=2)+'\n').encode())]
+          repo=os.environ['PRIVATE_REPO'];branch=os.environ['SOURCE_BRANCH']
+          for name,data in entries:
+              path='gamepulse/fusion/qa/pasq_full174_historical_20261114/'+name
+              url='repos/'+repo+'/contents/'+path
+              payload={'branch':branch,'message':'qa(private): Full174 historical similar shot '+name,
+                       'content':base64.b64encode(data).decode()}
+              for attempt in range(8):
+                  get=subprocess.run(['gh','api',url+'?ref='+branch],capture_output=True,text=True)
+                  body=dict(payload)
+                  if get.returncode==0:body['sha']=json.loads(get.stdout)['sha']
+                  post=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],input=json.dumps(body),
+                                      capture_output=True,text=True)
+                  if post.returncode==0:break
+                  time.sleep(1+attempt)
+              else:raise RuntimeError('PRIVATE_RESULT_WRITE_FAILED')
+          print('HISTORICAL_PASQ_PRIVATE_RECEIPT_COMMITTED')
+          if not success:sys.exit(1)
+          PY
