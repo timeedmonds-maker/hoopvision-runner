@@ -96,7 +96,7 @@ jobs:
               detail={'status':'FAIL','source_commit':os.environ['SOURCE_COMMIT'],'stage_returncodes':state,
                       'test_error_class':'FAILED' if state.get('tests',0) else None,
                       'model_error_class':'FAILED' if state.get('model',0) else None}
-              entries=[('failure.json',(json.dumps(detail,indent=2)+'\\n').encode())]
+              entries=[('failure.json',(json.dumps(detail,indent=2)+'\n').encode())]
               # Test diagnostics are source-free but still retained in the PRIVATE repo.
               test_log=root/'tests.log'
               if test_log.exists():entries.append(('tests.log',test_log.read_bytes()[-32000:]))
