@@ -1,8 +1,8 @@
 # NBA 2026-11-11 US slate: source-only finished-game companion/biomechanics recovery.
 # No GPU, no paid compute, no private source in this public repository.
 # This workflow is a targeted one-shot; existing evergreen XYZ jobs are not restarted.
-# Public bridge guard exact-path allowlist updated; all game sources remain private.
-name: "IGP Nov12 final-game native companion biomechanics recovery"
+# Existing approved workflow path, retained source-only privacy gate; all game sources remain private.
+name: "IGP Nov13 final-game native companion biomechanics recovery"
 on:
   push:
     branches: [main]
@@ -15,21 +15,15 @@ jobs:
   final-companion:
     strategy:
       fail-fast: false
-      max-parallel: 10
+      max-parallel: 4
       matrix:
         include:
-          - {id: '0022600217', tipoff: '2026-11-12T00:00:00.000Z'}
-          - {id: '0022600218', tipoff: '2026-11-12T00:00:00.000Z'}
-          - {id: '0022600219', tipoff: '2026-11-12T00:00:00.000Z'}
-          - {id: '0022600220', tipoff: '2026-11-12T01:00:00.000Z'}
-          - {id: '0022600221', tipoff: '2026-11-12T01:00:00.000Z'}
-          - {id: '0022600222', tipoff: '2026-11-12T01:00:00.000Z'}
-          - {id: '0022600223', tipoff: '2026-11-12T01:00:00.000Z'}
-          - {id: '0022600224', tipoff: '2026-11-12T02:00:00.000Z'}
-          - {id: '0022600225', tipoff: '2026-11-12T02:30:00.000Z'}
-          - {id: '0022600226', tipoff: '2026-11-12T03:00:00.000Z'}
+          - {id: '0022600227', tipoff: '2026-11-13T00:00:00.000Z'}
+          - {id: '0022600228', tipoff: '2026-11-13T00:00:00.000Z'}
+          - {id: '0022600229', tipoff: '2026-11-13T01:00:00.000Z'}
+          - {id: '0022600230', tipoff: '2026-11-13T02:00:00.000Z'}
     concurrency:
-      group: igp-nov12-companion-full-original-${{ matrix.id }}
+      group: igp-nov13-companion-full-original-${{ matrix.id }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 95
@@ -38,7 +32,7 @@ jobs:
       BRANCH: research/gamepulse-clock-boundary-integrity-20261025
       NBA_GAME_ID: ${{ matrix.id }}
       NBA_TIPOFF_UTC: ${{ matrix.tipoff }}
-      IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-nov12-original-companion
+      IGP_PRIVATE_CAPTURE_DIR: /tmp/igp-nov13-original-companion
     steps:
       - uses: actions/checkout@v4
         with: {persist-credentials: false}
@@ -236,16 +230,16 @@ jobs:
         run: |
           echo "Original companion event stream, ShotDetails advanced fields and published xFG are accepted only after full-event SDK response plus SHA readback in the private repository. This workflow does not invent 60Hz joint poses or claim that source shots equal every official field-goal attempt." >> "$GITHUB_STEP_SUMMARY"
 
-  # CPU-only original NBA Blueprint gap recovery; excludes pre-indexed Rockets 0225.
+  # CPU-only Nov13 original NBA Blueprint recovery for four final games.
   # Never promote Full160v4 or invent missing source.
-  nov12-blueprint-original:
+  nov13-blueprint-original:
     strategy:
       fail-fast: false
       max-parallel: 3
       matrix:
-        gid: ['0022600217','0022600218','0022600219','0022600220','0022600221','0022600222','0022600223','0022600224','0022600226']
+        gid: ['0022600227','0022600228','0022600229','0022600230']
     concurrency:
-      group: nov12-blueprint-original-${{ matrix.gid }}
+      group: nov13-blueprint-original-${{ matrix.gid }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 35
@@ -265,16 +259,36 @@ jobs:
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
-          case "$GID" in 0022600217|0022600218|0022600219|0022600220|0022600221|0022600222|0022600223|0022600224|0022600226) ;; *) exit 20 ;; esac
+          case "$GID" in 0022600227|0022600228|0022600229|0022600230) ;; *) exit 20 ;; esac
+      - name: Wait for exact four official PBP sources from secure reconciling workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in $(seq 1 48); do
+            complete=1
+            for gid in 0022600227 0022600228 0022600229 0022600230; do
+              if ! gh api "repos/timeedmonds-maker/104/contents/gamepulse/fusion/official_pbp_timing/games/$gid.json?ref=$PRIVATE_REF" >/dev/null 2>&1; then
+                complete=0
+                break
+              fi
+            done
+            if test "$complete" -eq 1; then
+              echo "IGP_NOV13_ALL_FOUR_OFFICIAL_PBP_AVAILABLE"
+              exit 0
+            fi
+            sleep 30
+          done
+          echo "IGP_NOV13_OFFICIAL_PBP_NOT_YET_READY"
+          exit 29
       - name: Verify official PBP and retrieve original NBA Blueprint or record missingness
         shell: bash
         run: |
           set -euo pipefail
           gh auth setup-git
-          P="$RUNNER_TEMP/nov12-private-blueprint"
+          P="$RUNNER_TEMP/nov13-private-blueprint"
           git clone -q --filter=blob:none --depth=1 --sparse -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$P"
           cd "$P"
-          git sparse-checkout set scripts data/extensions/nba_blueprint_2026_27/games gamepulse/fusion/official_pbp_timing/games gamepulse/fusion/qa/igp_20261112
+          git sparse-checkout set scripts data/extensions/nba_blueprint_2026_27/games gamepulse/fusion/official_pbp_timing/games gamepulse/fusion/qa/igp_20261113
           python3 - <<'PY'
           import hashlib,json,os,sys
           from pathlib import Path
@@ -288,8 +302,8 @@ jobs:
           byid={a['nba_action_number']:a for a in acts}
           assert len(byid)==len(acts),'DUPLICATE_OFFICIAL_ACTION'
           dest=Path('data/extensions/nba_blueprint_2026_27/games')/gid/'blueprint_report_raw.json'
-          qa=Path('gamepulse/fusion/qa/igp_20261112')/('blueprint_gap_'+gid+'_v1.json')
-          receipt=dict(schema='igp.nov12-original-blueprint-source-gap.v1',
+          qa=Path('gamepulse/fusion/qa/igp_20261113')/('blueprint_gap_'+gid+'_v1.json')
+          receipt=dict(schema='igp.nov13-original-blueprint-source-gap.v1',
             game_id=gid,official_pbp_sha256=hashlib.sha256(pbraw).hexdigest(),
             official_actions=len(acts),official_fga=len(fga),full160v4_immutable=True,
             full_game_xyz_certified=False,missing_source_values_remain_null=True)
@@ -328,10 +342,10 @@ jobs:
                 error_type=type(e).__name__,error_message=str(e)[:180],complete_fga_covered=False)
           qa.parent.mkdir(parents=True,exist_ok=True)
           qa.write_text(json.dumps(receipt,sort_keys=True,indent=2)+'\n')
-          print('NOV12_PRIVATE_BLUEPRINT_QA',gid,receipt['source_status'],
+          print('NOV13_PRIVATE_BLUEPRINT_QA',gid,receipt['source_status'],
             'official_fga',receipt['official_fga'],'matched',receipt.get('official_exact_shot_matches',0))
           PY
-          QA_PATH="$(printf 'gamepulse/fusion/qa/igp_20261112/blueprint_gap_%s_v1.json' "$GID")"
+          QA_PATH="$(printf 'gamepulse/fusion/qa/igp_20261113/blueprint_gap_%s_v1.json' "$GID")"
           git add -f "$QA_PATH"
           SRC_PATH="data/extensions/nba_blueprint_2026_27/games/$GID/blueprint_report_raw.json"
           if test -s "$SRC_PATH"; then git add -f "$SRC_PATH"; fi
@@ -339,7 +353,7 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           if git diff --cached --quiet; then echo ORIGINAL_SOURCE_QA_ALREADY_PRESENT; exit 0; fi
-          git commit -q -m "data(igp): source-backed Nov12 NBA Blueprint gap receipt $GID"
+          git commit -q -m "data(igp): source-backed Nov13 NBA Blueprint gap receipt $GID"
           for n in 1 2 3 4 5 6 7 8; do
             git fetch -q origin "$PRIVATE_REF"
             git rebase -q "origin/$PRIVATE_REF"
@@ -355,17 +369,17 @@ jobs:
         run: |
           echo 'Source-only private NBA Blueprint retrieval. No Full160v4 promotion, no newly certified full game tracking or physical possession. Missing original source explicitly remains missing.' >> "$GITHUB_STEP_SUMMARY"
 
-  # Source-first original SDK reconstruction of 9 Nov12 games, identical
+  # Source-first original SDK reconstruction of four Nov13 games, identical
   # canonical engine to accepted Rockets 0225; explicit non-promotion.
-  nov12-native-additive:
-    needs: [final-companion, nov12-blueprint-original]
+  nov13-native-additive:
+    needs: [final-companion, nov13-blueprint-original]
     strategy:
       fail-fast: false
       max-parallel: 3
       matrix:
-        gid: ['0022600217','0022600218','0022600219','0022600220','0022600221','0022600222','0022600223','0022600224','0022600226']
+        gid: ['0022600227','0022600228','0022600229','0022600230']
     concurrency:
-      group: igp-nov12-native-additive-${{ matrix.gid }}
+      group: igp-nov13-native-additive-${{ matrix.gid }}
       cancel-in-progress: false
     runs-on: ubuntu-24.04
     timeout-minutes: 115
@@ -385,14 +399,14 @@ jobs:
           python3 tools/public_content_guard.py
           test -n "$GH_TOKEN"
           test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
-          case "$GID" in 0022600217|0022600218|0022600219|0022600220|0022600221|0022600222|0022600223|0022600224|0022600226) ;; *) exit 20 ;; esac
-          echo IGP_NOV12_NATIVE_ADDITIVE_CPU_PRIVATE_SOURCE_GATE
+          case "$GID" in 0022600227|0022600228|0022600229|0022600230) ;; *) exit 20 ;; esac
+          echo IGP_NOV13_NATIVE_ADDITIVE_CPU_PRIVATE_SOURCE_GATE
       - name: Source-SHA original XYZ, official PBP, companion, Blueprint and guarded 10Hz
         shell: bash
         run: |
           set -euo pipefail
           gh auth setup-git
-          P="$RUNNER_TEMP/nov12-native-private"
+          P="$RUNNER_TEMP/nov13-native-private"
           git clone -q --no-checkout --filter=blob:none --depth=1 -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$P"
           git -C "$P" sparse-checkout init --no-cone
           git -C "$P" sparse-checkout set --no-cone \
@@ -400,7 +414,7 @@ jobs:
             '/gamepulse/fusion/igp_rockets_0022600225_full160_additive_v1.py' \
             '/gamepulse/fusion/igp_20261111_six_game_unified_native_census_v1.py' \
             '/gamepulse/fusion/igp_full160_nov10_original_guarded_v1.py' \
-            "/gamepulse/fusion/live_original_20261112/$GID/**" \
+            "/gamepulse/fusion/live_original_20261113/$GID/**" \
             "/gamepulse/fusion/official_pbp_timing/games/$GID.json" \
             "/gamepulse/fusion/official_pbp_timing/original_nba_20261029/$GID/boxscore.json" \
             '/gamepulse/fusion/official_pbp_timing/index-2026-27-post36-additive.json' \
@@ -421,10 +435,13 @@ jobs:
           # Use identical audited source-first method; replace ONLY game-local
           # identity and naming, never relax its SHA, lineup or clock gates.
           script=script.replace('0022600225',gid)
-          script=script.replace('igp_'+gid+'_full160_additive_v1','igp_nov12_'+gid+'_full160_additive_v1')
-          script=script.replace('rockets_'+gid+'_sourcegraded','nov12_'+gid+'_sourcegraded')
-          script=script.replace('igp.rockets-0225','igp.nov12-'+gid[-4:])
-          script=script.replace('single-rockets','single-nov12')
+          script=script.replace('live_original_20261112','live_original_20261113')
+          script=script.replace('igp_20261112','igp_20261113')
+          assert 'live_original_20261113' in script and 'igp_20261113' in script
+          script=script.replace('igp_'+gid+'_full160_additive_v1','igp_nov13_'+gid+'_full160_additive_v1')
+          script=script.replace('rockets_'+gid+'_sourcegraded','nov13_'+gid+'_sourcegraded')
+          script=script.replace('igp.rockets-0225','igp.nov13-'+gid[-4:])
+          script=script.replace('single-rockets','single-nov13')
           # Source reports include failed access attempts as well as successful
           # ones. Preserve failed receipts but select ONLY verified post-final
           # access with both original player and ball frames for acceptance.
@@ -441,19 +458,19 @@ jobs:
                     '    must(receipts,"NO_VERIFIED_POSTFINAL_PLAYER_AND_BALL_RECEIPT")')
           assert old_gate in script,'EXACT_SOURCE_RECEIPT_GATE_CHANGED'
           script=script.replace(old_gate,new_gate)
-          out=base/('igp_nov12_'+gid+'_sourcefirst_ephemeral.py')
+          out=base/('igp_nov13_'+gid+'_sourcefirst_ephemeral.py')
           out.write_text(script)
           assert '0022600225' not in script
-          print('IGP_NOV12_SOURCEFIRST_IDENTICAL_ENGINE',gid)
+          print('IGP_NOV13_SOURCEFIRST_IDENTICAL_ENGINE',gid)
           PY
-          python3 -m py_compile "gamepulse/fusion/igp_nov12_$GID"_sourcefirst_ephemeral.py
-          python3 "gamepulse/fusion/igp_nov12_$GID"_sourcefirst_ephemeral.py --root .
+          python3 -m py_compile "gamepulse/fusion/igp_nov13_$GID"_sourcefirst_ephemeral.py
+          python3 "gamepulse/fusion/igp_nov13_$GID"_sourcefirst_ephemeral.py --root .
           python3 - <<'PY'
           import hashlib,json,os,pathlib
           gid=os.environ['GID']
           base=pathlib.Path('gamepulse/fusion')
-          qa=base/'qa/igp_20261112'/('nov12_'+gid+'_sourcegraded_tracking_qa_v1.json')
-          out=base/'materialized'/('igp_nov12_'+gid+'_full160_additive_v1')
+          qa=base/'qa/igp_20261113'/('nov13_'+gid+'_sourcegraded_tracking_qa_v1.json')
+          out=base/'materialized'/('igp_nov13_'+gid+'_full160_additive_v1')
           r=json.loads(qa.read_bytes())
           p=json.loads((out/'index.json').read_bytes())
           assert r['game_id']==p['game_id']==gid
@@ -466,7 +483,7 @@ jobs:
           assert r['physical_possessions_certified']==0
           assert r['tracking']['production_default_not_changed'] is True
           assert r['original_sdk']['original_13part_complete'] is False
-          print('IGP_NOV12_SOURCE_GRADE_ACCEPTED_STAGE',gid,
+          print('IGP_NOV13_SOURCE_GRADE_ACCEPTED_STAGE',gid,
             'native',r['original_sdk']['source_counts']['unique_source_timestamps'],
             'shot',r['companion']['exact_action_and_shooter_matched'],
             'FGA',r['official']['official_fga'],
@@ -476,21 +493,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          P="$RUNNER_TEMP/nov12-native-private"
+          P="$RUNNER_TEMP/nov13-native-private"
           cd "$P"
-          git add --sparse -f "gamepulse/fusion/materialized/igp_nov12_$GID"_full160_additive_v1 \
-            "gamepulse/fusion/qa/igp_20261112/nov12_$GID"_sourcegraded_tracking_qa_v1.json \
+          git add --sparse -f "gamepulse/fusion/materialized/igp_nov13_$GID"_full160_additive_v1 \
+            "gamepulse/fusion/qa/igp_20261113/nov13_$GID"_sourcegraded_tracking_qa_v1.json \
             "gamepulse/fusion/evidence/companion_sdk_original_$GID/shotdetails_official_action_crosswalk_v1.json"
           git diff --cached --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          if git diff --cached --quiet; then echo NOV12_SOURCE_GRADE_ALREADY_COMMITTED; exit 0; fi
-          git commit -q -m "data(igp): Nov12 exact original XYZ and source-graded additive $GID"
+          if git diff --cached --quiet; then echo NOV13_SOURCE_GRADE_ALREADY_COMMITTED; exit 0; fi
+          git commit -q -m "data(igp): Nov13 exact original XYZ and source-graded additive $GID"
           for n in 1 2 3 4 5 6 7 8 9 10; do
             git fetch -q origin "$PRIVATE_REF"
             git rebase -q "origin/$PRIVATE_REF"
             if git push -q origin "HEAD:refs/heads/$PRIVATE_REF"; then
-              echo NOV12_PRIVATE_NATIVE_SOURCE_GRADE_COMMITTED
+              echo NOV13_PRIVATE_NATIVE_SOURCE_GRADE_COMMITTED
               exit 0
             fi
             sleep "$n"
