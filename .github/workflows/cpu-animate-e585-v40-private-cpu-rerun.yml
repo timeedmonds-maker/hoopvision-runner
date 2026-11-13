@@ -1,4 +1,4 @@
-name: CPU Animate e585 V47 exact guarded 10Hz XYZ source audit
+name: CPU Animate e585 V48 source-first hardwood camera motion test
 on:
   push:
     branches: [main]
@@ -85,33 +85,50 @@ jobs:
             --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
           echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
-      - name: Audit the actual 10Hz guarded layer's exact original-vs-reconstruction source grades
+      - name: Compare real native 10Hz XYZ dynamic hardwood RANSAC camera versus old translation
         shell: bash
         run: |
           set -euo pipefail
+          python3 -m pip install --quiet --disable-pip-version-check \
+            'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'Pillow>=10,<12'
           cd "$V40_CODE"
-          python3 -m cpu_animate.e585_v47_exact_guarded_10hz_schema_audit \
-            --root "$V40_SOURCE" \
-            --out "$V40_OUT/private_e585_v47_10hz_schema.json"
-          test -s "$V40_OUT/private_e585_v47_10hz_schema.json"
-      - name: Preserve exact source 10Hz grade/schema research inside private 104 only
+          python3 - <<'PY'
+          import sys,types,os
+          from pathlib import Path
+          fake=types.ModuleType("ultralytics")
+          fake.YOLO=lambda *args,**kw:(_ for _ in ()).throw(RuntimeError("NO_MODEL_OR_GPU_ALLOWED"))
+          sys.modules["ultralytics"]=fake
+          from cpu_animate.e585_v48_hardwood_flow_camera_qa import audit
+          src=Path(os.environ["V40_SOURCE"])
+          media=Path(os.environ["V40_MEDIA"])
+          out=Path(os.environ["V40_OUT"])
+          qa=audit(media/"event585-playbyplay.mp4",
+                   media/"event585-native-video-pts.json",
+                   media/"scout_0225_585_videoonly_592.json.gz",
+                   media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
+                   src/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
+                   src,out/"private_e585_v48_hardwood_camera_qa.json")
+          print("V48_SOURCE_FIRST_COMPARE_COMPLETE",
+                qa["flow_warp_qa"].get("RANSAC_hardwood_success",0))
+          PY
+      - name: Preserve native-source camera-comparison QA privately, no public coordinates
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import base64,hashlib,json,os,pathlib,subprocess
-          local=pathlib.Path(os.environ["V40_OUT"])/"private_e585_v47_10hz_schema.json"
-          b=local.read_bytes()
-          path="docs/cpu_animate/source_video_v47/"+local.name
-          api="repos/timeedmonds-maker/104/contents/"+path
-          record={"message":"CPU Animate exact play original and guarded 10Hz NBA tracking schema provenance",
-             "branch":os.environ["V40_BRANCH"],"content":base64.b64encode(b).decode("ascii")}
-          old=subprocess.run(["gh","api",api+"?ref="+os.environ["V40_BRANCH"]],capture_output=True,text=True)
-          if old.returncode==0:record["sha"]=json.loads(old.stdout)["sha"]
-          payload=local.parent/"v47-10hz-payload.json";payload.write_text(json.dumps(record))
-          sent=subprocess.run(["gh","api","-X","PUT",api,"--input",str(payload)],capture_output=True,text=True)
-          if sent.returncode:raise RuntimeError("10HZ_PRIVATE_SOURCE_AUDIT_UPLOAD_FAILED")
-          print("V47_PRIVATE_10HZ_SOURCE_SCHEMA_SAVED",hashlib.sha256(b).hexdigest(),len(b))
+          import os,pathlib,subprocess,json,base64,hashlib
+          f=pathlib.Path(os.environ["V40_OUT"])/"private_e585_v48_hardwood_camera_qa.json"
+          raw=f.read_bytes();branch=os.environ["V40_BRANCH"]
+          api="repos/timeedmonds-maker/104/contents/docs/cpu_animate/source_video_v48/"+f.name
+          obj={"message":"CPU Animate private original 10Hz player hardwood-camera comparison",
+               "branch":branch,"content":base64.b64encode(raw).decode("ascii")}
+          prior=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
+          if prior.returncode==0:obj["sha"]=json.loads(prior.stdout)["sha"]
+          p=f.parent/"v48_payload.json";p.write_text(json.dumps(obj))
+          put=subprocess.run(["gh","api","-X","PUT",api,"--input",str(p)],
+                             capture_output=True,text=True)
+          if put.returncode:raise RuntimeError("PRIVATE_V48_CAMERA_QA_UPLOAD_FAILED")
+          print("V48_PRIVATE_QA_SAVED",hashlib.sha256(raw).hexdigest(),len(raw))
           PY
       - name: Protected source cleanup
         if: always()
