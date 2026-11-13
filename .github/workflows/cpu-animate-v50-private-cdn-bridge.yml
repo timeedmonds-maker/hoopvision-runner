@@ -73,6 +73,17 @@ jobs:
           print("EPHEMERAL_GITHUB_CDN_LINK_STORED_PRIVATE",len(url),
                 hashlib.sha256(url.encode()).hexdigest()[:12])
           PY
+      - name: Prepare harmless file-storage bridge probe
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/cpu-v50-bridge-probe"
+          printf 'cpu-v50-probe-20261113--not-media\\n' > "$RUNNER_TEMP/cpu-v50-bridge-probe/check.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cpu-v50-file-handoff-probe
+          path: ${{ runner.temp }}/cpu-v50-bridge-probe/check.txt
+          retention-days: 1
+          if-no-files-found: error
       - name: Remove all private data from public execution
         if: always()
         run: rm -rf "$RUNNER_TEMP/cpu-v50-signed-cdn"
