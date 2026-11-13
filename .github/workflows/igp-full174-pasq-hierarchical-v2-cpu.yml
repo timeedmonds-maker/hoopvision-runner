@@ -1,0 +1,141 @@
+# Opaque CPU runner. No original NBA/player-level rows printed in public logs.
+name: IGP Full174 hierarchical historical PASQ v2
+on:
+  push:
+    branches: [research/igp-full174-pasq-private-cpu-20261114]
+    paths: ['.github/workflows/igp-full174-pasq-hierarchical-v2-cpu.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-full174-pasq-hierarchical-v2-validation
+  cancel-in-progress: false
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GIT_TERMINAL_PROMPT: '0'
+      PRIVATE_REPO: timeedmonds-maker/104
+      SOURCE_BRANCH: analysis/full174-pasq-hierarchical-v2-20261114
+      SOURCE_COMMIT: f7225b8f5867d71569011d285ee90cef58eb1555
+    steps:
+      - name: Authenticate and SHA-pin Full174 original source code
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/"$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$SOURCE_COMMIT"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$SOURCE_COMMIT"
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$SOURCE_COMMIT"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion \
+            gamepulse/third_party/courtsketch data/extensions/nba_blueprint_2026_27 \
+            data/extensions/nba_gravity_2026_27
+          test -f "$RUNNER_TEMP/private/gamepulse/fusion/igp_full174_pasq_hierarchical_transfer_v2.py"
+          mkdir -p "$RUNNER_TEMP/history" "$RUNNER_TEMP/output"
+          echo FULL174_V2_PRIVATE_SOURCE_BOUNDARY_OK
+      - name: Run historical model and 12 development regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          set +e
+          PYTHONPATH=gamepulse/fusion python3 -m unittest -v \
+            gamepulse/fusion/tests/test_igp_full174_pasq_hierarchical_transfer_v2.py \
+            gamepulse/fusion/tests/test_igp_full174_pasq_historical_similar_v1.py \
+            > "$RUNNER_TEMP/output/tests.log" 2>&1
+          tests=$?
+          set -e
+          printf '{"tests":%s}\n' "$tests" > "$RUNNER_TEMP/output/status.json"
+          if test "$tests" -eq 0; then
+            echo FULL174_HIERARCHICAL_V2_TESTS_PASSED
+          else
+            echo FULL174_HIERARCHICAL_V2_TESTS_FAILED
+          fi
+      - name: Download 15 SHA-checked historical xFG shards
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(python3 -c 'import json,os;print(json.load(open(os.environ["RUNNER_TEMP"]+"/output/status.json"))["tests"])')" = 0
+          gh release download igp-2025-26-xfg-archive-20261105 \
+            --repo "$PRIVATE_REPO" --pattern 'nba-xfg-*.jsonl.gz' \
+            --pattern 'nba-xfg-*-qa.json' --dir "$RUNNER_TEMP/history"
+          gh release download igp-public-gamepulse-2025-26-20261105 \
+            --repo "$PRIVATE_REPO" --pattern 'nba-2025-26-source-index.json' \
+            --dir "$RUNNER_TEMP/history"
+          test "$(find "$RUNNER_TEMP/history" -name 'nba-xfg-*.jsonl.gz' | wc -l)" -eq 15
+          test "$(find "$RUNNER_TEMP/history" -name 'nba-xfg-*-qa.json' | wc -l)" -eq 15
+          test "$(sha256sum "$RUNNER_TEMP/history/nba-2025-26-source-index.json" | cut -d' ' -f1)" = b17861f106f3eed544f745fba26fe42e7a81a33a0e4c67d460d2da9d959fee47
+          echo FULL174_V2_HISTORICAL_SOURCE_READY
+      - name: Execute source-verified historical transfer and holdout validation
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          set +e
+          PYTHONPATH=gamepulse/fusion python3 gamepulse/fusion/igp_full174_pasq_hierarchical_transfer_v2.py \
+            --root . --source-index "$RUNNER_TEMP/history/nba-2025-26-source-index.json" \
+            --historical-dir "$RUNNER_TEMP/history" \
+            --output-prefix "$RUNNER_TEMP/output/pasq_hierarchical_v2" \
+            --workers 3 > "$RUNNER_TEMP/output/model.log" 2>&1
+          model=$?
+          set -e
+          python3 - "$RUNNER_TEMP/output/status.json" "$model" <<'PY'
+          import sys,json,pathlib
+          p=pathlib.Path(sys.argv[1]);d=json.loads(p.read_text());d['model']=int(sys.argv[2])
+          p.write_text(json.dumps(d)+'\n')
+          PY
+          if test "$model" = 0; then
+            echo FULL174_V2_REAL_HOLDOUT_COMPLETE_PRIVATE_QA
+          else
+            echo FULL174_V2_REAL_HOLDOUT_FAILED_SEE_PRIVATE_RECEIPT
+          fi
+      - name: Commit evaluation and diagnostics to private 104 only
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,time,sys
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'output'
+          root.mkdir(exist_ok=True)
+          status_file=root/'status.json'
+          state=json.loads(status_file.read_text()) if status_file.exists() else {'setup_failed':True}
+          success=(state.get('tests')==0 and state.get('model')==0 and
+                   (root/'pasq_hierarchical_v2.qa.json').is_file() and
+                   (root/'pasq_hierarchical_v2.teams.json').is_file())
+          if success:
+              entries=[('qa.json',(root/'pasq_hierarchical_v2.qa.json').read_bytes()),
+                       ('teams.json',(root/'pasq_hierarchical_v2.teams.json').read_bytes())]
+          else:
+              failure={'status':'FAIL','source_commit':os.environ['SOURCE_COMMIT'],
+                       'stage_returncodes':state}
+              entries=[('failure.json',(json.dumps(failure,indent=2)+'\n').encode())]
+              for name in ('tests.log','model.log'):
+                  p=root/name
+                  if p.exists():entries.append((name,p.read_bytes()[-24000:]))
+          for name,data in entries:
+              path='gamepulse/fusion/qa/pasq_full174_hierarchical_v2_20261114/'+name
+              url='repos/'+os.environ['PRIVATE_REPO']+'/contents/'+path
+              payload={'branch':os.environ['SOURCE_BRANCH'],
+                       'message':'qa(private): Full174 hierarchical PASQ v2 '+name,
+                       'content':base64.b64encode(data).decode()}
+              for attempt in range(8):
+                  get=subprocess.run(['gh','api',url+'?ref='+os.environ['SOURCE_BRANCH']],
+                      capture_output=True,text=True)
+                  entry=dict(payload)
+                  if get.returncode==0:entry['sha']=json.loads(get.stdout)['sha']
+                  put=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                      input=json.dumps(entry),capture_output=True,text=True)
+                  if put.returncode==0:break
+                  time.sleep(attempt+1)
+              else:raise RuntimeError('PRIVATE_PASQ_V2_RESULT_WRITE_FAILED')
+          print('FULL174_V2_QA_PRIVATE_RECEIPT_COMMITTED')
+          if not success:sys.exit(1)
+          PY
