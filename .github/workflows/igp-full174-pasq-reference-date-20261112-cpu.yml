@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 permissions: {contents: read}
 concurrency:
-  group: igp-full174-pasq-reference-date-20261112-v1
+  group: igp-full174-pasq-target-shooters-20261112-v1
   cancel-in-progress: true
 jobs:
   source_graded_reference_census:
