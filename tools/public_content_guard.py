@@ -7,6 +7,8 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/cpu-animate-v50-private-cdn-bridge.yml",  # reviewed private-auth GitHub-CDN-only ephemeral handoff, public runner never stores media or signed link in logs; delete temp data
+
     ".github/workflows/cpu-animate-e585-v40-private-cpu-rerun.yml",  # reviewed exact source SHA 0225/585, CPU/no GPU, original private video and XYZ ephemeral, only MP4+QA released back to private 104, no public artifact or raw source data
 
     ".github/workflows/igp-nov12-ten-final-companion-biomechanics-20261112.yml",  # bounded exact 10-game official-FINAL source-only companion event/shot biomechanics SDK capture; free CPU; SHA-preserved private 104; zero confidential bytes public
