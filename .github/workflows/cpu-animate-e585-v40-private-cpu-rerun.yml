@@ -1,4 +1,4 @@
-name: CPU Animate e585 V48 source-first hardwood camera motion test
+name: CPU Animate e585 V49 native XYZ correct-player foot gated rerun
 on:
   push:
     branches: [main]
@@ -85,51 +85,55 @@ jobs:
             --pattern 'rockets_e585_full161_original_xyz_pts_shadow.json.gz'
           test "$(sha256sum "$media/event585-playbyplay.mp4" | cut -d' ' -f1)" = '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234'
           echo "IMMUTABLE_PRIVATE_NBA_EVENT585_SOURCES_PRESENT"
-      - name: Compare real native 10Hz XYZ dynamic hardwood RANSAC camera versus old translation
+      - name: Execute V49 original NBA source player XYZ, original ball and observed-player camera foot gate
         shell: bash
         run: |
           set -euo pipefail
           python3 -m pip install --quiet --disable-pip-version-check \
             'numpy==1.26.4' 'opencv-python-headless==4.10.0.84' 'Pillow>=10,<12'
           cd "$V40_CODE"
+          python3 -m py_compile cpu_animate/e585_v49_native_source_floorguard.py
           python3 - <<'PY'
-          import sys,types,os
+          import sys,types,os,json
           from pathlib import Path
-          fake=types.ModuleType("ultralytics")
-          fake.YOLO=lambda *args,**kw:(_ for _ in ()).throw(RuntimeError("NO_MODEL_OR_GPU_ALLOWED"))
-          sys.modules["ultralytics"]=fake
-          from cpu_animate.e585_v48_hardwood_flow_camera_qa import audit
-          src=Path(os.environ["V40_SOURCE"])
+          stub=types.ModuleType("ultralytics")
+          stub.YOLO=lambda *args,**kw:(_ for _ in ()).throw(RuntimeError("NO_GPU_OR_NEURAL_MODEL_V49"))
+          sys.modules["ultralytics"]=stub
+          from cpu_animate.e585_v49_native_source_floorguard import render,selftest
+          selftest()
+          source=Path(os.environ["V40_SOURCE"])
           media=Path(os.environ["V40_MEDIA"])
-          out=Path(os.environ["V40_OUT"])
-          qa=audit(media/"event585-playbyplay.mp4",
-                   media/"event585-native-video-pts.json",
-                   media/"scout_0225_585_videoonly_592.json.gz",
-                   media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
-                   src/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
-                   src,out/"private_e585_v48_hardwood_camera_qa.json")
-          print("V48_SOURCE_FIRST_COMPARE_COMPLETE",
-                qa["flow_warp_qa"].get("RANSAC_hardwood_success",0))
+          output=Path(os.environ["V40_OUT"])
+          qa=render(media/"event585-playbyplay.mp4",
+               media/"event585-native-video-pts.json",
+               media/"scout_0225_585_videoonly_592.json.gz",
+               media/"rockets_e585_full161_original_xyz_pts_shadow.json.gz",
+               source/"gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json",
+               source,output)
+          print("V49_NATIVE_GUARDED_SOURCE_RENDER_SUMMARY",
+                json.dumps({
+                 "rings":qa["ring_visible_frames"],
+                 "continuity":qa["continuity"],
+                 "source_10hz_ball_green":qa["source_native_3d_ball_green_visible"],
+                 "source_native_video_guard_abstains":{w:d.get("unvalidated_postplay_pixel_abstain",0)
+                      for w,d in qa["native_source_overlay_qa"].items()},
+                 "triple":qa["all_three_visible_frames"],
+                 "sha256":qa["mp4_sha256"],
+                 "final_accepted":qa["accepted_final_publication"]
+                },sort_keys=True))
           PY
-      - name: Preserve native-source camera-comparison QA privately, no public coordinates
+      - name: Publish new protected V49 actually rendered source-first foot-corrected private QA MP4
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import os,pathlib,subprocess,json,base64,hashlib
-          f=pathlib.Path(os.environ["V40_OUT"])/"private_e585_v48_hardwood_camera_qa.json"
-          raw=f.read_bytes();branch=os.environ["V40_BRANCH"]
-          api="repos/timeedmonds-maker/104/contents/docs/cpu_animate/source_video_v48/"+f.name
-          obj={"message":"CPU Animate private original 10Hz player hardwood-camera comparison",
-               "branch":branch,"content":base64.b64encode(raw).decode("ascii")}
-          prior=subprocess.run(["gh","api",api+"?ref="+branch],capture_output=True,text=True)
-          if prior.returncode==0:obj["sha"]=json.loads(prior.stdout)["sha"]
-          p=f.parent/"v48_payload.json";p.write_text(json.dumps(obj))
-          put=subprocess.run(["gh","api","-X","PUT",api,"--input",str(p)],
-                             capture_output=True,text=True)
-          if put.returncode:raise RuntimeError("PRIVATE_V48_CAMERA_QA_UPLOAD_FAILED")
-          print("V48_PRIVATE_QA_SAVED",hashlib.sha256(raw).hexdigest(),len(raw))
-          PY
+          tag=cpu-animate-0225-e585-v49-native-video-footguard-cpu-review-20261113
+          test "$(find "$V40_OUT" -maxdepth 1 -name '*.mp4' | wc -l)" = 1
+          gh release create "$tag" "$V40_OUT"/*.mp4 "$V40_OUT"/*_qa.json "$V40_OUT"/*.jpg \
+              --repo timeedmonds-maker/104 \
+              --title "V49 original NBA native player + ball with positive observed-video-foot gate" \
+              --notes "Correctly source-ID locked HOU #31 #28 #1. Original native 10Hz research grid/actual source timestamps; original 3D ball. Camera pan f307+ requires unique original video segmented Houston foot near projected NBA player, never show unsupported ring on empty floor/GSW. Frozen HoopVision ring. Free CPU only. Still a research QA preview." \
+              --latest=false
+          echo "V49_PRIVATE_SOURCE_FIRST_REVIEW_MP4_PUBLISHED"
       - name: Protected source cleanup
         if: always()
         shell: bash
