@@ -7,7 +7,7 @@ on:
 permissions: {contents: read}
 concurrency:
   group: igp-full174-pasq-reference-date-20261112-v1
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   source_graded_reference_census:
     runs-on: ubuntu-24.04
