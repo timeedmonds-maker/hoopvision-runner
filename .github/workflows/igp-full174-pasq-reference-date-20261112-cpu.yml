@@ -17,7 +17,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/full174-pasq-historical-recency-20261114
-      SOURCE_COMMIT: 08d2bde9596ef6366d39b1c5a3a88ffe7381cc44
+      SOURCE_COMMIT: 6f0c2821a7c356f98c356ee43ba8ad77d6da1efb
     steps:
       - name: Authenticate original private source and checkout immutable code
         shell: bash
