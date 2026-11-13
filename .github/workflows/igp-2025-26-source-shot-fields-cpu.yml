@@ -18,7 +18,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/full174-pasq-historical-distance-widening-20261114
-      SOURCE_COMMIT: ef06a3aa512a454114ab745e44329a34abe69f6b
+      SOURCE_COMMIT: 39382ece9e3ac9feafa98ba463c92901bc7cebb9
     steps:
       - name: Authenticate and SHA-pin Full174 original source code
         shell: bash
@@ -119,7 +119,7 @@ jobs:
                   p=root/name
                   if p.exists():entries.append((name,p.read_bytes()[-24000:]))
           for name,data in entries:
-              path='gamepulse/fusion/qa/pasq_historical_shot_source_fields_20261114/'+name
+              path='gamepulse/fusion/qa/pasq_historical_shot_source_coords_20261114/'+name
               url='repos/'+os.environ['PRIVATE_REPO']+'/contents/'+path
               payload={'branch':os.environ['SOURCE_BRANCH'],
                        'message':'qa(private): Full174 hierarchical PASQ v2 '+name,
