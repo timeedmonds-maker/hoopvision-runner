@@ -26,8 +26,20 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
-          test -n "$GH_TOKEN"
-          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          if test -z "${GH_TOKEN:-}"; then echo CPU_SOURCE_PRIVATE_TOKEN_EMPTY;exit 3;fi
+          if gh api "repos/$PRIVATE_REPO" --jq .private > "$RUNNER_TEMP/repo-privacy" 2> "$RUNNER_TEMP/private-error"; then
+            echo CPU_SOURCE_PRIVATE_REPO_HTTP_PASS
+            python3 - "$RUNNER_TEMP/repo-privacy" <<'PY_PRIVATE'
+import json,sys
+value=json.loads(open(sys.argv[1]).read())
+print('CPU_SOURCE_PRIVATE_REPO_IS_PRIVATE',value is True)
+assert value is True
+PY_PRIVATE
+          else
+            echo CPU_SOURCE_PRIVATE_REPO_API_FAILED
+            sed -E 's/(Bearer|token) [^ ]+/REDACTED/g' "$RUNNER_TEMP/private-error" | head -c 220
+            exit 3
+          fi
           command -v ffmpeg
           echo CPU_ONLY_PRIVATE_MEDIA_GUARD_PASS
       - name: Verify source event and discover exact-angle HLS
