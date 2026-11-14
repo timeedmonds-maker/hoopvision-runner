@@ -1,6 +1,6 @@
 # CourtSketch 0039: original game browser capture, exact HOU–UTA one CPU job.
 # Licensed NBA CourtSketch original source preserved only in private 104, no artificial XYZ.
-name: CourtSketch 0039 original L0 source inventory and viewer gap diagnosis
+name: CourtSketch 0039 exact same-origin game availability check
 on:
   push:
     branches: [main]
@@ -40,65 +40,65 @@ jobs:
           case "$GID" in 0022600039) ;; *) exit 17;; esac
           gh auth setup-git
           echo "COURTSKETCH_BATCH_PRIVATE_CPU_BOUNDARY_OK game=$GID"
-      - name: Read preserved SHA-original CourtSketch 0039 browser source
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install free CPU browser for exact game endpoint probe
         shell: bash
         run: |
           set -euo pipefail
-          root="$RUNNER_TEMP/courtsketch-0039-recovery"
-          mkdir -p "$root"
-          gh release download "$SOURCE_TAG" -R "$PRIVATE_REPO" \
-            --pattern 'manifest.json' --dir "$root"
-          gh release download "$SOURCE_TAG" -R "$PRIVATE_REPO" \
-            --pattern "courtsketch-$GID-original-browser-payloads.tar.gz" --dir "$root"
+          python3 -m pip install --quiet playwright==1.56.0
+          python3 -m playwright install --with-deps chromium > "$RUNNER_TEMP/courtsketch-browser-install.txt" 2>&1
+      - name: Test only observed first-party CourtSketch game paths and selector
+        shell: bash
+        run: |
+          set -euo pipefail
           python3 - <<'PY'
-          import pathlib,json,hashlib,os,tarfile,io,collections,urllib.parse
-          r=pathlib.Path(os.environ['RUNNER_TEMP'])/'courtsketch-0039-recovery'
+          import json,os,pathlib
+          from playwright.sync_api import sync_playwright
           gid=os.environ['GID']
-          d=json.loads((r/'manifest.json').read_bytes())
-          p=r/f'courtsketch-{gid}-original-browser-payloads.tar.gz'
-          raw=p.read_bytes()
-          assert hashlib.sha256(raw).hexdigest()==d['private_archive_sha256']
-          index=[];bodies={}
-          with tarfile.open(fileobj=io.BytesIO(raw),mode='r:gz') as tar:
-            for mem in tar:
-              if not mem.isfile():continue
-              body=tar.extractfile(mem).read()
-              if mem.name.endswith('responses-index.json'):index=json.loads(body)
-              if '/responses/' in mem.name and mem.name.endswith(('.json','.bin')):
-                bodies[pathlib.PurePosixPath(mem.name).name]=body
-          assert len(index)==d['distinct_network_bodies']
-          records=[]
-          for row in index:
-            k=pathlib.PurePosixPath(row['file']).name
-            b=bodies[k]
-            assert hashlib.sha256(b).hexdigest()==row['sha256']
-            try:j=json.loads(b)
-            except Exception:j=None
-            if isinstance(j,dict):
-              shape={x:('list:'+str(len(y)) if isinstance(y,list) else 'object:'+str(len(y)) if isinstance(y,dict) else type(y).__name__) for x,y in j.items()}
-            elif isinstance(j,list):shape={'array_length':len(j)}
-            else:shape={'non_json':True}
-            url=urllib.parse.urlsplit(row['source_url'])
-            records.append({'source_path':url.path,'source_host':url.hostname,
-              'bytes':len(b),'json_type':type(j).__name__,'top_level_shape':shape,
-              'contains_game_id':gid.encode() in b,
-              'contains_t_players_ball':all(x in b for x in [b'"t"',b'"players"',b'"ball"'])})
-          output={'schema':'igp.courtsketch-0039-source-gap-diagnostic.v1','game_id':gid,
-            'original_l0_sha256':d['private_archive_sha256'],'source_count':len(records),
-            'capture_summary':{k:d.get(k) for k in
-               ['game_dropdown_selected','queue_built_attempted','next_play_requests',
-                'direct_play_hash_requests','viewer_showed_request_failed',
-                'viewer_showed_load_a_clip','errors','period_hints_from_json',
-                'observed_timestamp_positions_objects','websocket_frames_received']},
-            'responses':records,'certified_position_frames':0,'source_L1_accepted':False}
-          (r/'courtsketch_0039_original_source_diagnostic.json').write_text(json.dumps(output,indent=2,sort_keys=True)+'\n')
-          print('COURTSKETCH_0039_SOURCE_AVAILABILITY',json.dumps({
-            'responses':len(records),'game_id_found_in_responses':sum(x['contains_game_id'] for x in records),
-            'frame_payload_shapes':sum(x['contains_t_players_ball'] for x in records),
-            'viewer_404':d.get('viewer_showed_request_failed'),
-            'viewer_empty':d.get('viewer_showed_load_a_clip'),
-            'deep_link_selected':d.get('game_dropdown_selected'),
-            'source_paths':[x['source_path'] for x in records]},sort_keys=True))
+          report={'schema':'igp.courtsketch-0039-sameorigin-firstparty-availability.v1',
+                  'game_id':gid,'source_original_L0_preserved':True,
+                  'auth_bypass_attempted':False,'unsupported_direct_frame_fetch_attempted':False}
+          with sync_playwright() as pw:
+            browser=pw.chromium.launch(headless=True,args=['--disable-dev-shm-usage','--no-sandbox'])
+            context=browser.new_context(viewport={'width':1400,'height':950})
+            page=context.new_page()
+            page.goto(f'https://courtsketch.com/tracking#src=game&g={gid}&n=0',
+                      wait_until='domcontentloaded',timeout=60000)
+            page.wait_for_timeout(4500)
+            lookups=['/api/tracking/games',
+                     '/api/tracking/game/0022600039',
+                     '/api/tracking/game/0022600230']
+            result=[]
+            for p in lookups:
+              data=page.evaluate("""async p => {
+                try {
+                  const r = await fetch(p,{credentials:'same-origin',
+                                         headers:{Accept:'application/json'}});
+                  const txt=await r.text();
+                  let doc=null;
+                  try {doc=JSON.parse(txt)} catch{}
+                  return {path:p,status:r.status,bytes:txt.length,
+                    has0039:txt.includes('0022600039'),
+                    jsonType:Array.isArray(doc)?'array':typeof doc,
+                    topKeys:doc && typeof doc==='object'&&!Array.isArray(doc)?Object.keys(doc):[],
+                    topCount:Array.isArray(doc)?doc.length:null,
+                    windows:doc && Array.isArray(doc.windows)?doc.windows.length:null,
+                    metadataGameId:doc?.game_id ?? doc?.gameId ?? null,
+                    reason:!r.ok?txt.slice(0,130):null};
+                } catch (e) {return {path:p,error:String(e).slice(0,130)};}
+              }""",p)
+              result.append(data)
+            report['first_party_requests']=result
+            report['viewer_url_after_selection']=page.url.split('#')[0]
+            report['viewer_html_contains_game_id']=gid in page.content()
+            browser.close()
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'courtsketch_0039_firstparty_availability.json'
+          out.write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
+          print('COURTSKETCH_0039_EXACT_GAME_AVAILABILITY',json.dumps({
+            'paths':[{k:v for k,v in x.items() if k in
+              ('path','status','bytes','has0039','metadataGameId','windows','topCount','error')}
+              for x in report['first_party_requests']]},sort_keys=True))
           PY
-          gh release upload "$SOURCE_TAG" "$root/courtsketch_0039_original_source_diagnostic.json" -R "$PRIVATE_REPO" >/dev/null
-          echo COURTSKETCH_0039_SHA_ORIGINAL_L0_DIAGNOSTIC_PRIVATE_PRESERVED
+          gh release upload "$SOURCE_TAG" "$RUNNER_TEMP/courtsketch_0039_firstparty_availability.json" -R "$PRIVATE_REPO" >/dev/null
+          echo COURTSKETCH_0039_FIRSTPARTY_AVAILABILITY_SAVED_PRIVATE
