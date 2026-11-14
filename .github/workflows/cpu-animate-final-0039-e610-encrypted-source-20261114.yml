@@ -39,18 +39,17 @@ jobs:
             -o "$SOURCE_ROOT/0039_e610_playbyplay_original.mp4"
           test "$(stat -c%s "$SOURCE_ROOT/0039_e610_playbyplay_original.mp4")" -eq 11602169
           echo EXACT_NBA_VIDEO_DOWNLOADED_PRIVATE_ONLY
-          SRC="gamepulse/fusion/materialized/igp_nov14_0022600039_full160_additive_v1"
-          DIR="$SOURCE_ROOT/$SRC"
-          mkdir -p "$DIR"
-          for name in index.json guarded-p2b-s1-10hz-candidate.jsonl.gz; do
-            gh api -H 'Accept: application/vnd.github.raw+json' \
-              "repos/timeedmonds-maker/104/contents/$SRC/$name?ref=research/gamepulse-clock-boundary-integrity-20261025" > "$DIR/$name"
-          done
-          for i in $(seq 0 17); do
-            printf -v name 'original-native-%05d.jsonl.gz' "$i"
-            gh api -H 'Accept: application/vnd.github.raw+json' \
-              "repos/timeedmonds-maker/104/contents/$SRC/$name?ref=research/gamepulse-clock-boundary-integrity-20261025" > "$DIR/$name"
-          done
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --no-checkout \
+            -b research/gamepulse-clock-boundary-integrity-20261025 \
+            https://github.com/timeedmonds-maker/104.git "$SOURCE_ROOT/private-checkout"
+          git -C "$SOURCE_ROOT/private-checkout" sparse-checkout init --cone
+          git -C "$SOURCE_ROOT/private-checkout" sparse-checkout set \
+            gamepulse/fusion/materialized/igp_nov14_0022600039_full160_additive_v1
+          git -C "$SOURCE_ROOT/private-checkout" checkout -q
+          mkdir -p "$SOURCE_ROOT/gamepulse/fusion/materialized"
+          cp -a "$SOURCE_ROOT/private-checkout/gamepulse/fusion/materialized/igp_nov14_0022600039_full160_additive_v1" "$SOURCE_ROOT/gamepulse/fusion/materialized/"
+          rm -rf "$SOURCE_ROOT/private-checkout"
           python3 - <<'PY'
           import os,pathlib,json,hashlib,zipfile,secrets,subprocess,gzip
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
