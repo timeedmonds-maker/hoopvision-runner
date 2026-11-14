@@ -1,0 +1,103 @@
+name: PASQ v6a NBA original companion and Blueprint shot-creation action field audit
+on:
+  push:
+    branches: [research/igp-full174-pasq-private-cpu-20261114]
+    paths: ['.github/workflows/igp-pasq-current-action-audit-v6a-cpu.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: igp-pasq-current-action-audit-v6a
+  cancel-in-progress: false
+jobs:
+  qa:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GIT_TERMINAL_PROMPT: '0'
+      PRIVATE_REPO: timeedmonds-maker/104
+      SOURCE_BRANCH: analysis/pasq-current-shot-action-taxonomy-audit-20261114
+      SOURCE_COMMIT: 6c5c4c9d7ce5b709cc1c1dbaf0539d6b562cc8be
+    steps:
+      - name: Verify SHA-pinned private source and archive QA attachments
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/"$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" \
+            "https://github.com/$PRIVATE_REPO.git" "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" fetch -q --depth=1 origin "$SOURCE_COMMIT"
+          git -C "$RUNNER_TEMP/private" checkout -q --detach "$SOURCE_COMMIT"
+          test "$(git -C "$RUNNER_TEMP/private" rev-parse HEAD)" = "$SOURCE_COMMIT"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion
+          cd "$RUNNER_TEMP/private"
+          test -f gamepulse/fusion/igp_pasq_current_action_schema_v6a.py
+          test -f gamepulse/fusion/igp_full174_pasq_v1.py
+          mkdir -p "$RUNNER_TEMP/output"
+          echo PASQ_EVIDENCE_SOURCE_QA_PRESENT
+      - name: Execute no-imputation, no-false-promotion API contract tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          set +e
+          PYTHONPATH=gamepulse/fusion python3 -m unittest -q \
+            gamepulse/fusion/tests/test_igp_pasq_current_action_schema_v6a.py \
+            > "$RUNNER_TEMP/output/tests.log" 2>&1
+          tests=$?
+          model=99
+          if test "$tests" -eq 0; then
+            PYTHONPATH=gamepulse/fusion python3 gamepulse/fusion/igp_pasq_current_action_schema_v6a.py \
+              --root . \
+              --output "$RUNNER_TEMP/output/v6a.json" \
+              > "$RUNNER_TEMP/output/model.log" 2>&1
+            model=$?
+          fi
+          set -e
+          printf '{"tests":%s,"model":%s}\n' "$tests" "$model" > "$RUNNER_TEMP/output/status.json"
+          if test "$tests" -eq 0 && test "$model" -eq 0; then
+            echo PASQ_ACTION_TAXONOMY_V6A_PASS
+          else
+            echo PASQ_ACTION_TAXONOMY_V6A_FAIL
+          fi
+      - name: Commit accepted result or diagnostic receipt privately
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,time,sys
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'output'
+          root.mkdir(exist_ok=True)
+          status=root/'status.json'
+          state=json.loads(status.read_text()) if status.exists() else {'setup_failed':True}
+          passed=state.get('tests')==0 and state.get('model')==0 and (root/'v6a.json').is_file()
+          if passed:
+              entries=[('qa.json',(root/'v6a.json').read_bytes())]
+          else:
+              entries=[('failure.json',(json.dumps({
+                'source_commit':os.environ['SOURCE_COMMIT'],'stages':state})+'\n').encode())]
+              for name in ('tests.log','model.log'):
+                  file=root/name
+                  if file.exists():entries.append((name,file.read_bytes()[-18000:]))
+          for name,data in entries:
+              path='gamepulse/fusion/qa/pasq_full174_current_action_schema_v6a_20261114/'+name
+              url='repos/'+os.environ['PRIVATE_REPO']+'/contents/'+path
+              payload={'branch':os.environ['SOURCE_BRANCH'],
+                       'message':'QA: PASQ v6a original action taxonomy '+name,
+                       'content':base64.b64encode(data).decode()}
+              for attempt in range(8):
+                  old=subprocess.run(['gh','api',url+'?ref='+os.environ['SOURCE_BRANCH']],
+                      capture_output=True,text=True)
+                  send=dict(payload)
+                  if old.returncode==0:send['sha']=json.loads(old.stdout)['sha']
+                  response=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                      input=json.dumps(send),capture_output=True,text=True)
+                  if response.returncode==0:break
+                  time.sleep(1+attempt)
+              else:raise RuntimeError('PRIVATE_RESULT_WRITE_FAILED')
+          print('PASQ_ACTION_TAXONOMY_V6A_PRIVATE_QA_COMMITTED')
+          if not passed:sys.exit(1)
+          PY
