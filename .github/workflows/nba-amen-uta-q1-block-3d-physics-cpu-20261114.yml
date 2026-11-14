@@ -1,3 +1,4 @@
+# reviewed source-private CPU workflow: original game0039 ball XYZ never written to public checkout
 name: Amen Jazz Q1 physics block height - SHA private 3D CPU
 on:
   push:
