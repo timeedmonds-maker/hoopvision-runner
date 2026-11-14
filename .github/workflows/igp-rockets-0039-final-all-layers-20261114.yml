@@ -1,4 +1,5 @@
 # Rockets–Jazz, NBA Cup 2026-11-13 US: original postfinal source enrichment.
+# 2026-11-14: source-first one-shot rerun with explicit reviewed public confidentiality allowlist.
 # No GPU, no paid compute, no private source in this public repository.
 # This workflow is a targeted one-shot; existing evergreen XYZ jobs are not restarted.
 # Existing approved workflow path, retained source-only privacy gate; all game sources remain private.
