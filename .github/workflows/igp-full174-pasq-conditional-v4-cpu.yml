@@ -18,7 +18,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/full174-pasq-conditional-skill-v4-20261114
-      SOURCE_COMMIT: ef7ea9379bfd9840247acb2e97391608514ec90a
+      SOURCE_COMMIT: 55d798eb6331ce5575f1d323410e2d69757248a8
     steps:
       - name: Authenticate and SHA-pin Full174 original source code
         shell: bash
