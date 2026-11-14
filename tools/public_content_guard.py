@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/cpu-animate-final-0039-e610-encrypted-source-20261114.yml",  # reviewed user-approved exact event original NBA media privately sourced; AES256-GCM ciphertext-only public artifact, key private 104
     ".github/workflows/cpu-animate-final-0039-e610-playbyplay-source-20261114.yml",  # reviewed CPU-only exact event 610 HLS acquisition, licensed video and metadata only private 104; no source media in public artifacts/logs
     ".github/workflows/igp-full183-sourcegraded-release-20261114.yml",  # free CPU-only private 104 SHA-locked 9-game FULL183 release, original XYZ kept private, public logs counts only
     ".github/workflows/igp-full183-sourcegraded-acceptance-20261114.yml",  # vetted CPU private Full183 immutable Full174+9 SHA source-graded release; all licensed source/derived rows remain private 104
@@ -932,6 +933,7 @@ REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
     ".github/workflows/rockets-remaining-sengun-double-clips.yml",
 }
 REVIEWED_PUBLIC_MP4_EXPORT_WORKFLOWS = {
+    ".github/workflows/cpu-animate-final-0039-e610-encrypted-source-20261114.yml",  # audited exceptional ciphertext-only transport, no plaintext NBA footage or raw source public
     ".github/workflows/cpu-animate-encrypted-chat-transfer.yml",  # special transport exception: encrypted ciphertext only, not a cleartext MP4
     ".github/workflows/cpu-animate-transfer-probe.yml",  # benign synthetic text artifact only; no source media
     ".github/workflows/freeview-amen732-direct-sixvideo-render.yml",  # public NBA stream source only; no native media artifacts
