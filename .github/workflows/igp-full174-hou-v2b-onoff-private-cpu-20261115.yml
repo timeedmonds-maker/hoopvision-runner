@@ -16,7 +16,7 @@ jobs:
           set -euo pipefail
           PRIVATE_REPO="timeedmonds-maker/104"
           BRANCH="analysis/full174-rockets-v2b-onoff-shots-20261115"
-          PINNED="976a5b23719b20395163e8ebea4128875e83fb6a"
+          PINNED="e90ca0aadcb329dab5cb18d27185ba6d4722fd24"
           TREE="$RUNNER_TEMP/private-full174"
           HIST="$RUNNER_TEMP/historical2025"
           OUT="$RUNNER_TEMP/rockets-v2b"
