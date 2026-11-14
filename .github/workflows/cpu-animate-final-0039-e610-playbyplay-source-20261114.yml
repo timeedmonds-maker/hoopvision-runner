@@ -30,11 +30,11 @@ jobs:
           if gh api "repos/$PRIVATE_REPO" --jq .private > "$RUNNER_TEMP/repo-privacy" 2> "$RUNNER_TEMP/private-error"; then
             echo CPU_SOURCE_PRIVATE_REPO_HTTP_PASS
             python3 - "$RUNNER_TEMP/repo-privacy" <<'PY_PRIVATE'
-import json,sys
-value=json.loads(open(sys.argv[1]).read())
-print('CPU_SOURCE_PRIVATE_REPO_IS_PRIVATE',value is True)
-assert value is True
-PY_PRIVATE
+          import json,sys
+          value=json.loads(open(sys.argv[1]).read())
+          print('CPU_SOURCE_PRIVATE_REPO_IS_PRIVATE',value is True)
+          assert value is True
+          PY_PRIVATE
           else
             echo CPU_SOURCE_PRIVATE_REPO_API_FAILED
             sed -E 's/(Bearer|token) [^ ]+/REDACTED/g' "$RUNNER_TEMP/private-error" | head -c 220
