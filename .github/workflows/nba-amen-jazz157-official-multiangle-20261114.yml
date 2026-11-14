@@ -29,7 +29,13 @@ jobs:
             sed -E 's/(token|Bearer) [^ ]+/REDACTED/g' "$RUNNER_TEMP/gh-error" | head -c 400
             exit 3
           fi
-          grep -qx true "$RUNNER_TEMP/private-status" || { echo REPO_IS_NOT_PRIVATE_FOR_GIVEN_TOKEN; exit 3; }
+          python3 - "$RUNNER_TEMP/private-status" <<'PY_CHECK'
+          import json,sys
+          from pathlib import Path
+          raw=Path(sys.argv[1]).read_bytes().strip()
+          print("PRIVATE_REPO_CHECK_BYTES",repr(raw[:40]))
+          assert json.loads(raw.decode()) is True,"REPO_IS_NOT_PRIVATE_FOR_GIVEN_TOKEN"
+          PY_CHECK
           command -v ffmpeg
           command -v ffprobe
       - name: Verify both official NBA events, acquire all actual camera options, and SHA archive privately
