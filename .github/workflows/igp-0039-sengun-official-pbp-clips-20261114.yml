@@ -19,19 +19,22 @@ jobs:
           gid='0022600039'
           urls=[
             f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gid}.json',
-            f'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{gid}.json'
+            f'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{gid}.json',
+            f'https://stats.gleague.nba.com/stats/playbyplayv3?GameID={gid}&StartPeriod=0&EndPeriod=0',
+            f'https://stats.nba.com/stats/playbyplayv3?GameID={gid}&StartPeriod=0&EndPeriod=0',
+            f'https://stats.gleague.nba.com/stats/boxscoretraditionalv3?GameID={gid}&StartPeriod=0&EndPeriod=0'
           ]
           results=[]
           for url in urls:
             try:
-              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; GamePulseAudit/1.0)','Accept':'application/json'})
+              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36','Accept':'application/json, text/plain, */*','Referer':'https://www.nba.com/','Origin':'https://www.nba.com','x-nba-stats-origin':'stats','x-nba-stats-token':'true'})
               with urllib.request.urlopen(req,timeout=35) as resp: raw=resp.read(); status=resp.status
               doc=json.loads(raw)
               results.append({'url':url,'status':status,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'doc':doc})
               print('IGP0039_FETCH',json.dumps({'url':url,'status':status,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}),flush=True)
             except Exception as e:
               print('IGP0039_FETCH_ERROR',json.dumps({'url':url,'error':str(e)[:400]}),flush=True)
-          pbp=next((x['doc'] for x in results if 'playbyplay_' in x['url']),None)
+          pbp=next((x['doc'] for x in results if 'playbyplay_' in x['url'] or 'playbyplayv3' in x['url']),None)
           if pbp:
             acts=pbp.get('game',{}).get('actions',[])
             print('IGP0039_PBP_SUMMARY',json.dumps({'gameId':pbp.get('game',{}).get('gameId'),'total_actions':len(acts),'first_action':acts[0] if acts else None},default=str),flush=True)
