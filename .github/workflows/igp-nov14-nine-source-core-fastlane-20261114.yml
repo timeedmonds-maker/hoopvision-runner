@@ -171,9 +171,9 @@ jobs:
           exit 23
 
   recover-nov13-original-shot-source-gaps:
-    # This job alone runs on push; the two original full-slate jobs stay manual.
+    # Original companion/Blueprint retries are explicit/manual; newly added independent NBA shotquality source runs on push.
     # The immutable accepted FULL174 and FULL183 v2 releases are never modified.
-    if: github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 100
     env:
@@ -294,6 +294,92 @@ jobs:
             git rebase -q "origin/$BRANCH" || { git rebase --abort; echo FULL183_SOURCE_CHANGED_RECONCILE_RETRY; exit 41; }
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then
               echo FULL183_GAP_RECOVERY_ORIGINAL_SOURCE_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
+
+  recover-nov13-shotquality-video:
+    # Original public NBA shotqualityvideologs is a separate independent source
+    # from partial companion and Blueprint, and can supply original xFG/media.
+    # All NBA event rows, media URLs and player details remain PRIVATE in 104.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Source gate and private Git authorization
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Clone exact canonical 183-game private official source
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_full183_shotquality_original_recovery_v1.py' \
+            '/gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/official_pbp_timing/games/**' \
+            '/gamepulse/fusion/evidence/shotqualityvideologs_original_20261113/**' \
+            '/gamepulse/fusion/qa/igp_20261114/nov14_shotqualityvideologs_source_recheck_v1.json'
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/igp_full183_shotquality_original_recovery_v1.py
+      - name: Recover original source for missing 0036 and second-half 0042
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/igp_full183_shotquality_original_recovery_v1.py \
+            --games 0022600036,0022600042 --workers 4 --root .
+      - name: Backfill official published xFG and NBA media source for other seven
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          python3 gamepulse/fusion/igp_full183_shotquality_original_recovery_v1.py \
+            --games 0022600034,0022600035,0022600037,0022600038,0022600039,0022600040,0022600041 \
+            --workers 5 --root .
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          q=json.loads(Path('gamepulse/fusion/qa/igp_20261114/nov14_shotqualityvideologs_source_recheck_v1.json').read_bytes())
+          d=q['provider_recovered_source_games']
+          assert len(d)==9 and q['modelled_xfg_values']==0 and q['original_full183_v2_immutable']
+          assert sum(x['official_FGA'] for x in d.values())==1612
+          print('FULL183_ORIGINAL_INDEPENDENT_SHOTQUALITY_SOURCE_QA_PASS',
+                sum(x['numeric_xfg'] for x in d.values()),
+                sum(x['exact_original_video_references'] for x in d.values()))
+          PY
+      - name: Version SHA-pinned original independent source only on private branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/evidence/shotqualityvideologs_original_20261113 \
+            gamepulse/fusion/qa/igp_20261114/nov14_shotqualityvideologs_source_recheck_v1.json
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo FULL183_SHOTQUALITY_SOURCE_UNCHANGED
+            exit 0
+          fi
+          git commit -q -m "data(igp): preserve nine NBA ShotQualityVideoLogs original shot xFG and media evidence"
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || { git rebase --abort; echo FULL183_SHOTQUALITY_SOURCE_CHANGED_RETRY; exit 41; }
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL183_ORIGINAL_SHOTQUALITY_SHA_PRIVATE_COMMITTED
               exit 0
             fi
             sleep "$n"
