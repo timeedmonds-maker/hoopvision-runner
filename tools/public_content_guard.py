@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/nba-amen-jazz157-official-multiangle-20261114.yml",  # official NBA 0039 blocked shot multi-camera availability and ephemeral HLS retrieval; source video retained private
     ".github/workflows/nba-amen-uta-q1-exact-native-pbp-20261114.yml",  # official NBA public event lookup only; extracted source XYZ SHA-held solely in private 104, aggregate public logs
     ".github/workflows/nba-amen-uta-q1-block-3d-physics-cpu-20261114.yml",  # reviewed 5Hz original game0039 source SHA-private 104, deterministic CPU scipy/matplotlib model, per-frame original remains private; only pass status public
 
@@ -905,6 +906,7 @@ REVIEWED_PUBLIC_NBA_ACTION_METADATA = {
     "reed_0022600125_official_action.json",
 }
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
+    ".github/workflows/nba-amen-jazz157-official-multiangle-20261114.yml",  # reviewed public official clips.nba.com page only; no signed HLS links or NBA video stored in public repo
     ".github/workflows/nba-amen-uta-q1-exact-native-pbp-20261114.yml",  # reviewed official NBA action metadata and public clips.nba.com locator only, original XYZ private 104
     ".github/workflows/nba-eason-0022600153-replay-access-probe.yml",  # inspected NBA public replay origin HTTP-only, no private media
     ".github/workflows/nba-eason-0022600153-exact-action.yml",  # pinned immutable official NBA public replay-link origin only
