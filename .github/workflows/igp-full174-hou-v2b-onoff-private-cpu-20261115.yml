@@ -1,0 +1,111 @@
+# Public runner for a private SHA-verified CPU-only aggregation. Does not publish
+# individual source events, private prediction arrays, coordinates or video.
+name: IGP Full174 Houston player-adjusted xPPS on-off private CPU
+on:
+  push:
+    branches: [research/igp-full174-hou-v2b-onoff-private-cpu-20261115]
+    paths: ['.github/workflows/igp-full174-hou-v2b-onoff-private-cpu-20261115.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: hou-full174-v2b-onoff-cpu-20261115
+  cancel-in-progress: false
+jobs:
+  compute:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GIT_TERMINAL_PROMPT: "0"
+      PRIVATE_REPO: timeedmonds-maker/104
+      SOURCE_BRANCH: analysis/full174-rockets-v2b-onoff-shots-20261115
+      SOURCE_COMMIT: 976a5b23719b20395163e8ebea4128875e83fb6a
+      OUTPUT_DIR: ${{ runner.temp }}/pasq-hou-output
+      HIST_DIR: ${{ runner.temp }}/pasq-hou-history
+      PRIVATE_TREE: ${{ runner.temp }}/pasq-hou-private
+    steps:
+      - name: Verify original private token and freeze SHA-bound source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${GH_TOKEN:-}"
+          test "$(gh api repos/"$PRIVATE_REPO" --jq .private)" = true
+          gh auth setup-git
+          git clone -q --depth=1 --filter=blob:none --sparse -b "$SOURCE_BRANCH" "https://github.com/$PRIVATE_REPO.git" "$PRIVATE_TREE"
+          git -C "$PRIVATE_TREE" sparse-checkout set gamepulse/fusion gamepulse/third_party/courtsketch data/extensions/nba_blueprint_2026_27 data/extensions/nba_gravity_2026_27
+          test "$(git -C "$PRIVATE_TREE" rev-parse HEAD)" = "$SOURCE_COMMIT"
+          test -f "$PRIVATE_TREE/gamepulse/fusion/igp_full174_hou_player_onoff_v2b_20261115.py"
+          python3 -m py_compile "$PRIVATE_TREE/gamepulse/fusion/igp_full174_hou_player_onoff_v2b_20261115.py"
+          echo PRIVATE_SHA_PINNED_CPU_MODEL_READY
+      - name: Download original historical 2025-26 source-qualified xFG records
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$HIST_DIR"
+          gh release download igp-public-gamepulse-2025-26-20261105 --repo "$PRIVATE_REPO" --dir "$HIST_DIR" --pattern nba-2025-26-source-index.json
+          gh release download igp-2025-26-xfg-archive-20261105 --repo "$PRIVATE_REPO" --dir "$HIST_DIR" --pattern 'nba-xfg-nba-2025-26-shard-*'
+          test "$(find "$HIST_DIR" -name 'nba-xfg-nba-2025-26-shard-*.jsonl.gz' | wc -l)" -eq 15
+          test "$(find "$HIST_DIR" -name 'nba-xfg-nba-2025-26-shard-*-qa.json' | wc -l)" -eq 15
+          python3 - <<'PY'
+          import hashlib,os,pathlib
+          p=pathlib.Path(os.environ['HIST_DIR'])/'nba-2025-26-source-index.json'
+          assert hashlib.sha256(p.read_bytes()).hexdigest()=='b17861f106f3eed544f745fba26fe42e7a81a33a0e4c67d460d2da9d959fee47'
+          print('HISTORICAL_2025_26_SOURCE_SHA_OK')
+          PY
+      - name: Compute exactly paired Houston offensive shot on/off
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$OUTPUT_DIR"
+          set +e
+          (cd "$PRIVATE_TREE" && python3 gamepulse/fusion/igp_full174_hou_player_onoff_v2b_20261115.py \
+            --root . \
+            --source-index "$HIST_DIR/nba-2025-26-source-index.json" \
+            --historical-dir "$HIST_DIR" \
+            --out "$OUTPUT_DIR/rockets_full174_v2b_onoff.json") > "$OUTPUT_DIR/model.log" 2>&1
+          exit_status=$?
+          set -e
+          printf '%s' "$exit_status" > "$OUTPUT_DIR/status"
+          if test "$exit_status" -eq 0; then
+            echo PRIVATE_HOU_V2B_PLAYER_ONOFF_COMPLETED
+          else
+            echo PRIVATE_HOU_V2B_PLAYER_ONOFF_FAILED_SEE_PRIVATE_QA
+          fi
+      - name: Preserve source-qualified results and error details privately
+        shell: bash
+        if: always()
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,sys,time
+          root=pathlib.Path(os.environ['OUTPUT_DIR'])
+          root.mkdir(parents=True,exist_ok=True)
+          code=int((root/'status').read_text()) if (root/'status').exists() else -1
+          if code==0 and (root/'rockets_full174_v2b_onoff.json').is_file():
+              payload=(root/'rockets_full174_v2b_onoff.json').read_bytes()
+              name='rockets_full174_v2b_onoff.json'
+          else:
+              reason={'schema':'igp.full174.hou.player_onoff.v2b.failure',
+                      'source_commit':os.environ['SOURCE_COMMIT'],
+                      'exit_status':code,
+                      'model_log_tail':(root/'model.log').read_text()[-9000:] if (root/'model.log').exists() else 'SETUP_OR_ARCHIVE_FAILURE'}
+              payload=(json.dumps(reason,sort_keys=True,indent=2)+'\n').encode()
+              name='failure.json'
+          repo=os.environ['PRIVATE_REPO'];branch=os.environ['SOURCE_BRANCH']
+          path=f'gamepulse/fusion/qa/pasq_full174_hou_onoff_v2b_20261115/{name}'
+          url=f'repos/{repo}/contents/{path}'
+          request={'branch':branch,'message':f'qa(private): Full174 Houston v2b on-off {name}',
+                   'content':base64.b64encode(payload).decode()}
+          for attempt in range(8):
+              existing=subprocess.run(['gh','api',url+'?ref='+branch],capture_output=True,text=True)
+              current=dict(request)
+              if existing.returncode==0:current['sha']=json.loads(existing.stdout)['sha']
+              result=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+                                    input=json.dumps(current),text=True,capture_output=True)
+              if result.returncode==0:break
+              time.sleep(1+attempt)
+          else:raise RuntimeError('PRIVATE_QA_WRITE_FAILED')
+          print('PRIVATE_HOU_V2B_ONOFF_RECEIPT_COMMITTED')
+          if code!=0:sys.exit(1)
+          PY
