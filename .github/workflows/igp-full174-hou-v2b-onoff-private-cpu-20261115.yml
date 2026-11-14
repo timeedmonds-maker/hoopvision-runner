@@ -60,26 +60,3 @@ jobs:
           else
             echo PRIVATE_HOU_V2B_ONOFF_MODEL_FAILED_DETAILS_RETAINED_PRIVATELY
           fi
-      - name: Save player-level result or failure evidence exclusively to private repository
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$OUTPUT_DIR"
-          if test -f "$OUTPUT_DIR/rockets_full174_v2b_onoff.json"; then
-            OUTFILE="$OUTPUT_DIR/rockets_full174_v2b_onoff.json"
-            REMOTE="rockets_full174_v2b_onoff.json"
-          else
-            OUTFILE="$OUTPUT_DIR/failure.json"
-            REMOTE="failure.json"
-            python3 -c 'import json,os,pathlib; p=pathlib.Path(os.environ["OUTPUT_DIR"]); log=(p/"private-model.log").read_text()[-7000:] if (p/"private-model.log").exists() else "CLONE_OR_HISTORICAL_SOURCE_SETUP_FAILED"; (p/"failure.json").write_text(json.dumps({"state":"EXECUTION_FAILED","run_id":os.environ.get("GITHUB_RUN_ID"),"diagnostic_log_tail":log},sort_keys=True,indent=2))'
-          fi
-          REMOTE_PATH="gamepulse/fusion/qa/pasq_full174_hou_onoff_v2b_20261115/$REMOTE"
-          CURRENT_SHA="$(gh api "repos/$PRIVATE_REPO/contents/$REMOTE_PATH?ref=$SOURCE_BRANCH" --jq .sha 2>/dev/null || true)"
-          if test -n "$CURRENT_SHA"; then
-            gh api -X PUT "repos/$PRIVATE_REPO/contents/$REMOTE_PATH" -f "branch=$SOURCE_BRANCH" -f "sha=$CURRENT_SHA" -f "message=qa(private): Houston Full174 v2b $REMOTE" -f "content=$(base64 -w0 "$OUTFILE")" >/dev/null
-          else
-            gh api -X PUT "repos/$PRIVATE_REPO/contents/$REMOTE_PATH" -f "branch=$SOURCE_BRANCH" -f "message=qa(private): Houston Full174 v2b $REMOTE" -f "content=$(base64 -w0 "$OUTFILE")" >/dev/null
-          fi
-          echo PRIVATE_RESULT_SAVED_NO_LICENSED_SOURCE_EXPORTED
-          if test "$REMOTE" != "rockets_full174_v2b_onoff.json"; then exit 1; fi
