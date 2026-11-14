@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   official-companion-blueprint:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     env:
@@ -165,6 +166,136 @@ jobs:
             git fetch -q origin "$BRANCH"
             git rebase -q "origin/$BRANCH" || { git rebase --abort; echo IGP_NOV14_CONCURRENT_SOURCE_CHANGED_RETRY; exit 41; }
             if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo IGP_NOV14_SHA_VERIFIED_LIVE_XYZ_PRIVATE_COMMITTED; exit 0; fi
+            sleep "$n"
+          done
+          exit 23
+
+  recover-nov13-original-shot-source-gaps:
+    # This job alone runs on push; the two original full-slate jobs stay manual.
+    # The immutable accepted FULL174 and FULL183 v2 releases are never modified.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+      IGP_SDK_INIT_TIMEOUT_MS: '35000'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Verify public/private separation and CPU-only original SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Clone exact current source-graduated private Full183 originals
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_full183_gap_recovery_v1.py' \
+            '/gamepulse/fusion/igp_post56_original_companion_index_v1.py' \
+            '/gamepulse/fusion/igp_post56_blueprint_original_index_v1.py' \
+            '/gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_*/**' \
+            '/gamepulse/fusion/official_pbp_timing/games/**' \
+            '/gamepulse/fusion/qa/igp_progress_20261030/**' \
+            '/data/extensions/nba_blueprint_2026_27/games/**' \
+            '/scripts/update_nba_blueprint_daily_2026_27.py' \
+            '/scripts/build_nba_blueprint_2026_27.py'
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/igp_full183_gap_recovery_v1.py
+          python3 -m py_compile gamepulse/fusion/igp_post56_original_companion_index_v1.py
+          python3 -m py_compile gamepulse/fusion/igp_post56_blueprint_original_index_v1.py
+      - name: Recheck all nine official NBA Blueprint reports for late-published shots
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          PYTHONPATH=scripts:gamepulse/fusion python3 gamepulse/fusion/igp_full183_gap_recovery_v1.py --mode blueprint --root .
+      - name: Install existing authorized original SDK client
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm config set @ease-live:registry https://easelive.jfrog.io/artifactory/api/npm/npm-public/
+          cd tools/licensed_feed
+          npm install --ignore-scripts --no-audit --no-fund --silent
+      - name: Retry nine original companion event programs with priority for 0036 and 0042
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          PYTHONPATH=scripts:gamepulse/fusion python3 - <<'PY'
+          import importlib.util
+          spec=importlib.util.spec_from_file_location('g','gamepulse/fusion/igp_full183_gap_recovery_v1.py')
+          g=importlib.util.module_from_spec(spec);spec.loader.exec_module(g)
+          a,_=g.init(__import__('pathlib').Path('.'))
+          assert len(g.IDS)==9
+          print('FULL183_ORIGINAL_SDK_PRIORITY_GAMES_VALIDATED',len(g.IDS))
+          PY
+          for gid in 0022600036 0022600042 0022600034 0022600035 0022600037 0022600038 0022600039 0022600040 0022600041; do
+            tipoff=$(python3 -c 'import json,sys;print(json.load(open("data/extensions/nba_blueprint_2026_27/games/"+sys.argv[1]+"/blueprint_report_raw.json"))["game_header"]["gameTimeUTC"])' "$gid")
+            attempts=1
+            if test "$gid" = "0022600036" || test "$gid" = "0022600042"; then attempts=2; fi
+            for number in $(seq 1 "$attempts"); do
+              probe="$RUNNER_TEMP/igp-full183-gap-$gid-$number"
+              mkdir -p "$probe"
+              if (cd "$GITHUB_WORKSPACE" && NBA_GAME_ID="$gid" NBA_TIPOFF_UTC="$tipoff" IGP_PRIVATE_CAPTURE_DIR="$probe" node tools/licensed_feed/companion_original_sdk_probe.mjs > "$RUNNER_TEMP/sdk-private-$gid-$number.log" 2>&1); then
+                PYTHONPATH=scripts:gamepulse/fusion python3 gamepulse/fusion/igp_full183_gap_recovery_v1.py --mode companion --game-id "$gid" --probe "$probe" --root .
+              else
+                echo "FULL183_AUTHORIZED_SDK_RETRY_EXECUTION_UNAVAILABLE $gid $number"
+              fi
+            done
+          done
+      - name: Rebuild exact official shot crosswalks and validate parent SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          PYTHONPATH=scripts:gamepulse/fusion python3 gamepulse/fusion/igp_full183_gap_recovery_v1.py --mode reconcile --root .
+          python3 - <<'PY'
+          import json
+          p='gamepulse/fusion/qa/igp_20261114/nov14_full183_gap_recovery_v1.json'
+          d=json.load(open(p))
+          assert d['provider_values_inferred']==0 and d['original_full183_v2_immutable']
+          assert sum(v['official_FGA'] for v in d['post_recovery'].values())==1612
+          print('FULL183_SOURCE_RECOVERY_QA_PASS',
+                d['upgrade_evidence_count'],d['new9_exact_source_union'],
+                d['unresolved_official_FGA'])
+          PY
+      - name: Commit only private SHA-preserved original revisions and receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/evidence/companion_sdk_original_002260003* gamepulse/fusion/evidence/companion_sdk_original_002260004* \
+            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json \
+            gamepulse/fusion/qa/igp_20261114/nov14_full183_gap_recovery_v1.json \
+            gamepulse/fusion/qa/igp_progress_20261030/igp_post56_companion_11_original_source_enrichment_v1.json \
+            gamepulse/fusion/qa/igp_progress_20261030/igp_post56_blueprint_12_original_sha_join_v1.json \
+            data/extensions/nba_blueprint_2026_27/games/002260003* data/extensions/nba_blueprint_2026_27/games/002260004*
+          if test -d data/extensions/nba_blueprint_2026_27/source_revision_history; then
+            git add --sparse -f data/extensions/nba_blueprint_2026_27/source_revision_history
+          fi
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL183_NINE_GAME_ORIGINAL_SOURCE_UNCHANGED; exit 0; fi
+          git commit -q -m "data(igp): source-only FULL183 November 13 nine-game gap recovery, versioned SHA"
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || { git rebase --abort; echo FULL183_SOURCE_CHANGED_RECONCILE_RETRY; exit 41; }
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo FULL183_GAP_RECOVERY_ORIGINAL_SOURCE_PRIVATE_COMMITTED
+              exit 0
+            fi
             sleep "$n"
           done
           exit 23
