@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-full183-sourcegraded-acceptance-20261114.yml",  # vetted CPU private Full183 immutable Full174+9 SHA source-graded release; all licensed source/derived rows remain private 104
     ".github/workflows/igp-nov14-nine-source-core-fastlane-20261114.yml",  # vetted free CPU official nine-game source/PBP/Blueprint/companion SHA-private 104 index; aggregate public logs only
     ".github/workflows/nba-block-height-full-season-source-cpu-20261114.yml",  # reviewed CPU-only 2026-27 SHA-private source ball-XYZ scan; public log aggregate counts only, no source coordinates/artifacts
     ".github/workflows/courtsketch-rockets-jazz-0039-source-capture-20261114.yml",  # reviewed exact-game 0039 CourtSketch browser L0 and deterministic L1 SHA provenance, all original/private player data held solely in private 104
