@@ -127,16 +127,7 @@ jobs:
               -c:a aac -b:a 128k -movflags +faststart \
               "$root/0039_e610_playbyplay_original.mp4" || echo EXACT_PBP_HLS_MEDIA_FAILED
             if test -s "$root/0039_e610_playbyplay_original.mp4"; then
-              python3 - <<'PY'
-              import pathlib,json,os,hashlib
-              r=pathlib.Path(os.environ["RUNNER_TEMP"])/"cpu_final_0039"
-              p=r/"0039_e610_playbyplay_original.mp4"
-              j=json.loads((r/"source_report.json").read_text())
-              j.update(source_status="downloaded_verified_angle",
-                       media_bytes=p.stat().st_size,media_sha256=hashlib.sha256(p.read_bytes()).hexdigest())
-              (r/"source_report.json").write_text(json.dumps(j,indent=2)+"\n")
-              print("NBA_PBP_610_MEDIA_CAPTURED_PRIVATE",j["media_bytes"],j["media_sha256"])
-              PY
+              python3 -c 'import pathlib,json,os,hashlib; r=pathlib.Path(os.environ["RUNNER_TEMP"])/"cpu_final_0039"; p=r/"0039_e610_playbyplay_original.mp4"; j=json.loads((r/"source_report.json").read_text()); j.update(source_status="downloaded_verified_angle",media_bytes=p.stat().st_size,media_sha256=hashlib.sha256(p.read_bytes()).hexdigest()); (r/"source_report.json").write_text(json.dumps(j,indent=2)+"\\n"); print("NBA_PBP_610_MEDIA_CAPTURED_PRIVATE",j["media_bytes"],j["media_sha256"])'
             fi
           fi
           # Video and source metadata go ONLY to private 104.
