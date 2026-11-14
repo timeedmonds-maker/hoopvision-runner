@@ -1,0 +1,65 @@
+# Free CPU-only official NBA PBP / clip availability audit for the Nov 13 2026 HOU–UTA Cup game.
+name: IGP 0039 Sengun official PBP and clips audit
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-0039-sengun-official-pbp-clips-20261114.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  official-pbp-clips:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Retrieve real official event IDs; probe clip availability without video redistribution
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error, hashlib, time, re
+          gid='0022600039'
+          urls=[
+            f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gid}.json',
+            f'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{gid}.json'
+          ]
+          results=[]
+          for url in urls:
+            try:
+              req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0 (compatible; GamePulseAudit/1.0)','Accept':'application/json'})
+              with urllib.request.urlopen(req,timeout=35) as resp: raw=resp.read(); status=resp.status
+              doc=json.loads(raw)
+              results.append({'url':url,'status':status,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest(),'doc':doc})
+              print('IGP0039_FETCH',json.dumps({'url':url,'status':status,'bytes':len(raw),'sha256':hashlib.sha256(raw).hexdigest()}),flush=True)
+            except Exception as e:
+              print('IGP0039_FETCH_ERROR',json.dumps({'url':url,'error':str(e)[:400]}),flush=True)
+          pbp=next((x['doc'] for x in results if 'playbyplay_' in x['url']),None)
+          if pbp:
+            acts=pbp.get('game',{}).get('actions',[])
+            print('IGP0039_PBP_SUMMARY',json.dumps({'gameId':pbp.get('game',{}).get('gameId'),'total_actions':len(acts),'first_action':acts[0] if acts else None},default=str),flush=True)
+            sgid=1630578
+            focal=[]
+            for a in acts:
+              desc=str(a.get('description',''))
+              if a.get('personId')==sgid or a.get('assistPersonId')==sgid or 'Sengun' in desc or 'Şengün' in desc or 'Şengün' in json.dumps(a,ensure_ascii=False):
+                focal.append({k:a.get(k) for k in ('actionNumber','period','clock','actionType','subType','description','personId','assistPersonId','teamTricode','shotResult','isFieldGoal','scoreHome','scoreAway','pointsTotal')})
+            print('IGP0039_SENGUN_EVENT_COUNT',len(focal),flush=True)
+            for a in focal:
+              print('IGP0039_EVENT',json.dumps(a,ensure_ascii=False),flush=True)
+            probe=[]
+            for a in focal:
+              typ=(a.get('actionType') or '').lower()
+              if typ in ('2pt','3pt','freethrow') or a.get('assistPersonId')==sgid:
+                probe.append(a['actionNumber'])
+            probe=list(dict.fromkeys(v for v in probe if isinstance(v,int)))
+            test=probe[:5]+probe[-3:]
+            for num in dict.fromkeys(test):
+              url=f'https://clips.nba.com/?gameNo={gid}&eventNum={num}&source=grs'
+              try:
+                req=urllib.request.Request(url,headers={'User-Agent':'Mozilla/5.0'})
+                with urllib.request.urlopen(req,timeout=22) as resp: body=resp.read(100000).decode('utf8','replace'); status=resp.status
+                unav='No video clip available' in body
+                video=bool(re.search(r'<video|\\.m3u8|\\.mp4',body,re.I))
+                print('IGP0039_CLIP_CHECK',json.dumps({'actionNumber':num,'url':url,'http':status,'not_available_message':unav,'video_tag_or_url':video,'size_read':len(body)}),flush=True)
+              except Exception as e:print('IGP0039_CLIP_CHECK_ERROR',json.dumps({'actionNumber':num,'error':str(e)[:180]}),flush=True)
+          else:
+            print('IGP0039_NO_OFFICIAL_PBP_RESPONSE',flush=True)
+          PY
