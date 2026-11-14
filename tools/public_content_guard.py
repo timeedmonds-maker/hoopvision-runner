@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/igp-rockets-0039-final-all-layers-20261114.yml",  # exact-game 0039 only; CPU original NBA PBP/companion/Blueprint and guarded native QA; licensed source retained in private 104
     ".github/workflows/nba-amen-jazz157-official-multiangle-20261114.yml",  # official NBA 0039 blocked shot multi-camera availability and ephemeral HLS retrieval; source video retained private
     ".github/workflows/nba-amen-uta-q1-exact-native-pbp-20261114.yml",  # official NBA public event lookup only; extracted source XYZ SHA-held solely in private 104, aggregate public logs
     ".github/workflows/nba-amen-uta-q1-block-3d-physics-cpu-20261114.yml",  # reviewed 5Hz original game0039 source SHA-private 104, deterministic CPU scipy/matplotlib model, per-frame original remains private; only pass status public
