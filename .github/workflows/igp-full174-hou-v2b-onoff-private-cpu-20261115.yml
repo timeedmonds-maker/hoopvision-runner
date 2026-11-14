@@ -1,29 +1,16 @@
-name: Rockets Full174 v2b player onoff source-verified free CPU
+name: Rockets Full174 v2b working free CPU probe
 on:
   push:
     branches:
       - research/igp-full174-hou-v2b-onoff-private-cpu-20261115
     paths:
       - .github/workflows/igp-full174-hou-v2b-onoff-private-cpu-20261115.yml
-  workflow_dispatch:
-permissions:
-  contents: read
 jobs:
-  compute:
+  probe:
     runs-on: ubuntu-24.04
-    timeout-minutes: 75
-    env:
-      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
-      PRIVATE_REPO: timeedmonds-maker/104
-      SOURCE_BRANCH: analysis/full174-rockets-v2b-onoff-shots-20261115
-      SOURCE_COMMIT: 976a5b23719b20395163e8ebea4128875e83fb6a
-      HIST_DIR: ${{ runner.temp }}/pasq-history
-      PRIVATE_TREE: ${{ runner.temp }}/pasq-private
-      OUTPUT_DIR: ${{ runner.temp }}/pasq-results
-      GIT_TERMINAL_PROMPT: "0"
     steps:
-      - name: Verify private token availability
-        shell: bash
+      - name: Check private token
+        env:
+          GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
         run: |
-          echo STEP_STARTED
-          if test -n "${GH_TOKEN:-}"; then echo PRIVATE_TOKEN_PRESENT; else echo PRIVATE_TOKEN_MISSING; fi
+          if test -n "${GH_TOKEN:-}"; then echo TOKEN_PRESENT; else echo TOKEN_MISSING; fi
