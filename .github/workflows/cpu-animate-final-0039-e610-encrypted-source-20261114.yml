@@ -33,9 +33,12 @@ jobs:
           export CIPHER_DIR="/tmp/cpu-final-0039-encrypted"
           mkdir -m 700 -p "$CIPHER_DIR"
           trap 'rm -rf "$SOURCE_ROOT"' EXIT
-          gh release download cpu-animate-final-0039-e610-playbyplay-source-20261114 \
-            -R timeedmonds-maker/104 --dir "$SOURCE_ROOT" \
-            --pattern '0039_e610_playbyplay_original.mp4' --pattern 'source_report.json'
+          curl --fail --location --silent --show-error --retry 3 \
+            -H "Authorization: Bearer $GH_TOKEN" -H 'Accept: application/octet-stream' \
+            'https://api.github.com/repos/timeedmonds-maker/104/releases/assets/747083717' \
+            -o "$SOURCE_ROOT/0039_e610_playbyplay_original.mp4"
+          test "$(stat -c%s "$SOURCE_ROOT/0039_e610_playbyplay_original.mp4")" -eq 11602169
+          echo EXACT_NBA_VIDEO_DOWNLOADED_PRIVATE_ONLY
           SRC="gamepulse/fusion/materialized/igp_nov14_0022600039_full160_additive_v1"
           DIR="$SOURCE_ROOT/$SRC"
           mkdir -p "$DIR"
