@@ -1,0 +1,139 @@
+name: CPU Animate final 0039 E610 exact Play by Play source CPU
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/cpu-animate-final-0039-e610-playbyplay-source-20261114.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+concurrency:
+  group: cpu-final-0039-e610-pbp-source
+  cancel-in-progress: false
+jobs:
+  source-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      GAME_ID: '0022600039'
+      EVENT_NUMBER: '610'
+      PRIVATE_REPO: timeedmonds-maker/104
+      RELEASE_TAG: cpu-animate-final-0039-e610-playbyplay-source-20261114
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify CPU-only private media destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/$PRIVATE_REPO --jq .private)" = true
+          command -v ffmpeg
+          echo CPU_ONLY_PRIVATE_MEDIA_GUARD_PASS
+      - name: Verify source event and discover exact-angle HLS
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,re,html,urllib.request,pathlib,sys
+          game=os.environ["GAME_ID"]
+          event=int(os.environ["EVENT_NUMBER"])
+          ua_old="Mozilla/5.0 (compatible; HoopVision NBA formal-source audit)"
+          def request(url,ua,referer,accept="text/html,application/xhtml+xml,application/json,*/*"):
+            return urllib.request.Request(url,headers={
+              "User-Agent":ua,"Referer":referer,"Accept":accept,
+              "Origin":"https://www.nba.com"
+            })
+          pbp=f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game}.json"
+          with urllib.request.urlopen(request(pbp,ua_old,"https://www.nba.com/","application/json"),timeout=25) as r:
+            doc=json.load(r)
+          assert str(doc["game"]["gameId"])==game
+          hits=[a for a in doc["game"]["actions"] if int(a.get("actionNumber") or -1)==event]
+          assert len(hits)==1
+          a=hits[0]
+          assert int(a["period"])==4 and str(a["clock"]).startswith("PT07M57")
+          assert str(a.get("personId"))=="1630578" and str(a.get("scoreHome"))=="104" and str(a.get("scoreAway"))=="98"
+          assert "dunk" in (str(a.get("subType"))+" "+str(a.get("description"))).lower()
+          print("OFFICIAL_EVENT_610_SHA_GROUNDED",game,a["period"],a["clock"],a["scoreHome"],a["scoreAway"])
+          url=f"https://clips.nba.com/?gameNo={game}&eventNum={event}&source=grs"
+          status={"schema":"cpu-animate-final.source-ingest.v1","game_id":game,"event":event,
+                  "official_pbp_verified":True,"angle_requested":"Play-by-Play","clip_page":url}
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"cpu_final_0039"
+          root.mkdir(parents=True,exist_ok=True)
+          report=root/"source_report.json"
+          try:
+            with urllib.request.urlopen(request(url,ua_old,"https://clips.nba.com/"),timeout=30) as r:
+              page=r.read(2500000).decode("utf-8","replace")
+              status["clip_http"]=r.status
+          except Exception as exc:
+            status["source_status"]="clip_page_unavailable"
+            status["error_type"]=type(exc).__name__
+            status["error_brief"]=str(exc)[:120]
+            report.write_text(json.dumps(status,indent=2)+"\n")
+            print("EXACT_PLAYBYPLAY_SOURCE_UNAVAILABLE",type(exc).__name__,str(exc)[:100])
+            sys.exit(0)
+          options=[]
+          for m in re.finditer(r"<option\b([^>]*)>(.*?)</option>",page,re.I|re.S):
+            attr=m.group(1)
+            ma=re.search(r"\bvalue\s*=\s*(['\"])(.*?)\1",attr,re.I|re.S)
+            if not ma:continue
+            src=html.unescape(ma.group(2))
+            label=re.sub("<[^>]+>","",html.unescape(m.group(2))).strip()
+            if "lrmedia.nba.com" not in src or ".m3u8" not in src:continue
+            options.append({"label":label,"url":src,"selected":"selected" in attr.lower()})
+          status["angle_labels"]=[x["label"] for x in options]
+          print("AVAILABLE_CAMERA_LABELS",status["angle_labels"])
+          matches=[x for x in options if re.sub(r"[^a-z]","",x["label"].lower())=="playbyplay"]
+          if len(matches)!=1:
+            status["source_status"]="exact_play_by_play_angle_missing"
+            status["candidate_count"]=len(matches)
+            report.write_text(json.dumps(status,indent=2)+"\n")
+            print("EXACT_PLAYBYPLAY_ANGLE_MISSING")
+            sys.exit(0)
+          status["source_status"]="exact_playbyplay_hls_found"
+          report.write_text(json.dumps(status,indent=2)+"\n")
+          (root/"selected_hls.url").write_text(matches[0]["url"])
+          print("EXACT_PLAYBYPLAY_HLS_SELECTED")
+          PY
+      - name: Fetch only verified angle to private NBA source release
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/cpu_final_0039"
+          test -f "$root/source_report.json"
+          if test -f "$root/selected_hls.url"; then
+            stream="$(cat "$root/selected_hls.url")"
+            ffmpeg -hide_banner -loglevel error -nostdin -y \
+              -user_agent 'Mozilla/5.0' \
+              -headers 'Referer: https://clips.nba.com/' \
+              -i "$stream" -map 0:v:0 -map '0:a:0?' \
+              -c:v libx264 -preset fast -crf 18 -pix_fmt yuv420p \
+              -c:a aac -b:a 128k -movflags +faststart \
+              "$root/0039_e610_playbyplay_original.mp4" || echo EXACT_PBP_HLS_MEDIA_FAILED
+            if test -s "$root/0039_e610_playbyplay_original.mp4"; then
+              python3 - <<'PY'
+              import pathlib,json,os,hashlib
+              r=pathlib.Path(os.environ["RUNNER_TEMP"])/"cpu_final_0039"
+              p=r/"0039_e610_playbyplay_original.mp4"
+              j=json.loads((r/"source_report.json").read_text())
+              j.update(source_status="downloaded_verified_angle",
+                       media_bytes=p.stat().st_size,media_sha256=hashlib.sha256(p.read_bytes()).hexdigest())
+              (r/"source_report.json").write_text(json.dumps(j,indent=2)+"\n")
+              print("NBA_PBP_610_MEDIA_CAPTURED_PRIVATE",j["media_bytes"],j["media_sha256"])
+              PY
+            fi
+          fi
+          # Video and source metadata go ONLY to private 104.
+          if ! gh release view "$RELEASE_TAG" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" -R "$PRIVATE_REPO" \
+              --title "CPU Animate final 0039 event610 exact Play-by-Play source" \
+              --notes "Private original NBA footage; research access only." >/dev/null
+          fi
+          gh release upload "$RELEASE_TAG" "$root/source_report.json" -R "$PRIVATE_REPO" --clobber >/dev/null
+          if test -s "$root/0039_e610_playbyplay_original.mp4"; then
+            gh release upload "$RELEASE_TAG" "$root/0039_e610_playbyplay_original.mp4" \
+              -R "$PRIVATE_REPO" --clobber >/dev/null
+            echo PRIVATE_CLIP_SOURCE_SAVED
+          else
+            echo NO_REAL_VIDEO_CAPTURED
+          fi
