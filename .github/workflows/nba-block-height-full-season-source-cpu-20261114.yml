@@ -1,0 +1,68 @@
+name: 2026-27 full season block ball centre contact heights CPU
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/nba-block-height-full-season-source-cpu-20261114.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  original_source_block_height:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PRIVATE_BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Source privacy, authentication, and free CPU safeguards
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Install only CPU mathematical dependencies
+        run: python3 -m pip install --quiet --break-system-packages 'numpy>=1.24,<3' 'scipy>=1.10,<2'
+      - name: Run all official blocks on SHA-verified original ball trajectories
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --depth 1 --single-branch --branch "$PRIVATE_BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/104"
+          cd "$RUNNER_TEMP/104"
+          test -s gamepulse/fusion/analysis/season_block_contact_height_v1.py
+          python3 gamepulse/fusion/analysis/season_block_contact_height_v1.py > "$RUNNER_TEMP/private_scan.log"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          f=Path('gamepulse/fusion/qa/igp_20261114/season_block_height_v1.json')
+          q=json.loads(f.read_text())
+          assert q['official_games_available']>=174
+          assert q['official_block_events']>1000
+          assert len(q['games'])>=174
+          assert q['source_indexed_games']>100
+          print('BLOCK_HEIGHT_PRIVATE_CPU_SCAN_DONE', 'official_games', len(q['games']),
+                'indexed_source_games',q['source_indexed_games'],
+                'official_blocks',q['official_block_events'],
+                'high_confidence',q['status_counts'].get('HIGH_SOURCE_PROXY',0),
+                'moderate',q['status_counts'].get('MODERATE_SOURCE_PROXY',0),
+                'unresolved',q['status_counts'].get('LOW_OR_AMBIGUOUS',0)+
+                    q['status_counts'].get('NO_SOURCE_SUPPORTED_CONTACT',0))
+          print('Private full case-level QA kept in 104, no XYZ in public logs')
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gamepulse/fusion/qa/igp_20261114/season_block_height_v1.json
+          git diff --cached --check
+          git commit -qm "qa: season-wide original ball-XYZ block-contact height screen" || true
+          for attempt in 1 2 3 4 5 6; do
+            git fetch -q origin "$PRIVATE_BRANCH"
+            git rebase -q "origin/$PRIVATE_BRANCH"
+            if git push -q origin HEAD:"$PRIVATE_BRANCH"; then
+              echo "PRIVATE_2026_27_BLOCK_HEIGHT_SCAN_RECEIPT_COMMITTED"
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 4
