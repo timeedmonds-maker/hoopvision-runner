@@ -138,3 +138,4 @@ jobs:
             echo NO_REAL_VIDEO_CAPTURED
           fi
 # Owner-authorized exact-event intake: private-only original media; no public video bytes.
+# Source replay attempt after reviewed media-origin allowlist update.
