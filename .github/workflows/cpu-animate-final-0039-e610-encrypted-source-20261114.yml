@@ -1,0 +1,104 @@
+name: CPU Animate final 0039 E610 encrypted source
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/cpu-animate-final-0039-e610-encrypted-source-20261114.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  ciphertext-only:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      CUDA_VISIBLE_DEVICES: '-1'
+      NVIDIA_VISIBLE_DEVICES: 'none'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Confirm private-only source and CPU
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          echo PRIVATE_ONLY_NATIVE_SOURCE_APPROVED
+      - name: Package source video and native tracking as AES256-GCM ciphertext
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! python3 -c 'import cryptography' 2>/dev/null; then python3 -m pip install -q 'cryptography>=44,<47'; fi
+          export SOURCE_ROOT="$(mktemp -d)"
+          export CIPHER_DIR="/tmp/cpu-final-0039-encrypted"
+          mkdir -m 700 -p "$CIPHER_DIR"
+          trap 'rm -rf "$SOURCE_ROOT"' EXIT
+          gh release download cpu-animate-final-0039-e610-playbyplay-source-20261114 \
+            -R timeedmonds-maker/104 --dir "$SOURCE_ROOT" \
+            --pattern '0039_e610_playbyplay_original.mp4' --pattern 'source_report.json'
+          SRC="gamepulse/fusion/materialized/igp_nov14_0022600039_full160_additive_v1"
+          DIR="$SOURCE_ROOT/$SRC"
+          mkdir -p "$DIR"
+          for name in index.json guarded-p2b-s1-10hz-candidate.jsonl.gz; do
+            gh api -H 'Accept: application/vnd.github.raw+json' \
+              "repos/timeedmonds-maker/104/contents/$SRC/$name?ref=research/gamepulse-clock-boundary-integrity-20261025" > "$DIR/$name"
+          done
+          for i in $(seq 0 17); do
+            printf -v name 'original-native-%05d.jsonl.gz' "$i"
+            gh api -H 'Accept: application/vnd.github.raw+json' \
+              "repos/timeedmonds-maker/104/contents/$SRC/$name?ref=research/gamepulse-clock-boundary-integrity-20261025" > "$DIR/$name"
+          done
+          python3 - <<'PY'
+          import os,pathlib,json,hashlib,zipfile,secrets,subprocess,gzip
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          root=pathlib.Path(os.environ['SOURCE_ROOT'])
+          video=root/'0039_e610_playbyplay_original.mp4'
+          assert video.stat().st_size==11602169
+          assert hashlib.sha256(video.read_bytes()).hexdigest()=='9f2f3af0d3eeda352793749d872d2f67b64357efa185825161fa3122382832af'
+          d=root/'gamepulse/fusion/materialized/igp_nov14_0022600039_full160_additive_v1'
+          index=json.loads((d/'index.json').read_text())
+          assert index['game_id']=='0022600039'
+          guarded=d/'guarded-p2b-s1-10hz-candidate.jsonl.gz'
+          assert hashlib.sha256(guarded.read_bytes()).hexdigest()=='b5622fdba794578d985171a93a0c0f198427fd40e5c7aa300ac167fae9b3da55'
+          assert gzip.open(guarded,'rb').read(1)
+          for item in index['chunks']:
+              f=d/item['path']
+              assert f.is_file() and hashlib.sha256(f.read_bytes()).hexdigest()==item['sha256']
+          package=root/'cpu_final_0039_e610_source.zip'
+          with zipfile.ZipFile(package,'w',zipfile.ZIP_DEFLATED,compresslevel=3) as z:
+              for p in root.rglob('*'):
+                  if p.is_file() and p!=package:z.write(p,p.relative_to(root))
+          blob=package.read_bytes()
+          key=secrets.token_bytes(32); nonce=secrets.token_bytes(12)
+          aad=b'CPU_ANIMATE_FINAL_0022600039_E610_ORIGINAL_NBA_PBP_CPU_ENCRYPTED'
+          cipher=nonce+AESGCM(key).encrypt(nonce,blob,aad)
+          dst=pathlib.Path(os.environ['CIPHER_DIR'])/'cpu_final_0039_e610.aesgcm'
+          dst.write_bytes(cipher);dst.chmod(0o600)
+          receipt={'game_id':'0022600039','event':610,'key_hex':key.hex(),
+                   'aad_utf8':aad.decode(),'plaintext_sha256':hashlib.sha256(blob).hexdigest(),
+                   'plaintext_bytes':len(blob),'cipher_sha256':hashlib.sha256(cipher).hexdigest(),
+                   'source_video_sha256':'9f2f3af0d3eeda352793749d872d2f67b64357efa185825161fa3122382832af',
+                   'guarded_10hz_sha256':'b5622fdba794578d985171a93a0c0f198427fd40e5c7aa300ac167fae9b3da55'}
+          note=root/'private_key_note.json';note.write_text(json.dumps(receipt,indent=2))
+          subprocess.run(['gh','release','create','cpu-animate-final-0039-e610-transfer-key-20261114',
+              '-R','timeedmonds-maker/104','--title','Private event610 transfer key',
+              '--notes-file',str(note),'--latest=false'],check=True,stdout=subprocess.DEVNULL)
+          note.unlink()
+          print('EVENT610_PBP_NATIVE_SOURCE_VERIFIED_ENCRYPTED',len(blob),len(cipher),len(index['chunks']))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cpu-final-0039-e610-aesgcm
+          path: /tmp/cpu-final-0039-encrypted/cpu_final_0039_e610.aesgcm
+          retention-days: 1
+          if-no-files-found: error
+      - name: Verify ciphertext-only artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(find /tmp/cpu-final-0039-encrypted -maxdepth 1 -type f | wc -l)" = 1
+          echo EVENT610_ONLY_AES256_GCM_CIPHERTEXT_PUBLIC
+      - name: Delete ephemeral ciphertext
+        if: always()
+        shell: bash
+        run: rm -rf /tmp/cpu-final-0039-encrypted
