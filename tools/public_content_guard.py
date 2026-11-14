@@ -913,6 +913,7 @@ REVIEWED_PUBLIC_NBA_ACTION_METADATA = {
     "reed_0022600125_official_action.json",
 }
 REVIEWED_MEDIA_SOURCE_WORKFLOWS = {
+    ".github/workflows/cpu-animate-final-0039-e610-playbyplay-source-20261114.yml",  # reviewed exact-event NBA public origin HLS URL transient only; NBA footage uploaded exclusively private 104
     ".github/workflows/nba-amen-jazz157-official-multiangle-20261114.yml",  # reviewed public official clips.nba.com page only; no signed HLS links or NBA video stored in public repo
     ".github/workflows/nba-amen-uta-q1-exact-native-pbp-20261114.yml",  # reviewed official NBA action metadata and public clips.nba.com locator only, original XYZ private 104
     ".github/workflows/nba-eason-0022600153-replay-access-probe.yml",  # inspected NBA public replay origin HTTP-only, no private media
