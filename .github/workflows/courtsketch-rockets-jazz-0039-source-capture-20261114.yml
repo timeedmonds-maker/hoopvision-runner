@@ -93,12 +93,12 @@ jobs:
             report['viewer_url_after_selection']=page.url.split('#')[0]
             report['viewer_html_contains_game_id']=gid in page.content()
             browser.close()
-          out=pathlib.Path(os.environ['RUNNER_TEMP'])/'courtsketch_0039_firstparty_availability.json'
+          out=pathlib.Path(os.environ['RUNNER_TEMP'])/('courtsketch_0039_firstparty_availability_run'+os.environ['GITHUB_RUN_ID']+'_attempt'+os.environ['GITHUB_RUN_ATTEMPT']+'.json')
           out.write_text(json.dumps(report,indent=2,sort_keys=True)+'\n')
           print('COURTSKETCH_0039_EXACT_GAME_AVAILABILITY',json.dumps({
             'paths':[{k:v for k,v in x.items() if k in
               ('path','status','bytes','has0039','metadataGameId','windows','topCount','error')}
               for x in report['first_party_requests']]},sort_keys=True))
           PY
-          gh release upload "$SOURCE_TAG" "$RUNNER_TEMP/courtsketch_0039_firstparty_availability.json" -R "$PRIVATE_REPO" >/dev/null
+          gh release upload "$SOURCE_TAG" "$RUNNER_TEMP"/courtsketch_0039_firstparty_availability_run"$GITHUB_RUN_ID"_attempt"$GITHUB_RUN_ATTEMPT".json -R "$PRIVATE_REPO" >/dev/null
           echo COURTSKETCH_0039_FIRSTPARTY_AVAILABILITY_SAVED_PRIVATE
