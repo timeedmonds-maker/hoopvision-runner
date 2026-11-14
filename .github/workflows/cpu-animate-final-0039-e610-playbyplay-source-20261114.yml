@@ -40,6 +40,10 @@ jobs:
             sed -E 's/(Bearer|token) [^ ]+/REDACTED/g' "$RUNNER_TEMP/private-error" | head -c 220
             exit 3
           fi
+          if ! command -v ffmpeg >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq ffmpeg >/dev/null
+          fi
           command -v ffmpeg
           echo CPU_ONLY_PRIVATE_MEDIA_GUARD_PASS
       - name: Verify source event and discover exact-angle HLS
