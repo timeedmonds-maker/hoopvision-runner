@@ -72,7 +72,8 @@ jobs:
            return (('thompson' in d and 'block' in d) or str(a.get('blockPersonId',''))=='1641708' or ('thompson' in str(a.get('playerName','')).lower() and str(a.get('actionType','')).lower()=='block'))
           qualifying=[a for a in q1 if amen_block(a) and abs(sec(a.get('clock'))-90)<=42]
           print('AMEN_NEAR_Q1_BLOCKS',json.dumps([{k:a.get(k) for k in ('actionNumber','clock','timeActual','description','blockPersonId')} for a in qualifying]),flush=True)
-          chosen= min(qualifying,key=lambda a:abs(sec(a.get('clock'))-90)) if len(qualifying)==1 else None
+          official_block_rows=[a for a in qualifying if a.get('actionType')=='block' and a.get('personId')==1641708]
+          chosen= min(official_block_rows,key=lambda a:abs(sec(a.get('clock'))-90)) if len(official_block_rows)==1 else None
           if chosen and isinstance(chosen.get('actionNumber'),int):
            print('EXACT_CLIPS_LINK','https://clips.nba.com/?gameNo='+G+'&eventNum='+str(chosen['actionNumber'])+'&source=grs',flush=True)
           else:print('EXACT_CLIPS_LINK_NOT_VERIFIED',len(qualifying),flush=True)
