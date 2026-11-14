@@ -18,7 +18,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/full174-pasq-situational-evidence-v4b-20261114
-      SOURCE_COMMIT: 0d93b936531bc4a67fff8a575941fe65e6acf910
+      SOURCE_COMMIT: 12f29a4a220f5fc5a7e053f2f5d2e48231fe37dd
     steps:
       - name: Authenticate and SHA-pin Full174 original source code
         shell: bash
