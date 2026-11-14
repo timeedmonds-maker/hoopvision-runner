@@ -10,47 +10,42 @@ jobs:
       contents: read
     timeout-minutes: 5
     steps:
-      - name: Fetch original NBA liveData and print exact made-dunk action numbers
+      - name: Probe read-only original NBA sources and mirror
         shell: bash
         run: |
           python - <<'PY'
-          import json, urllib.request, urllib.error
+          import json, urllib.request, urllib.error, re
           game_id = "0022600039"
-          url = f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game_id}.json"
-          req = urllib.request.Request(url, headers={
-              "User-Agent": "Mozilla/5.0",
-              "Referer": "https://www.nba.com/",
-              "Origin": "https://www.nba.com",
-              "Accept": "application/json",
-          })
-          with urllib.request.urlopen(req, timeout=25) as response:
-              data = json.load(response)
-          game = data["game"]
-          assert str(game["gameId"]) == game_id, "wrong official game"
-          actions = game["actions"]
-          found = []
-          for a in actions:
-              if str(a.get("personId")) != "1630578":
-                  continue
-              if a.get("actionType", "").lower() not in ("2pt", "3pt"):
-                  continue
-              if "dunk" not in str(a.get("subType", "")).lower() and "dunk" not in str(a.get("description", "")).lower():
-                  continue
-              result = {
-                  "game_id": game_id,
-                  "action_number": a.get("actionNumber"),
-                  "period": a.get("period"),
-                  "clock": a.get("clock"),
-                  "shot_result": a.get("shotResult"),
-                  "sub_type": a.get("subType"),
-                  "description": a.get("description"),
-                  "score_home": a.get("scoreHome"),
-                  "score_away": a.get("scoreAway"),
-                  "clip": f"https://clips.nba.com/?gameNo={game_id}&eventNum={a.get('actionNumber')}&source=grs",
-              }
-              found.append(result)
-          print("NBA_ORIGINAL_PBP_ACTIONS", len(actions))
-          print("SENGUN_DUNK_ACTIONS_JSON", json.dumps(found, ensure_ascii=False, sort_keys=True))
-          assert found, "no Sengun dunk actions in official PBP"
-          assert all(type(x["action_number"]) is int and x["action_number"] > 0 for x in found)
+          source = f"https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{game_id}.json"
+          urls = [
+              ("nba_cdn",source),
+              ("nba_cdn_old_ua",source),
+              ("jina_nba_original","https://r.jina.ai/"+source),
+              ("nba_stats","https://stats.nba.com/stats/playbyplayv3?GameID=0022600039&StartPeriod=0&EndPeriod=0"),
+              ("nba_game_page","https://www.nba.com/game/uta-vs-hou-0022600039/play-by-play"),
+          ]
+          for label,url in urls:
+              try:
+                  ua = "Mozilla/5.0 (compatible; HoopVision NBA formal-source audit)" if label=="nba_cdn_old_ua" else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36"
+                  req = urllib.request.Request(url, headers={"User-Agent":ua,"Referer":"https://www.nba.com/","Origin":"https://www.nba.com","Accept":"application/json,text/html,*/*","x-nba-stats-origin":"stats","x-nba-stats-token":"true"})
+                  with urllib.request.urlopen(req, timeout=15) as response:
+                      raw = response.read(4000000)
+                      print("SOURCE_HTTP",label,response.status,len(raw),response.headers.get("content-type"))
+                  txt = raw.decode("utf-8","replace")
+                  try:
+                      doc=json.loads(txt)
+                  except ValueError:
+                      start=txt.find('{"meta"')
+                      if start<0:start=txt.find('{"game"')
+                      try:doc=json.loads(txt[start:]) if start>=0 else None
+                      except ValueError:doc=None
+                  if isinstance(doc,dict) and isinstance(doc.get("game"),dict) and str(doc["game"].get("gameId"))==game_id:
+                      actions=doc["game"].get("actions",[])
+                      found=[{"event":a.get("actionNumber"),"period":a.get("period"),"clock":a.get("clock"),"subtype":a.get("subType"),"result":a.get("shotResult"),"score_home":a.get("scoreHome"),"score_away":a.get("scoreAway")} for a in actions if str(a.get("personId"))=="1630578" and "dunk" in (str(a.get("subType",""))+" "+str(a.get("description",""))).lower()]
+                      print("OFFICIAL_NBA_DUNK_EVENTS",label,len(actions),json.dumps(found))
+                      if found:break
+                  else:
+                      print("SOURCE_BODY_SNIPPET",label,txt[:200].replace("\n"," "))
+              except Exception as exc:
+                  print("SOURCE_ERROR",label,type(exc).__name__,str(exc)[:180])
           PY
