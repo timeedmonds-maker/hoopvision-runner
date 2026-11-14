@@ -1,0 +1,107 @@
+name: IGP Nov14 nine-game official source fastlane
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/igp-nov14-nine-source-core-fastlane-20261114.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: igp-nov14-nine-source-core-fastlane
+  cancel-in-progress: false
+jobs:
+  official-companion-blueprint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard public-to-private separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+      - name: Ingest all nine official-final PBP, box, Blueprint, companion and chains without SDK wait
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27 scripts
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion:scripts
+          python3 gamepulse/fusion/igp_official_20_additive_20261029.py --root . > "$RUNNER_TEMP/official.log"
+          python3 gamepulse/fusion/igp_auto_extend_unified_season_2026.py --root . > "$RUNNER_TEMP/extend.log"
+          python3 scripts/update_nba_blueprint_daily_2026_27.py --daily --lookback 7 > "$RUNNER_TEMP/blueprint-update.log" 2>&1 || echo IGP_NOV14_BLUEPRINT_PROVIDER_RETRY_PENDING
+          python3 scripts/build_nba_blueprint_2026_27.py > "$RUNNER_TEMP/blueprint-build.log"
+          python3 gamepulse/fusion/igp_post56_original_companion_index_v1.py --root . > "$RUNNER_TEMP/companion.log"
+          python3 gamepulse/fusion/igp_post56_blueprint_original_index_v1.py --root . > "$RUNNER_TEMP/bpindex.log"
+          python3 gamepulse/fusion/igp_post56_official_logical_chain_index_v1.py --root . > "$RUNNER_TEMP/chain.log"
+          python3 gamepulse/fusion/igp_post56_native_index_refresh_v1.py --root . > "$RUNNER_TEMP/native.log"
+          python3 - <<'PY'
+          from pathlib import Path
+          import json,hashlib
+          base=Path('gamepulse/fusion')
+          master=json.loads((base/'materialized/igp_2026_27_unified_season_v3/index.json').read_bytes())
+          add=json.loads(Path(master['post56_additive_oct28']['index']).read_bytes())
+          expected=[f'002260{i:04d}' for i in range(34,43)]
+          old=json.loads((base/'materialized/igp_full174_unified_source_default_v1/index.json').read_bytes())
+          assert old['counts']['games']==174 and old['counts']['official_FGA']==30585,'FULL174_BASELINE_NOT_FROZEN'
+          assert set(expected)<=set(add['games']),'NINE_OFFICIAL_FINAL_GAMES_NOT_YET_INDEXED'
+          grades={}
+          for gid in expected:
+            g=add['games'][gid]
+            p=Path(g['official_pbp_path'])
+            data=p.read_bytes()
+            assert hashlib.sha256(data).hexdigest()==g['official_pbp_sha256'],gid+':PBP_SHA'
+            events=json.loads(data)
+            assert events['game_id']==gid and len(events['actions'])==g['official_pbp_actions'],gid+':PBP'
+            assert g['nba_logical_chain_original_index_sha256'],gid+':LOGICAL_CHAIN_MISSING'
+            row=g.get('source_capture_grades') or {}
+            grades[gid]={'official_actions':len(events['actions']),
+                         'official_fga':sum(x['action_type'] in ('2pt','3pt') for x in events['actions']),
+                         'official_pbp_sha256':g['official_pbp_sha256'],
+                         'logical_chain_sha256':g['nba_logical_chain_original_index_sha256'],
+                         'original_native_13part_certified':bool(g.get('original_source_13_part_complete')),
+                         'original_companion_grade':row.get('original_companion','PENDING'),
+                         'original_blueprint_grade':row.get('original_nba_blueprint','PENDING'),
+                         'raw_29joint_pose_certified':False,
+                         'physical_possessions_certified':0}
+          assert len(set(expected))==9 and not set(expected)&set(old['additive_game_ids'])
+          dest=base/'qa/igp_20261114/nov14_nine_ingest_fastlane_sourcegrade_v1.json'
+          dest.parent.mkdir(parents=True,exist_ok=True)
+          receipt={'schema':'igp.nov14-nine-sourcegrade-fastlane.v1',
+             'us_game_date':'2026-11-13','nz_game_date':'2026-11-14',
+             'expected_game_count':9,'expected_game_ids':expected,
+             'verified_original_official_game_count':9,'total_official_indexed_games':master['total_indexed_games_including_additive'],
+             'full174_immutable_manifest_sha256':hashlib.sha256(
+                (base/'materialized/igp_full174_unified_source_default_v1/index.json').read_bytes()).hexdigest(),
+             'release_status':'SOURCE_LAYER_INGESTION_NOT_YET_FULL183_ACCEPTANCE',
+             'games':grades}
+          dest.write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
+          print('IGP_NOV14_ALL_NINE_OFFICIAL_SHA_INDEXED',sum(v['official_actions'] for v in grades.values()),
+                'FGA',sum(v['official_fga'] for v in grades.values()),
+                'native_full13',sum(v['original_native_13part_certified'] for v in grades.values()))
+          PY
+          python3 gamepulse/fusion/igp_fullx_incremental_release_manifest_v1.py --root . > "$RUNNER_TEMP/fullx.log"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/official_pbp_timing gamepulse/fusion/evidence gamepulse/fusion/qa/igp_progress_20261030 gamepulse/fusion/qa/igp_20261114 gamepulse/fusion/qa/igp_fullx gamepulse/fusion/materialized/igp_2026_27_unified_season_v3 data/extensions/nba_blueprint_2026_27
+          git diff --cached --check
+          if git diff --cached --quiet; then echo IGP_NOV14_NINE_SOURCE_ALREADY_INDEXED; exit 0; fi
+          git commit -q -m "data(igp): SHA-index all nine Nov 13 US NBA official games and provider source grades"
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || { git rebase --abort; echo IGP_FASTLANE_CONCURRENT_SOURCE_INDEX_REBUILD_REQUIRED; exit 41; }
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then
+              echo IGP_NOV14_NINE_OFFICIAL_SOURCE_PRIVATE_COMMITTED
+              exit 0
+            fi
+            sleep "$n"
+          done
+          exit 23
