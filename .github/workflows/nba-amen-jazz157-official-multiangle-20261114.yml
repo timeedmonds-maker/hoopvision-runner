@@ -1,0 +1,137 @@
+name: Amen Jazz Q1 block official NBA multiangle source archive
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/nba-amen-jazz157-official-multiangle-20261114.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  acquire-original-cameras:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      PYTHONUNBUFFERED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify safe public runner and private destination
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          command -v ffmpeg
+          command -v ffprobe
+      - name: Verify both official NBA events, acquire all actual camera options, and SHA archive privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import concurrent.futures,hashlib,html,json,os,re,subprocess,tempfile,urllib.parse,urllib.request
+          from pathlib import Path
+          GAME='0022600039';REPO='timeedmonds-maker/104'
+          EVENT_NUMS=(157,155) # credited block; corresponding missed shot
+          CANDIDATE_LABELS=('Broadcast','High Tight','Left Above Rim','Right Above Rim','Left Slash','Right Slash')
+          tag='amen-jazz-q1-block-multiangle-0022600039'
+          header={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) Chrome/131 Safari/537.36','Referer':'https://clips.nba.com/','Accept':'*/*'}
+          def req(url,limit=20000000):
+            with urllib.request.urlopen(urllib.request.Request(url,headers=header),timeout=35) as r:return r.read(limit)
+          def signed_join(base,child):
+            a=urllib.parse.urlsplit(base);b=urllib.parse.urlsplit(urllib.parse.urljoin(base,child))
+            return urllib.parse.urlunsplit(b._replace(query=b.query or a.query))
+          def options(event):
+            page='https://clips.nba.com/?gameNo='+GAME+'&eventNum='+str(event)+'&source=grs'
+            raw=req(page,4000000).decode('utf-8','replace')
+            found={}
+            for m in re.finditer(r'<option\s+value="([^"]+)"([^>]*)>(.*?)</option>',raw,re.I|re.S):
+              address=html.unescape(m.group(1).strip())
+              label=re.sub('<[^>]+>','',html.unescape(m.group(3))).strip()
+              host=urllib.parse.urlsplit(address).hostname
+              if host=='lrmedia.nba.com' and '.m3u8' in address.lower():found[label]=address
+            return found,len(raw)
+          candidates=[]
+          for event in EVENT_NUMS:
+            try:
+              c,n=options(event)
+              print('OFFICIAL_CLIPS_EVENT',event,'camera_options',len(c),'labels',list(c),'html_bytes',n,flush=True)
+              candidates.append((event,c))
+            except Exception as ex:
+              print('OFFICIAL_CLIPS_EVENT_UNAVAILABLE',event,type(ex).__name__,flush=True)
+          if not candidates:raise SystemExit('OFFICIAL_CLIPS_SOURCE_UNAVAILABLE')
+          # Prefer the credited-block action if it exposes all angles; otherwise use the blocked FGA.
+          candidates.sort(key=lambda z:(len(z[1]),z[0]==157),reverse=True)
+          event,cameras=candidates[0]
+          if not cameras:raise SystemExit('NO_OFFICIAL_MULTIANGLE_CAMERA_OPTIONS')
+          chosen=[x for x in CANDIDATE_LABELS if x in cameras]
+          chosen += sorted(set(cameras)-set(chosen))
+          def playlist_items(url,depth=0):
+            if depth>4:raise ValueError('HLS_RECURSION')
+            body=req(url,4000000).decode('utf-8','replace')
+            lines=[z.strip() for z in body.splitlines() if z.strip()]
+            if not lines or lines[0]!='#EXTM3U':raise ValueError('NO_HLS_HEADER')
+            variants=[]
+            for i,z in enumerate(lines):
+              if z.startswith('#EXT-X-STREAM-INF:'):
+                bw=re.search(r'BANDWIDTH=(\d+)',z)
+                child=next((v for v in lines[i+1:] if not v.startswith('#')),None)
+                if child:variants.append((int(bw.group(1)) if bw else 0,signed_join(url,child)))
+            if variants:return playlist_items(max(variants,key=lambda z:z[0])[1],depth+1)
+            result=[]
+            for z in lines:
+              if z.startswith('#EXT-X-MAP:'):
+                m=re.search(r'URI="([^"]+)"',z)
+                if m:result.append(signed_join(url,m.group(1)))
+              elif not z.startswith('#'):result.append(signed_join(url,z))
+            if not result:raise ValueError('EMPTY_HLS_SEGMENTS')
+            return result
+          def sha(blob):return hashlib.sha256(blob).hexdigest()
+          def fetch_one(label,address,root):
+            chunks=playlist_items(address)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(chunks),8)) as p:
+              bytes_list=list(p.map(req,chunks))
+            tmp=root/(re.sub('[^a-z0-9]+','-',label.lower())+'.hls-part')
+            with tmp.open('wb') as f:
+              for chunk in bytes_list:f.write(chunk)
+            filename=f'amen-uta-{GAME}-event{event}-'+re.sub('[^a-z0-9]+','-',label.lower())+'.mp4'
+            target=root/filename
+            subprocess.run(['ffmpeg','-nostdin','-y','-loglevel','error','-i',str(tmp),'-map','0:v:0','-map','0:a:0?','-c','copy','-movflags','+faststart',str(target)],check=True,timeout=90)
+            tmp.unlink(missing_ok=True)
+            stats=json.loads(subprocess.check_output(['ffprobe','-v','error','-select_streams','v:0','-count_frames','-show_entries','stream=width,height,nb_read_frames,duration','-of','json',str(target)],timeout=40))
+            meta=stats.get('streams') or []
+            if not meta or target.stat().st_size<10000:raise ValueError('NO_VERIFIABLE_NATIVE_FRAMES')
+            return {'label':label,'file':filename,'bytes':target.stat().st_size,'sha256':sha(target.read_bytes()),
+                    'video':meta[0],'hls_segments':len(chunks)}
+          with tempfile.TemporaryDirectory(prefix='nba-block-angles-') as tmp:
+            root=Path(tmp);success=[];failed=[]
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as p:
+              fut={p.submit(fetch_one,label,cameras[label],root):label for label in chosen}
+              for f in concurrent.futures.as_completed(fut):
+                label=fut[f]
+                try:
+                  row=f.result();success.append(row)
+                  print('OFFICIAL_CAMERA_CAPTURED',label,'bytes',row['bytes'],'frames',row['video'].get('nb_read_frames'),'SHA',row['sha256'][:15],flush=True)
+                except Exception as ex:
+                  failed.append({'label':label,'reason':type(ex).__name__})
+                  print('OFFICIAL_CAMERA_FAILED',label,type(ex).__name__,flush=True)
+            manifest={'schema':'igp.amen-jazz-block.native-official-cameras.v1','game_id':GAME,
+                      'official_block_action':157,'blocked_shot_action':155,'selected_clips_event':event,
+                      'source':'https://clips.nba.com/?gameNo='+GAME+'&eventNum='+str(event)+'&source=grs',
+                      'available_official_camera_labels':chosen,'captured':success,'failures':failed,
+                      'native_media_sha_verifiable':True,'stream_camera_synchronisation_certified':False,
+                      'contact_frame_certified':False,'all_native_videos_private_only':True}
+            manifest_file=root/'amen-uta-0022600039-multiangle-manifest.json'
+            manifest_file.write_text(json.dumps(manifest,indent=2)+'\n')
+            print('OFFICIAL_MULTIANGLE_COUNT',len(success),'OF',len(chosen),'event',event,flush=True)
+            if not success:raise SystemExit('NO_NATIVE_CAMERA_MP4_RECOVERED')
+            if subprocess.run(['gh','release','view',tag,'--repo',REPO],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode:
+              subprocess.run(['gh','release','create',tag,'--repo',REPO,'--target','main','--title','Amen Thompson block Jazz Q1 official NBA camera angles','--notes','Private research copy of original official NBA clips for game 0022600039. Event 157 block / event 155 FGA. Source QA in manifest.','--latest=false'],check=True,stdout=subprocess.DEVNULL)
+            dest=root/'readback';dest.mkdir()
+            for file in [manifest_file]+[root/z['file'] for z in success]:
+              subprocess.run(['gh','release','upload',tag,str(file),'--repo',REPO,'--clobber'],check=True,stdout=subprocess.DEVNULL,timeout=100)
+              subprocess.run(['gh','release','download',tag,'--repo',REPO,'--pattern',file.name,'--dir',str(dest),'--clobber'],check=True,stdout=subprocess.DEVNULL,timeout=100)
+              if sha(file.read_bytes())!=sha((dest/file.name).read_bytes()):raise ValueError('REMOTE_ASSET_SHA_MISMATCH')
+            print('PRIVATE_MULTIANGLE_RELEASE_SHA_VERIFIED',tag,'assets',len(success)+1,flush=True)
+            if len(success)<2:print('ONLY_ONE_OFFICIAL_CAMERA_RETRIEVED',flush=True)
+          PY
