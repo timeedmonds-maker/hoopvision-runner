@@ -126,6 +126,7 @@ jobs:
             '/gamepulse/fusion/igp_full183_nov15_original_shot_geometry_l2_v1.py'
             '/gamepulse/fusion/igp_full183_source_default_v1.py'
             '/gamepulse/fusion/igp_full174_source_default_v1.py'
+            '/gamepulse/fusion/igp_full170_source_default_v1.py'
             '/gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/index.json'
             '/gamepulse/fusion/materialized/igp_full183_unified_source_default_v2/index.json'
             '/gamepulse/fusion/materialized/igp_full183_unified_source_default_v2/qa.json'
