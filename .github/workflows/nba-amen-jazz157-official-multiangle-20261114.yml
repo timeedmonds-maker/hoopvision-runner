@@ -20,8 +20,16 @@ jobs:
         run: |
           set -euo pipefail
           python3 tools/public_content_guard.py
-          test -n "$GH_TOKEN"
-          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          if test -z "${GH_TOKEN:-}"; then echo PRIVATE_RELEASE_TOKEN_EMPTY; exit 3; fi
+          if gh api repos/timeedmonds-maker/104 --jq .private > "$RUNNER_TEMP/private-status" 2> "$RUNNER_TEMP/gh-error"; then
+            printf 'PRIVATE_REPO_API_VALUE='
+            cat "$RUNNER_TEMP/private-status"
+          else
+            echo PRIVATE_REPO_API_REQUEST_FAILED
+            sed -E 's/(token|Bearer) [^ ]+/REDACTED/g' "$RUNNER_TEMP/gh-error" | head -c 400
+            exit 3
+          fi
+          grep -qx true "$RUNNER_TEMP/private-status" || { echo REPO_IS_NOT_PRIVATE_FOR_GIVEN_TOKEN; exit 3; }
           command -v ffmpeg
           command -v ffprobe
       - name: Verify both official NBA events, acquire all actual camera options, and SHA archive privately
