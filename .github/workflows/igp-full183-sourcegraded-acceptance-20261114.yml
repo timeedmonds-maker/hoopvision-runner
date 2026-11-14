@@ -45,8 +45,8 @@ jobs:
           from pathlib import Path
           import igp_full183_source_default_v1 as source
           base=Path("gamepulse/fusion")
-          index=base/"materialized/igp_full183_unified_source_default_v1/index.json"
-          receipt=base/"materialized/igp_full183_unified_source_default_v1/qa.json"
+          index=base/"materialized/igp_full183_unified_source_default_v2/index.json"
+          receipt=base/"materialized/igp_full183_unified_source_default_v2/qa.json"
           r=json.loads(index.read_bytes());q=json.loads(receipt.read_bytes())
           ids={f"002260{i:04d}" for i in range(34,43)}
           assert r["counts"]["games"]==183 and set(r["additive_game_records"])==ids
@@ -81,7 +81,7 @@ jobs:
           PY
           # Git-staged only new release/readout assets. Parent source records never rewritten.
           git status --short | head -n 30
-          git add -f gamepulse/fusion/materialized/igp_full183_unified_source_default_v1 \
+          git add -f gamepulse/fusion/materialized/igp_full183_unified_source_default_v2 \
                      gamepulse/fusion/qa/igp_fullx/FULL183_SOURCE_GRADED_ACCEPTANCE_LATEST.json
           git diff --cached --check
           if git diff --cached --quiet; then echo IGP_FULL183_RELEASE_ALREADY_COMMITTED; exit 0; fi
