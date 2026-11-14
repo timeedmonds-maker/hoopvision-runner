@@ -442,3 +442,188 @@ jobs:
           print('FULL183_THREE_SOURCE_SHA_READ_API_ACCEPTED',183,1116,n_new_numeric,
                 'verified_playable_urls',n_video,'original_media_ids',n_media_ids)
           PY
+
+  nov15-nba-original-advanced-recheck:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Enforce CPU-only private original NBA source separation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+          gh auth setup-git
+      - name: Recover current exact nine-game NBA Blueprint and per-player original shotquality
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_full183_gap_recovery_v1.py' \
+            '/gamepulse/fusion/igp_full183_nov15_nba_blueprint_page_probe_v1.py' \
+            '/gamepulse/fusion/igp_full183_shotquality_original_recovery_v1.py' \
+            '/gamepulse/fusion/igp_post56_original_companion_index_v1.py' \
+            '/gamepulse/fusion/igp_post56_blueprint_original_index_v1.py' \
+            '/gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_full183_unified_source_default_v2/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/index.json' \
+            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
+            '/gamepulse/fusion/evidence/companion_sdk_original_*/**' \
+            '/gamepulse/fusion/evidence/shotqualityvideologs_original_20261113/**' \
+            '/gamepulse/fusion/official_pbp_timing/games/**' \
+            '/gamepulse/fusion/qa/igp_progress_20261030/**' \
+            '/gamepulse/fusion/qa/igp_20261114/**' \
+            '/data/extensions/nba_blueprint_2026_27/games/**' \
+            '/data/extensions/nba_blueprint_2026_27/source_revision_history/**' \
+            '/scripts/update_nba_blueprint_daily_2026_27.py' \
+            '/scripts/build_nba_blueprint_2026_27.py'
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=scripts:gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full183_nov15_nba_blueprint_page_probe_v1.py \
+               gamepulse/fusion/igp_full183_gap_recovery_v1.py \
+               gamepulse/fusion/igp_full183_shotquality_original_recovery_v1.py
+          python3 gamepulse/fusion/igp_full183_gap_recovery_v1.py --mode blueprint --root .
+          python3 gamepulse/fusion/igp_full183_nov15_nba_blueprint_page_probe_v1.py --root .
+          python3 gamepulse/fusion/igp_full183_shotquality_original_recovery_v1.py --root . \
+            --games 0022600034,0022600035,0022600036,0022600037,0022600038,0022600039,0022600040,0022600041,0022600042 \
+            --workers 5
+          python3 gamepulse/fusion/igp_full183_gap_recovery_v1.py --mode reconcile --root .
+          python3 scripts/build_nba_blueprint_2026_27.py >/dev/null
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          B=Path('gamepulse/fusion')
+          parent=B/'materialized/igp_full174_unified_source_default_v1/index.json'
+          old=B/'materialized/igp_full183_unified_source_default_v2/index.json'
+          assert hashlib.sha256(parent.read_bytes()).hexdigest()=='60665a0b662759870c3ebbc076accce72790885ef3369d266370a591fc76b846'
+          assert hashlib.sha256(old.read_bytes()).hexdigest()=='75e7d680eb5568872d400322c0773fe8054b85ecf0db53a98836daa6f774accc'
+          a=json.loads((B/'qa/igp_20261114/nov14_full183_gap_recovery_v1.json').read_bytes())
+          b=json.loads((B/'qa/igp_20261114/nov14_shotqualityvideologs_source_recheck_v1.json').read_bytes())
+          c=json.loads((B/'qa/igp_20261115/nov15_current_nba_game_blueprint_page_original_qa_v1.json').read_bytes())
+          total=sum(x['numeric_xfg'] for x in b['provider_recovered_source_games'].values())
+          assert len(a['post_recovery'])==len(b['provider_recovered_source_games'])==len(c['games'])==9
+          assert sum(x['official_FGA'] for x in a['post_recovery'].values())==1612
+          assert a['provider_values_inferred']==b['modelled_xfg_values']==c['new_source_shots_inferred']==0
+          rec={'schema':'igp.full183.nov15.original-nba-provider-recheck.v1',
+               'parent_full174_sha256':hashlib.sha256(parent.read_bytes()).hexdigest(),
+               'accepted_full183_v2_sha256':hashlib.sha256(old.read_bytes()).hexdigest(),
+               'all_nine_official_FGA':1612,
+               'old_accepted_published_xfg':1297,
+               'latest_blueprint_plus_companion_source_action_union':a['new9_exact_source_union'],
+               'latest_blueprint_plus_companion_unmatched_official_FGA':a['unresolved_official_FGA'],
+               'new_blueprint_game_html_upgrades':c['source_upgrade_games'],
+               'new_oldroute_blueprint_or_companion_upgrades':a['upgrade_evidence_count'],
+               'independent_original_shotquality_numeric_xfg_records':total,
+               'published_values_inferred':0,
+               'games':{gid:{'official_FGA':a['post_recovery'][gid]['official_FGA'],
+                             'current_blueprint_exact':a['post_recovery'][gid]['blueprint_exact'],
+                             'current_companion_exact':a['post_recovery'][gid]['companion_exact'],
+                             'other_original_shotquality_exact':b['provider_recovered_source_games'][gid]['numeric_xfg'],
+                             'nba_current_page_grade':c['games'][gid]['page_grade']} for gid in sorted(a['post_recovery'])}}
+          out=B/'qa/igp_20261115/nov15_full183_nba_original_provider_recheck_summary_v1.json'
+          out.parent.mkdir(parents=True,exist_ok=True)
+          out.write_text(json.dumps(rec,sort_keys=True,indent=2)+'\n')
+          print('FULL183_NOV15_ORIGINAL_NBA_PROVIDERS_SHA_VERIFIED',rec['all_nine_official_FGA'],
+                rec['latest_blueprint_plus_companion_source_action_union'],
+                rec['new_blueprint_game_html_upgrades'],total)
+          PY
+      - name: Commit new original NBA source revisions and QA solely in private 104
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f \
+            gamepulse/fusion/evidence/shotqualityvideologs_original_20261113 \
+            gamepulse/fusion/qa/igp_20261114/nov14_full183_gap_recovery_v1.json \
+            gamepulse/fusion/qa/igp_20261114/nov14_shotqualityvideologs_source_recheck_v1.json \
+            gamepulse/fusion/qa/igp_20261115 \
+            gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json \
+            gamepulse/fusion/qa/igp_progress_20261030/igp_post56_blueprint_12_original_sha_join_v1.json \
+            gamepulse/fusion/qa/igp_progress_20261030/igp_post56_companion_11_original_source_enrichment_v1.json \
+            data/extensions/nba_blueprint_2026_27
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL183_NOV15_SOURCE_SAME_AS_PREVIOUS; exit 0; fi
+          git commit -q -m "data(igp): recheck NBA original shot quality and new game Blueprint for nine Full183 games"
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || { git rebase --abort; echo FULL183_NOV15_CONCURRENT_ORIGINAL_UPDATED_RECHECK; exit 41; }
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo FULL183_NOV15_NBA_ORIGINAL_SOURCE_PRIVATE_COMMITTED; exit 0; fi
+            sleep "$n"
+          done
+          exit 23
+
+  nov15-courtsketch-samegame-census:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: CPU-only private CourtSketch provenance gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Install existing browser-source dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --quiet playwright==1.56.0
+          python3 -m playwright install --with-deps chromium > "$RUNNER_TEMP/courtsketch-browser-install.txt" 2>&1
+      - name: Query CourtSketch original first-party presence for all nine game IDs
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            '/gamepulse/fusion/igp_full183_nov15_courtsketch_probe_v1.py' \
+            '/gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/index.json' \
+            '/gamepulse/fusion/materialized/igp_full183_unified_source_default_v2/index.json'
+          cd "$RUNNER_TEMP/private"
+          python3 -m py_compile gamepulse/fusion/igp_full183_nov15_courtsketch_probe_v1.py
+          python3 gamepulse/fusion/igp_full183_nov15_courtsketch_probe_v1.py
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('gamepulse/fusion/qa/igp_20261115/nov15_courtsketch_full183_nine_source_presence_v1.json')
+          q=json.loads(p.read_bytes())
+          assert len(q['games'])==9 and q['no_account_or_authentication_bypass']
+          assert q['original_full183_v2_immutable']
+          print('FULL183_NOV15_COURTSKETCH_NINE_GAME_CENSUS_ACCEPTED',
+                q['firstparty_exact_game_metadata_games'],
+                q['source_frame_supplement_accepted_games'])
+          PY
+      - name: Preserve nine-game CourtSketch original-source audit privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/qa/igp_20261115
+          git diff --cached --check
+          git commit -q -m "qa(igp): compare CourtSketch firstparty source presence for all nine Full183 games"
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || { git rebase --abort; echo COURTSKETCH_NOV15_CONCURRENT_SOURCE_CHANGED_RETRY; exit 41; }
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo COURTSKETCH_NOV15_ORIGINAL_GAME_CENSUS_PRIVATE_COMMITTED; exit 0; fi
+            sleep "$n"
+          done
+          exit 23
