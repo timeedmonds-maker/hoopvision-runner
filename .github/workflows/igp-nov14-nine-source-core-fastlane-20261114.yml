@@ -304,7 +304,7 @@ jobs:
     # Original public NBA shotqualityvideologs is a separate independent source
     # from partial companion and Blueprint, and can supply original xFG/media.
     # All NBA event rows, media URLs and player details remain PRIVATE in 104.
-    if: github.event_name == 'push'
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 75
     env:
@@ -385,3 +385,60 @@ jobs:
             sleep "$n"
           done
           exit 23
+
+  accept-nov13-three-source-reader:
+    # Full183 v2 release is immutable. Independently verify new source read API
+    # on private original NBA PBP/Blueprint/SDK/ShotQuality data; CPU-only.
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Source security and private Git connection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: CPU SHA-read all nine original-source-augmented Full183 shots
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set gamepulse/fusion data/extensions/nba_blueprint_2026_27
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full183_source_default_v1.py
+          python3 gamepulse/fusion/igp_full183_source_default_v1.py --self-test --root .
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          import igp_full183_source_default_v1 as source
+          root=Path('.')
+          base=Path('gamepulse/fusion')
+          frozen=base/'materialized/igp_full183_unified_source_default_v2'
+          assert hashlib.sha256((frozen/'index.json').read_bytes()).hexdigest() == '75e7d680eb5568872d400322c0773fe8054b85ecf0db53a98836daa6f774accc'
+          assert hashlib.sha256((frozen/'qa.json').read_bytes()).hexdigest() == '291d83dc713a1b286f3d9cd991cdb13a794f791205e38619e0f79b921b610daa'
+          n_shotquality=0;n_new_numeric=0;n_video=0;n_media_ids=0
+          for i in range(34,43):
+              gid=f'002260{i:04d}'
+              old=source.query(root,gid,kind='shots',limit=1000)
+              new=source.query(root,gid,kind='shotquality',limit=1000)
+              prior={int(x['official_action_number']) for x in old['rows'] if x['published_xfg'] is not None}
+              independent={int(x['official_action_number']) for x in new['rows'] if x['original_published_xfg'] is not None}
+              n_new_numeric+=len(independent-prior)
+              n_shotquality+=len(independent)
+              n_video+=sum(bool(x['playable_video_url']) for x in new['rows'])
+              n_media_ids+=sum(bool(x['original_media_id']) for x in new['rows'])
+              assert old['total_matching']>=new['total_matching']
+          assert n_shotquality==1116,'INDEPENDENT_SHOTQUALITY_SOURCE_DRIFT'
+          assert n_new_numeric==0,'INDEPENDENT_RECOVERY_GAIN_REQUIRES_SEPARATE_SOURCE_VERSION'
+          assert n_video==0,'UNVERIFIED_NEW_PLAYABLE_MEDIA_SOURCE'
+          print('FULL183_THREE_SOURCE_SHA_READ_API_ACCEPTED',183,1116,n_new_numeric,
+                'verified_playable_urls',n_video,'original_media_ids',n_media_ids)
+          PY
