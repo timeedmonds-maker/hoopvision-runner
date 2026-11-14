@@ -1,0 +1,146 @@
+name: NBA Amen Jazz Q1 exact PBP action and private source XYZ audit
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/nba-amen-uta-q1-exact-native-pbp-20261114.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+    steps:
+      - name: Exact official NBA event and SHA-verifiable private native XYZ
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import base64,datetime,gzip,hashlib,json,os,re,subprocess,time,urllib.request
+          from pathlib import Path
+          G='0022600039'; BR='research/gamepulse-clock-boundary-integrity-20261025'
+          PREFIX='gamepulse/fusion/live_original_20261114/'+G+'/'
+          TARGET='gamepulse/fusion/qa/igp_20261114/amen_uta_q1_block_original_xyz_v1.json'
+          h={'User-Agent':'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131 Safari/537.36','Referer':'https://www.nba.com/','Accept':'application/json,text/html,*/*'}
+          urls=[
+           ('nba_live','https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_'+G+'.json'),
+           ('nba_mediaops','https://nba-prod-us-east-1-mediaops-stats.s3.amazonaws.com/NBA/liveData/playbyplay/playbyplay_'+G+'.json'),
+           ('nba_stats_v3','https://stats.nba.com/stats/playbyplayv3?GameID='+G+'&StartPeriod=0&EndPeriod=0'),
+           ('nba_html','https://www.nba.com/game/uta-vs-hou-'+G+'/play-by-play')]
+          def gh(api):
+           return json.loads(subprocess.check_output(['gh','api',api],stderr=subprocess.PIPE,timeout=40))
+          def sec(clock):
+           m=re.fullmatch(r'PT(?:(\d+)M)?(\d+(?:\.\d+)?)S',str(clock),re.I)
+           return float(m[1] or 0)*60+float(m[2]) if m else -9999
+          def utc_ms(raw):
+           try:return int(datetime.datetime.fromisoformat(str(raw).replace('Z','+00:00')).timestamp()*1000)
+           except:return None
+          def walk(obj):
+           if isinstance(obj,dict):
+            if isinstance(obj.get('actions'),list):yield obj['actions']
+            for v in obj.values():yield from walk(v)
+           elif isinstance(obj,list):
+            for v in obj:yield from walk(v)
+          actions=[]; src=None; errors=[]
+          for name,url in urls:
+           try:
+            req=urllib.request.Request(url,headers=h)
+            with urllib.request.urlopen(req,timeout=22) as r: raw=r.read(16000000).decode('utf-8','replace')
+            if name=='nba_html':
+             m=re.search(r'<script[^>]*id=["\']__NEXT_DATA__["\'][^>]*>(.*?)</script>',raw,re.I|re.S)
+             if not m:raise ValueError('html has no NextData')
+             data=json.loads(m.group(1))
+            else:data=json.loads(raw)
+            possible=[a for a in walk(data) if len(a)>=140]
+            if not possible:raise ValueError('no qualified actions arrays')
+            arr=max(possible,key=len)
+            if len([a for a in arr if a.get('period')==1])<20:raise ValueError('not enough Q1 actions')
+            actions=arr;src=name;break
+           except Exception as e:
+            errors.append(name+':'+type(e).__name__+':'+str(e)[:100])
+          print('OFFICIAL_PBP_STATUS',src or 'NOT_RETRIEVED','action_count',len(actions),flush=True)
+          for e in errors:print('PBP_SOURCE_FAILURE',e,flush=True)
+          def desc(a):return str(a.get('description') or '')
+          q1=[a for a in actions if a.get('period')==1]
+          q1.sort(key=lambda a:(-sec(a.get('clock')),a.get('orderNumber',a.get('actionNumber',0))))
+          nearby=[a for a in q1 if 55<=sec(a.get('clock'))<=130]
+          for a in nearby:
+           print('Q1_PBP',json.dumps({k:a.get(k) for k in ('actionNumber','clock','timeActual','playerName','personId','actionType','subType','description','blockPersonId','scoreHome','scoreAway')},ensure_ascii=False),flush=True)
+          def amen_block(a):
+           d=desc(a).lower()
+           return (('thompson' in d and 'block' in d) or str(a.get('blockPersonId',''))=='1641708' or ('thompson' in str(a.get('playerName','')).lower() and str(a.get('actionType','')).lower()=='block'))
+          qualifying=[a for a in q1 if amen_block(a) and abs(sec(a.get('clock'))-90)<=42]
+          print('AMEN_NEAR_Q1_BLOCKS',json.dumps([{k:a.get(k) for k in ('actionNumber','clock','timeActual','description','blockPersonId')} for a in qualifying]),flush=True)
+          chosen= min(qualifying,key=lambda a:abs(sec(a.get('clock'))-90)) if len(qualifying)==1 else None
+          if chosen and isinstance(chosen.get('actionNumber'),int):
+           print('EXACT_CLIPS_LINK','https://clips.nba.com/?gameNo='+G+'&eventNum='+str(chosen['actionNumber'])+'&source=grs',flush=True)
+          else:print('EXACT_CLIPS_LINK_NOT_VERIFIED',len(qualifying),flush=True)
+          anchor=utc_ms(chosen.get('timeActual')) if chosen else None
+          if chosen and anchor is None:
+           same=[a for a in q1 if utc_ms(a.get('timeActual')) is not None and abs(sec(a.get('clock'))-sec(chosen.get('clock')))<3]
+           if same:
+            closest=min(same,key=lambda a:abs(sec(a.get('clock'))-sec(chosen.get('clock'))))
+            anchor=utc_ms(closest.get('timeActual'))
+            print('EVENT_UTC_NEARBY_APPROX_NOT_EXACT',anchor,flush=True)
+          if chosen:print('EVENT_ANCHOR_UTC',anchor,flush=True)
+          path='repos/timeedmonds-maker/104/contents/'+PREFIX[:-1]+'?ref='+BR
+          files=gh(path)
+          metas=[v for v in files if v.get('name','').endswith('.json') and v.get('name','').startswith('realtime-')]
+          print('PRIVATE_LIVE_ARCHIVE_CENSUS',len(files),'files',len(metas),'metadata',flush=True)
+          observed=[]
+          if anchor is not None:
+           for f in metas:
+            m=re.search(r'realtime-'+G+r'-(\d{13})-',f['name'])
+            if m and abs(int(m[1])-anchor)<95000:observed.append((abs(int(m[1])-anchor),f))
+          else:
+           for f in metas:
+            m=re.search(r'realtime-'+G+r'-(\d{13})-',f['name'])
+            if m and 1794620700000<=int(m[1])<=1794621800000:observed.append((abs(int(m[1])-1794621200000),f))
+          observed.sort(key=lambda z:z[0]);observed=observed[:20]
+          receipts=[];frames={};read_errors=[]
+          for _,f in observed:
+           try:
+            meta_rec=gh('repos/timeedmonds-maker/104/contents/'+f['path']+'?ref='+BR)
+            meta=json.loads(base64.b64decode(meta_rec['content']))
+            receipts.append({k:meta.get(k) for k in ('original_blob_sha256','native_timestamps','player_timestamps','ball_timestamps','player_and_ball_timestamps','first_actual_sdk_http_response_at_utc','last_actual_sdk_http_response_at_utc')})
+            if anchor is None:continue
+            stem=f['path'][:-5]
+            blob=gh('repos/timeedmonds-maker/104/contents/'+stem+'.jsonl.gz?ref='+BR)
+            zipped=base64.b64decode(blob['content'])
+            if hashlib.sha256(zipped).hexdigest()!=meta['original_blob_sha256']:raise ValueError('source SHA mismatch')
+            for line in gzip.decompress(zipped).splitlines():
+             row=json.loads(line)
+             for ev in row.get('events',[]):
+              for fr in (ev.get('metadata') or {}).get('keyframes',[]):
+               t=fr.get('timestamp')
+               if not isinstance(t,int) or abs(t-anchor)>6000:continue
+               p=fr.get('positions') or {}
+               if not p:continue
+               entry=frames.setdefault(t,{'native_UTC_ms':t,'players':{},'ball':None,'upstream_interpolated_at_frame':fr.get('interpolated'),'source_sha256':meta['original_blob_sha256']})
+               for k,xyz in p.items():
+                if k=='ball':entry['ball']=xyz
+                else:entry['players'][str(k)]=xyz
+           except Exception as e:read_errors.append(f['name']+':'+type(e).__name__+':'+str(e)[:100])
+          frs=[frames[t] for t in sorted(frames)]
+          player_and_ball=sum(bool(z['players']) and z['ball'] is not None for z in frs)
+          print('NEAR_EVENT_SOURCE_QA',json.dumps({'anchor':anchor,'files_checked':len(observed),'original_sha_verified_frames':len(frs),'frames_player_and_ball':player_and_ball,'read_errors':read_errors},sort_keys=True),flush=True)
+          result={'schema':'igp.amen-uta-q1-block-original-xyz.v1','game_id':G,'event':{k:chosen.get(k) for k in ('actionNumber','clock','period','timeActual','description','blockPersonId','personId','scoreHome','scoreAway')} if chosen else None,'event_exact_utc_ms':utc_ms(chosen.get('timeActual')) if chosen else None,'frame_anchor_utc_ms':anchor,'official_pbp_source':src,'official_pbp_source_failures':errors,'archive_file_count':len(files),'source_metadata':receipts,'original_native_frames_event_plusminus_6sec':frs,'frames_with_player_and_ball':player_and_ball,'errors':read_errors,'remarks':['source original, no gap interpolation','timeActual represents NBA event timestamp, not independently measured physical ball contact','original XYZ retained with source IDs; official lineup and physical possession not certified']}
+          raw=(json.dumps(result,separators=(',',':'),ensure_ascii=False)+'\n').encode()
+          body={'branch':BR,'message':'qa: preserve Amen Jazz Q1 official event and original source-graded XYZ','content':base64.b64encode(raw).decode()}
+          api='repos/timeedmonds-maker/104/contents/'+TARGET
+          done=False
+          for i in range(5):
+           try:
+            old=gh(api+'?ref='+BR)
+            body['sha']=old['sha']
+           except Exception:body.pop('sha',None)
+           z=subprocess.run(['gh','api','-X','PUT',api,'--input','-'],input=json.dumps(body),text=True,capture_output=True,timeout=55)
+           if z.returncode==0:done=True;break
+           time.sleep(1+i)
+          print('PRIVATE_EVENT_QA_PUBLISHED',done,TARGET,flush=True)
+          if not done:print('PRIVATE_EVENT_QA_PUBLISH_FAILURE',z.stderr[-500:],flush=True)
+          if not src:raise SystemExit(2)
+          if not chosen:raise SystemExit(3)
+          if not done:raise SystemExit(4)
+          PY
