@@ -1,4 +1,4 @@
-name: Rockets Full174 v2b working free CPU probe
+name: Rockets Full174 v2b on-off original CPU
 on:
   push:
     branches:
@@ -6,11 +6,57 @@ on:
     paths:
       - .github/workflows/igp-full174-hou-v2b-onoff-private-cpu-20261115.yml
 jobs:
-  probe:
+  compute:
     runs-on: ubuntu-24.04
     steps:
-      - name: Check private token
+      - name: Private source model and lineup matching
         env:
           GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
         run: |
-          if test -n "${GH_TOKEN:-}"; then echo TOKEN_PRESENT; else echo TOKEN_MISSING; fi
+          set -euo pipefail
+          PRIVATE_REPO="timeedmonds-maker/104"
+          BRANCH="analysis/full174-rockets-v2b-onoff-shots-20261115"
+          PINNED="976a5b23719b20395163e8ebea4128875e83fb6a"
+          TREE="$RUNNER_TEMP/private-full174"
+          HIST="$RUNNER_TEMP/historical2025"
+          OUT="$RUNNER_TEMP/rockets-v2b"
+          mkdir -p "$HIST" "$OUT"
+          gh auth setup-git
+          git clone -q --depth=6 --filter=blob:none --sparse -b "$BRANCH" "https://github.com/$PRIVATE_REPO.git" "$TREE"
+          git -C "$TREE" checkout -q --detach "$PINNED"
+          git -C "$TREE" sparse-checkout set gamepulse/fusion gamepulse/third_party/courtsketch data/extensions/nba_blueprint_2026_27 data/extensions/nba_gravity_2026_27
+          test "$(git -C "$TREE" rev-parse HEAD)" = "$PINNED"
+          echo HOU_PRIVATE_FROZEN_SOURCE_VERIFIED
+          gh release download igp-public-gamepulse-2025-26-20261105 --repo "$PRIVATE_REPO" --dir "$HIST" --pattern nba-2025-26-source-index.json
+          gh release download igp-2025-26-xfg-archive-20261105 --repo "$PRIVATE_REPO" --dir "$HIST" --pattern 'nba-xfg-nba-2025-26-shard-*'
+          test "$(find "$HIST" -name 'nba-xfg-nba-2025-26-shard-*.jsonl.gz' | wc -l)" -eq 15
+          echo HOU_HISTORICAL_15_SHARDS_VERIFIED
+          set +e
+          (cd "$TREE" && python3 gamepulse/fusion/igp_full174_hou_player_onoff_v2b_20261115.py --root . --source-index "$HIST/nba-2025-26-source-index.json" --historical-dir "$HIST" --out "$OUT/rockets_full174_v2b_onoff.json") > "$OUT/private_model.log" 2>&1
+          code=$?
+          set -e
+          export CODE="$code" OUT BRANCH PRIVATE_REPO
+          python3 - <<'PY'
+          import base64,json,os,pathlib,subprocess,sys
+          out=pathlib.Path(os.environ['OUT'])
+          ok=(int(os.environ['CODE'])==0 and (out/'rockets_full174_v2b_onoff.json').exists())
+          if ok:
+              obj=json.loads((out/'rockets_full174_v2b_onoff.json').read_text())
+              print('HOU_V2B_RESULT_VALIDATED',obj.get('matched_with_oncourt_fga'),len(obj.get('player_rankings',[])))
+              name='rockets_full174_v2b_onoff.json'
+              raw=(out/name).read_bytes()
+          else:
+              name='failure.json'
+              raw=json.dumps({'status':'FAIL','returncode':os.environ['CODE'],
+                  'private_diagnostic_tail':(out/'private_model.log').read_text()[-8500:]}).encode()
+          url='repos/'+os.environ['PRIVATE_REPO']+'/contents/gamepulse/fusion/qa/pasq_full174_hou_onoff_v2b_20261115/'+name
+          existing=subprocess.run(['gh','api',url+'?ref='+os.environ['BRANCH']],capture_output=True,text=True)
+          req={'branch':os.environ['BRANCH'],'message':'qa(private): compute Houston Full174 v2b onoff '+name,
+               'content':base64.b64encode(raw).decode()}
+          if existing.returncode==0:req['sha']=json.loads(existing.stdout)['sha']
+          r=subprocess.run(['gh','api','-X','PUT',url,'--input','-'],
+              input=json.dumps(req),capture_output=True,text=True)
+          if r.returncode:raise RuntimeError('PRIVATE_QA_PUBLISH_FAILED_'+r.stderr[-500:])
+          print('HOU_PRIVATE_QA_COMMITTED',name)
+          if not ok:sys.exit(1)
+          PY
