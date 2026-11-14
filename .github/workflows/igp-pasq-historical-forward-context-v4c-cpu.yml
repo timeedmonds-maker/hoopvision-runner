@@ -18,7 +18,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/pasq-2025-26-historical-forward-context-test-20261114
-      SOURCE_COMMIT: 90989373ea04534ac7f1c51c792ae14e95601d21
+      SOURCE_COMMIT: e06c0a970bef8242bf186b73fd8d055aae1cc4e5
     steps:
       - name: Authenticate and SHA-pin Full174 original source code
         shell: bash
