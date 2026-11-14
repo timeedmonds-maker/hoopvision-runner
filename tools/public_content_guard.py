@@ -7,6 +7,9 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/nba-amen-uta-q1-exact-native-pbp-20261114.yml",  # official NBA public event lookup only; extracted source XYZ SHA-held solely in private 104, aggregate public logs
+    ".github/workflows/nba-amen-uta-q1-block-3d-physics-cpu-20261114.yml",  # reviewed 5Hz original game0039 source SHA-private 104, deterministic CPU scipy/matplotlib model, per-frame original remains private; only pass status public
+
     ".github/workflows/cpu-animate-v50-private-cdn-bridge.yml",  # reviewed private-auth GitHub-CDN-only ephemeral handoff, public runner never stores media or signed link in logs; delete temp data
 
     ".github/workflows/cpu-animate-e585-v40-private-cpu-rerun.yml",  # reviewed exact source SHA 0225/585, CPU/no GPU, original private video and XYZ ephemeral, only MP4+QA released back to private 104, no public artifact or raw source data
