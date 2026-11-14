@@ -106,3 +106,65 @@ jobs:
             sleep "$n"
           done
           exit 23
+
+  original-live-nine:
+    needs: official-companion-blueprint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Guard private original player-ball XYZ
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: SHA-read original live sources, deduplicate native timebase and materialize all nine privately
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone \
+            'gamepulse/fusion/live_original_20261114/**' \
+            'gamepulse/fusion/igp_extract_all_original_sdk_xyz_2026.py' \
+            'gamepulse/fusion/igp_0212_live_original_xyz_materialize_v1.py' \
+            'gamepulse/fusion/igp_nov14_nine_original_live_xyz_materialize_v1.py' \
+            'gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/index.json' \
+            'gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json'
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_nov14_nine_original_live_xyz_materialize_v1.py
+          python3 gamepulse/fusion/igp_nov14_nine_original_live_xyz_materialize_v1.py --root . > "$RUNNER_TEMP/native-private.log"
+          python3 - <<'PY'
+          import json, pathlib, hashlib
+          p=pathlib.Path('gamepulse/fusion/qa/igp_20261114/nov14_nine_original_live_xyz_sourcegraded_v1.json')
+          q=json.loads(p.read_bytes())
+          assert len(q['games'])==9
+          assert q['games_with_player_ball_source']>0
+          assert q['original_13_part_fullgame_certified'] is False
+          assert q['independent_physical_accuracy_certified'] is False
+          print('IGP_NOV14_PRIVATE_LIVE_XYZ_SOURCE_SHA_VERIFIED',
+                q['games_with_player_ball_source'],
+                q['total_original_native_timestamps'],
+                q['total_direct_original_player_and_ball_timestamps'],
+                hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f gamepulse/fusion/materialized/igp_nov14_nine_live_original_xyz_v1 \
+                     gamepulse/fusion/qa/igp_20261114/nov14_nine_original_live_xyz_sourcegraded_v1.json \
+                     gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json
+          git diff --cached --check
+          git commit -q -m "data(igp): preserve SHA-verified original nine-game live XYZ with source grades"
+          for n in 1 2 3 4 5 6; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || { git rebase --abort; echo IGP_NOV14_CONCURRENT_SOURCE_CHANGED_RETRY; exit 41; }
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo IGP_NOV14_SHA_VERIFIED_LIVE_XYZ_PRIVATE_COMMITTED; exit 0; fi
+            sleep "$n"
+          done
+          exit 23
