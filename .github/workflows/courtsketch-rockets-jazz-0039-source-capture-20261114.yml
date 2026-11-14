@@ -1,6 +1,6 @@
 # CourtSketch 0039: original game browser capture, exact HOU–UTA one CPU job.
 # Licensed NBA CourtSketch original source preserved only in private 104, no artificial XYZ.
-name: CourtSketch Capture Rockets Jazz 0039 original browser and SDK gap evidence
+name: CourtSketch 0039 original L0 source inventory and viewer gap diagnosis
 on:
   push:
     branches: [main]
@@ -11,7 +11,7 @@ concurrency:
   group: courtsketch-full160-0189-original-capture-repair-20261114
   cancel-in-progress: false
 jobs:
-  capture-and-reconstruct:
+  original-source-diagnostic:
     runs-on: ubuntu-24.04
     timeout-minutes: 95
     strategy:
@@ -40,116 +40,65 @@ jobs:
           case "$GID" in 0022600039) ;; *) exit 17;; esac
           gh auth setup-git
           echo "COURTSKETCH_BATCH_PRIVATE_CPU_BOUNDARY_OK game=$GID"
-      - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
-      - name: Install free CPU browser and deterministic parquet packages
+      - name: Read preserved SHA-original CourtSketch 0039 browser source
         shell: bash
         run: |
           set -euo pipefail
-          python3 -m pip install --quiet playwright==1.56.0 pyarrow==20.0.0
-          python3 -m playwright install --with-deps chromium > "$RUNNER_TEMP/courtsketch-chromium-install.txt" 2>&1
-          python3 -c "import playwright, pyarrow; assert pyarrow.__version__ == '20.0.0'"
-      - name: Load precisely-scoped private Full160 model and original game sources
-        shell: bash
-        run: |
-          set -euo pipefail
-          root="$RUNNER_TEMP/private"
-          git clone -q --no-checkout --depth=1 --filter=blob:none \
-            -b "$PRIVATE_REF" "https://github.com/$PRIVATE_REPO.git" "$root"
-          git -C "$root" sparse-checkout init --no-cone
-          git -C "$root" sparse-checkout set --no-cone \
-            '/gamepulse/third_party/courtsketch/*.py' \
-            '/gamepulse/fusion/*.py' \
-            "/gamepulse/fusion/official_pbp_timing/games/$GID.json" \
-            "/gamepulse/fusion/official_pbp_timing/original_nba_20261029/$GID/boxscore.json" \
-            '/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/post56_additive_20261028/index.json' \
-            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_fullx_v2_latest.json' \
-            '/gamepulse/fusion/qa/igp_fullx/shot_event_multiview_FULL160_dd9c934ae34e_v2.json' \
-            "/gamepulse/fusion/materialized/igp_2026_27_unified_season_v3/shot_event_multiview_fullx_v2/FULL154_a34448e3099c/shots/$GID.jsonl.gz"
-          git -C "$root" checkout -q "$PRIVATE_REF"
-          python3 -m py_compile "$root/gamepulse/third_party/courtsketch/courtsketch_capture_gap_0039_20261114.py"
+          root="$RUNNER_TEMP/courtsketch-0039-recovery"
+          mkdir -p "$root"
+          gh release download "$SOURCE_TAG" -R "$PRIVATE_REPO" \
+            --pattern 'manifest.json' --dir "$root"
+          gh release download "$SOURCE_TAG" -R "$PRIVATE_REPO" \
+            --pattern "courtsketch-$GID-original-browser-payloads.tar.gz" --dir "$root"
           python3 - <<'PY'
-          import os,pathlib
-          root=pathlib.Path(os.environ['RUNNER_TEMP'])
-          src=root/'private/gamepulse/third_party/courtsketch/courtsketch_capture_finalize_batch_v1.py'
-          body=src.read_text()
-          sentinel="'0022600189','0022600208'): raise ValueError('UNAPPROVED_COURTSKETCH_GAME')"
-          assert sentinel in body,'FROZEN_FINALIZER_SCOPE_CHANGED'
-          body=body.replace(sentinel,"'0022600189','0022600208','0022600039'): raise ValueError('UNAPPROVED_COURTSKETCH_GAME')")
-          body=body.replace("courtsketch-original-{GID}-20261112","courtsketch-original-{GID}-20261114")
-          (root/'courtsketch-finalize-0039.py').write_text(body)
+          import pathlib,json,hashlib,os,tarfile,io,collections,urllib.parse
+          r=pathlib.Path(os.environ['RUNNER_TEMP'])/'courtsketch-0039-recovery'
+          gid=os.environ['GID']
+          d=json.loads((r/'manifest.json').read_bytes())
+          p=r/f'courtsketch-{gid}-original-browser-payloads.tar.gz'
+          raw=p.read_bytes()
+          assert hashlib.sha256(raw).hexdigest()==d['private_archive_sha256']
+          index=[];bodies={}
+          with tarfile.open(fileobj=io.BytesIO(raw),mode='r:gz') as tar:
+            for mem in tar:
+              if not mem.isfile():continue
+              body=tar.extractfile(mem).read()
+              if mem.name.endswith('responses-index.json'):index=json.loads(body)
+              if '/responses/' in mem.name and mem.name.endswith(('.json','.bin')):
+                bodies[pathlib.PurePosixPath(mem.name).name]=body
+          assert len(index)==d['distinct_network_bodies']
+          records=[]
+          for row in index:
+            k=pathlib.PurePosixPath(row['file']).name
+            b=bodies[k]
+            assert hashlib.sha256(b).hexdigest()==row['sha256']
+            try:j=json.loads(b)
+            except Exception:j=None
+            if isinstance(j,dict):
+              shape={x:('list:'+str(len(y)) if isinstance(y,list) else 'object:'+str(len(y)) if isinstance(y,dict) else type(y).__name__) for x,y in j.items()}
+            elif isinstance(j,list):shape={'array_length':len(j)}
+            else:shape={'non_json':True}
+            url=urllib.parse.urlsplit(row['source_url'])
+            records.append({'source_path':url.path,'source_host':url.hostname,
+              'bytes':len(b),'json_type':type(j).__name__,'top_level_shape':shape,
+              'contains_game_id':gid.encode() in b,
+              'contains_t_players_ball':all(x in b for x in [b'"t"',b'"players"',b'"ball"'])})
+          output={'schema':'igp.courtsketch-0039-source-gap-diagnostic.v1','game_id':gid,
+            'original_l0_sha256':d['private_archive_sha256'],'source_count':len(records),
+            'capture_summary':{k:d.get(k) for k in
+               ['game_dropdown_selected','queue_built_attempted','next_play_requests',
+                'direct_play_hash_requests','viewer_showed_request_failed',
+                'viewer_showed_load_a_clip','errors','period_hints_from_json',
+                'observed_timestamp_positions_objects','websocket_frames_received']},
+            'responses':records,'certified_position_frames':0,'source_L1_accepted':False}
+          (r/'courtsketch_0039_original_source_diagnostic.json').write_text(json.dumps(output,indent=2,sort_keys=True)+'\n')
+          print('COURTSKETCH_0039_SOURCE_AVAILABILITY',json.dumps({
+            'responses':len(records),'game_id_found_in_responses':sum(x['contains_game_id'] for x in records),
+            'frame_payload_shapes':sum(x['contains_t_players_ball'] for x in records),
+            'viewer_404':d.get('viewer_showed_request_failed'),
+            'viewer_empty':d.get('viewer_showed_load_a_clip'),
+            'deep_link_selected':d.get('game_dropdown_selected'),
+            'source_paths':[x['source_path'] for x in records]},sort_keys=True))
           PY
-          python3 "$RUNNER_TEMP/courtsketch-finalize-0039.py" --self-test
-          test -s "$root/gamepulse/fusion/official_pbp_timing/games/$GID.json"
-          echo "COURTSKETCH_GAME_PROCESSORS_AND_NBA_PBP_READY game=$GID"
-      - name: Acquire entire game's observed CourtSketch viewer network responses once
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 "$RUNNER_TEMP/private/gamepulse/third_party/courtsketch/courtsketch_capture_gap_0039_20261114.py"
-          test -s "$RUNNER_TEMP/courtsketch-source-$GID/manifest.json"
-          test -s "$RUNNER_TEMP/courtsketch-$GID-original-browser-payloads.tar.gz"
-          python3 - <<'PY'
-          import os,json,hashlib,pathlib,urllib.parse
-          gid=os.environ["GID"]
-          r=pathlib.Path(os.environ["RUNNER_TEMP"])
-          a=r/f"courtsketch-{gid}-original-browser-payloads.tar.gz"
-          m=json.loads((r/f"courtsketch-source-{gid}"/"manifest.json").read_bytes())
-          assert m["game_id"]==gid and m["date_us"]=="2026-11-13"
-          assert m["private_archive_sha256"]==hashlib.sha256(a.read_bytes()).hexdigest()
-          assert m["json_bodies"]>=1 and m["distinct_network_bodies"]>=1
-          print("COURTSKETCH_BATCH_SOURCE_CAPTURE_SHA_VERIFIED",gid,
-                "network_responses",m["distinct_network_bodies"],
-                "source_bytes",m["network_payload_bytes"])
-          PY
-      - name: Save immutable original L0 capture in private 104 before any decode
-        shell: bash
-        run: |
-          set -euo pipefail
-          if ! gh release view "$SOURCE_TAG" -R "$PRIVATE_REPO" >/dev/null 2>&1; then
-            gh release create "$SOURCE_TAG" -R "$PRIVATE_REPO" --target "$PRIVATE_REF" \
-              --title "CourtSketch Capture $GID original source L0" \
-              --notes "Original browser-observed network responses only, SHA manifest; capture completeness is not presumed." >/dev/null
-          fi
-          gh release upload "$SOURCE_TAG" \
-            "$RUNNER_TEMP/courtsketch-$GID-original-browser-payloads.tar.gz" \
-            "$RUNNER_TEMP/courtsketch-source-$GID/manifest.json" \
-            -R "$PRIVATE_REPO" >/dev/null
-          echo "COURTSKETCH_ORIGINAL_L0_PRIVATE_RELEASE_SAVED game=$GID"
-      - name: Verify original frame payloads and deduplicate to native 5 Hz L1/L2
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/courtsketch-$GID-native"
-          python3 "$RUNNER_TEMP/courtsketch-finalize-0039.py" \
-            --source-archive "$RUNNER_TEMP/courtsketch-$GID-original-browser-payloads.tar.gz" \
-            --manifest "$RUNNER_TEMP/courtsketch-source-$GID/manifest.json" \
-            --official-pbp "$RUNNER_TEMP/private/gamepulse/fusion/official_pbp_timing/games/$GID.json" \
-            --output-dir "$RUNNER_TEMP/courtsketch-$GID-native" --parquet
-          python3 - <<'PY'
-          import os,json,pathlib,hashlib
-          gid=os.environ["GID"]; root=pathlib.Path(os.environ["RUNNER_TEMP"])/f"courtsketch-{gid}-native"
-          qa=json.loads((root/f"courtsketch_{gid}_QA_final.json").read_bytes())
-          assert qa["game_id"]==gid
-          assert qa["acceptance"]["source_original_sha_verified"]
-          assert qa["all_capture_response_files_sha_verified"]>=1
-          assert qa["acceptance"]["no_interpolation_or_reconstruction"]
-          for filename,entry in qa["l1_l2_files"].items():
-            assert hashlib.sha256((root/filename).read_bytes()).hexdigest()==entry["sha256"],filename
-          print("COURTSKETCH_NATIVE_L1_AUDIT",gid,
-                "source",qa["dedup"]["source_unique_native_timestamps"],
-                "10plusball",qa["dedup"]["unique_ten_plus_ball_3d_candidates"],
-                "periods",sum(qa["per_period"][str(q)]["unique_timestamps"]>0 for q in range(1,5)),
-                "accepted",qa["acceptance"]["l1_source_query_acceptance"])
-          PY
-          gh release upload "$SOURCE_TAG" "$RUNNER_TEMP/courtsketch-$GID-native/"* \
-            -R "$PRIVATE_REPO" >/dev/null
-          python3 - <<'PY'
-          import os,json,pathlib
-          gid=os.environ["GID"]
-          qa=json.loads((pathlib.Path(os.environ["RUNNER_TEMP"])/f"courtsketch-{gid}-native"/f"courtsketch_{gid}_QA_final.json").read_bytes())
-          assert qa["acceptance"]["l1_source_query_acceptance"],"GAME_ORIGINAL_SOURCE_QUARANTINED_NOT_PROMOTED"
-          assert qa["acceptance"]["all_four_periods_have_source_positions"]
-          assert qa["timebase"]["mode"]=="UTC_MS"
-          print("COURTSKETCH_NATIVE_PRIVATE_SOURCE_ACCEPTED",gid)
-          PY
+          gh release upload "$SOURCE_TAG" "$root/courtsketch_0039_original_source_diagnostic.json" -R "$PRIVATE_REPO" >/dev/null
+          echo COURTSKETCH_0039_SHA_ORIGINAL_L0_DIAGNOSTIC_PRIVATE_PRESERVED
