@@ -1,0 +1,63 @@
+name: Amen Jazz Q1 physics block height - SHA private 3D CPU
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/nba-amen-uta-q1-block-3d-physics-cpu-20261114.yml']
+  workflow_dispatch:
+permissions: {contents: read}
+jobs:
+  execute:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify privacy boundary, source destination and no paid GPU
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          test "$(gh api repos/timeedmonds-maker/104 --jq .private)" = true
+      - name: Install deterministic scientific CPU runtime
+        run: |
+          python3 -m pip install --quiet --break-system-packages 'numpy>=1.24,<3' 'scipy>=1.10,<2' 'matplotlib>=3.6,<4'
+      - name: Run private original 3D physics model and commit QA outputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh auth setup-git
+          git clone -q --depth 1 --single-branch --branch "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/source"
+          cd "$RUNNER_TEMP/source"
+          input="gamepulse/fusion/qa/igp_20261114/amen_uta_q1_block_original_xyz_v1.json"
+          destination="gamepulse/fusion/qa/igp_20261114"
+          test -s "$input"
+          python3 gamepulse/fusion/analysis/amen_block_ball_contact_v1.py "$input" "$destination" > "$RUNNER_TEMP/qa-status-private.txt"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          d=json.loads(Path('gamepulse/fusion/qa/igp_20261114/amen_block_contact_model_v1.json').read_text())
+          assert d['official_action_number']==157 and d['source_ball_frames']==59
+          assert d['source_native_frames']==59 and d['interpolated_flags_all_false']
+          assert d['impact_hypotheses']['alternative_sse_divided_by_selected']>1
+          assert 10<d['estimated_ball_centre_height_ft']<13
+          assert Path('gamepulse/fusion/qa/igp_20261114/amen_block_contact_model_v1.png').stat().st_size>20000
+          print('AMEN_BLOCK_3D_MODEL_PRIVATE_QA_PASS')
+          PY
+          git config user.name github-actions\[bot\]
+          git config user.email 41898282+github-actions\[bot\]@users.noreply.github.com
+          git add "$destination/amen_block_contact_model_v1.json" "$destination/amen_block_contact_model_v1.png"
+          git diff --cached --check
+          git commit -qm "qa: original 5Hz 3D ballistic impact height fit Amen block Utah Q1" || true
+          for attempt in 1 2 3 4 5 6; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || exit 3
+            if git push -q origin HEAD:"$BRANCH"; then
+              echo 'AMEN_BLOCK_3D_MODEL_PRIVATE_SOURCE_ACCEPTED'
+              exit 0
+            fi
+            sleep "$attempt"
+          done
+          exit 4
