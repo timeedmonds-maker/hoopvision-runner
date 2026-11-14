@@ -21,7 +21,6 @@ jobs:
             f'https://cdn.nba.com/static/json/liveData/playbyplay/playbyplay_{gid}.json',
             f'https://cdn.nba.com/static/json/liveData/boxscore/boxscore_{gid}.json',
             f'https://stats.gleague.nba.com/stats/playbyplayv3?GameID={gid}&StartPeriod=0&EndPeriod=0',
-            f'https://stats.nba.com/stats/playbyplayv3?GameID={gid}&StartPeriod=0&EndPeriod=0',
             f'https://stats.gleague.nba.com/stats/boxscoretraditionalv3?GameID={gid}&StartPeriod=0&EndPeriod=0'
           ]
           results=[]
@@ -43,17 +42,17 @@ jobs:
             for a in acts:
               desc=str(a.get('description',''))
               if a.get('personId')==sgid or a.get('assistPersonId')==sgid or 'Sengun' in desc or 'Şengün' in desc or 'Şengün' in json.dumps(a,ensure_ascii=False):
-                focal.append({k:a.get(k) for k in ('actionNumber','period','clock','actionType','subType','description','personId','assistPersonId','teamTricode','shotResult','isFieldGoal','scoreHome','scoreAway','pointsTotal')})
+                focal.append({k:a.get(k) for k in ('actionNumber','period','clock','actionType','subType','description','personId','assistPersonId','teamTricode','shotResult','isFieldGoal','scoreHome','scoreAway','pointsTotal','videoAvailable')})
             print('IGP0039_SENGUN_EVENT_COUNT',len(focal),flush=True)
             for a in focal:
               print('IGP0039_EVENT',json.dumps(a,ensure_ascii=False),flush=True)
             probe=[]
             for a in focal:
               typ=(a.get('actionType') or '').lower()
-              if typ in ('2pt','3pt','freethrow') or a.get('assistPersonId')==sgid:
+              if typ in ('made shot','missed shot','free throw') or ('Sengun' in str(a.get('description')) and ' AST)' in str(a.get('description'))):
                 probe.append(a['actionNumber'])
             probe=list(dict.fromkeys(v for v in probe if isinstance(v,int)))
-            test=probe[:5]+probe[-3:]
+            test=[11,13,19,52,62,101,209,220,246,254,412,431,455,459,472,493,507,517,610,643,674,708]
             for num in dict.fromkeys(test):
               url=f'https://clips.nba.com/?gameNo={gid}&eventNum={num}&source=grs'
               try:
@@ -61,7 +60,7 @@ jobs:
                 with urllib.request.urlopen(req,timeout=22) as resp: body=resp.read(100000).decode('utf8','replace'); status=resp.status
                 unav='No video clip available' in body
                 video=bool(re.search(r'<video|\\.m3u8|\\.mp4',body,re.I))
-                print('IGP0039_CLIP_CHECK',json.dumps({'actionNumber':num,'url':url,'http':status,'not_available_message':unav,'video_tag_or_url':video,'size_read':len(body)}),flush=True)
+                print('IGP0039_CLIP_CHECK',json.dumps({'actionNumber':num,'url':url,'http':status,'not_available_message':unav,'video_tag_or_url':video,'size_read':len(body),'sample':body[:180].replace('\\n',' ')}),flush=True)
               except Exception as e:print('IGP0039_CLIP_CHECK_ERROR',json.dumps({'actionNumber':num,'error':str(e)[:180]}),flush=True)
           else:
             print('IGP0039_NO_OFFICIAL_PBP_RESPONSE',flush=True)
