@@ -36,8 +36,11 @@ jobs:
           print("PRIVATE_REPO_CHECK_BYTES",repr(raw[:40]))
           assert json.loads(raw.decode()) is True,"REPO_IS_NOT_PRIVATE_FOR_GIVEN_TOKEN"
           PY_CHECK
-          command -v ffmpeg
-          command -v ffprobe
+          if ! command -v ffmpeg >/dev/null || ! command -v ffprobe >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -qq -y ffmpeg >/dev/null
+          fi
+          echo PRIVATE_REPO_AND_CPU_MEDIA_TOOLS_READY
       - name: Verify both official NBA events, acquire all actual camera options, and SHA archive privately
         shell: bash
         run: |
