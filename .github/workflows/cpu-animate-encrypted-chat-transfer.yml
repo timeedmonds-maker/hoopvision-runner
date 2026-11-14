@@ -1,6 +1,6 @@
 # Encrypted GitHub Actions artifact: AES-256-GCM ciphertext ONLY.
 # Original private NBA video and AES key never appear in public artifact or logs.
-name: CPU Animate V50 private MP4 encrypted chat attachment transport
+name: CPU Animate V55 private source inputs encrypted transport
 on:
   push:
     branches: [main]
@@ -9,7 +9,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: cpu-animate-v50-private-mp4-chat-transport
+  group: cpu-animate-v55-private-mp4-chat-transport
   cancel-in-progress: false
 jobs:
   encrypted-chat-transport:
@@ -30,7 +30,7 @@ jobs:
           from tools.public_content_guard import scan
           path='.github/workflows/cpu-animate-encrypted-chat-transfer.yml'
           assert not scan([path]), 'PUBLIC_CONTENT_GUARD_REJECTED'
-          print('CPU_ANIMATE_V50_AES256_GCM_CIPHERTEXT_ONLY_BRIDGE_GUARD_PASS')
+          print('CPU_ANIMATE_V55_AES256_GCM_CIPHERTEXT_ONLY_BRIDGE_GUARD_PASS')
           PY
           test ! -e /dev/nvidia0 && test ! -e /dev/kfd
           test -n "${GH_TOKEN:-}"
@@ -45,32 +45,49 @@ jobs:
           ROOT="$(mktemp -d)"
           chmod 700 "$ROOT"
           export CPU_TRANSFER_PRIVATE_TEMP="$ROOT"
-          export CPU_TRANSFER_TAG="cpu-animate-v50-private-chat-transfer-key-${GITHUB_RUN_ID}"
-          export CPU_TRANSFER_CIPHERTEXT_DIR="$RUNNER_TEMP/cpuanimate-v50-encrypted"
+          export CPU_TRANSFER_TAG="cpu-animate-v55-private-chat-transfer-key-${GITHUB_RUN_ID}"
+          export CPU_TRANSFER_CIPHERTEXT_DIR="$RUNNER_TEMP/cpuanimate-v55-encrypted"
           mkdir -p "$CPU_TRANSFER_CIPHERTEXT_DIR"
           chmod 700 "$CPU_TRANSFER_CIPHERTEXT_DIR"
           trap 'rm -rf "$ROOT"' EXIT
-          gh release download cpu-animate-0225-e585-v50-native-highball-catch-cpu-review-20261113 \
-            --repo timeedmonds-maker/104 --dir "$ROOT" \
-            --pattern '0022600225_E585_HOU31_SENGUN28_AMEN1_V50_NATIVE_BALL_CATCH_FOOTLOCK.mp4'
+          gh release download cpu-animate-0022600225-event585-playbyplay-v20-source-20261112 \
+            --repo timeedmonds-maker/104 --dir "$ROOT" --pattern 'event585-playbyplay.mp4'
+          gh release download cpu-animate-rockets-0225-e585-v21-source-shoe-scout-20261112 \
+            --repo timeedmonds-maker/104 --dir "$ROOT" --pattern '*.json' --pattern '*.json.gz'
           python3 - <<'PY'
           import hashlib,json,os,pathlib,secrets,subprocess
           from cryptography.hazmat.primitives.ciphers.aead import AESGCM
           root=pathlib.Path(os.environ['CPU_TRANSFER_PRIVATE_TEMP'])
-          mp4=root/'0022600225_E585_HOU31_SENGUN28_AMEN1_V50_NATIVE_BALL_CATCH_FOOTLOCK.mp4'
+          import zipfile
+          if hashlib.sha256((root/'event585-playbyplay.mp4').read_bytes()).hexdigest() != '06e5de702b58545799c7bbb678878e04da092fdec3f0ee98e97b3b65f552a234':
+              raise RuntimeError('ORIGINAL_SOURCE_SHA_MISMATCH')
+          ref='df56665c9301020d4658753dc0d8fe54be6c91d3'
+          folder='gamepulse/fusion/materialized/igp_0022600225_full160_additive_v1'
+          paths=[folder+'/guarded-p2b-event-actor-s1-10hz-shadow-v3.jsonl.gz',folder+'/index.json']
+          paths += [folder+f'/original-native-{i:05d}.jsonl.gz' for i in range(17)]
+          paths += ['gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json']
+          for path in paths:
+              result=subprocess.run(['gh','api','-H','Accept: application/vnd.github.raw+json','repos/timeedmonds-maker/104/contents/'+path+'?ref='+ref],capture_output=True,timeout=90)
+              if result.returncode: raise RuntimeError('PINNED_INPUT_RETRIEVAL_FAILED')
+              dest=root/path;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(result.stdout)
+          guarded=(root/folder/'guarded-p2b-event-actor-s1-10hz-shadow-v3.jsonl.gz').read_bytes()
+          gitsha=hashlib.sha1(b'blob '+str(len(guarded)).encode()+b'\0'+guarded).hexdigest()
+          if gitsha!='b263c5384ce5424c8c3373d04916be5663c6c663':raise RuntimeError('GUARDED_BLOB_SHA_MISMATCH')
+          mp4=root/'v55_source_inputs.zip'
+          with zipfile.ZipFile(mp4,'w',zipfile.ZIP_DEFLATED) as z:
+              for item in sorted(root.rglob('*')):
+                  if item.is_file() and item!=mp4:z.write(item,item.relative_to(root))
           data=mp4.read_bytes()
-          expected_sha='9cba2662bc4d208a0c60ec25bb75fc9bd4320b1f27d5dfc9c23cb513ced392eb'
-          if len(data)!=9323525 or hashlib.sha256(data).hexdigest()!=expected_sha:
-              raise RuntimeError('V50_ORIGINAL_MP4_SHA256_OR_SIZE_MISMATCH')
+          expected_sha=hashlib.sha256(data).hexdigest()
           key=secrets.token_bytes(32)
           nonce=secrets.token_bytes(12)
-          aad=b'CPU_ANIMATE_V50_0022600225_EVENT585_PRIVATE_MP4_CHAT_TRANSFER_V1'
+          aad=b'CPU_ANIMATE_V55_0022600225_EVENT585_PRIVATE_MP4_CHAT_TRANSFER_V1'
           encrypted=nonce+AESGCM(key).encrypt(nonce,data,aad)
-          dest=pathlib.Path(os.environ['CPU_TRANSFER_CIPHERTEXT_DIR'])/'CPU_ANIMATE_V50_585_MP4_Encrypted.aesgcm'
+          dest=pathlib.Path(os.environ['CPU_TRANSFER_CIPHERTEXT_DIR'])/'CPU_ANIMATE_V55_585_MP4_Encrypted.aesgcm'
           dest.write_bytes(encrypted)
           os.chmod(dest,0o600)
           report={
-              'schema':'cpu-animate.private-chat-transport-aes256gcm.v50',
+              'schema':'cpu-animate.private-chat-transport-aes256gcm.v55',
               'secret_key_hex':key.hex(),
               'authenticated_associated_data_utf8':aad.decode(),
               'nonce_location':'first_12_bytes_of_artifact',
@@ -85,30 +102,30 @@ jobs:
           note.write_text(json.dumps(report,indent=2))
           cmd=['gh','release','create',os.environ['CPU_TRANSFER_TAG'],
                '--repo','timeedmonds-maker/104',
-               '--title','Private V50 ChatGPT AES256-GCM transport key',
+               '--title','Private V55 ChatGPT AES256-GCM transport key',
                '--notes-file',str(note),'--latest=false']
           process=subprocess.run(cmd,capture_output=True,text=True,timeout=60)
           if process.returncode:
               raise RuntimeError('PRIVATE_ENCRYPTION_KEY_RELEASE_CREATION_FAILED')
           note.unlink()
-          print('V50_ORIGINAL_MP4_HASH_VERIFIED')
-          print('V50_AES256_GCM_KEY_SAVED_PRIVATE')
-          print('V50_PUBLIC_ARTIFACT_CONTAINS_CIPHERTEXT_ONLY')
+          print('V55_ORIGINAL_MP4_HASH_VERIFIED')
+          print('V55_AES256_GCM_KEY_SAVED_PRIVATE')
+          print('V55_PUBLIC_ARTIFACT_CONTAINS_CIPHERTEXT_ONLY')
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: cpu-animate-v50-private-mp4-aesgcm-${{ github.run_id }}
-          path: ${{ runner.temp }}/cpuanimate-v50-encrypted/CPU_ANIMATE_V50_585_MP4_Encrypted.aesgcm
+          name: cpu-animate-v55-private-mp4-aesgcm-${{ github.run_id }}
+          path: ${{ runner.temp }}/cpuanimate-v55-encrypted/CPU_ANIMATE_V55_585_MP4_Encrypted.aesgcm
           retention-days: 1
           if-no-files-found: error
       - name: Verify only encrypted file can be exported publicly
         shell: bash
         run: |
           set -euo pipefail
-          test ! -e 0022600225_E585_HOU31_SENGUN28_AMEN1_V50_NATIVE_BALL_CATCH_FOOTLOCK.mp4
-          test "$(find "$RUNNER_TEMP/cpuanimate-v50-encrypted" -maxdepth 1 -type f | wc -l)" = 1
-          echo 'V50_CIPHERTEXT_ONLY_ARTIFACT_COMPLETE'
+          test ! -e 0022600225_E585_HOU31_SENGUN28_AMEN1_V55_NATIVE_BALL_CATCH_FOOTLOCK.mp4
+          test "$(find "$RUNNER_TEMP/cpuanimate-v55-encrypted" -maxdepth 1 -type f | wc -l)" = 1
+          echo 'V55_CIPHERTEXT_ONLY_ARTIFACT_COMPLETE'
       - name: Delete transient encrypted transport bytes
         if: always()
         shell: bash
-        run: rm -rf "$RUNNER_TEMP/cpuanimate-v50-encrypted"
+        run: rm -rf "$RUNNER_TEMP/cpuanimate-v55-encrypted"
