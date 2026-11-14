@@ -12,6 +12,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   build-source-graded-release:
+    if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
@@ -95,6 +96,91 @@ jobs:
               echo IGP_FULL183_SOURCEGRADED_PRODUCTION_RELEASE_COMMITTED
               exit 0
             fi
+            sleep "$n"
+          done
+          exit 23
+
+  nov15-source-original-shot-geometry-l2:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 80
+    env:
+      GH_TOKEN: ${{ secrets.GAMEPULSE_PRIVATE_RELEASE_TOKEN }}
+      BRANCH: research/gamepulse-clock-boundary-integrity-20261025
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - name: Verify free CPU and source isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/public_content_guard.py
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+      - name: Clone nine NBA original official PBP and immutable Full183 QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone -q --filter=blob:none --depth=1 --sparse -b "$BRANCH" https://github.com/timeedmonds-maker/104.git "$RUNNER_TEMP/private"
+          pats=(
+            '/gamepulse/fusion/igp_full183_nov15_original_shot_geometry_l2_v1.py'
+            '/gamepulse/fusion/igp_full183_source_default_v1.py'
+            '/gamepulse/fusion/igp_full174_source_default_v1.py'
+            '/gamepulse/fusion/materialized/igp_full174_unified_source_default_v1/index.json'
+            '/gamepulse/fusion/materialized/igp_full183_unified_source_default_v2/index.json'
+            '/gamepulse/fusion/materialized/igp_full183_unified_source_default_v2/qa.json'
+          )
+          for n in $(seq 34 42); do
+            gid=$(printf '002260%04d' "$n")
+            pats+=("/gamepulse/fusion/official_pbp_timing/games/$gid.json")
+            pats+=("/gamepulse/fusion/official_pbp_timing/original_nba_20261029/$gid/playbyplay.json")
+          done
+          git -C "$RUNNER_TEMP/private" sparse-checkout set --no-cone "${pats[@]}"
+          cd "$RUNNER_TEMP/private"
+          export PYTHONPATH=gamepulse/fusion
+          python3 -m py_compile gamepulse/fusion/igp_full183_nov15_original_shot_geometry_l2_v1.py \
+             gamepulse/fusion/igp_full183_source_default_v1.py
+          python3 gamepulse/fusion/igp_full183_nov15_original_shot_geometry_l2_v1.py --root .
+          python3 - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          import igp_full183_source_default_v1 as reader
+          root=Path(".")
+          out=Path('gamepulse/fusion/materialized/igp_full183_original_nba_shot_geometry_l2_v1')
+          m=json.loads((out/'index.json').read_bytes())
+          qa=json.loads((out/'qa.json').read_bytes())
+          assert qa['status']=='PASS_ORIGINAL_NBA_SOURCE_1612_SHOTS'
+          assert m['totals']['official_FGA']==m['totals']['original_xy_shots']==1612
+          assert m['totals']['original_distance_shots']==1612
+          assert m['totals']['original_legacy_xy_shots']==1609
+          v2=json.loads(Path('gamepulse/fusion/materialized/igp_full183_unified_source_default_v2/index.json').read_bytes())
+          n=0
+          for gid,rec in v2['additive_game_records'].items():
+            x=reader._official_shot_geometry(root,rec,limit=1000)
+            assert x['total_matching']==rec['official_FGA']==len(x['rows'])
+            assert all(z['coordinates_are_direct_nba_source'] and
+                       z['provider_published_xfg'] is None and
+                       z['nba_original_shot_distance_feet'] is not None for z in x['rows'])
+            n+=x['total_matching']
+          assert n==1612
+          print('FULL183_ORIGINAL_NBA_SHOT_GEOMETRY_READER_PASS',n,m['totals']['original_legacy_xy_shots'],
+                hashlib.sha256((out/'index.json').read_bytes()).hexdigest())
+          PY
+      - name: Release only additional private NBA original per-shot geometry L2
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/private"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --sparse -f gamepulse/fusion/materialized/igp_full183_original_nba_shot_geometry_l2_v1
+          git diff --cached --check
+          if git diff --cached --quiet; then echo FULL183_SHOT_GEOMETRY_ALREADY_SOURCE_ACCEPTED; exit 0; fi
+          git commit -q -m "data(igp): source SHA-verified 1612 official NBA FGA locations and distance in immutable Full183 L2"
+          for n in 1 2 3 4 5 6 7 8; do
+            git fetch -q origin "$BRANCH"
+            git rebase -q "origin/$BRANCH" || { git rebase --abort; echo FULL183_GEOMETRY_CONCURRENT_SOURCE_CHANGED_RETRY; exit 41; }
+            if git push -q origin "HEAD:refs/heads/$BRANCH"; then echo FULL183_ORIGINAL_NBA_GEOMETRY_SHA_PRIVATE_ACCEPTED; exit 0; fi
             sleep "$n"
           done
           exit 23
