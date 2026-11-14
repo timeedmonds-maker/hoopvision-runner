@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 ALLOWED_STATIC = {
+    ".github/workflows/nba-block-height-full-season-source-cpu-20261114.yml",  # reviewed CPU-only 2026-27 SHA-private source ball-XYZ scan; public log aggregate counts only, no source coordinates/artifacts
     ".github/workflows/courtsketch-rockets-jazz-0039-source-capture-20261114.yml",  # reviewed exact-game 0039 CourtSketch browser L0 and deterministic L1 SHA provenance, all original/private player data held solely in private 104
     ".github/workflows/igp-rockets-0039-final-all-layers-20261114.yml",  # exact-game 0039 only; CPU original NBA PBP/companion/Blueprint and guarded native QA; licensed source retained in private 104
     ".github/workflows/nba-amen-jazz157-official-multiangle-20261114.yml",  # official NBA 0039 blocked shot multi-camera availability and ephemeral HLS retrieval; source video retained private
