@@ -18,7 +18,7 @@ jobs:
       GIT_TERMINAL_PROMPT: '0'
       PRIVATE_REPO: timeedmonds-maker/104
       SOURCE_BRANCH: analysis/pasq-two-dimensional-action-conditional-v6-20261114
-      SOURCE_COMMIT: 04cd43ab1667003efdff27a27b4f433c3174a855
+      SOURCE_COMMIT: e3cdcb09ce6a33566ad1e745da8edeeddf43bd73
     steps:
       - name: Authenticate and SHA-pin Full174 original source code
         shell: bash
