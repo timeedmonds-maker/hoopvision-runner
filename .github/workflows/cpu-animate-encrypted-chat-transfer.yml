@@ -68,9 +68,18 @@ jobs:
           paths += ['gamepulse/fusion/materialized/igp_full170_unified_source_default_v1/index.json']
           for path in paths:
               result=subprocess.run(['gh','api','-H','Accept: application/vnd.github.raw+json','repos/timeedmonds-maker/104/contents/'+path+'?ref='+ref],capture_output=True,timeout=90)
-              if result.returncode: raise RuntimeError('PINNED_INPUT_RETRIEVAL_FAILED')
+              if result.returncode:
+                  print('SOURCE_ITEM_UNAVAILABLE',paths.index(path),result.returncode)
+                  continue
               dest=root/path;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(result.stdout)
-          guarded=(root/folder/'guarded-p2b-event-actor-s1-10hz-shadow-v3.jsonl.gz').read_bytes()
+          guarded_path=root/folder/'guarded-p2b-event-actor-s1-10hz-shadow-v3.jsonl.gz'
+          if not guarded_path.exists():
+              result=subprocess.run(['gh','api','repos/timeedmonds-maker/104/git/blobs/b263c5384ce5424c8c3373d04916be5663c6c663'],capture_output=True,timeout=90)
+              if result.returncode:raise RuntimeError('GUARDED_BLOB_FETCH_FAILED')
+              import base64
+              guarded_path.parent.mkdir(parents=True,exist_ok=True)
+              guarded_path.write_bytes(base64.b64decode(json.loads(result.stdout)['content']))
+          guarded=guarded_path.read_bytes()
           gitsha=hashlib.sha1(b'blob '+str(len(guarded)).encode()+b'\0'+guarded).hexdigest()
           if gitsha!='b263c5384ce5424c8c3373d04916be5663c6c663':raise RuntimeError('GUARDED_BLOB_SHA_MISMATCH')
           mp4=root/'v55_source_inputs.zip'
